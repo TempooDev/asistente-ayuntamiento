@@ -50,6 +50,19 @@ builder.Services
         options.TokenValidationParameters.NameClaimType = "name";
         options.TokenValidationParameters.RoleClaimType =
             "https://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+            
+        options.Events = new OpenIdConnectEvents
+        {
+            OnRedirectToIdentityProvider = context =>
+            {
+                var audience = builder.Configuration["Auth0:Audience"];
+                if (!string.IsNullOrEmpty(audience))
+                {
+                    context.ProtocolMessage.SetParameter("audience", audience);
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();

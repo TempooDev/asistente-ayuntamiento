@@ -98,6 +98,9 @@ dotnet user-secrets set "Parameters:auth0-client-id"     "tu-client-id" \
 dotnet user-secrets set "Parameters:auth0-client-secret" "tu-client-secret" \
   --project src/AsistenteAyuntamiento.AppHost
 
+dotnet user-secrets set "Parameters:auth0-audience" "tu-api-audience" \
+  --project src/AsistenteAyuntamiento.AppHost
+
 # ── Cloudflare R2 (opcional en dev — sin esto se usa Azurite automáticamente) ──
 dotnet user-secrets set "Parameters:blob-endpoint"          "https://<accountId>.r2.cloudflarestorage.com" \
   --project src/AsistenteAyuntamiento.AppHost

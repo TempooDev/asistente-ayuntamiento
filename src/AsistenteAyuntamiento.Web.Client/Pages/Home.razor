@@ -1,7 +1,168 @@
 @page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@rendermode InteractiveAuto
+@implements IAsyncDisposable
+@inject HubConnection Hub
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Chat - Asistente Ayuntamiento</PageTitle>
 
-<h1>Hello, world!</h1>
+<AuthorizeView>
+    <Authorized>
+        <div class="chat-container">
+            <div class="messages">
+                @foreach (var msg in _messages)
+                {
+                    <div class="message @(msg.IsUser ? "user" : "assistant")">
+                        <strong>@(msg.IsUser ? "Tú" : "Asistente"):</strong>
+                        <p>@msg.Text</p>
+                        @if (msg.Sources.Any())
+                        {
+                            <div class="sources">
+                                <small>Fuentes:</small>
+                                <ul>
+                                    @foreach (var source in msg.Sources)
+                                    {
+                                        <li><a href="@source.Url" target="_blank">@source.Title</a></li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+                
+                @if (_isReceiving)
+                {
+                    <div class="message assistant streaming">
+                        <strong>Asistente:</strong>
+                        <p>@_currentStreamingMessage</p>
+                        @if (_currentSources.Any())
+                        {
+                            <div class="sources">
+                                <small>Fuentes:</small>
+                                <ul>
+                                    @foreach (var source in _currentSources)
+                                    {
+                                        <li><a href="@source.Url" target="_blank">@source.Title</a></li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
 
-Welcome to your new app.
+            <div class="input-area">
+                <input @bind="_newMessage" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Escribe tu mensaje..." disabled="@_isReceiving" />
+                <button @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(_newMessage) || _isReceiving)">Enviar</button>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <p>Por favor, inicia sesión para usar el chat.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<ChatMessage> _messages = new();
+    private string _newMessage = "";
+    private bool _isReceiving = false;
+    
+    private string _currentStreamingMessage = "";
+    private List<SourceDto> _currentSources = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Hub.On<JsonElement[]>("ReceiveSources", sourcesJson =>
+        {
+            _currentSources.Clear();
+            foreach (var element in sourcesJson)
+            {
+                var title = element.GetProperty("title").GetString() ?? "Unknown";
+                var url = element.GetProperty("url").GetString() ?? "#";
+                _currentSources.Add(new SourceDto(title, url));
+            }
+            StateHasChanged();
+        });
+
+        try
+        {
+            await Hub.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting SignalR connection: {ex.Message}");
+        }
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_newMessage) && !_isReceiving)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_newMessage) || Hub.State != HubConnectionState.Connected)
+            return;
+
+        var userMessageText = _newMessage;
+        _newMessage = "";
+        
+        _messages.Add(new ChatMessage { IsUser = true, Text = userMessageText });
+        
+        _isReceiving = true;
+        _currentStreamingMessage = "";
+        _currentSources.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var stream = Hub.StreamAsync<string>("StreamChat", userMessageText);
+            
+            await foreach (var chunk in stream)
+            {
+                _currentStreamingMessage += chunk;
+                StateHasChanged();
+            }
+
+            _messages.Add(new ChatMessage 
+            { 
+                IsUser = false, 
+                Text = _currentStreamingMessage, 
+                Sources = _currentSources.ToList() 
+            });
+        }
+        catch (Exception ex)
+        {
+            _messages.Add(new ChatMessage { IsUser = false, Text = $"Error: {ex.Message}" });
+        }
+        finally
+        {
+            _isReceiving = false;
+            _currentStreamingMessage = "";
+            _currentSources.Clear();
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Hub is not null)
+        {
+            await Hub.DisposeAsync();
+        }
+    }
+
+    class ChatMessage
+    {
+        public bool IsUser { get; set; }
+        public string Text { get; set; } = "";
+        public List<SourceDto> Sources { get; set; } = new();
+    }
+
+    record SourceDto(string Title, string Url);
+}

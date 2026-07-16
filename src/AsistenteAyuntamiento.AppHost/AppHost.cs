@@ -19,9 +19,13 @@ var blobAccessKeyId     = builder.AddParameter("blob-access-key-id",     secret:
 var blobSecretAccessKey = builder.AddParameter("blob-secret-access-key", secret: true);
 var blobBucketName      = builder.AddParameter("blob-bucket-name",       secret: false);
 
+var auth0Audience     = builder.AddParameter("auth0-audience",      secret: false);
+
 // ── Services ──────────────────────────────────────────────────────────────────
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
-    .WithHttpHealthCheck("/health");
+    .WithHttpHealthCheck("/health")
+    .WithEnvironment("Auth0__Domain",   auth0Domain)
+    .WithEnvironment("Auth0__Audience", auth0Audience);
 
 builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()
@@ -32,6 +36,7 @@ builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithEnvironment("Auth0__Domain",        auth0Domain)
     .WithEnvironment("Auth0__ClientId",      auth0ClientId)
     .WithEnvironment("Auth0__ClientSecret",  auth0ClientSecret)
+    .WithEnvironment("Auth0__Audience",      auth0Audience)
     // Cloudflare R2
     .WithEnvironment("Blob__Endpoint",         blobEndpoint)
     .WithEnvironment("Blob__AccessKeyId",      blobAccessKeyId)
