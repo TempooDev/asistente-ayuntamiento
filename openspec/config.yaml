@@ -1,14 +1,14 @@
 schema: spec-driven
 
 context: |
-  We are building "DemoTfg", a Retrieval-Augmented Generation (RAG) system orchestrated by .NET Aspire.
+  We are building "AsistenteAyuntamiento", a Retrieval-Augmented Generation (RAG) system orchestrated by .NET Aspire.
 
   ## Current Tech Stack
 
   ### Core Services
   - Frontend: Blazor Auto (C# / .NET 10) — SSR on first load, switches to WASM in browser
-  - Backend API: ASP.NET Core Web API (DemoTfg.ApiService)
-  - Ingestion Worker: .NET Background Worker using Semantic Kernel (DemoTfg.Worker)
+  - Backend API: ASP.NET Core Web API (AsistenteAyuntamiento.ApiService)
+  - Ingestion Worker: .NET Background Worker using Semantic Kernel (AsistenteAyuntamiento.Worker)
 
   ### Data & Storage
   - Database & Vector Storage: PostgreSQL + pgvector (table: DocumentChunks, ChatSessions, ChatMessages, UserApiKeys)
