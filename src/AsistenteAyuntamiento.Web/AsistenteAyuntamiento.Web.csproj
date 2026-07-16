@@ -7,7 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.401" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.ServiceDefaults\AsistenteAyuntamiento.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Web.Client\AsistenteAyuntamiento.Web.Client.csproj" />
   </ItemGroup>
 
 </Project>

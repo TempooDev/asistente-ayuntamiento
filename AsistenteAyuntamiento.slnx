@@ -4,5 +4,6 @@
     <Project Path="src/AsistenteAyuntamiento.AppHost/AsistenteAyuntamiento.AppHost.csproj" />
     <Project Path="src/AsistenteAyuntamiento.ServiceDefaults/AsistenteAyuntamiento.ServiceDefaults.csproj" />
     <Project Path="src/AsistenteAyuntamiento.Web/AsistenteAyuntamiento.Web.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Web.Client/AsistenteAyuntamiento.Web.Client.csproj" />
   </Folder>
 </Solution>
