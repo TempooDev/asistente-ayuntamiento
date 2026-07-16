@@ -34,4 +34,4 @@
 
 - [x] 6.1 Verify `src/AsistenteAyuntamiento.AppHost/Program.cs` references `AsistenteAyuntamiento.Web` correctly (no changes expected, but confirm the Aspire builder picks up the new `.Client` assembly automatically) — **files**: `src/AsistenteAyuntamiento.AppHost/Program.cs`
 - [x] 6.2 Run `dotnet build src/AsistenteAyuntamiento.Web.Client` and confirm zero errors (validates all WASM-safe services are registered) — **files**: build output only
-- [ ] 6.3 Run the Aspire AppHost (`dotnet run --project src/AsistenteAyuntamiento.AppHost`) and verify: first-load is SSR (check DevTools Network tab — no WASM download on first frame), and subsequent navigation shows WASM runtime loaded from cache — **files**: manual verification
+- [x] 6.3 Run the Aspire AppHost (`dotnet run --project src/AsistenteAyuntamiento.AppHost`) and verify: first-load is SSR (check DevTools Network tab — no WASM download on first frame), and subsequent navigation shows WASM runtime loaded from cache — **files**: manual verification
