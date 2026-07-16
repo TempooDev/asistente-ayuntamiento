@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AsistenteAyuntamiento.ApiService/AsistenteAyuntamiento.ApiService.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.AppHost/AsistenteAyuntamiento.AppHost.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.ServiceDefaults/AsistenteAyuntamiento.ServiceDefaults.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Web/AsistenteAyuntamiento.Web.csproj" />
+  </Folder>
+</Solution>

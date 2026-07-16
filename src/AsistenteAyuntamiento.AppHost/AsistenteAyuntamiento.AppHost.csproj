@@ -1,0 +1,24 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>f2a9ef54-3351-44ce-ad25-480788427873</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting integrations — remove those you don't need -->
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.4.6" />
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AsistenteAyuntamiento.ApiService\AsistenteAyuntamiento.ApiService.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Web\AsistenteAyuntamiento.Web.csproj" />
+  </ItemGroup>
+
+</Project>
