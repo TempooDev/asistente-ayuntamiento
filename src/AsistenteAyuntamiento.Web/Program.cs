@@ -1,6 +1,4 @@
-
 using Amazon.S3;
-using AsistenteAyuntamiento.Web;
 using AsistenteAyuntamiento.Web.Client;
 using AsistenteAyuntamiento.Web.Components;
 using AsistenteAyuntamiento.Web.Infrastructure;
@@ -17,53 +15,41 @@ builder.AddServiceDefaults();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents()
-    .AddAuthenticationStateSerialization(); // Serialize ClaimsPrincipal for WASM handoff
+    .AddAuthenticationStateSerialization(); // Serializa ClaimsPrincipal para el handoff SSR → WASM
 
 // ── Output Cache ──────────────────────────────────────────────────────────────
 builder.Services.AddOutputCache();
 
 // ── Auth0 OIDC ────────────────────────────────────────────────────────────────
+// Los valores llegan como variables de entorno inyectadas por Aspire (AppHost.cs).
+// En dev: desde user-secrets del AppHost. En prod: desde el secrets store externo.
 builder.Services.AddCascadingAuthenticationState();
-
-// Auth0 config — required in production; in development use dotnet user-secrets
-var auth0Domain = builder.Configuration["Auth0:Domain"] ?? "";
-var auth0ClientId = builder.Configuration["Auth0:ClientId"] ?? "";
-var auth0ClientSecret = builder.Configuration["Auth0:ClientSecret"] ?? "";
-
-if (!builder.Environment.IsDevelopment())
-{
-    if (string.IsNullOrWhiteSpace(auth0Domain))
-        throw new InvalidOperationException("Auth0:Domain configuration is missing.");
-    if (string.IsNullOrWhiteSpace(auth0ClientId))
-        throw new InvalidOperationException("Auth0:ClientId configuration is missing.");
-    if (string.IsNullOrWhiteSpace(auth0ClientSecret))
-        throw new InvalidOperationException("Auth0:ClientSecret configuration is missing.");
-}
 
 builder.Services
     .AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+        options.DefaultSignInScheme       = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme    = OpenIdConnectDefaults.AuthenticationScheme;
     })
     .AddCookie()
     .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
     {
-        options.Authority = $"https://{auth0Domain}";
-        options.ClientId = auth0ClientId;
-        options.ClientSecret = auth0ClientSecret;
+        options.Authority    = $"https://{builder.Configuration["Auth0:Domain"]}";
+        options.ClientId     = builder.Configuration["Auth0:ClientId"];
+        options.ClientSecret = builder.Configuration["Auth0:ClientSecret"];
         options.ResponseType = OpenIdConnectResponseType.Code;
         options.ResponseMode = OpenIdConnectResponseMode.Query;
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
         options.Scope.Add("email");
-        options.CallbackPath = "/callback";
-        options.SaveTokens = true;
+        options.CallbackPath  = "/callback";
+        options.SaveTokens    = true;
         options.MapInboundClaims = false;
         options.TokenValidationParameters.NameClaimType = "name";
-        options.TokenValidationParameters.RoleClaimType = "https://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+        options.TokenValidationParameters.RoleClaimType =
+            "https://schemas.microsoft.com/ws/2008/06/identity/claims/role";
     });
 
 builder.Services.AddAuthorization();
@@ -72,38 +58,31 @@ builder.Services.AddAuthorization();
 builder.Services.AddClientServices(builder.Configuration);
 
 // ── Blob Storage ──────────────────────────────────────────────────────────────
+// Aspire inyecta las credenciales de R2 como env vars (Blob__*).
+// En desarrollo, si el endpoint no está configurado, se usa Azurite como fallback.
 builder.Services.AddSingleton<IBlobStorageRepository>(sp =>
 {
-    var env = sp.GetRequiredService<IWebHostEnvironment>();
-    var config = sp.GetRequiredService<IConfiguration>();
+    var config   = sp.GetRequiredService<IConfiguration>();
+    var endpoint = config["Blob:Endpoint"];
 
-    if (env.IsDevelopment())
+    if (string.IsNullOrWhiteSpace(endpoint))
     {
-        // Use Azurite emulator in development (connection string injected by Aspire)
+        // Fallback: Azurite emulator (inyectado por Aspire via AddAzureStorage / Aspire.Hosting.Azure.Storage)
         var connectionString = config.GetConnectionString("BlobStorage") ?? "UseDevelopmentStorage=true";
         return new AzuriteBlobStorageRepository(connectionString);
     }
-    else
-    {
-        // Use Cloudflare R2 in production
-        var endpoint = config["Blob:Endpoint"]
-            ?? throw new InvalidOperationException("Blob:Endpoint environment variable is missing.");
-        var accessKeyId = config["Blob:AccessKeyId"]
-            ?? throw new InvalidOperationException("Blob:AccessKeyId environment variable is missing.");
-        var secretAccessKey = config["Blob:SecretAccessKey"]
-            ?? throw new InvalidOperationException("Blob:SecretAccessKey environment variable is missing.");
-        var bucketName = config["Blob:BucketName"]
-            ?? throw new InvalidOperationException("Blob:BucketName environment variable is missing.");
 
-        var s3Config = new AmazonS3Config
-        {
-            ServiceURL = endpoint,
-            ForcePathStyle = true,
-        };
-        var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
-        var s3Client = new AmazonS3Client(credentials, s3Config);
-        return new S3BlobStorageRepository(s3Client, bucketName);
-    }
+    // Cloudflare R2 (o cualquier endpoint S3-compatible)
+    var accessKeyId     = config["Blob:AccessKeyId"]
+        ?? throw new InvalidOperationException("Blob:AccessKeyId is required when Blob:Endpoint is set.");
+    var secretAccessKey = config["Blob:SecretAccessKey"]
+        ?? throw new InvalidOperationException("Blob:SecretAccessKey is required when Blob:Endpoint is set.");
+    var bucketName      = config["Blob:BucketName"]
+        ?? throw new InvalidOperationException("Blob:BucketName is required when Blob:Endpoint is set.");
+
+    var s3Config    = new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true };
+    var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
+    return new S3BlobStorageRepository(new AmazonS3Client(credentials, s3Config), bucketName);
 });
 
 var app = builder.Build();

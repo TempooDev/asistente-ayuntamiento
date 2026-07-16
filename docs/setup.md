@@ -83,24 +83,41 @@ En desarrollo se usa `InMemoryApiKeyVault` (sin contenedor adicional). En produc
 
 ## Configuración de secrets locales
 
-Los secrets **nunca** van en `appsettings.json` ni en el repositorio. Usa `dotnet user-secrets`:
+Los secrets se configuran en el proyecto **AppHost** — no en los proyectos individuales. Aspire los lee y los inyecta como variables de entorno en cada servicio. En producción, el mismo mecanismo lee desde un backing store externo (Azure Key Vault, AWS Secrets Manager, etc.) sin cambiar el código.
 
 ```bash
 # Navegar a la raíz del repositorio
 
-# Auth0
-dotnet user-secrets set "Auth0:Domain"        "tu-tenant.eu.auth0.com" \
-  --project src/AsistenteAyuntamiento.Web
+# ── Auth0 ──────────────────────────────────────────────────────────────────────
+dotnet user-secrets set "Parameters:auth0-domain"        "tu-tenant.eu.auth0.com" \
+  --project src/AsistenteAyuntamiento.AppHost
 
-dotnet user-secrets set "Auth0:ClientId"      "tu-client-id" \
-  --project src/AsistenteAyuntamiento.Web
+dotnet user-secrets set "Parameters:auth0-client-id"     "tu-client-id" \
+  --project src/AsistenteAyuntamiento.AppHost
 
-dotnet user-secrets set "Auth0:ClientSecret"  "tu-client-secret" \
-  --project src/AsistenteAyuntamiento.Web
+dotnet user-secrets set "Parameters:auth0-client-secret" "tu-client-secret" \
+  --project src/AsistenteAyuntamiento.AppHost
+
+# ── Cloudflare R2 (opcional en dev — sin esto se usa Azurite automáticamente) ──
+dotnet user-secrets set "Parameters:blob-endpoint"          "https://<accountId>.r2.cloudflarestorage.com" \
+  --project src/AsistenteAyuntamiento.AppHost
+
+dotnet user-secrets set "Parameters:blob-access-key-id"     "tu-r2-access-key" \
+  --project src/AsistenteAyuntamiento.AppHost
+
+dotnet user-secrets set "Parameters:blob-secret-access-key" "tu-r2-secret-key" \
+  --project src/AsistenteAyuntamiento.AppHost
+
+dotnet user-secrets set "Parameters:blob-bucket-name"       "nombre-del-bucket" \
+  --project src/AsistenteAyuntamiento.AppHost
 ```
 
 > [!NOTE]
-> En desarrollo **no es necesario** configurar `Blob:*` — Azurite se usa automáticamente.
+> El formato `Parameters:<nombre>` es el estándar de Aspire para parámetros declarados con `builder.AddParameter("nombre")` en el AppHost.
+> Si `blob-endpoint` no se configura, el sistema usa Azurite automáticamente — ideal para desarrollo sin credenciales de R2.
+
+> [!CAUTION]
+> **Nunca** añadas secrets en `appsettings.json` ni en archivos que se suban al repositorio. `dotnet user-secrets` los guarda en `~/.microsoft/usersecrets/<id>/secrets.json`, fuera del árbol del proyecto.
 
 ---
 
