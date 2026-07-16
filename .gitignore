@@ -1,0 +1,175 @@
+###############################################################################
+# .gitignore — Stack: .NET + Go
+###############################################################################
+
+# ─────────────────────────────────────────────
+# macOS
+# ─────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ─────────────────────────────────────────────
+# Windows
+# ─────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─────────────────────────────────────────────
+# Linux
+# ─────────────────────────────────────────────
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ─────────────────────────────────────────────
+# IDEs & Editors
+# ─────────────────────────────────────────────
+
+## JetBrains (Rider, GoLand)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+## Visual Studio / VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json        # keep shared settings if you want
+*.suo
+*.user
+*.userosscache
+*.sln.docview
+*.pidb
+*.booproj
+.vs/
+
+## Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# ─────────────────────────────────────────────
+# .NET / C#
+# ─────────────────────────────────────────────
+
+## Build outputs
+[Bb]in/
+[Oo]bj/
+out/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!packages/repositories.config
+project.lock.json
+project.assets.json
+*.lock.json
+
+## Rider / Visual Studio caches
+.vs/
+*.VC.opendb
+*.VC.db
+*.ide/
+
+## Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+*.cobertura.xml
+
+## Publish output
+publish/
+PublishOutput/
+
+## Roslyn / analyzers
+*.sarif
+
+## Secrets & local config
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.p12
+
+## Entity Framework migrations (optional — remove if you commit migrations)
+# Migrations/
+
+## MSBuild / dotnet tool manifests
+.dotnet/
+
+# ─────────────────────────────────────────────
+# Go
+# ─────────────────────────────────────────────
+
+## Compiled binaries & executables (any OS)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.out
+*.test
+*.prof
+
+## Test binary built with `go test -c`
+*.test
+
+## Go module download cache (use GOPATH/pkg instead)
+vendor/
+
+## Go workspace (Go 1.18+)
+go.work.sum
+
+## Build cache — never commit
+## (GOCACHE is outside the repo by default, but guard just in case)
+__debug_bin*
+
+## Air (live-reload)
+tmp/
+
+## Wire generated files (optional — remove if you commit generated code)
+# wire_gen.go
+
+# ─────────────────────────────────────────────
+# Docker
+# ─────────────────────────────────────────────
+.dockerignore          # usually fine to commit, but listed for awareness
+docker-compose.override.yml
+
+# ─────────────────────────────────────────────
+# Environment & Secrets
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*.cer
+
+# ─────────────────────────────────────────────
+# Miscellaneous
+# ─────────────────────────────────────────────
+*.log
+*.bak
+*.tmp
+*.temp
+coverage/
+dist/

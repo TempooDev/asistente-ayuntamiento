@@ -1,0 +1,73 @@
+schema: spec-driven
+
+context: |
+  We are building "DemoTfg", a Retrieval-Augmented Generation (RAG) system orchestrated by .NET Aspire.
+
+  ## Current Tech Stack
+
+  ### Core Services
+  - Frontend: Blazor Auto (C# / .NET 10) — SSR on first load, switches to WASM in browser
+  - Backend API: ASP.NET Core Web API (DemoTfg.ApiService)
+  - Ingestion Worker: .NET Background Worker using Semantic Kernel (DemoTfg.Worker)
+
+  ### Data & Storage
+  - Database & Vector Storage: PostgreSQL + pgvector (table: DocumentChunks, ChatSessions, ChatMessages, UserApiKeys)
+  - Blob Storage: Cloudflare R2 (S3-compatible) — production. Azurite emulator in local development.
+  - Message Broker: RabbitMQ
+
+  ### AI / LLM
+  - Embedding Model: Ollama local (nomic-embed-text) — always local, never user-configurable
+  - LLM Provider: Dynamic per-user via KernelFactory:
+    * OpenAI (AddOpenAIChatCompletion)
+    * DeepSeek (OpenAI-compatible, custom endpoint)
+    * Google Gemini (AddGeminiChatCompletion)
+    * Anthropic Claude (AddClaudeChatCompletion)
+    * Fallback: Ollama local (llama3.2)
+
+  ### Auth & Identity
+  - Identity Provider: Auth0 (managed SaaS, OIDC/OAuth2)
+  - Frontend auth: OIDC PKCE flow (Blazor Auto/WASM compatible)
+  - API auth: JWT Bearer validation (Auth0 issuer)
+  - User identity key: Auth0 `sub` claim (e.g. "auth0|abc123")
+
+  ### Secrets & API Key Vault
+  - Vault: Infisical (self-hosted on VPS, Docker container)
+  - Network policy: Infisical NOT exposed publicly — only the ApiService communicates with it via internal Docker network
+  - Secret path pattern: /users/{userId}/{provider} → { api_key: "..." }
+  - .NET client: Infisical SDK or REST client via IApiKeyVault interface
+  - Dev mode: InMemoryApiKeyVault (no vault container needed locally)
+
+  ## Domain Rules
+  - Document chunks (BOE, BOJA, BOPM) are GLOBAL — all users share the same knowledge base
+  - Chat sessions and messages are PRIVATE — filtered by userId in all queries
+  - Embedding model is ALWAYS local (Ollama nomic-embed-text) — not user-configurable
+  - LLM model is user-selectable from their configured providers in the UI
+  - If no API key is configured, fallback to platform Ollama (llama3.2)
+
+  ## Planned Components
+  - Scraper Worker (Go + Echo + Air): Scrapes BOE, BOJA, BOPM official gazettes
+  - Uploads PDFs to R2 blob storage
+  - Notifies via RabbitMQ to the .NET ingestion worker
+
+  ## Deployment
+  - Dev: .NET Aspire (Docker containers via AppHost)
+  - Prod: Docker Compose on VPS (Hetzner/Vultr/DigitalOcean)
+  - Infisical: internal-only, no external port binding
+
+  ## Conventions
+  - Clean Architecture: Domain → Application → Infrastructure → ApiService/Web
+  - CQRS-lite: UseCases in Application layer
+  - All user-scoped queries receive userId as explicit parameter (no ambient context)
+  - Migrations: EF Core with explicit migrations (no EnsureCreated in prod)
+  - All secrets in environment variables / Aspire User Secrets — never in source code
+
+rules:
+  proposal:
+    - Always include a "Non-goals" section
+    - Scope changes to a single capability when possible
+  tasks:
+    - Break tasks into chunks of max 2-3 hours
+    - Each task must reference the relevant source files it modifies
+  spec:
+    - All requirements must have at least one Scenario
+    - Security-sensitive features must include a Scenario for the unauthorized/unauthenticated case
