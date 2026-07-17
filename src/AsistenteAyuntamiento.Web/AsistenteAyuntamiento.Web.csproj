@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.ServiceDefaults\AsistenteAyuntamiento.ServiceDefaults.csproj" />
     <ProjectReference Include="..\AsistenteAyuntamiento.Web.Client\AsistenteAyuntamiento.Web.Client.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Shared\AsistenteAyuntamiento.Shared.csproj" />
   </ItemGroup>
 
 </Project>

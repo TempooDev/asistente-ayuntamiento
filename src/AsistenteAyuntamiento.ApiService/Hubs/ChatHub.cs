@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 namespace AsistenteAyuntamiento.ApiService.Hubs;
 
-[Authorize]
+[Authorize(Roles = "Administrador,Funcionario")]
 public class ChatHub : Hub
 {
     private readonly IChatCompletionService? _chatCompletionService;

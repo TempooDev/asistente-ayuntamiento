@@ -41,6 +41,21 @@ builder.Services.AddAuth0WebAppAuthentication(options =>
     }
 });
 
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>(
+    Auth0Constants.AuthenticationScheme,
+    options =>
+    {
+        options.TokenValidationParameters.RoleClaimType = "https://asistente.ayuntamiento.com/roles";
+    });
+
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(
+    Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
+    options =>
+    {
+        options.LoginPath = "/login";
+        options.AccessDeniedPath = "/Error"; // Or wherever you want to redirect access denied
+    });
+
 builder.Services.AddAuthorization();
 builder.Services.AddHttpForwarder();
 
@@ -128,8 +143,14 @@ app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
     await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 });
 
+app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
+{
+    return Results.Ok(user.Claims.Select(c => new { c.Type, c.Value }));
+}).RequireAuthorization();
+
 app.MapForwarder("/chathub/{**catch-all}", "https+http://apiservice", new Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromSeconds(100) });
 app.MapForwarder("/weatherforecast", "https+http://apiservice");
+app.MapForwarder("/api/users/{**catch-all}", "https+http://apiservice");
 
 app.MapDefaultEndpoints();
 

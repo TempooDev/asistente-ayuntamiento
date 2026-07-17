@@ -1,5 +1,6 @@
 @page "/chat"
 @page "/"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Funcionario")]
 <PageTitle>AdminAI - Panel de Chat</PageTitle>
 
 <div class="flex-1 overflow-y-auto px-margin-mobile md:px-margin-desktop py-xl hide-scrollbar flex flex-col items-center">

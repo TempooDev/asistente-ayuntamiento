@@ -1,4 +1,5 @@
 @page "/historial"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Funcionario")]
 <PageTitle>Historial de Consultas - AdminAI</PageTitle>
 
 <div class="flex-1 overflow-y-auto p-margin-mobile md:p-margin-desktop">

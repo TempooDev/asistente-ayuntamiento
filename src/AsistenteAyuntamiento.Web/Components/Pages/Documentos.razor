@@ -1,4 +1,5 @@
 @page "/documentos"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Funcionario")]
 <PageTitle>Documentos - AdminAI</PageTitle>
 
 <div class="p-margin-desktop text-on-surface">

@@ -28,10 +28,13 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithEnvironment("Auth0__Domain",   auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
+var db = builder.AddPostgres("postgres").AddDatabase("asistente_ayuntamiento_db");
+
 builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
     .WithReference(apiService)
+    .WithReference(db)
     .WithReference(blobs)
     .WaitFor(apiService)
     // Auth0 — injected as environment variables (ASP.NET Core config key format: __ = :)

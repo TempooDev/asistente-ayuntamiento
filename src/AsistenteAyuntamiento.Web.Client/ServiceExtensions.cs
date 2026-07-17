@@ -18,6 +18,7 @@ public static class ServiceExtensions
         services.AddScoped<AppTokenProvider>();
         
         services.AddHttpClient<WeatherApiClient>();
+        services.AddHttpClient<UserApiClient>();
 
         // Register SignalR HubConnection as Transient so each component gets its own connection
         services.AddTransient<HubConnection>(sp =>

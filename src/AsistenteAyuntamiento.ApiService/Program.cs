@@ -8,11 +8,17 @@ builder.AddServiceDefaults();
 // Add services to the container.
 builder.Services.AddProblemDetails();
 
+builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente_ayuntamiento_db");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}";
         options.Audience = builder.Configuration["Auth0:Audience"];
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            RoleClaimType = "https://asistente.ayuntamiento.com/roles"
+        };
         
         // SignalR sends the access token in the query string for WebSockets
         options.Events = new JwtBearerEvents
@@ -68,6 +74,8 @@ app.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast");
 
 app.MapHub<AsistenteAyuntamiento.ApiService.Hubs.ChatHub>("/chathub");
+
+AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
 
 app.MapDefaultEndpoints();
 
