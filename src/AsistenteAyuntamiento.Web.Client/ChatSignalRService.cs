@@ -4,32 +4,18 @@ namespace AsistenteAyuntamiento.Web.Client;
 
 public class ChatSignalRService : IAsyncDisposable
 {
-    private HubConnection? _hubConnection;
-    private readonly AppTokenProvider _tokenProvider;
-    private readonly IConfiguration _configuration;
+    private readonly HubConnection _hubConnection;
 
     public event Action<string>? OnMessageReceived;
 
-    public ChatSignalRService(AppTokenProvider tokenProvider, IConfiguration configuration)
+    public ChatSignalRService(HubConnection hubConnection)
     {
-        _tokenProvider = tokenProvider;
-        _configuration = configuration;
+        _hubConnection = hubConnection;
     }
 
     public async Task ConnectAsync()
     {
-        if (_hubConnection is not null) return;
-
-        var apiBaseUrl = _configuration["ApiBaseUrl"] ?? "https://localhost:7573";
-        var hubUrl = $"{apiBaseUrl.TrimEnd('/')}/hubs/chat";
-
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl, options =>
-            {
-                options.AccessTokenProvider = () => Task.FromResult(_tokenProvider.AccessToken);
-            })
-            .WithAutomaticReconnect()
-            .Build();
+        if (_hubConnection.State == HubConnectionState.Connected) return;
 
         _hubConnection.On<string>("ReceiveMessage", (message) =>
         {

@@ -22,18 +22,21 @@ var blobs = blobStorage.AddBlobs("BlobStorage");
 
 var auth0Audience     = builder.AddParameter("auth0-audience",      secret: false);
 
-// ── Services ──────────────────────────────────────────────────────────────────
+var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db");
+
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
+    .WithReference(db)
     .WithEnvironment("Auth0__Domain",   auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
-var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db");
+var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
+    .WithReference(apiService);
 
 builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
-    .WithReference(apiService)
+    .WithReference(gateway)
     .WithReference(db)
     .WithReference(blobs)
     .WaitFor(apiService)

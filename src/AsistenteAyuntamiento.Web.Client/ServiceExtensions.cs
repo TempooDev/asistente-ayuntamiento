@@ -18,14 +18,22 @@ public static class ServiceExtensions
         services.AddScoped<AppTokenProvider>();
         services.AddScoped<ChatSignalRService>();
         
-        services.AddHttpClient<WeatherApiClient>();
-        services.AddHttpClient<UserApiClient>();
+        services.AddHttpClient<WeatherApiClient>((sp, client) => {
+            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+            client.BaseAddress = new Uri(navManager.BaseUri);
+        });
+        
+        services.AddHttpClient<UserApiClient>((sp, client) => {
+            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+            client.BaseAddress = new Uri(navManager.BaseUri);
+        });
 
         // Register SignalR HubConnection as Transient so each component gets its own connection
         services.AddTransient<HubConnection>(sp =>
         {
             var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-            var hubUrl = navManager.ToAbsoluteUri("/chathub");
+            // Hub url is relative to the base URL
+            var hubUrl = navManager.ToAbsoluteUri("/hubs/chat");
             var tokenProvider = sp.GetRequiredService<AppTokenProvider>();
 
             return new HubConnectionBuilder()

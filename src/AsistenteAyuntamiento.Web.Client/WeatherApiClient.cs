@@ -3,13 +3,12 @@ using Microsoft.AspNetCore.Components;
 
 namespace AsistenteAyuntamiento.Web.Client;
 
-public class WeatherApiClient(HttpClient httpClient, NavigationManager navManager)
+public class WeatherApiClient(HttpClient httpClient)
 {
     public async Task<WeatherForecast[]> GetWeatherAsync(int maxItems = 10, CancellationToken cancellationToken = default)
     {
-        var url = navManager.ToAbsoluteUri("/weatherforecast");
         var forecasts = await httpClient.GetFromJsonAsync<WeatherForecast[]>(
-            url,
+            "/weatherforecast",
             cancellationToken);
 
         return forecasts is null

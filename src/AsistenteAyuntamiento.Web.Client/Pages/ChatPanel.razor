@@ -75,19 +75,25 @@
     private bool _isConnected = false;
     private List<ChatMessage> _messages = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         ChatService.OnMessageReceived += HandleIncomingMessage;
-        
-        try
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            await ChatService.ConnectAsync();
-            _isConnected = true;
-        }
-        catch (Exception ex)
-        {
-            // Connect failed, maybe retry logic later
-            Console.WriteLine($"Error connecting to SignalR: {ex.Message}");
+            try
+            {
+                await ChatService.ConnectAsync();
+                _isConnected = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error connecting to SignalR: {ex.Message}");
+            }
         }
     }
 

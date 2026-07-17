@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.ApiService\AsistenteAyuntamiento.ApiService.csproj" />
     <ProjectReference Include="..\AsistenteAyuntamiento.Web\AsistenteAyuntamiento.Web.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Gateway\AsistenteAyuntamiento.Gateway.csproj" />
   </ItemGroup>
 
 </Project>

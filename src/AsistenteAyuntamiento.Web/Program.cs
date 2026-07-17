@@ -57,10 +57,13 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAut
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddHttpForwarder();
 
 // ── Shared client services (HttpClient, WeatherApiClient, etc.) ───────────────
 builder.Services.AddClientServices(builder.Configuration);
+
+// Override BaseAddress for SSR to bypass the gateway and talk directly to the API
+builder.Services.AddHttpClient<WeatherApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
+builder.Services.AddHttpClient<UserApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 
 // ── Blob Storage ──────────────────────────────────────────────────────────────
 // Aspire inyecta las credenciales de R2 como env vars (Blob__*).
@@ -140,17 +143,13 @@ app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
         .Build();
 
     await httpContext.SignOutAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
-    await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    await httpContext.SignOutAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
 });
 
 app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
 {
     return Results.Ok(user.Claims.Select(c => new { c.Type, c.Value }));
 }).RequireAuthorization();
-
-app.MapForwarder("/chathub/{**catch-all}", "https+http://apiservice", new Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromSeconds(100) });
-app.MapForwarder("/weatherforecast", "https+http://apiservice");
-app.MapForwarder("/api/users/{**catch-all}", "https+http://apiservice");
 
 app.MapDefaultEndpoints();
 
