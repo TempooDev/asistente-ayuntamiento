@@ -2,9 +2,8 @@ using Amazon.S3;
 using AsistenteAyuntamiento.Web.Client;
 using AsistenteAyuntamiento.Web.Components;
 using AsistenteAyuntamiento.Web.Infrastructure;
+using Auth0.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,45 +24,21 @@ builder.Services.AddOutputCache();
 // En dev: desde user-secrets del AppHost. En prod: desde el secrets store externo.
 builder.Services.AddCascadingAuthenticationState();
 
-builder.Services
-    .AddAuthentication(options =>
+builder.Services.AddAuth0WebAppAuthentication(options =>
+{
+    options.Domain = builder.Configuration["Auth0:Domain"]!;
+    options.ClientId = builder.Configuration["Auth0:ClientId"]!;
+    options.ClientSecret = builder.Configuration["Auth0:ClientSecret"];
+    options.Scope = "openid profile email";
+})
+.WithAccessToken(tokenOptions =>
+{
+    var audience = builder.Configuration["Auth0:Audience"];
+    if (!string.IsNullOrEmpty(audience))
     {
-        options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultSignInScheme       = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme    = OpenIdConnectDefaults.AuthenticationScheme;
-    })
-    .AddCookie()
-    .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
-    {
-        options.Authority    = $"https://{builder.Configuration["Auth0:Domain"]}";
-        options.ClientId     = builder.Configuration["Auth0:ClientId"];
-        options.ClientSecret = builder.Configuration["Auth0:ClientSecret"];
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.ResponseMode = OpenIdConnectResponseMode.Query;
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-        options.CallbackPath  = "/callback";
-        options.SaveTokens    = true;
-        options.MapInboundClaims = false;
-        options.TokenValidationParameters.NameClaimType = "name";
-        options.TokenValidationParameters.RoleClaimType =
-            "https://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-            
-        options.Events = new OpenIdConnectEvents
-        {
-            OnRedirectToIdentityProvider = context =>
-            {
-                var audience = builder.Configuration["Auth0:Audience"];
-                if (!string.IsNullOrEmpty(audience))
-                {
-                    context.ProtocolMessage.SetParameter("audience", audience);
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
+        tokenOptions.Audience = audience;
+    }
+});
 
 builder.Services.AddAuthorization();
 
