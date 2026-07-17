@@ -25,5 +25,5 @@
 
 ## 5. Testing and Validation
 
-- [ ] 5.1 Run the AppHost and verify that submitting a chat message triggers `ReceiveSources` first, followed by the text streaming into the UI — **files**: manual verification
-- [ ] 5.2 Verify that the connection is authenticated (Server rejects unauthenticated connections) — **files**: manual verification
+- [x] 5.1 Run the AppHost and verify that submitting a chat message triggers `ReceiveSources` first, followed by the text streaming into the UI — **files**: manual verification
+- [x] 5.2 Verify that the connection is authenticated (Server rejects unauthenticated connections) — **files**: manual verification
