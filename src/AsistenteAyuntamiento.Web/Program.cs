@@ -128,7 +128,7 @@ app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
     await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 });
 
-app.MapForwarder("/chathub", "https+http://apiservice", new Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromSeconds(100) });
+app.MapForwarder("/chathub/{**catch-all}", "https+http://apiservice", new Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromSeconds(100) });
 app.MapForwarder("/weatherforecast", "https+http://apiservice");
 
 app.MapDefaultEndpoints();
