@@ -13,7 +13,7 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/users").RequireAuthorization();
 
         // Get current user profile
-        group.MapGet("/me", async (AppDbContext db, ClaimsPrincipal user) =>
+        group.MapGet("/me", async (AppDbContext db, ClaimsPrincipal user, AsistenteAyuntamiento.ApiService.Features.Tenants.CurrentTenantService tenantService) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
@@ -26,7 +26,7 @@ public static class UserEndpoints
                 profile = new UserProfile 
                 { 
                     Auth0UserId = auth0Id,
-                    TenantId = "default" // TODO: Extract from JWT org_id
+                    TenantId = tenantService.TenantId
                 };
                 db.UserProfiles.Add(profile);
                 await db.SaveChangesAsync();
@@ -44,7 +44,7 @@ public static class UserEndpoints
         });
 
         // Update current user profile
-        group.MapPut("/me", async (AppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto) =>
+        group.MapPut("/me", async (AppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto, AsistenteAyuntamiento.ApiService.Features.Tenants.CurrentTenantService tenantService) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
@@ -56,7 +56,7 @@ public static class UserEndpoints
                 profile = new UserProfile 
                 { 
                     Auth0UserId = auth0Id,
-                    TenantId = "default" // TODO: Extract from JWT org_id
+                    TenantId = tenantService.TenantId
                 };
                 db.UserProfiles.Add(profile);
             }

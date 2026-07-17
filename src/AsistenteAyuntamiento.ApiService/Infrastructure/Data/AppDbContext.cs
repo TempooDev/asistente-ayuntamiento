@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,8 +6,11 @@ namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly CurrentTenantService _tenantService;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, CurrentTenantService tenantService) : base(options)
     {
+        _tenantService = tenantService;
     }
 
     public DbSet<UserProfile> UserProfiles { get; set; }
@@ -21,5 +25,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<UserProfile>()
             .HasIndex(u => u.Auth0UserId)
             .IsUnique();
+
+        modelBuilder.Entity<UserProfile>()
+            .HasQueryFilter(u => u.TenantId == _tenantService.TenantId);
     }
 }
