@@ -1,0 +1,123 @@
+@page "/perfil"
+@using Microsoft.AspNetCore.Components.Authorization
+<PageTitle>Perfil de Usuario - AdminAI</PageTitle>
+
+<div class="max-w-[max-width] mx-auto px-margin-mobile md:px-margin-desktop py-xl md:py-margin-desktop grid grid-cols-1 md:grid-cols-12 gap-gutter">
+    <!-- Page Header -->
+    <div class="col-span-1 md:col-span-12 mb-lg">
+        <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Perfil de Usuario</h2>
+        <p class="text-secondary mt-xs">Gestiona tu identidad y preferencias institucionales.</p>
+    </div>
+    <!-- Profile Overview Card (Bento Style) -->
+    <div class="col-span-1 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm flex flex-col items-center text-center">
+        <div class="relative mb-md">
+            <img alt="Profile Picture" class="w-32 h-32 rounded-full border-4 border-surface shadow-sm object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMRN2ws45NQQebC13DPxOmCDRrtBTQvoGxtQTQsFK3J86NHIE6Ckmz0VHKA_UCkATuJlpXU20stNA6vF58UzTJbmlj7aJLHx6HYPl5toEKEH8KtUmI1C-Fnkf2swPSsdLb1c0KFgetIbkAYYyZItv4Fw9YMTyoBGUf2NNwHqBAFMCRKJeaRWTzFxS-11GxA3Ek-HH_h5rQLZRRFFRF-wOhZCNIkzKVePBzxvk4mME7o-SHBiBw3DdT"/>
+            <button class="absolute bottom-0 right-0 bg-primary text-on-primary p-sm rounded-full shadow-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center">
+                <span class="material-symbols-outlined text-[18px]">edit</span>
+            </button>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <h3 class="font-headline-md text-headline-md text-on-surface">@context.User.Identity?.Name</h3>
+            </Authorized>
+            <NotAuthorized>
+                <h3 class="font-headline-md text-headline-md text-on-surface">Dr. Elena Rostova</h3>
+            </NotAuthorized>
+        </AuthorizeView>
+        <p class="font-label-md text-label-md text-secondary mt-xs">Analista de Políticas</p>
+        <div class="mt-md bg-surface-container-low px-md py-xs rounded-full border border-outline-variant inline-flex items-center gap-sm">
+            <span class="w-2 h-2 rounded-full bg-tertiary-container"></span>
+            <span class="font-label-sm text-label-sm text-on-surface-variant">Activo</span>
+        </div>
+    </div>
+    <!-- Main Settings Canvas -->
+    <div class="col-span-1 md:col-span-8 flex flex-col gap-gutter">
+        <!-- Institutional Details Form -->
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+            <div class="px-lg py-md border-b border-outline-variant bg-surface-container-low">
+                <h4 class="font-body-lg text-body-lg font-semibold text-on-surface">Detalles Institucionales</h4>
+            </div>
+            <div class="p-lg grid grid-cols-1 md:grid-cols-2 gap-md">
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface-variant" for="fullName">Nombre Completo</label>
+                    <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-container transition-all" id="fullName" type="text" value="Dr. Elena Rostova"/>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface-variant" for="email">Email Institucional</label>
+                    <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm font-body-md text-body-md text-secondary cursor-not-allowed" id="email" readonly="" type="email" value="e.rostova@admin.gov"/>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface-variant" for="department">Departamento</label>
+                    <select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-container transition-all appearance-none" id="department">
+                        <option>Política y Estrategia</option>
+                        <option>Finanzas y Operaciones</option>
+                        <option>Legal</option>
+                        <option>Recursos Humanos</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface-variant" for="role">Rol Principal</label>
+                    <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-container transition-all" id="role" type="text" value="Analista de Políticas"/>
+                </div>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface flex justify-end">
+                <button class="bg-primary text-on-primary font-label-md text-label-md px-lg py-sm rounded-lg hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Guardar Cambios</button>
+            </div>
+        </div>
+        <!-- Security & Preferences (Bento Split) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+            <!-- Security Settings -->
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-lg">
+                <div class="flex items-center gap-sm mb-md">
+                    <span class="material-symbols-outlined text-primary">security</span>
+                    <h4 class="font-body-lg text-body-lg font-semibold text-on-surface">Seguridad</h4>
+                </div>
+                <div class="flex flex-col gap-md">
+                    <div class="flex items-center justify-between py-sm border-b border-outline-variant">
+                        <div>
+                            <p class="font-body-md text-body-md text-on-surface">Autenticación de 2 Factores</p>
+                            <p class="font-label-sm text-label-sm text-secondary">Activa via App</p>
+                        </div>
+                        <button class="text-primary font-label-md text-label-md hover:underline">Gestionar</button>
+                    </div>
+                    <div class="flex items-center justify-between py-sm">
+                        <div>
+                            <p class="font-body-md text-body-md text-on-surface">Contraseña</p>
+                            <p class="font-label-sm text-label-sm text-secondary">Cambiada hace 45 días</p>
+                        </div>
+                        <button class="text-primary font-label-md text-label-md hover:underline">Actualizar</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Preferences -->
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-lg">
+                <div class="flex items-center gap-sm mb-md">
+                    <span class="material-symbols-outlined text-primary">translate</span>
+                    <h4 class="font-body-lg text-body-lg font-semibold text-on-surface">Preferencias</h4>
+                </div>
+                <div class="flex flex-col gap-md">
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface-variant" for="language">Idioma</label>
+                        <select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-container transition-all appearance-none" id="language">
+                            <option>Español (ES)</option>
+                            <option>English (US)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between py-sm mt-sm">
+                        <div>
+                            <p class="font-body-md text-body-md text-on-surface">Contraste Alto</p>
+                            <p class="font-label-sm text-label-sm text-secondary">Mejora la legibilidad del texto AI</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input class="sr-only peer" type="checkbox" value=""/>
+                            <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+}

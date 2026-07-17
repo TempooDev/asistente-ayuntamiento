@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -10,12 +10,122 @@
     <link rel="stylesheet" href="@Assets["AsistenteAyuntamiento.Web.styles.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: ["class", '[data-theme="dark"]'],
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#002715",
+                        "tertiary-fixed": "#9ff5c1",
+                        "secondary-fixed": "#dee3e8",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#c4c6cf",
+                        "outline": "#74777f",
+                        "secondary-fixed-dim": "#c2c7cc",
+                        "inverse-surface": "#273141",
+                        "surface-container-high": "#dee8ff",
+                        "surface-dim": "#d0daf0",
+                        "on-tertiary-fixed": "#002111",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#f9f9ff",
+                        "on-secondary-container": "#5e6368",
+                        "tertiary-fixed-dim": "#83d8a6",
+                        "on-tertiary-fixed-variant": "#005231",
+                        "surface-container-highest": "#d9e3f9",
+                        "inverse-primary": "#adc7f7",
+                        "on-secondary-fixed": "#171c20",
+                        "primary-container": "#1a365d",
+                        "on-primary-fixed": "#001b3c",
+                        "primary": "#002045",
+                        "secondary-container": "#dbe0e5",
+                        "inverse-on-surface": "#ebf1ff",
+                        "surface-variant": "#d9e3f9",
+                        "secondary": "#595f63",
+                        "on-primary-container": "#86a0cd",
+                        "surface-tint": "#455f88",
+                        "surface-container": "#e7eeff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#003f25",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#5caf81",
+                        "on-error": "#ffffff",
+                        "on-surface": "#121c2c",
+                        "surface": "#f9f9ff",
+                        "background": "#f9f9ff",
+                        "on-background": "#121c2c",
+                        "on-secondary-fixed-variant": "#42474c",
+                        "surface-container-low": "#f0f3ff",
+                        "on-surface-variant": "#43474e",
+                        "primary-fixed-dim": "#adc7f7",
+                        "on-primary": "#ffffff",
+                        "primary-fixed": "#d6e3ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "max-width": "1280px",
+                        "margin-desktop": "48px",
+                        "margin-mobile": "16px",
+                        "gutter": "24px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "xl": "32px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Public Sans"],
+                        "body-md": ["Public Sans"],
+                        "body-lg": ["Public Sans"],
+                        "label-sm": ["Inter"],
+                        "headline-xl-mobile": ["Public Sans"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Public Sans"],
+                        "headline-xl": ["Public Sans"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-xl-mobile": ["30px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-xl": ["40px", { "lineHeight": "48px", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <HeadOutlet />
 </head>
 
 <body>
     <Routes />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
+    <script>
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+        
+        var savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
 </body>
 
 </html>

@@ -12,6 +12,42 @@
     --font-label: 'Inter', sans-serif;
 }
 
+[data-theme="dark"] {
+    --primary: #63b3ed;
+    --secondary-bg: #1a202c;
+    --text-primary: #e2e8f0;
+    --accent: #48bb78;
+    --surface: #2d3748;
+    --border: #4a5568;
+}
+
+[data-theme="dark"] .gov-card,
+[data-theme="dark"] .chat-bubble.assistant,
+[data-theme="dark"] .gov-input,
+[data-theme="dark"] .btn-light,
+[data-theme="dark"] .dropdown-menu {
+    background-color: var(--surface);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .gov-input:focus {
+    box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.4);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: #4a5568;
+    color: white;
+}
+
+[data-theme="dark"] .gov-list-item {
+    border-bottom: 1px solid var(--border);
+}
+
 html, body {
     font-family: var(--font-body);
     background-color: var(--secondary-bg);

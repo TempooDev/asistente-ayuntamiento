@@ -1,23 +1,103 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="bg-background text-on-background font-body-md antialiased min-h-screen flex w-full">
+    
+    <!-- TopNavBar (Mobile Only) -->
+    <header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 fixed top-0 z-50 bg-surface border-b border-outline-variant shadow-sm transition-all duration-200">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-primary font-bold">menu</span>
+            <span class="font-headline-md text-headline-md font-bold text-primary">AdminAI</span>
         </div>
+        <div class="flex items-center gap-sm">
+            <!-- Theme Toggle Button for Mobile -->
+            <button class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" onclick="toggleTheme()" title="Cambiar Tema">dark_mode</button>
+            <AuthorizeView>
+                <Authorized>
+                    <img alt="User avatar" class="w-8 h-8 rounded-full bg-surface-variant object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRzh4xi4S2Cy3l41fTkbdvmWfQyqY0-VEz3ULrKZmqmGYCRdzOqlwEE8SNA7E-TJTpZN6IR0BYMTigg-pVFm9Z5DhKEO-OH2IfAaXuBkiEGsZidHkPhc-prOPuDrNOqeKjeWtrtrbOv_62sk8rFa-ewLY7WYOjaUENz1IzYRkU4TuSrX6RSF9QoxeBBeJ05-CSe5FwD8AwIrOl_yAyYL3Ny62z_9Ego_EEGWrp5bsFRZ2coodosq6w"/>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="login" data-enhance-nav="false" class="material-symbols-outlined text-secondary p-sm rounded-full">login</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </header>
 
-        <article class="content px-4">
-            @Body
-        </article>
+    <!-- SideNavBar (Desktop) -->
+    <aside class="hidden md:flex fixed left-0 top-0 h-full flex-col py-lg border-r z-40 bg-surface-container-low border-outline-variant w-64">
+        <div class="px-md mb-xl flex items-center gap-sm">
+            <div class="w-10 h-10 rounded bg-primary flex items-center justify-center text-on-primary">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assured_workload</span>
+            </div>
+            <div>
+                <h1 class="font-headline-md text-headline-md font-bold text-on-surface">AdminAI</h1>
+                <p class="font-label-sm text-label-sm text-on-surface-variant">Institutional Portal</p>
+            </div>
+        </div>
+        <div class="px-md mb-lg">
+            <a href="chat" class="w-full bg-primary text-on-primary font-label-md text-label-md py-3 rounded-lg hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-sm min-h-[44px]">
+                <span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+                Nueva Consulta
+            </a>
+        </div>
+        <div class="flex-1 px-md flex flex-col gap-xs font-label-md text-label-md">
+            <NavLink class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="chat" Match="NavLinkMatch.All" ActiveClass="bg-primary-container text-on-primary-container">
+                <span class="material-symbols-outlined" data-icon="chat">chat</span>
+                <span>Chat</span>
+            </NavLink>
+            <NavLink class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="historial" ActiveClass="bg-primary-container text-on-primary-container">
+                <span class="material-symbols-outlined" data-icon="history">history</span>
+                <span>Historial</span>
+            </NavLink>
+            <NavLink class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="documentos" ActiveClass="bg-primary-container text-on-primary-container">
+                <span class="material-symbols-outlined" data-icon="description">description</span>
+                <span>Documentos</span>
+            </NavLink>
+            <NavLink class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="configuracion" ActiveClass="bg-primary-container text-on-primary-container">
+                <span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+                <span>Configuración IA</span>
+            </NavLink>
+            <AuthorizeView>
+                <Authorized>
+                    <NavLink class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="perfil" ActiveClass="bg-primary-container text-on-primary-container">
+                        <span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+                        <span class="truncate">Perfil</span>
+                    </NavLink>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        <div class="mt-auto px-md flex flex-col gap-xs font-label-md text-label-md border-t border-outline-variant pt-md">
+            <button class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" onclick="toggleTheme()">
+                <span class="material-symbols-outlined">dark_mode</span>
+                <span>Cambiar Tema</span>
+            </button>
+            <AuthorizeView>
+                <Authorized>
+                    <a class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="logout" data-enhance-nav="false">
+                        <span class="material-symbols-outlined" data-icon="logout">logout</span>
+                        <span>Cerrar Sesión</span>
+                    </a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" href="login" data-enhance-nav="false">
+                        <span class="material-symbols-outlined" data-icon="login">login</span>
+                        <span>Iniciar Sesión</span>
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </aside>
+
+    <!-- Main Canvas -->
+    <main class="flex-1 flex flex-col min-h-screen bg-surface relative pt-16 md:pt-0 md:ml-64 w-full">
+        @Body
     </main>
 </div>
 
-<div id="blazor-error-ui">
+<div id="blazor-error-ui" class="hidden absolute bottom-0 left-0 w-full bg-error text-on-error p-4 flex justify-between">
     An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
+    <div>
+        <a href="" class="reload underline mr-4">Reload</a>
+        <a class="dismiss cursor-pointer">🗙</a>
+    </div>
 </div>
