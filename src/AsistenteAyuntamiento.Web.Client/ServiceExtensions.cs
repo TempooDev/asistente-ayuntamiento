@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
+
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,33 +15,21 @@ public static class ServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var apiBase = configuration["ApiServiceBaseUrl"] ?? "https+http://apiservice";
-
-        services.AddHttpClient<WeatherApiClient>(client =>
-        {
-            // In WASM the base address is the app's origin.
-            // In SSR it will be overridden by the server's HttpClient factory.
-            client.BaseAddress = new Uri(apiBase);
-        });
+        services.AddScoped<AppTokenProvider>();
+        
+        services.AddHttpClient<WeatherApiClient>();
 
         // Register SignalR HubConnection as Transient so each component gets its own connection
         services.AddTransient<HubConnection>(sp =>
         {
-            var hubUrl = new Uri(new Uri(apiBase), "/chathub");
-            var tokenProvider = sp.GetRequiredService<IAccessTokenProvider>();
+            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+            var hubUrl = navManager.ToAbsoluteUri("/chathub");
+            var tokenProvider = sp.GetRequiredService<AppTokenProvider>();
 
             return new HubConnectionBuilder()
                 .WithUrl(hubUrl, options =>
                 {
-                    options.AccessTokenProvider = async () =>
-                    {
-                        var result = await tokenProvider.RequestAccessToken();
-                        if (result.TryGetToken(out var token))
-                        {
-                            return token.Value;
-                        }
-                        return null;
-                    };
+                    options.AccessTokenProvider = () => Task.FromResult(tokenProvider.AccessToken);
                 })
                 .WithAutomaticReconnect()
                 .Build();

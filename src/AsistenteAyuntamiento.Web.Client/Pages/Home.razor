@@ -10,6 +10,10 @@
 
 <AuthorizeView>
     <Authorized>
+        <div class="user-info">
+            <span>Hola, @context.User.Identity?.Name</span>
+            <a href="/logout" class="btn btn-sm btn-outline-danger">Cerrar Sesión</a>
+        </div>
         <div class="chat-container">
             <div class="messages">
                 @foreach (var msg in _messages)
@@ -60,7 +64,10 @@
         </div>
     </Authorized>
     <NotAuthorized>
-        <p>Por favor, inicia sesión para usar el chat.</p>
+        <div class="login-prompt">
+            <p>Por favor, inicia sesión para usar el chat interactivo.</p>
+            <a href="/login?returnUrl=/" class="btn btn-primary">Iniciar Sesión con Auth0</a>
+        </div>
     </NotAuthorized>
 </AuthorizeView>
 

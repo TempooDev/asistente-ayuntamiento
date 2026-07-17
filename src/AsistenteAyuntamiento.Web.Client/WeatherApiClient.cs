@@ -1,13 +1,15 @@
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Components;
 
 namespace AsistenteAyuntamiento.Web.Client;
 
-public class WeatherApiClient(HttpClient httpClient)
+public class WeatherApiClient(HttpClient httpClient, NavigationManager navManager)
 {
     public async Task<WeatherForecast[]> GetWeatherAsync(int maxItems = 10, CancellationToken cancellationToken = default)
     {
+        var url = navManager.ToAbsoluteUri("/weatherforecast");
         var forecasts = await httpClient.GetFromJsonAsync<WeatherForecast[]>(
-            "/weatherforecast",
+            url,
             cancellationToken);
 
         return forecasts is null

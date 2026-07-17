@@ -1,5 +1,6 @@
 using Amazon.S3;
 using AsistenteAyuntamiento.Web.Client;
+using Microsoft.AspNetCore.Authentication;
 using AsistenteAyuntamiento.Web.Components;
 using AsistenteAyuntamiento.Web.Infrastructure;
 using Auth0.AspNetCore.Authentication;
@@ -41,6 +42,7 @@ builder.Services.AddAuth0WebAppAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHttpForwarder();
 
 // ── Shared client services (HttpClient, WeatherApiClient, etc.) ───────────────
 builder.Services.AddClientServices(builder.Configuration);
@@ -87,6 +89,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+app.Use(async (context, next) =>
+{
+    var token = await context.GetTokenAsync("access_token");
+    if (!string.IsNullOrEmpty(token))
+    {
+        var tokenProvider = context.RequestServices.GetRequiredService<AppTokenProvider>();
+        tokenProvider.AccessToken = token;
+    }
+    await next();
+});
+
 app.UseOutputCache();
 
 app.MapStaticAssets();
@@ -95,6 +108,28 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(AsistenteAyuntamiento.Web.Client._Imports).Assembly);
+
+app.MapGet("/login", async (HttpContext httpContext, string returnUrl = "/") =>
+{
+    var authenticationProperties = new LoginAuthenticationPropertiesBuilder()
+        .WithRedirectUri(returnUrl)
+        .Build();
+
+    await httpContext.ChallengeAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
+});
+
+app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
+{
+    var authenticationProperties = new LogoutAuthenticationPropertiesBuilder()
+        .WithRedirectUri(returnUrl)
+        .Build();
+
+    await httpContext.SignOutAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
+    await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+});
+
+app.MapForwarder("/chathub", "https+http://apiservice", new Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromSeconds(100) });
+app.MapForwarder("/weatherforecast", "https+http://apiservice");
 
 app.MapDefaultEndpoints();
 
