@@ -10,13 +10,16 @@ builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Tenants.CurrentTenantService>();
 
-builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente_ayuntamiento_db");
+builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
+
+var auth0Domain = builder.Configuration["Auth0:Domain"];
+var auth0Audience = builder.Configuration["Auth0:Audience"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}";
-        options.Audience = builder.Configuration["Auth0:Audience"];
+        options.Authority = $"https://{auth0Domain}/";
+        options.Audience = auth0Audience;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             RoleClaimType = "https://asistente.ayuntamiento.com/roles"
@@ -29,7 +32,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub"))
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
                 {
                     context.Token = accessToken;
                 }
@@ -75,7 +78,7 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
-app.MapHub<AsistenteAyuntamiento.ApiService.Hubs.ChatHub>("/chathub");
+app.MapHub<AsistenteAyuntamiento.ApiService.Features.Chat.ChatHub>("/hubs/chat");
 
 AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
 

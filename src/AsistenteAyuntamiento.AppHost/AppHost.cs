@@ -28,7 +28,7 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithEnvironment("Auth0__Domain",   auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
-var db = builder.AddPostgres("postgres").AddDatabase("asistente_ayuntamiento_db");
+var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db");
 
 builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()

@@ -1,0 +1,143 @@
+@page "/chat"
+@using Microsoft.AspNetCore.Components.Authorization
+@using AsistenteAyuntamiento.Web.Client
+@implements IDisposable
+@inject ChatSignalRService ChatService
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveAuto
+
+<PageTitle>Chat - AdminAI</PageTitle>
+
+<div class="max-w-[max-width] mx-auto px-margin-mobile md:px-margin-desktop py-xl md:py-margin-desktop flex flex-col h-[calc(100vh-80px)]">
+    <div class="mb-xl">
+        <h1 class="text-heading-1 font-bold text-gray-900 mb-xs">Asistente Virtual</h1>
+        <p class="text-body-lg text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+    </div>
+
+    <!-- Chat Messages -->
+    <div class="flex-1 overflow-y-auto bg-gray-50 rounded-2xl p-6 mb-6 border border-gray-200">
+        @if (_messages.Count == 0)
+        {
+            <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p>Escribe tu mensaje para comenzar la conversación.</p>
+            </div>
+        }
+        else
+        {
+            <div class="space-y-4">
+                @foreach (var msg in _messages)
+                {
+                    <div class="flex @(msg.IsUser ? "justify-end" : "justify-start")">
+                        <div class="max-w-[80%] rounded-2xl px-5 py-3 @(msg.IsUser ? "bg-primary-600 text-white rounded-br-none" : "bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm")">
+                            <p class="text-body whitespace-pre-wrap">@msg.Text</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Input Area -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-2 shadow-sm flex items-end">
+        <textarea 
+            class="flex-1 max-h-32 p-3 bg-transparent border-0 focus:ring-0 resize-none text-body" 
+            rows="1" 
+            placeholder="Escribe tu consulta aquí..."
+            @bind="_currentMessage"
+            @bind:event="oninput"
+            @onkeydown="HandleKeyDown">
+        </textarea>
+        
+        <button 
+            class="ml-2 mb-1 p-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @onclick="SendMessage"
+            disabled="@(string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+            </svg>
+        </button>
+    </div>
+    
+    @if (!_isConnected)
+    {
+        <div class="text-center mt-2 text-sm text-gray-500 flex items-center justify-center">
+            <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+            Conectando al servidor...
+        </div>
+    }
+</div>
+
+@code {
+    private string _currentMessage = string.Empty;
+    private bool _isConnected = false;
+    private List<ChatMessage> _messages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatService.OnMessageReceived += HandleIncomingMessage;
+        
+        try
+        {
+            await ChatService.ConnectAsync();
+            _isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            // Connect failed, maybe retry logic later
+            Console.WriteLine($"Error connecting to SignalR: {ex.Message}");
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected) return;
+
+        var text = _currentMessage;
+        _currentMessage = string.Empty;
+
+        // Add to UI immediately
+        _messages.Add(new ChatMessage { Text = text, IsUser = true });
+        StateHasChanged();
+
+        // Send to backend
+        try
+        {
+            await ChatService.SendMessageAsync(text);
+        }
+        catch (Exception ex)
+        {
+            _messages.Add(new ChatMessage { Text = $"Error de envío: {ex.Message}", IsUser = false });
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private void HandleIncomingMessage(string message)
+    {
+        InvokeAsync(() =>
+        {
+            _messages.Add(new ChatMessage { Text = message, IsUser = false });
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ChatService.OnMessageReceived -= HandleIncomingMessage;
+    }
+
+    private class ChatMessage
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsUser { get; set; }
+    }
+}

@@ -16,6 +16,7 @@ public static class ServiceExtensions
         IConfiguration configuration)
     {
         services.AddScoped<AppTokenProvider>();
+        services.AddScoped<ChatSignalRService>();
         
         services.AddHttpClient<WeatherApiClient>();
         services.AddHttpClient<UserApiClient>();
