@@ -27,13 +27,21 @@
         }
         else
         {
-            <div class="space-y-4">
+            <div class="chat-container w-100">
                 @foreach (var msg in _messages)
                 {
-                    <div class="flex @(msg.IsUser ? "justify-end" : "justify-start")">
-                        <div class="max-w-[80%] rounded-2xl px-5 py-3 @(msg.IsUser ? "bg-primary-600 text-white rounded-br-none" : "bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm")">
-                            <p class="text-body whitespace-pre-wrap">@msg.Text</p>
-                        </div>
+                    <div class="chat-bubble @(msg.IsUser ? "citizen" : "assistant")">
+                        <p class="whitespace-pre-wrap">@msg.Text</p>
+                    </div>
+                }
+                
+                @if (_isWaitingForResponse)
+                {
+                    <div class="chat-bubble assistant flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s;"></span>
+                        <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s;"></span>
+                        <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s;"></span>
+                        <span class="text-sm text-gray-500 ml-1">Procesando...</span>
                     </div>
                 }
             </div>
@@ -41,9 +49,9 @@
     </div>
 
     <!-- Input Area -->
-    <div class="bg-white rounded-2xl border border-gray-200 p-2 shadow-sm flex items-end">
+    <div class="flex items-end gap-2">
         <textarea 
-            class="flex-1 max-h-32 p-3 bg-transparent border-0 focus:ring-0 resize-none text-body" 
+            class="gov-input flex-1 max-h-32 resize-none" 
             rows="1" 
             placeholder="Escribe tu consulta aquí..."
             @bind="_currentMessage"
@@ -52,7 +60,8 @@
         </textarea>
         
         <button 
-            class="ml-2 mb-1 p-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="gov-btn gov-btn-primary"
+            style="padding: 12px; min-height: unset; border-radius: 12px; margin-bottom: 2px;"
             @onclick="SendMessage"
             disabled="@(string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected)">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -73,6 +82,7 @@
 @code {
     private string _currentMessage = string.Empty;
     private bool _isConnected = false;
+    private bool _isWaitingForResponse = false;
     private List<ChatMessage> _messages = new();
 
     protected override void OnInitialized()
@@ -99,10 +109,11 @@
 
     private async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected) return;
+        if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected || _isWaitingForResponse) return;
 
         var text = _currentMessage;
         _currentMessage = string.Empty;
+        _isWaitingForResponse = true;
 
         // Add to UI immediately
         _messages.Add(new ChatMessage { Text = text, IsUser = true });
@@ -116,6 +127,8 @@
         catch (Exception ex)
         {
             _messages.Add(new ChatMessage { Text = $"Error de envío: {ex.Message}", IsUser = false });
+            _isWaitingForResponse = false;
+            StateHasChanged();
         }
     }
 
@@ -131,6 +144,7 @@
     {
         InvokeAsync(() =>
         {
+            _isWaitingForResponse = false;
             _messages.Add(new ChatMessage { Text = message, IsUser = false });
             StateHasChanged();
         });
