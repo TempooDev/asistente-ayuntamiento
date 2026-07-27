@@ -1,3 +1,5 @@
+using AsistenteAyuntamiento.ApiService.Features.Chat;
+using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
@@ -10,7 +12,11 @@ builder.AddServiceDefaults();
 // Add services to the container.
 builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Tenants.CurrentTenantService>();
+
+builder.Services.AddScoped<CurrentTenantService>();
+builder.Services.AddSingleton<AiMetricsService>();
+builder.Services.AddScoped<ChatSessionService>();
+builder.Services.AddScoped<AiChatService>();
 
 builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
 
@@ -26,7 +32,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             RoleClaimType = "https://asistente.ayuntamiento.com/roles"
         };
-        
+
         // SignalR sends the access token in the query string for WebSockets
         options.Events = new JwtBearerEvents
         {
@@ -54,6 +60,11 @@ builder.Services.AddKernel()
 #pragma warning restore SKEXP0070
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Register AI metrics OpenTelemetry instruments
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(AiMetricsService.MeterName))
+    .WithTracing(tracing => tracing.AddSource(AiMetricsService.MeterName));
 
 var app = builder.Build();
 
@@ -96,6 +107,7 @@ app.MapGet("/weatherforecast", () =>
 app.MapHub<AsistenteAyuntamiento.ApiService.Features.Chat.ChatHub>("/hubs/chat");
 
 AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
+app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();
 
