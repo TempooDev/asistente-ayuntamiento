@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // ── Razor Components: Server + WASM ──────────────────────────────────────────
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents()
@@ -46,6 +47,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
     options =>
     {
         options.TokenValidationParameters.RoleClaimType = "https://asistente.ayuntamiento.com/roles";
+        options.SaveTokens = true;
     });
 
 builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(

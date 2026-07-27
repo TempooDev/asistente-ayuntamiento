@@ -27,16 +27,14 @@ var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db"
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReference(db)
+    .WaitFor(db)
     .WithEnvironment("Auth0__Domain",   auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
-var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
-    .WithReference(apiService);
-
-builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
+var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
-    .WithReference(gateway)
+    .WithReference(apiService)
     .WithReference(db)
     .WithReference(blobs)
     .WaitFor(apiService)
@@ -50,5 +48,9 @@ builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithEnvironment("Blob__AccessKeyId",      blobAccessKeyId ?? "")
     .WithEnvironment("Blob__SecretAccessKey",  blobSecretAccessKey ?? "")
     .WithEnvironment("Blob__BucketName",       blobBucketName ?? "");
+
+var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
+    .WithReference(apiService)
+    .WithReference(webfrontend);
 
 builder.Build().Run();

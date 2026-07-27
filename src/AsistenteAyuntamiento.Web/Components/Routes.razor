@@ -1,3 +1,4 @@
+@implements IDisposable
 <Router AppAssembly="typeof(Program).Assembly"
         AdditionalAssemblies="new[] { typeof(AsistenteAyuntamiento.Web.Client._Imports).Assembly }">
     <Found Context="routeData">
@@ -11,3 +12,46 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    [Inject] private PersistentComponentState ApplicationState { get; set; } = default!;
+    [Inject] private AsistenteAyuntamiento.Web.Client.AppTokenProvider TokenProvider { get; set; } = default!;
+    [Inject] private Microsoft.AspNetCore.Http.IHttpContextAccessor? HttpContextAccessor { get; set; }
+
+    private PersistingComponentStateSubscription _subscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _subscription = ApplicationState.RegisterOnPersisting(PersistToken);
+
+        if (HttpContextAccessor?.HttpContext is not null)
+        {
+            var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(HttpContextAccessor.HttpContext, "access_token");
+            if (!string.IsNullOrEmpty(token))
+            {
+                TokenProvider.AccessToken = token;
+            }
+        }
+        else
+        {
+            if (ApplicationState.TryTakeFromJson<string>("AccessToken", out var token))
+            {
+                TokenProvider.AccessToken = token;
+            }
+        }
+    }
+
+    private Task PersistToken()
+    {
+        if (!string.IsNullOrEmpty(TokenProvider.AccessToken))
+        {
+            ApplicationState.PersistAsJson("AccessToken", TokenProvider.AccessToken);
+        }
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _subscription.Dispose();
+    }
+}
