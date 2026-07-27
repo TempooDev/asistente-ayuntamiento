@@ -61,6 +61,33 @@ public class ChatSignalRService : IAsyncDisposable
         }
     }
 
+    public async Task<List<ChatSessionSummaryDto>> GetSessionsAsync()
+    {
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
+        {
+            return await _hubConnection.InvokeAsync<List<ChatSessionSummaryDto>>("GetSessions");
+        }
+        return new();
+    }
+
+    public async Task<List<ChatMessageDto>> LoadSessionAsync(Guid sessionId)
+    {
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
+        {
+            return await _hubConnection.InvokeAsync<List<ChatMessageDto>>("LoadSession", sessionId);
+        }
+        return new();
+    }
+
+    public async Task<Guid> CreateNewSessionAsync()
+    {
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
+        {
+            return await _hubConnection.InvokeAsync<Guid>("CreateNewSession");
+        }
+        return Guid.Empty;
+    }
+
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
     public async ValueTask DisposeAsync()
@@ -71,3 +98,6 @@ public class ChatSignalRService : IAsyncDisposable
         }
     }
 }
+
+public record ChatSessionSummaryDto(Guid Id, DateTime CreatedAt, string Preview, int MessageCount);
+public record ChatMessageDto(string Role, string Content, DateTime CreatedAt);

@@ -50,8 +50,7 @@ public class ChatHub : Hub
 
             // 1. Session & user message persistence
             var session = await _sessionService.GetOrCreateSessionAsync(userId, tenantId);
-            _sessionService.AddUserMessage(session, message);
-            await _sessionService.SaveAsync();
+            _sessionService.EnqueueUserMessage(session, message);
 
             // 2. Build history for the model
             var recentMessages = _sessionService.GetCompactedHistory(session);
@@ -61,8 +60,7 @@ public class ChatHub : Hub
             var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId);
 
             // 4. Persist assistant response
-            _sessionService.AddAssistantMessage(session, result.Content);
-            await _sessionService.SaveAsync();
+            _sessionService.EnqueueAssistantMessage(session, result.Content);
 
             // 5. Send to client
             await Clients.Caller.SendAsync("ReceiveMessage", result.Content);
@@ -91,5 +89,46 @@ public class ChatHub : Hub
         }
 
         return history;
+    }
+
+    public async Task<List<ChatSessionSummaryDto>> GetSessions()
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+            return new List<ChatSessionSummaryDto>();
+
+        var sessions = await _sessionService.GetUserSessionsAsync(userId, tenantId);
+        return sessions.Select(s => {
+            var firstUserMsg = s.Messages.OrderBy(m => m.CreatedAt).FirstOrDefault(m => m.Role == "user")?.Content ?? "";
+            var preview = firstUserMsg.Length > 80 ? firstUserMsg.Substring(0, 80) + "..." : firstUserMsg;
+            return new ChatSessionSummaryDto(s.Id, s.CreatedAt, preview, s.Messages.Count);
+        }).ToList();
+    }
+
+    public async Task<List<ChatMessageDto>> LoadSession(Guid sessionId)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+            return new List<ChatMessageDto>();
+
+        var messages = await _sessionService.GetSessionMessagesAsync(sessionId, userId, tenantId);
+        return messages.Select(m => new ChatMessageDto(m.Role, m.Content, m.CreatedAt)).ToList();
+    }
+
+    public async Task<Guid> CreateNewSession()
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+            throw new HubException("User ID not found");
+
+        // Force creation of a brand new session
+        var session = await _sessionService.CreateNewSessionAsync(userId, tenantId);
+        return session.Id;
     }
 }

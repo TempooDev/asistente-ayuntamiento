@@ -13,14 +13,17 @@ namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 public class ChatSessionService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ChatMessageBuffer _buffer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatSessionService"/> class.
     /// </summary>
     /// <param name="dbContext">The database context.</param>
-    public ChatSessionService(AppDbContext dbContext)
+    /// <param name="buffer">The chat message buffer for async persistence.</param>
+    public ChatSessionService(AppDbContext dbContext, ChatMessageBuffer buffer)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
     }
 
     /// <summary>
@@ -52,10 +55,32 @@ public class ChatSessionService
             };
 
             _dbContext.ChatSessions.Add(session);
+            await _dbContext.SaveChangesAsync();
         }
 
         return session;
     }
+
+    /// <summary>
+    /// Explicitly creates a brand new chat session, bypassing the 7-day reuse logic.
+    /// </summary>
+    public async Task<ChatSession> CreateNewSessionAsync(string userId, string tenantId)
+    {
+        var session = new ChatSession
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TenantId = tenantId,
+            CreatedAt = DateTime.UtcNow,
+            Messages = new List<ChatMessage>()
+        };
+
+        _dbContext.ChatSessions.Add(session);
+        await _dbContext.SaveChangesAsync();
+        
+        return session;
+    }
+
 
     /// <summary>
     /// Creates and adds a user message to the session and database context.
@@ -138,5 +163,76 @@ public class ChatSessionService
     public async Task SaveAsync()
     {
         await _dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Creates and adds a user message to the session in-memory, and enqueues for async persistence.
+    /// </summary>
+    public void EnqueueUserMessage(ChatSession session, string content)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var message = new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            Session = session,
+            Role = "user",
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        session.Messages.Add(message);
+        _buffer.Enqueue(message);
+    }
+
+    /// <summary>
+    /// Creates and adds an assistant message to the session in-memory, and enqueues for async persistence.
+    /// </summary>
+    public void EnqueueAssistantMessage(ChatSession session, string content)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var message = new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            Session = session,
+            Role = "assistant",
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        session.Messages.Add(message);
+        _buffer.Enqueue(message);
+    }
+
+    /// <summary>
+    /// Gets a user's chat sessions ordered by creation date descending.
+    /// </summary>
+    public async Task<List<ChatSession>> GetUserSessionsAsync(string userId, string tenantId)
+    {
+        return await _dbContext.ChatSessions
+            .Include(s => s.Messages)
+            .Where(s => s.UserId == userId && s.TenantId == tenantId)
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets messages for a specific session.
+    /// </summary>
+    public async Task<List<ChatMessage>> GetSessionMessagesAsync(Guid sessionId, string userId, string tenantId)
+    {
+        var session = await _dbContext.ChatSessions
+            .Include(s => s.Messages)
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+
+        if (session == null)
+        {
+            return new List<ChatMessage>();
+        }
+
+        return session.Messages.OrderBy(m => m.CreatedAt).ToList();
     }
 }

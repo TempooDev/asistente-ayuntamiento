@@ -17,6 +17,8 @@ builder.Services.AddScoped<CurrentTenantService>();
 builder.Services.AddSingleton<AiMetricsService>();
 builder.Services.AddScoped<ChatSessionService>();
 builder.Services.AddScoped<AiChatService>();
+builder.Services.AddSingleton<ChatMessageBuffer>();
+builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
 

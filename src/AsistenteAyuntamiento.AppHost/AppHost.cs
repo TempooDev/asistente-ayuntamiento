@@ -22,7 +22,11 @@ var blobs = blobStorage.AddBlobs("BlobStorage");
 
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
-var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db");
+var postgresServer = builder.AddPostgres("postgres")
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent);
+    
+var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
 
 var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
 
@@ -54,6 +58,8 @@ var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfro
 
 var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
     .WithReference(apiService)
+    .WaitFor(apiService)
+    .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
 builder.Build().Run();

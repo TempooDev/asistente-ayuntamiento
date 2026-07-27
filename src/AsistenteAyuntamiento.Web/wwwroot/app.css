@@ -250,3 +250,92 @@ h1:focus {
 .gov-list-item:last-child {
     border-bottom: none;
 }
+
+/* Chat Layout & Sidebar */
+.chat-layout {
+    position: relative;
+}
+
+.chat-sidebar {
+    background-color: #ffffff;
+}
+
+.chat-sidebar-header {
+    background-color: #ffffff;
+}
+
+.chat-session-item {
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.chat-session-item.active {
+    background-color: rgba(47, 133, 90, 0.05); /* Soft accent bg */
+    border-left-color: var(--primary);
+}
+
+.chat-main {
+    background-color: var(--secondary-bg);
+}
+
+/* Markdown content inside chat bubbles */
+.chat-bubble .markdown-content {
+    line-height: 1.6;
+}
+.chat-bubble .markdown-content p {
+    margin: 0 0 0.5em 0;
+}
+.chat-bubble .markdown-content p:last-child {
+    margin-bottom: 0;
+}
+.chat-bubble .markdown-content strong {
+    font-weight: 600;
+}
+.chat-bubble .markdown-content ul,
+.chat-bubble .markdown-content ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+}
+.chat-bubble .markdown-content li {
+    margin-bottom: 0.25em;
+    list-style-type: disc;
+}
+.chat-bubble .markdown-content ol li {
+    list-style-type: decimal;
+}
+.chat-bubble .markdown-content code {
+    background-color: rgba(0, 0, 0, 0.08);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: 'Courier New', monospace;
+}
+.chat-bubble .markdown-content pre {
+    background-color: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+}
+.chat-bubble .markdown-content pre code {
+    background: none;
+    padding: 0;
+}
+.chat-bubble .markdown-content h1,
+.chat-bubble .markdown-content h2,
+.chat-bubble .markdown-content h3 {
+    font-size: 1.1em;
+    font-weight: 600;
+    margin: 0.5em 0 0.25em 0;
+}
+.chat-bubble .markdown-content a {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+/* Dark mode markdown adjustments */
+[data-theme="dark"] .chat-bubble .markdown-content code {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .chat-bubble .markdown-content pre {
+    background-color: rgba(255, 255, 255, 0.08);
+}
