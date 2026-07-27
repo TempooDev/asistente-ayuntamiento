@@ -1,21 +1,49 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Options;
+using System.Net.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistenteAyuntamiento.Web.Client;
 
 public class ChatSignalRService : IAsyncDisposable
 {
-    private readonly HubConnection _hubConnection;
+    private readonly ChatHubOptions _hubOptions;
+    private readonly AppTokenProvider _tokenProvider;
+    private readonly IServiceProvider _serviceProvider;
+    private HubConnection? _hubConnection;
 
     public event Action<string>? OnMessageReceived;
 
-    public ChatSignalRService(HubConnection hubConnection)
+    public ChatSignalRService(
+        IOptions<ChatHubOptions> hubOptions,
+        AppTokenProvider tokenProvider,
+        IServiceProvider serviceProvider)
     {
-        _hubConnection = hubConnection;
+        _hubOptions = hubOptions.Value;
+        _tokenProvider = tokenProvider;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task ConnectAsync()
     {
-        if (_hubConnection.State == HubConnectionState.Connected) return;
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected) return;
+
+        _hubConnection ??= new HubConnectionBuilder()
+            .WithUrl(_hubOptions.HubUrl, options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult(_tokenProvider.AccessToken);
+
+                // On the server, use the handler from IHttpClientFactory which has
+                // Aspire service discovery configured — this resolves "http://apiservice"
+                // to the actual host:port.
+                var handlerFactory = _serviceProvider.GetService<IHttpMessageHandlerFactory>();
+                if (handlerFactory is not null)
+                {
+                    options.HttpMessageHandlerFactory = _ => handlerFactory.CreateHandler();
+                }
+            })
+            .WithAutomaticReconnect()
+            .Build();
 
         _hubConnection.On<string>("ReceiveMessage", (message) =>
         {

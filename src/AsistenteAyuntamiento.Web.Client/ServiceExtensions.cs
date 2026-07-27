@@ -1,5 +1,4 @@
 
-using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +9,8 @@ public static class ServiceExtensions
     /// <summary>
     /// Registers services that must be available in both SSR (server) and WASM (client) contexts.
     /// Call this from both the server Program.cs and the WASM Program.cs.
+    /// NOTE: BaseAddress for typed HttpClients is NOT set here — each host's Program.cs
+    /// must configure the correct BaseAddress (server → http://apiservice, WASM → host origin).
     /// </summary>
     public static IServiceCollection AddClientServices(
         this IServiceCollection services,
@@ -18,33 +19,11 @@ public static class ServiceExtensions
         services.AddScoped<AppTokenProvider>();
         services.AddScoped<ChatSignalRService>();
         
-        services.AddHttpClient<WeatherApiClient>((sp, client) => {
-            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-            client.BaseAddress = new Uri(navManager.BaseUri);
-        });
+        services.AddHttpClient<WeatherApiClient>();
         
-        services.AddHttpClient<UserApiClient>((sp, client) => {
-            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-            client.BaseAddress = new Uri(navManager.BaseUri);
-        });
-
-        // Register SignalR HubConnection as Transient so each component gets its own connection
-        services.AddTransient<HubConnection>(sp =>
-        {
-            var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-            // Hub url is relative to the base URL
-            var hubUrl = navManager.ToAbsoluteUri("/hubs/chat");
-            var tokenProvider = sp.GetRequiredService<AppTokenProvider>();
-
-            return new HubConnectionBuilder()
-                .WithUrl(hubUrl, options =>
-                {
-                    options.AccessTokenProvider = () => Task.FromResult(tokenProvider.AccessToken);
-                })
-                .WithAutomaticReconnect()
-                .Build();
-        });
+        services.AddHttpClient<UserApiClient>();
 
         return services;
     }
 }
+

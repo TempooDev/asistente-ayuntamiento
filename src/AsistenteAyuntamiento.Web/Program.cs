@@ -67,6 +67,9 @@ builder.Services.AddClientServices(builder.Configuration);
 builder.Services.AddHttpClient<WeatherApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<UserApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 
+// SignalR hub URL — server connects directly to apiservice (bypasses gateway)
+builder.Services.Configure<ChatHubOptions>(o => o.HubUrl = "http://apiservice/hubs/chat");
+
 // ── Blob Storage ──────────────────────────────────────────────────────────────
 // Aspire inyecta las credenciales de R2 como env vars (Blob__*).
 // En desarrollo, si el endpoint no está configurado, se usa Azurite como fallback.
