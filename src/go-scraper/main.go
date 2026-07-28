@@ -50,6 +50,7 @@ func runScraperWorkflow() {
 		log.Printf("Error inicializando storage: %v\n", err)
 		return
 	}
+	defer blobStorage.Close()
 
 	boeProvider := boe.NewProvider()
 
