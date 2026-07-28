@@ -10,6 +10,7 @@ import (
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boe"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
 )
 
 func main() {
@@ -36,6 +37,13 @@ func main() {
 
 func runScraperWorkflow() {
 	ctx := context.Background()
+
+	shutdown, err := telemetry.InitProvider(ctx)
+	if err != nil {
+		log.Printf("Error inicializando OpenTelemetry: %v\n", err)
+	} else {
+		defer shutdown(ctx)
+	}
 
 	blobStorage, err := storage.NewDocumentStorage(ctx)
 	if err != nil {

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/time/rate"
 )
 
@@ -31,7 +33,8 @@ func NewProvider() *Provider {
 	limiter := rate.NewLimiter(rate.Every(500*time.Millisecond), 2)
 	return &Provider{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   30 * time.Second,
 		},
 		rateLimiter: limiter,
 	}
@@ -43,6 +46,9 @@ func (p *Provider) Name() string {
 
 // FetchSummary descarga el índice XML del BOE y extrae los IDs de los documentos.
 func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, error) {
+	ctx, span := otel.Tracer("boe-client").Start(ctx, "FetchSummary")
+	defer span.End()
+
 	dateStr := date.Format("20060102")
 	url := fmt.Sprintf(summaryURLTemplate, dateStr)
 
@@ -81,6 +87,9 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 
 // FetchDocument descarga y estructura un documento BOE XML individual por su ID.
 func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Document, error) {
+	ctx, span := otel.Tracer("boe-client").Start(ctx, "FetchDocument")
+	defer span.End()
+
 	url := fmt.Sprintf(documentURLTemplate, id)
 
 	body, err := p.doRequest(ctx, url)
