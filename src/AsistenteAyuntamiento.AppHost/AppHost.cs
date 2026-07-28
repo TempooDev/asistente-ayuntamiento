@@ -18,7 +18,7 @@ var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
 var blobBucketName = builder.Configuration["Blob:BucketName"];
 
 var blobStorage = builder.AddAzureStorage("storage").RunAsEmulator();
-var blobs = blobStorage.AddBlobs("BlobStorage");
+var blobs = blobStorage.AddBlobs("boletines");
 
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 

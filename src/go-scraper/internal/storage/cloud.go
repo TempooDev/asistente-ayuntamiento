@@ -46,7 +46,7 @@ func NewDocumentStorage(ctx context.Context) (DocumentStorage, error) {
 		bucketURL = fmt.Sprintf("s3://%s?endpoint=%s&region=auto&s3ForcePathStyle=true", bucketName, endpoint)
 	} else {
 		// 2. Si no hay S3/R2, intentar usar Azure Blob Storage (Azurite en local)
-		connStr := os.Getenv("ConnectionStrings__BlobStorage")
+		connStr := os.Getenv("ConnectionStrings__boletines")
 		if connStr != "" {
 			// El driver azureblob busca esta variable de entorno de conexión
 			os.Setenv("AZURE_STORAGE_CONNECTION_STRING", connStr)
