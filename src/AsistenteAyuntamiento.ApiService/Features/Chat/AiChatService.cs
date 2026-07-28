@@ -1,10 +1,10 @@
+using AsistenteAyuntamiento.ApiService.Features.Chat;
+using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using System.Diagnostics;
-
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-
-namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 /// <summary>
 /// Result of an AI chat completion request.
@@ -35,21 +35,19 @@ public sealed record TokenUsageInfo(int InputTokens, int OutputTokens, int Total
 /// </summary>
 public sealed class AiChatService
 {
-    private const string ModelId = "llama3.2";
-
-    private readonly IChatCompletionService _chatCompletionService;
+    private readonly AiConfigurationService _aiConfigurationService;
+    private readonly IConfiguration _configuration;
     private readonly AiMetricsService _metricsService;
     private readonly ILogger<AiChatService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of <see cref="AiChatService"/>.
-    /// </summary>
     public AiChatService(
-        IChatCompletionService chatCompletionService,
+        AiConfigurationService aiConfigurationService,
+        IConfiguration configuration,
         AiMetricsService metricsService,
         ILogger<AiChatService> logger)
     {
-        _chatCompletionService = chatCompletionService;
+        _aiConfigurationService = aiConfigurationService;
+        _configuration = configuration;
         _metricsService = metricsService;
         _logger = logger;
     }
@@ -71,7 +69,11 @@ public sealed class AiChatService
         var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
         var promptLength = lastUserMessage?.Content?.Length ?? 0;
 
-        activity?.SetTag("ai.model", ModelId);
+        var config = await _aiConfigurationService.GetConfigurationAsync();
+        var apiKey = await _aiConfigurationService.GetDecryptedApiKeyAsync();
+        var modelId = config.Model;
+        
+        activity?.SetTag("ai.model", modelId);
         activity?.SetTag("ai.tenant", tenantId);
         activity?.SetTag("ai.user", userId);
         activity?.SetTag("ai.prompt.length", promptLength);
@@ -79,8 +81,32 @@ public sealed class AiChatService
 
         try
         {
-            var response = await _chatCompletionService.GetChatMessageContentAsync(
+            var kernelBuilder = Kernel.CreateBuilder();
+            if (config.Provider == "openai")
+            {
+                kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+            }
+            else
+            {
+                var ollamaEndpoint = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                #pragma warning disable SKEXP0070
+                kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
+                #pragma warning restore SKEXP0070
+            }
+            var kernel = kernelBuilder.Build();
+            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            
+            var executionSettings = new PromptExecutionSettings
+            {
+                ExtensionData = new Dictionary<string, object>
+                {
+                    { "Temperature", config.Temperature }
+                }
+            };
+
+            var response = await chatCompletionService.GetChatMessageContentAsync(
                 history,
+                executionSettings: executionSettings,
                 cancellationToken: cancellationToken);
 
             stopwatch.Stop();
@@ -94,7 +120,7 @@ public sealed class AiChatService
 
             _metricsService.RecordCall(new AiCallRecord
             {
-                ModelId = ModelId,
+                ModelId = modelId,
                 TenantId = tenantId,
                 UserId = userId,
                 Success = true,
@@ -125,7 +151,7 @@ public sealed class AiChatService
 
             _metricsService.RecordCall(new AiCallRecord
             {
-                ModelId = ModelId,
+                ModelId = config.Model,
                 TenantId = tenantId,
                 UserId = userId,
                 Success = false,
