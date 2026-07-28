@@ -30,15 +30,12 @@ El flujo de trabajo automatizado (mediante un cron job o planificador) seguirá 
 
 ## 4. Detalles de la API y Endpoints
 
-### 4.1. Endpoint de Sumario Diario (API Datos Abiertos)
-* **Ruta:** `https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}`
+### 4.1. Endpoint de Sumario Diario (Web XML Directo)
+* **Ruta:** `https://www.boe.es/diario_boe/xml.php?id=BOE-S-YYYYMMDD`
 * **Método:** `GET`
-* **Parámetros:** `fecha` en formato `YYYYMMDD` (*path parameter*).
-* **Respuestas HTTP Esperadas:** 
-  * `200`: Documento XML conteniendo el índice del día. Se deberán parsear las etiquetas de identificadores.
-  * `400`: Identificador no válido o parámetros incorrectos.
-  * `404`: La información solicitada no existe.
-  * `500`: Error del servidor.
+* **Parámetros:** `id` con el formato `BOE-S-YYYYMMDD` (donde YYYYMMDD representa la fecha requerida).
+* **Nota de Arquitectura:** Se utiliza este endpoint web directo en lugar de la API de Datos Abiertos (`/datosabiertos/api/boe/sumario/`) porque garantiza la disponibilidad inmediata (freshness) de los datos publicados en el día, requisito indispensable para el sistema RAG.
+* **Respuesta Esperada:** Documento XML conteniendo el índice del día. Se deberán parsear las etiquetas correspondientes a los identificadores del documento.
 
 ### 4.2. Endpoint de Documento Individual
 * **Ruta:** `https://www.boe.es/diario_boe/xml.php?id={ID}`

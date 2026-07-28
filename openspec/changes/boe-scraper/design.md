@@ -9,7 +9,7 @@
    * Interfaz `BoletinProvider` con métodos estándar como `FetchSummary(date time.Time) ([]string, error)` y `FetchDocument(id string) (*Document, error)`.
    * Estructura base de `Document` e inyección de metadatos en *chunks*.
 2. **Implementación BOE (`pkg/boe`)**:
-   * Cliente específico que consume la API REST de Datos Abiertos (`https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}`) y el endpoint XML (`https://www.boe.es/diario_boe/xml.php?id={ID}`).
+   * Cliente específico que consume los endpoints web diarios (`https://www.boe.es/diario_boe/xml.php?id=BOE-S-YYYYMMDD` y `https://www.boe.es/diario_boe/xml.php?id={ID}`) para garantizar la inmediatez de los datos, descartando el portal de Datos Abiertos por el posible retraso en la sincronización.
 3. **Motor de Chunking (`pkg/chunker`)**:
    * Lógica para segmentar el nodo `<texto>` del XML por artículos o párrafos lógicos.
 4. **Almacenamiento (`pkg/storage`)**:
