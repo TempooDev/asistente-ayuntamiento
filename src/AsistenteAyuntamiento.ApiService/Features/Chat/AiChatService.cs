@@ -5,6 +5,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.EntityFrameworkCore;
+#pragma warning disable SKEXP0001
+using Microsoft.SemanticKernel.Embeddings;
+#pragma warning restore SKEXP0001
 
 /// <summary>
 /// Result of an AI chat completion request.
@@ -14,12 +18,15 @@ using Microsoft.SemanticKernel.ChatCompletion;
 /// <param name="DurationMs">Elapsed time in milliseconds.</param>
 /// <param name="ErrorMessage">Error details when <paramref name="Success"/> is <c>false</c>; otherwise <c>null</c>.</param>
 /// <param name="TokenUsage">Token consumption breakdown for this request.</param>
+public sealed record DocumentSource(string Title, string Department, string Date, string BlobPath);
+
 public sealed record AiCompletionResult(
     bool Success,
     string Content,
     double DurationMs,
     string? ErrorMessage,
-    TokenUsageInfo TokenUsage);
+    TokenUsageInfo TokenUsage,
+    List<DocumentSource>? Sources = null);
 
 /// <summary>
 /// Token consumption breakdown for a single AI request.
@@ -39,17 +46,23 @@ public sealed class AiChatService
     private readonly IConfiguration _configuration;
     private readonly AiMetricsService _metricsService;
     private readonly ILogger<AiChatService> _logger;
+    private readonly AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext _dbContext;
+    private readonly Kernel _kernel;
 
     public AiChatService(
         AiConfigurationService aiConfigurationService,
         IConfiguration configuration,
         AiMetricsService metricsService,
-        ILogger<AiChatService> logger)
+        ILogger<AiChatService> logger,
+        AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext,
+        Kernel kernel)
     {
         _aiConfigurationService = aiConfigurationService;
         _configuration = configuration;
         _metricsService = metricsService;
         _logger = logger;
+        _dbContext = dbContext;
+        _kernel = kernel;
     }
 
     /// <summary>
@@ -97,6 +110,42 @@ public sealed class AiChatService
             var kernel = kernelBuilder.Build();
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
             
+            // --- RAG VECTOR SEARCH ---
+            var documentSources = new List<DocumentSource>();
+            if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
+            {
+                #pragma warning disable CS0618
+                var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
+                #pragma warning restore CS0618
+                var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
+                var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
+
+                // Find top 3 closest chunks using CosineDistance
+                var closestChunks = await _dbContext.DocumentChunks
+                    .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
+                    .Take(3)
+                    .ToListAsync(cancellationToken);
+
+                if (closestChunks.Any())
+                {
+                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
+                        $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                    
+                    var ragPrompt = $"Utiliza EXCLUSIVAMENTE el siguiente contexto legal extraído de los boletines oficiales para responder a la pregunta del usuario. Si el contexto no contiene la respuesta, indica que no tienes información suficiente basándote en los boletines publicados.\n\nContexto:\n{contextText}";
+                    
+                    // Insert context before the last user message
+                    var lastMsgIndex = history.Count - 1;
+                    history.Insert(lastMsgIndex, new ChatMessageContent(AuthorRole.System, ragPrompt));
+
+                    documentSources = closestChunks.Select(c => new DocumentSource(
+                        c.Title, 
+                        c.Department, 
+                        c.PublicationDate.ToString("yyyy-MM-dd"), 
+                        GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
+                }
+            }
+            // -------------------------
+
             var executionSettings = new PromptExecutionSettings
             {
                 ExtensionData = new Dictionary<string, object>
@@ -144,7 +193,8 @@ public sealed class AiChatService
                 Content: content,
                 DurationMs: stopwatch.Elapsed.TotalMilliseconds,
                 ErrorMessage: null,
-                TokenUsage: tokenUsage);
+                TokenUsage: tokenUsage,
+                Sources: documentSources);
         }
         catch (Exception ex)
         {
@@ -280,6 +330,16 @@ public sealed class AiChatService
             double d => (int)d,
             null => null,
             _ => null
+        };
+    }
+
+    private static string GetPublicUrl(string source, string docId)
+    {
+        return source.ToUpperInvariant() switch
+        {
+            "BOE" => $"https://www.boe.es/buscar/doc.php?id={docId}",
+            "BOJA" => $"https://www.juntadeandalucia.es/eboja.html", // Placeholder until exact BOJA URL pattern is implemented
+            _ => $"json/{source}/{docId}.json" // fallback
         };
     }
 }

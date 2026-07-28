@@ -32,15 +32,19 @@ var rabbitmq = builder.AddRabbitMQ("messaging")
     .WithDataVolume("asistente-ayuntamiento-rmqdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
+var ollama = builder.AddOllama("ollama")
+    .AddModel("llama3.2")
+    .AddModel("nomic-embed-text");
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithReference(ollama)
     .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WithReference(rabbitmq)
+    .WithReference(blobs)
     .WaitFor(db)
     .WaitFor(rabbitmq)
+    .WaitFor(blobs)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 

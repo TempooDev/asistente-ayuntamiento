@@ -24,7 +24,9 @@ builder.Services.AddHostedService<ChatPersistenceWorker>();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<AiConfigurationService>();
 
-builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
+builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>(
+    "asistente-ayuntamiento-db",
+    configureDbContextOptions: options => options.UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector()));
 
 var auth0Domain = builder.Configuration["Auth0:Domain"];
 var auth0Audience = builder.Configuration["Auth0:Audience"];
@@ -59,11 +61,20 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 
 // Register Semantic Kernel with Ollama
-#pragma warning disable SKEXP0070
+#pragma warning disable SKEXP0070 // Ollama connector is experimental
 var ollamaEndpoint = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
 builder.Services.AddKernel()
-    .AddOllamaChatCompletion("llama3.2", new Uri(ollamaEndpoint));
+    .AddOllamaChatCompletion("llama3.2", new Uri(ollamaEndpoint))
+#pragma warning disable SKEXP0001
+    .AddOllamaTextEmbeddingGeneration("nomic-embed-text", new Uri(ollamaEndpoint));
+#pragma warning restore SKEXP0001
 #pragma warning restore SKEXP0070
+
+builder.AddRabbitMQClient("messaging");
+builder.AddAzureBlobClient("boletines");
+builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentIngestionService>();
+builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Ingestion.RabbitMqConsumerService>();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -115,6 +126,7 @@ app.MapHub<AsistenteAyuntamiento.ApiService.Features.Chat.ChatHub>("/hubs/chat")
 AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
 app.MapAiMetricsEndpoints();
 AsistenteAyuntamiento.ApiService.Features.AiConfig.AiConfigEndpoints.MapAiConfigEndpoints(app);
+AsistenteAyuntamiento.ApiService.Features.Ingestion.IngestionEndpoints.MapIngestionEndpoints(app);
 
 app.MapDefaultEndpoints();
 

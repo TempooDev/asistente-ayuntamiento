@@ -4,6 +4,8 @@ using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using AsistenteAyuntamiento.ApiService.Features.Ingestion;
+
 namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 
 public class AppDbContext : DbContext
@@ -21,11 +23,15 @@ public class AppDbContext : DbContext
     public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatSession> ChatSessions { get; set; }
     public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage> ChatMessages { get; set; }
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
+    public DbSet<DocumentChunk> DocumentChunks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         
+        // Habilitar pgvector
+        modelBuilder.HasPostgresExtension("vector");
+
         // Asignar esquema por Bounded Context (DDD)
         modelBuilder.HasDefaultSchema("identity");
         
