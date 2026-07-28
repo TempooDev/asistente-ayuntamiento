@@ -67,6 +67,11 @@ builder.Services.AddClientServices(builder.Configuration);
 builder.Services.AddHttpClient<WeatherApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<UserApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<AiConfigApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
+builder.Services.AddHttpClient<IngestionApiClient>(c => 
+{
+    c.BaseAddress = new Uri("http://apiservice");
+    c.Timeout = TimeSpan.FromMinutes(10);
+});
 
 // SignalR hub URL — server connects directly to apiservice (bypasses gateway)
 builder.Services.Configure<ChatHubOptions>(o => o.HubUrl = "http://apiservice/hubs/chat");

@@ -32,6 +32,35 @@ public static class IngestionEndpoints
         })
         .WithName("ProcessBlobManually")
         .WithOpenApi();
+        group.MapGet("/blobs", async (
+            Azure.Storage.Blobs.BlobServiceClient blobServiceClient,
+            AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext) =>
+        {
+            var containerClient = blobServiceClient.GetBlobContainerClient("boletines");
+            
+            if (!await containerClient.ExistsAsync())
+            {
+                return Results.Ok(new System.Collections.Generic.List<object>());
+            }
+            
+            var processedSources = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                System.Linq.Queryable.Distinct(System.Linq.Queryable.Select(dbContext.DocumentChunks, c => c.Source))
+            );
+
+            var blobs = new System.Collections.Generic.List<object>();
+            await foreach (var blobItem in containerClient.GetBlobsAsync())
+            {
+                blobs.Add(new {
+                    Name = blobItem.Name,
+                    Size = blobItem.Properties.ContentLength,
+                    LastModified = blobItem.Properties.LastModified,
+                    IsProcessed = processedSources.Contains(blobItem.Name)
+                });
+            }
+            return Results.Ok(blobs);
+        })
+        .WithName("ListBlobs")
+        .WithOpenApi();
     }
 }
 

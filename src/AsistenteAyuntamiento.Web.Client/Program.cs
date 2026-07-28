@@ -26,6 +26,12 @@ builder.Services.AddHttpClient<AsistenteAyuntamiento.Web.Client.AiConfigApiClien
     var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
     client.BaseAddress = new Uri(navManager.BaseUri);
 });
+builder.Services.AddHttpClient<AsistenteAyuntamiento.Web.Client.IngestionApiClient>((sp, client) =>
+{
+    var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+    client.BaseAddress = new Uri(navManager.BaseUri);
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
 
 // SignalR hub URL — in WASM, connect via the browser origin (gateway routes /hubs/* → apiservice)
 builder.Services.AddTransient<IConfigureOptions<ChatHubOptions>>(sp =>

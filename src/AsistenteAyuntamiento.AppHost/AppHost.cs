@@ -23,7 +23,9 @@ var blobs = blobStorage.AddBlobs("boletines");
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
 var postgresServer = builder.AddPostgres("postgres", port: 5432)
-    .WithDataVolume("asistente-ayuntamiento-pgdata")
+    .WithImage("pgvector/pgvector")
+    .WithImageTag("pg16")
+    .WithDataVolume("asistente-ayuntamiento-pgdata-v2")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
@@ -32,9 +34,9 @@ var rabbitmq = builder.AddRabbitMQ("messaging")
     .WithDataVolume("asistente-ayuntamiento-rmqdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var ollama = builder.AddOllama("ollama")
-    .AddModel("llama3.2")
-    .AddModel("nomic-embed-text");
+var ollama = builder.AddOllama("ollama");
+ollama.AddModel("llama3.2");
+ollama.AddModel("nomic-embed-text");
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithReference(ollama)

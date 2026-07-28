@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
 #pragma warning disable SKEXP0001
 using Microsoft.SemanticKernel.Embeddings;
 #pragma warning restore SKEXP0001
@@ -102,7 +103,10 @@ public sealed class AiChatService
             }
             else
             {
-                var ollamaEndpoint = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
+                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+                    : ollamaConnString;
                 #pragma warning disable SKEXP0070
                 kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
                 #pragma warning restore SKEXP0070

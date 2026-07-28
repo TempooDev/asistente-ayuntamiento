@@ -62,7 +62,10 @@ builder.Services.AddSignalR();
 
 // Register Semantic Kernel with Ollama
 #pragma warning disable SKEXP0070 // Ollama connector is experimental
-var ollamaEndpoint = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+var ollamaConnString = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
+    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+    : ollamaConnString;
 builder.Services.AddKernel()
     .AddOllamaChatCompletion("llama3.2", new Uri(ollamaEndpoint))
 #pragma warning disable SKEXP0001

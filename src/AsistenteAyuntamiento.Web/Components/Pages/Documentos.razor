@@ -1,11 +1,110 @@
 @page "/documentos"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Funcionario")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@rendermode InteractiveServer
+@inject AsistenteAyuntamiento.Web.Client.IngestionApiClient IngestionClient
 <PageTitle>Documentos - AdminAI</PageTitle>
 
 <div class="p-margin-desktop text-on-surface">
-    <h2 class="font-headline-lg mb-sm">Documentos</h2>
-    <p>Área de documentos institucionales próximamente.</p>
+    <h2 class="font-headline-lg mb-sm">Documentos en Almacenamiento</h2>
+    <p class="mb-md">Aquí puedes ver los documentos alojados en el Blob Storage y si han sido procesados por el motor vectorial.</p>
+
+    @if (blobs == null)
+    {
+        <p><em>Cargando documentos...</em></p>
+    }
+    else if (!blobs.Any())
+    {
+        <p>No se encontraron documentos.</p>
+    }
+    else
+    {
+        <div class="table-container">
+            <table class="table w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-outline">
+                        <th class="p-sm font-label-lg">Nombre del archivo</th>
+                        <th class="p-sm font-label-lg">Tamaño</th>
+                        <th class="p-sm font-label-lg">Última modificación</th>
+                        <th class="p-sm font-label-lg">Estado</th>
+                        <th class="p-sm font-label-lg">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var blob in blobs)
+                    {
+                        <tr class="border-b border-surface-variant hover:bg-surface-variant/30 transition-colors">
+                            <td class="p-sm font-body-md font-medium text-primary">@blob.Name</td>
+                            <td class="p-sm font-body-md">@(Math.Round((double)blob.Size / 1024, 2)) KB</td>
+                            <td class="p-sm font-body-md">@(blob.LastModified?.LocalDateTime.ToString("g") ?? "-")</td>
+                            <td class="p-sm font-body-md">
+                                @if (blob.IsProcessed)
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                        Procesado
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        Pendiente
+                                    </span>
+                                }
+                            </td>
+                            <td class="p-sm font-body-md">
+                                <button class="btn btn-sm btn-outline" @onclick="() => ProcessBlob(blob.Name)">
+                                    @(blob.IsProcessed ? "Reprocesar" : "Procesar")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="mt-md p-sm bg-primary/10 text-primary rounded">
+            @statusMessage
+        </div>
+    }
 </div>
 
 @code {
+    private AsistenteAyuntamiento.Web.Client.BlobInfo[]? blobs;
+    private string statusMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBlobsAsync();
+    }
+
+    private async Task LoadBlobsAsync()
+    {
+        try
+        {
+            blobs = await IngestionClient.GetBlobsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error al cargar: {ex.Message}";
+        }
+    }
+
+    private async Task ProcessBlob(string blobName)
+    {
+        try
+        {
+            statusMessage = $"Procesando {blobName}... (esto puede tardar unos minutos)";
+            StateHasChanged();
+            
+            var result = await IngestionClient.ProcessBlobAsync(blobName, blobName);
+            statusMessage = result;
+            await LoadBlobsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error: {ex.Message}";
+        }
+    }
 }
