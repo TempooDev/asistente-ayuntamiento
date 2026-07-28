@@ -37,13 +37,7 @@ func main() {
 func runScraperWorkflow() {
 	ctx := context.Background()
 
-	connStr := os.Getenv("ConnectionStrings__BlobStorage")
-	if connStr == "" {
-		log.Println("WARNING: ConnectionStrings__BlobStorage no está definida. Saltando el scraping por ahora.")
-		return
-	}
-
-	blobStorage, err := storage.NewAzureBlobStorage(ctx, connStr, "boletines")
+	blobStorage, err := storage.NewDocumentStorage(ctx)
 	if err != nil {
 		log.Printf("Error inicializando storage: %v\n", err)
 		return
