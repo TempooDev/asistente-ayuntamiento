@@ -82,7 +82,7 @@ builder.Services.AddSingleton<IBlobStorageRepository>(sp =>
     if (string.IsNullOrWhiteSpace(endpoint))
     {
         // Fallback: Azurite emulator (inyectado por Aspire via AddAzureStorage / Aspire.Hosting.Azure.Storage)
-        var connectionString = config.GetConnectionString("BlobStorage") ?? "UseDevelopmentStorage=true";
+        var connectionString = config.GetConnectionString("boletines") ?? "UseDevelopmentStorage=true";
         return new AzuriteBlobStorageRepository(connectionString);
     }
 

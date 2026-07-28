@@ -18,15 +18,19 @@ var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
 var blobBucketName = builder.Configuration["Blob:BucketName"];
 
 var blobStorage = builder.AddAzureStorage("storage").RunAsEmulator();
-var blobs = blobStorage.AddBlobs("BlobStorage");
+var blobs = blobStorage.AddBlobs("boletines");
 
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
 var postgresServer = builder.AddPostgres("postgres", port: 5432)
     .WithDataVolume("asistente-ayuntamiento-pgdata")
     .WithLifetime(ContainerLifetime.Persistent);
-    
+
 var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
+
+var rabbitmq = builder.AddRabbitMQ("messaging")
+    .WithDataVolume("asistente-ayuntamiento-rmqdata")
+    .WithLifetime(ContainerLifetime.Persistent);
 
 var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
 
@@ -34,7 +38,9 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithReference(ollama)
     .WithHttpHealthCheck("/health")
     .WithReference(db)
+    .WithReference(rabbitmq)
     .WaitFor(db)
+    .WaitFor(rabbitmq)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
@@ -61,5 +67,17 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(apiService)
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
+
+var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
+    .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
+    .WithHttpHealthCheck("/health")
+    .WithReference(blobs)
+    .WithReference(rabbitmq)
+    .WaitFor(blobs)
+    .WaitFor(rabbitmq)
+    .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
+    .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
+    .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")
+    .WithEnvironment("Blob__BucketName", blobBucketName ?? "");
 
 builder.Build().Run();
