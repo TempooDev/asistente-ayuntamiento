@@ -16,7 +16,7 @@ type BoletinProvider interface {
 	// publicados en la fecha proporcionada.
 	FetchSummary(ctx context.Context, date time.Time) ([]string, error)
 
-	// FetchDocument descarga el XML/API individual, extrae los metadatos,
-	// aplica el proceso de chunking y devuelve la estructura Document lista para almacenar.
-	FetchDocument(ctx context.Context, id string) (*Document, error)
+	// FetchDocument obtiene los detalles y el texto completo de un documento por su ID.
+	// Retorna también el XML original en bytes.
+	FetchDocument(ctx context.Context, id string) (*Document, []byte, error)
 }

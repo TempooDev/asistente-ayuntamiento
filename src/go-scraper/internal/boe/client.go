@@ -91,7 +91,7 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 }
 
 // FetchDocument descarga y estructura un documento BOE XML individual por su ID.
-func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Document, error) {
+func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Document, []byte, error) {
 	ctx, span := otel.Tracer("boe-client").Start(ctx, "FetchDocument")
 	defer span.End()
 
@@ -99,9 +99,14 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 
 	body, err := p.doRequest(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("error obteniendo documento BOE %s: %w", id, err)
+		return nil, nil, fmt.Errorf("error obteniendo documento BOE %s: %w", id, err)
 	}
 	defer body.Close()
+	
+	rawXML, err := io.ReadAll(body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error leyendo raw XML de %s: %w", id, err)
+	}
 
 	// Parseo estructurado del XML del BOE.
 	var docXML struct {
@@ -114,14 +119,13 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 		Texto string `xml:"texto"`
 	}
 
-	decoder := xml.NewDecoder(body)
-	if err := decoder.Decode(&docXML); err != nil {
-		return nil, fmt.Errorf("error decodificando XML documento %s: %w", id, err)
+	if err := xml.Unmarshal(rawXML, &docXML); err != nil {
+		return nil, rawXML, fmt.Errorf("error decodificando XML documento %s: %w", id, err)
 	}
 
 	// Si falta el identificador, asumimos que el documento no es válido o es un XML vacío.
 	if docXML.Metadatos.Identificador == "" {
-		return nil, fmt.Errorf("documento %s no válido (sin metadatos)", id)
+		return nil, rawXML, fmt.Errorf("documento %s no válido (sin metadatos)", id)
 	}
 
 	doc := &scraper.Document{
@@ -136,7 +140,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 		Text: strings.TrimSpace(docXML.Texto),
 	}
 
-	return doc, nil
+	return doc, rawXML, nil
 }
 
 // doRequest realiza la petición HTTP con Rate Limiting y Exponential Backoff.

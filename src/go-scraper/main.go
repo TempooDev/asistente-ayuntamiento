@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boe"
@@ -19,6 +20,7 @@ var (
 	blobStorage  storage.DocumentStorage
 	providers    []scraper.BoletinProvider
 	msgPublisher *messaging.Publisher
+	scrapeMutex  sync.Mutex // Previene múltiples procesos masivos solapados
 )
 
 func main() {
@@ -84,8 +86,16 @@ func main() {
 			}
 		}
 
-		// Lanzamos el trabajo en background y respondemos inmediatamente
-		go scrapeDateRange(context.Background(), startDate, endDate)
+		// Lanzamos el trabajo en background si no hay otro en curso
+		if !scrapeMutex.TryLock() {
+			http.Error(w, "Ya hay un proceso de scraping masivo en curso", http.StatusConflict)
+			return
+		}
+
+		go func() {
+			defer scrapeMutex.Unlock()
+			scrapeDateRange(context.Background(), startDate, endDate)
+		}()
 		
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte(fmt.Sprintf("Scraping encolado desde %s hasta %s\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))))
@@ -155,26 +165,45 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
 
 			log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
 
+			var wg sync.WaitGroup
+			// Semáforo para limitar la concurrencia a 5 workers (o lo que permita el rate limiter)
+			sem := make(chan struct{}, 5)
+
 			for _, id := range ids {
-				doc, err := provider.FetchDocument(ctx, id)
-				if err != nil {
-					log.Printf("Error al procesar %s: %v\n", id, err)
-					continue
-				}
+				wg.Add(1)
+				go func(docID string) {
+					defer wg.Done()
+					sem <- struct{}{}        // Adquirir token
+					defer func() { <-sem }() // Liberar token
 
-				if err := blobStorage.SaveDocument(ctx, doc); err != nil {
-					log.Printf("Error guardando JSON para %s: %v\n", id, err)
-					continue
-				}
+					doc, rawXML, err := provider.FetchDocument(ctx, docID)
+					if err != nil {
+						log.Printf("Error al procesar %s: %v\n", docID, err)
+						return
+					}
 
-				if msgPublisher != nil {
-					_ = msgPublisher.PublishDocument(ctx, messaging.DocumentMessage{
-						Source:     doc.Metadata.Source,
-						DocumentID: doc.DocumentID,
-						BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
-					})
-				}
+					// Backup del XML crudo
+					if err := blobStorage.SaveRawXML(ctx, doc.Metadata.Source, doc.DocumentID, rawXML); err != nil {
+						log.Printf("Aviso: error guardando XML para %s: %v\n", docID, err)
+					}
+
+					if err := blobStorage.SaveDocument(ctx, doc); err != nil {
+						log.Printf("Error guardando JSON para %s: %v\n", docID, err)
+						return
+					}
+
+					if msgPublisher != nil {
+						_ = msgPublisher.PublishDocument(ctx, messaging.DocumentMessage{
+							Source:     doc.Metadata.Source,
+							DocumentID: doc.DocumentID,
+							BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
+						})
+					}
+				}(id)
 			}
+			
+			// Esperar a que terminen todos los documentos del día
+			wg.Wait()
 			log.Printf("Día %s completado con éxito.\n", d.Format("2006-01-02"))
 		}
 		
