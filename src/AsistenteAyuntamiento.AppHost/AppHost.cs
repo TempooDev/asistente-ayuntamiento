@@ -28,13 +28,19 @@ var postgresServer = builder.AddPostgres("postgres", port: 5432)
 
 var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
 
+var rabbitmq = builder.AddRabbitMQ("messaging")
+    .WithDataVolume("asistente-ayuntamiento-rmqdata")
+    .WithLifetime(ContainerLifetime.Persistent);
+
 var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithReference(ollama)
     .WithHttpHealthCheck("/health")
     .WithReference(db)
+    .WithReference(rabbitmq)
     .WaitFor(db)
+    .WaitFor(rabbitmq)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
@@ -66,7 +72,9 @@ var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
     .WithHttpHealthCheck("/health")
     .WithReference(blobs)
+    .WithReference(rabbitmq)
     .WaitFor(blobs)
+    .WaitFor(rabbitmq)
     .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
     .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
     .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")

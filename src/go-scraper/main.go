@@ -12,11 +12,13 @@ import (
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/messaging"
 )
 
 var (
-	blobStorage storage.DocumentStorage
-	providers   []scraper.BoletinProvider
+	blobStorage  storage.DocumentStorage
+	providers    []scraper.BoletinProvider
+	msgPublisher *messaging.Publisher
 )
 
 func main() {
@@ -37,6 +39,13 @@ func main() {
 		return
 	}
 	defer blobStorage.Close()
+
+	msgPublisher, err = messaging.NewPublisher()
+	if err != nil {
+		log.Printf("Aviso: no se pudo inicializar RabbitMQ: %v\n", err)
+	} else {
+		defer msgPublisher.Close()
+	}
 
 	providers = []scraper.BoletinProvider{
 		boe.NewProvider(),
@@ -156,6 +165,14 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
 				if err := blobStorage.SaveDocument(ctx, doc); err != nil {
 					log.Printf("Error guardando JSON para %s: %v\n", id, err)
 					continue
+				}
+
+				if msgPublisher != nil {
+					_ = msgPublisher.PublishDocument(ctx, messaging.DocumentMessage{
+						Source:     doc.Metadata.Source,
+						DocumentID: doc.DocumentID,
+						BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
+					})
 				}
 			}
 			log.Printf("Día %s completado con éxito.\n", d.Format("2006-01-02"))

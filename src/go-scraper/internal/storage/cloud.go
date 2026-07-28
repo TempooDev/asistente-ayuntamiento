@@ -8,6 +8,7 @@ import (
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/s3blob"
@@ -48,9 +49,15 @@ func NewDocumentStorage(ctx context.Context) (DocumentStorage, error) {
 		// 2. Si no hay S3/R2, intentar usar Azure Blob Storage (Azurite en local)
 		connStr := os.Getenv("ConnectionStrings__boletines")
 		if connStr != "" {
+			// Pre-creamos el contenedor para evitar ContainerNotFound en Azurite (desarrollo)
+			client, err := azblob.NewClientFromConnectionString(connStr, nil)
+			if err == nil {
+				_, _ = client.CreateContainer(ctx, "boletines", nil)
+			}
+
 			// El driver azureblob busca esta variable de entorno de conexión
 			os.Setenv("AZURE_STORAGE_CONNECTION_STRING", connStr)
-			// En Azurite el nombre del bucket puede requerir precreación por parte del AppHost
+			// En Azurite el nombre del bucket
 			bucketURL = "azblob://boletines"
 		} else {
 			return nil, fmt.Errorf("no se encontró configuración para Blob Storage (ni R2 ni Azure)")
