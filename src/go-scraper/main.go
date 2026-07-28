@@ -52,41 +52,48 @@ func runScraperWorkflow() {
 	}
 	defer blobStorage.Close()
 
-	boeProvider := boe.NewProvider()
+	// Lista de fuentes (boletines) a procesar
+	providers := []scraper.BoletinProvider{
+		boe.NewProvider(),
+	}
 
-	// Obtenemos los documentos de hace 2 días para garantizar que el BOE ya esté publicado
-	// (si pedimos el BOE a las 00:00 del mismo día, el BOE devuelve error 400 porque no existe aún).
+	// Obtenemos los documentos de hace 2 días para garantizar que ya estén publicados
+	// (ej. a las 00:00 del mismo día, muchos boletines aún no existen).
 	targetDate := time.Now().AddDate(0, 0, -2)
-	log.Printf("Obteniendo sumario BOE para %s...\n", targetDate.Format("2006-01-02"))
-	
-	ids, err := boeProvider.FetchSummary(ctx, targetDate)
-	if err != nil {
-		log.Printf("Error obteniendo sumario: %v\n", err)
-		return
-	}
 
-	log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
+	for _, provider := range providers {
+		log.Printf("=== Iniciando scraping para la fuente: %s ===", provider.Name())
+		log.Printf("Obteniendo sumario %s para %s...\n", provider.Name(), targetDate.Format("2006-01-02"))
 
-	// Procesar los primeros 3 a modo de prueba en esta fase temprana.
-	limit := len(ids)
-	if limit > 3 {
-		limit = 3
-	}
-
-	for _, id := range ids[:limit] {
-		log.Printf("Procesando documento %s...\n", id)
-		doc, err := boeProvider.FetchDocument(ctx, id)
+		ids, err := provider.FetchSummary(ctx, targetDate)
 		if err != nil {
-			log.Printf("Error al procesar %s: %v\n", id, err)
+			log.Printf("Error obteniendo sumario de %s: %v\n", provider.Name(), err)
 			continue
 		}
 
-		if err := blobStorage.SaveDocument(ctx, doc); err != nil {
-			log.Printf("Error guardando JSON para %s: %v\n", id, err)
-		} else {
+		log.Printf("Encontrados %d documentos en el sumario de %s.\n", len(ids), provider.Name())
+
+		// Procesar cada documento
+		for _, id := range ids {
+			log.Printf("Procesando documento %s...", id)
+
+			doc, err := provider.FetchDocument(ctx, id)
+			if err != nil {
+				log.Printf("Error al procesar %s: %v\n", id, err)
+				continue
+			}
+
+			// Guardar el documento estructurado en JSON
+			err = blobStorage.SaveDocument(ctx, doc)
+			if err != nil {
+				log.Printf("Error guardando JSON para %s: %v\n", id, err)
+				continue
+			}
 			log.Printf("Documento %s guardado con éxito.\n", id)
 		}
+
+		log.Printf("=== Scraping de la fuente %s completado ===", provider.Name())
 	}
 
-	log.Println("Scraping diario completado.")
+	log.Println("Proceso global de scraping completado exitosamente.")
 }
