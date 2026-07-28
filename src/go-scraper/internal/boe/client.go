@@ -119,17 +119,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 			Departamento:     docXML.Metadatos.Departamento,
 			FechaPublicacion: docXML.Metadatos.FechaPublicacion,
 		},
-	}
-
-	// TODO (Tarea 5): Llamar al motor de Chunking aquí.
-	// Por ahora simulamos un chunking devolviendo todo el texto en el primer chunk.
-	doc.Chunks = []scraper.Chunk{
-		{
-			ChunkID:          fmt.Sprintf("%s_chunk_1", doc.DocumentID),
-			ChunkIndex:       1,
-			MetadataInjected: doc.Metadata,
-			Text:             strings.TrimSpace(docXML.Texto),
-		},
+		Text: strings.TrimSpace(docXML.Texto),
 	}
 
 	return doc, nil

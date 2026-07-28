@@ -8,25 +8,23 @@ El presente documento define la arquitectura y especificaciones técnicas para e
 * Consumo diario del endpoint XML del sumario del BOE.
 * Extracción de identificadores únicos de los documentos publicados.
 * Descarga del contenido XML individual de cada documento identificado.
-* Parseo y extracción de metadatos específicos y texto plano.
-* División semántica del texto (chunking) preservando el contexto de los metadatos.
-* Generación de un archivo JSON estructurado de salida.
-* Almacenamiento persistente en formato Blob (preparación para vectorización e histórico).
+* Parseo y extracción de metadatos específicos y texto plano completo.
+* Generación de un archivo JSON estructurado de salida (documento + metadatos).
+* Almacenamiento persistente en formato Blob para que posteriormente .NET y Semantic Kernel asuman la carga del *chunking* y los embeddings.
 
 **Fuera de alcance:**
 * Extracción mediante scraping de HTML o procesamiento de PDFs.
 * Procesamiento de otros boletines en esta fase inicial (BOJA, BOPMA).
-* Generación de embeddings o ingesta directa en la base de datos vectorial (este módulo finaliza con el guardado del blob en formato JSON).
+* Procesos de Chunking semántico o generación de embeddings (estas tareas se delegan al orquestador .NET con Semantic Kernel en un proceso batch y guardado en pgvector).
 
 ## 3. Diseño de la Solución
 El flujo de trabajo automatizado (mediante un cron job o planificador) seguirá los siguientes pasos:
 1. **Obtención del Sumario:** El servicio de Go realizará una petición HTTP GET al endpoint del sumario utilizando la fecha actual.
 2. **Extracción de IDs:** Mediante un parser XML (ej. `encoding/xml` de Go), se iterará sobre el sumario para extraer todos los identificadores de documentos (ej. `BOE-A-YYYY-XXXXX`).
 3. **Descarga Concurrente (Controlada):** Por cada identificador extraído, se realizará una petición GET al endpoint del documento individual. Se debe implementar concurrencia mediante Goroutines y Channels, limitando el rate de peticiones para no saturar el servidor del BOE.
-4. **Parseo y Limpieza:** El XML descargado se parsea para extraer las etiquetas requeridas. El contenido del nodo `<texto>` será tratado para eliminar marcas residuales de maquetación y normalizar el contenido.
-5. **Chunking Semántico:** El texto extraído se segmentará en bloques (chunks) basándose preferiblemente en la estructura del documento (artículos, apartados, párrafos lógicos). Cada chunk heredará un objeto con los metadatos extraídos.
-6. **Serialización a JSON:** Los chunks resultantes junto con la información global del documento se empaquetarán en una estructura JSON.
-7. **Almacenamiento en Blob Storage:** El JSON final (así como el XML original crudo, para permitir reprocesados sin volver a descargar) se almacenará en el servicio de Blob Storage definido, dejándolo disponible para el pipeline de generación de embeddings.
+4. **Parseo y Limpieza:** El XML descargado se parsea para extraer las etiquetas requeridas y normalizar el contenido del nodo `<texto>`.
+5. **Serialización a JSON:** El texto plano junto con la información global del documento se empaquetarán en una estructura JSON.
+6. **Almacenamiento en Blob Storage:** El JSON final se almacenará en el Blob Storage para que un proceso batch en .NET (Semantic Kernel) se encargue del chunking y de guardarlo en pgvector.
 
 ## 4. Detalles de la API y Endpoints
 
@@ -60,30 +58,7 @@ La salida del módulo deberá ser un documento JSON con la siguiente estructura 
     "departamento": "Ministerio de ...",
     "fecha_publicacion": "2026-07-28"
   },
-  "chunks": [
-    {
-      "chunk_id": "BOE-A-2026-12345_chunk_1",
-      "chunk_index": 1,
-      "metadata_injected": {
-        "document_id": "BOE-A-2026-12345",
-        "titulo": "Resolución de X de Y...",
-        "departamento": "Ministerio de ...",
-        "fecha_publicacion": "2026-07-28"
-      },
-      "text": "Artículo 1. Objeto y ámbito de aplicación. El presente texto establece..."
-    },
-    {
-      "chunk_id": "BOE-A-2026-12345_chunk_2",
-      "chunk_index": 2,
-      "metadata_injected": {
-        "document_id": "BOE-A-2026-12345",
-        "titulo": "Resolución de X de Y...",
-        "departamento": "Ministerio de ...",
-        "fecha_publicacion": "2026-07-28"
-      },
-      "text": "Artículo 2. Definiciones. A los efectos de esta disposición se entenderá por..."
-    }
-  ]
+  "text": "Artículo 1. Objeto y ámbito de aplicación...\n\nArtículo 2..."
 }
 ```
 

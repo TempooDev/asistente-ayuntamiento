@@ -10,8 +10,8 @@
    * Estructura base de `Document` e inyección de metadatos en *chunks*.
 2. **Implementación BOE (`pkg/boe`)**:
    * Cliente específico que consume los endpoints web diarios (`https://www.boe.es/diario_boe/xml.php?id=BOE-S-YYYYMMDD` y `https://www.boe.es/diario_boe/xml.php?id={ID}`) para garantizar la inmediatez de los datos, descartando el portal de Datos Abiertos por el posible retraso en la sincronización.
-3. **Motor de Chunking (`pkg/chunker`)**:
-   * Lógica para segmentar el nodo `<texto>` del XML por artículos o párrafos lógicos.
+3. **Delegación de Chunking**:
+   * El servicio de Go no realiza el chunking. Se encarga únicamente de formar el documento JSON (`metadata` + texto plano) y guardarlo, delegando la fase de chunking semántico y embeddings al orquestador .NET usando Semantic Kernel.
 4. **Almacenamiento (`pkg/storage`)**:
    * Interfaz y adaptadores para guardar el resultado estructurado JSON en Blob Storage.
 

@@ -10,19 +10,10 @@ type Metadata struct {
 	FechaPublicacion string `json:"fecha_publicacion"`
 }
 
-// Chunk representa un fragmento de texto segmentado (ej. un artículo o párrafo lógico)
-// con todo su contexto (metadatos) inyectado para evitar pérdida de semántica.
-type Chunk struct {
-	ChunkID          string   `json:"chunk_id"`
-	ChunkIndex       int      `json:"chunk_index"`
-	MetadataInjected Metadata `json:"metadata_injected"`
-	Text             string   `json:"text"`
-}
-
 // Document representa la salida final estructurada del procesamiento de una publicación.
-// Este es el documento JSON que se almacenará finalmente en el Blob Storage.
+// Este documento será procesado posteriormente en .NET (Semantic Kernel) para el chunking y embeddings.
 type Document struct {
 	DocumentID string   `json:"document_id"`
 	Metadata   Metadata `json:"metadata"`
-	Chunks     []Chunk  `json:"chunks"`
+	Text       string   `json:"text"`
 }
