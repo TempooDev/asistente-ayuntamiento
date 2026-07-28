@@ -62,7 +62,7 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
-var goScraper = builder.AddExecutable("go-scraper", "air", workingDirectory: "../go-scraper")
+var goScraper = builder.AddGoApp("go-scraper", "../go-scraper")
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
     .WithHttpHealthCheck("/health")
     .WithReference(blobs);
