@@ -69,8 +69,9 @@ public sealed class AiChatService
         var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
         var promptLength = lastUserMessage?.Content?.Length ?? 0;
 
-        var config = await _aiConfigurationService.GetConfigurationAsync();
-        var apiKey = await _aiConfigurationService.GetDecryptedApiKeyAsync();
+        var fullConfig = await _aiConfigurationService.GetFullConfigurationAsync();
+        var config = fullConfig.Config;
+        var apiKey = fullConfig.DecryptedApiKey;
         var modelId = config.Model;
         
         activity?.SetTag("ai.model", modelId);

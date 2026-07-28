@@ -57,6 +57,40 @@ public class AiConfigurationService
         }
     }
 
+    public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync()
+    {
+        var tenantId = _tenantService.TenantId;
+        var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        
+        if (config == null)
+        {
+            return (new AiConfigurationDto(), null);
+        }
+
+        var dto = new AiConfigurationDto
+        {
+            Provider = config.Provider,
+            Model = config.Model,
+            Temperature = config.Temperature,
+            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey)
+        };
+
+        string? decryptedKey = null;
+        if (!string.IsNullOrEmpty(config.EncryptedApiKey))
+        {
+            try
+            {
+                decryptedKey = _dataProtector.Unprotect(config.EncryptedApiKey);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return (dto, decryptedKey);
+    }
+
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto)
     {
         var tenantId = _tenantService.TenantId;
