@@ -5,8 +5,8 @@ var builder = DistributedApplication.CreateBuilder(args);
 // dotnet user-secrets set "Parameters:auth0-domain"         "..." --project src/AsistenteAyuntamiento.AppHost
 // dotnet user-secrets set "Parameters:auth0-client-id"      "..." --project src/AsistenteAyuntamiento.AppHost
 // dotnet user-secrets set "Parameters:auth0-client-secret"  "..." --project src/AsistenteAyuntamiento.AppHost
-var auth0Domain       = builder.AddParameter("auth0-domain",        secret: false);
-var auth0ClientId     = builder.AddParameter("auth0-client-id",     secret: false);
+var auth0Domain = builder.AddParameter("auth0-domain", secret: false);
+var auth0ClientId = builder.AddParameter("auth0-client-id", secret: false);
 var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true);
 
 // ── Cloudflare R2 secrets (Optional) ────────────────────────────────────────
@@ -20,15 +20,22 @@ var blobBucketName = builder.Configuration["Blob:BucketName"];
 var blobStorage = builder.AddAzureStorage("storage").RunAsEmulator();
 var blobs = blobStorage.AddBlobs("BlobStorage");
 
-var auth0Audience     = builder.AddParameter("auth0-audience",      secret: false);
+var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
-var db = builder.AddPostgres("postgres").AddDatabase("asistente-ayuntamiento-db");
+var postgresServer = builder.AddPostgres("postgres", port: 5432)
+    .WithDataVolume("asistente-ayuntamiento-pgdata")
+    .WithLifetime(ContainerLifetime.Persistent);
+    
+var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
+
+var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
+    .WithReference(ollama)
     .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WaitFor(db)
-    .WithEnvironment("Auth0__Domain",   auth0Domain)
+    .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
 
 var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
@@ -39,18 +46,20 @@ var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfro
     .WithReference(blobs)
     .WaitFor(apiService)
     // Auth0 — injected as environment variables (ASP.NET Core config key format: __ = :)
-    .WithEnvironment("Auth0__Domain",        auth0Domain)
-    .WithEnvironment("Auth0__ClientId",      auth0ClientId)
-    .WithEnvironment("Auth0__ClientSecret",  auth0ClientSecret)
-    .WithEnvironment("Auth0__Audience",      auth0Audience)
+    .WithEnvironment("Auth0__Domain", auth0Domain)
+    .WithEnvironment("Auth0__ClientId", auth0ClientId)
+    .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
+    .WithEnvironment("Auth0__Audience", auth0Audience)
     // Cloudflare R2 / S3 (Only injected if configured, otherwise uses Azurite via Reference)
-    .WithEnvironment("Blob__Endpoint",         blobEndpoint ?? "")
-    .WithEnvironment("Blob__AccessKeyId",      blobAccessKeyId ?? "")
-    .WithEnvironment("Blob__SecretAccessKey",  blobSecretAccessKey ?? "")
-    .WithEnvironment("Blob__BucketName",       blobBucketName ?? "");
+    .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
+    .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
+    .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")
+    .WithEnvironment("Blob__BucketName", blobBucketName ?? "");
 
 var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
     .WithReference(apiService)
+    .WaitFor(apiService)
+    .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
 builder.Build().Run();

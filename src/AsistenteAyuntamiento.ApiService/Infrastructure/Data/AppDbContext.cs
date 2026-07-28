@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public string CurrentTenantId => _httpContextAccessor.HttpContext?.RequestServices.GetService<CurrentTenantService>()?.TenantId ?? "default";
 
     public DbSet<UserProfile> UserProfiles { get; set; }
+    public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatSession> ChatSessions { get; set; }
+    public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage> ChatMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,5 +33,17 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>()
             .HasQueryFilter(u => u.TenantId == CurrentTenantId);
+
+        modelBuilder.Entity<AsistenteAyuntamiento.ApiService.Features.Chat.ChatSession>(entity =>
+        {
+            entity.ToTable("ChatSessions", "chat");
+            entity.HasQueryFilter(s => s.TenantId == CurrentTenantId);
+            entity.HasMany(s => s.Messages).WithOne(m => m.Session).HasForeignKey(m => m.SessionId);
+        });
+
+        modelBuilder.Entity<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage>(entity =>
+        {
+            entity.ToTable("ChatMessages", "chat");
+        });
     }
 }
