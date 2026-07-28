@@ -2,6 +2,7 @@ package boe
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	summaryURLTemplate  = "https://www.boe.es/diario_boe/xml.php?id=BOE-S-%s"
+	summaryURLTemplate  = "https://www.boe.es/datosabiertos/api/boe/sumario/%s"
 	documentURLTemplate = "https://www.boe.es/diario_boe/xml.php?id=%s"
 	maxRetries          = 3
 )
@@ -44,7 +45,7 @@ func (p *Provider) Name() string {
 	return "BOE"
 }
 
-// FetchSummary descarga el índice XML del BOE y extrae los IDs de los documentos.
+// FetchSummary descarga el índice JSON del BOE (Open Data API) y extrae los IDs de los documentos.
 func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, error) {
 	ctx, span := otel.Tracer("boe-client").Start(ctx, "FetchSummary")
 	defer span.End()
@@ -52,36 +53,40 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 	dateStr := date.Format("20060102")
 	url := fmt.Sprintf(summaryURLTemplate, dateStr)
 
-	body, err := p.doRequest(ctx, url)
+	// Inyectamos el Accept: application/json en la petición
+	body, err := p.doRequest(ctx, url, map[string]string{"Accept": "application/json"})
 	if err != nil {
 		return nil, fmt.Errorf("error obteniendo sumario BOE: %w", err)
 	}
 	defer body.Close()
 
-	// Usamos un decodificador flexible (token-based) para buscar todas las etiquetas <item id="...">
-	// sin importar en qué nivel de la jerarquía se encuentren.
-	decoder := xml.NewDecoder(body)
+	var data interface{}
+	if err := json.NewDecoder(body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("error parseando sumario JSON: %w", err)
+	}
+
 	var ids []string
-	for {
-		t, err := decoder.Token()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error parseando sumario XML: %w", err)
-		}
-		switch se := t.(type) {
-		case xml.StartElement:
-			if se.Name.Local == "item" {
-				for _, attr := range se.Attr {
-					if attr.Name.Local == "id" {
-						ids = append(ids, attr.Value)
+	var findIDs func(v interface{})
+	findIDs = func(v interface{}) {
+		switch node := v.(type) {
+		case map[string]interface{}:
+			for k, val := range node {
+				if k == "identificador" {
+					if idStr, ok := val.(string); ok {
+						ids = append(ids, idStr)
 					}
+				} else {
+					findIDs(val)
 				}
+			}
+		case []interface{}:
+			for _, item := range node {
+				findIDs(item)
 			}
 		}
 	}
 
+	findIDs(data)
 	return ids, nil
 }
 
@@ -135,7 +140,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 }
 
 // doRequest realiza la petición HTTP con Rate Limiting y Exponential Backoff.
-func (p *Provider) doRequest(ctx context.Context, url string) (io.ReadCloser, error) {
+func (p *Provider) doRequest(ctx context.Context, url string, headers ...map[string]string) (io.ReadCloser, error) {
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -147,6 +152,13 @@ func (p *Provider) doRequest(ctx context.Context, url string) (io.ReadCloser, er
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
+		}
+
+		// Apply optional headers
+		if len(headers) > 0 {
+			for k, v := range headers[0] {
+				req.Header.Set(k, v)
+			}
 		}
 
 		resp, err := p.httpClient.Do(req)
