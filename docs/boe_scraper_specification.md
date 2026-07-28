@@ -106,3 +106,11 @@ La salida del módulo deberá ser un documento JSON con la siguiente estructura 
 - [ ] La estructura del JSON resultante cumple fielmente con el "Modelo de Datos" estipulado.
 - [ ] Los archivos producidos (XML en crudo y JSON estructurado) son guardados correctamente en la solución de Blob Storage designada.
 - [ ] El proceso puede fallar gracefully ante XMLs corruptos, registrando el error sin detener el flujo general de los demás documentos.
+
+## 8. Extensibilidad: Integración con BOJA y BOPMA
+Aunque la fase inicial pone foco en el BOE, el diseño del software (mediante interfaces como `BoletinProvider`) debe estar preparado para integrar los siguientes boletines que también disponen de iniciativas de Datos Abiertos:
+
+* **BOPMA (Boletín Oficial de la Provincia de Málaga):** A través del portal de Datos Abiertos de la Diputación, filtrando por formato XML. [Catálogo BOPMA OpenData](https://opendata.malaga.es/tl/dataset/?_tags_limit=0&organization=diputacion&res_format=XML).
+* **BOJA (Boletín Oficial de la Junta de Andalucía):** A través del buscador de APIs del portal de Datos Abiertos de la Junta de Andalucía. [Buscador APIs BOJA](https://www.juntadeandalucia.es/datosabiertos/portal/aplicaciones/buscador-apis).
+
+El módulo de Go deberá estructurarse de tal forma que añadir un nuevo scraper de estas plataformas solo requiera implementar los métodos de obtención y parseo específicos, reutilizando todo el pipeline de *chunking* y almacenamiento en Blobs.
