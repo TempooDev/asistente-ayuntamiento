@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.Users;
+using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatSession> ChatSessions { get; set; }
     public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage> ChatMessages { get; set; }
+    public DbSet<AiConfiguration> AiConfigurations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +46,12 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage>(entity =>
         {
             entity.ToTable("ChatMessages", "chat");
+        });
+
+        modelBuilder.Entity<AiConfiguration>(entity =>
+        {
+            entity.ToTable("AiConfigurations", "identity");
+            entity.HasQueryFilter(c => c.TenantId == CurrentTenantId);
         });
     }
 }

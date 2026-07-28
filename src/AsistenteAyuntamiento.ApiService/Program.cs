@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
+using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
@@ -19,6 +20,9 @@ builder.Services.AddScoped<ChatSessionService>();
 builder.Services.AddScoped<AiChatService>();
 builder.Services.AddSingleton<ChatMessageBuffer>();
 builder.Services.AddHostedService<ChatPersistenceWorker>();
+
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<AiConfigurationService>();
 
 builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
 
@@ -110,6 +114,7 @@ app.MapHub<AsistenteAyuntamiento.ApiService.Features.Chat.ChatHub>("/hubs/chat")
 
 AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
 app.MapAiMetricsEndpoints();
+AsistenteAyuntamiento.ApiService.Features.AiConfig.AiConfigEndpoints.MapAiConfigEndpoints(app);
 
 app.MapDefaultEndpoints();
 

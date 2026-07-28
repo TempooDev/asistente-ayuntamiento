@@ -23,6 +23,8 @@ public static class ServiceExtensions
         
         services.AddHttpClient<UserApiClient>();
 
+        services.AddHttpClient<AiConfigApiClient>();
+
         return services;
     }
 }
