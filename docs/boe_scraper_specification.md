@@ -30,11 +30,15 @@ El flujo de trabajo automatizado (mediante un cron job o planificador) seguirá 
 
 ## 4. Detalles de la API y Endpoints
 
-### 4.1. Endpoint de Sumario Diario
-* **Ruta:** `https://www.boe.es/diario_boe/xml.php?id=BOE-S-YYYYMMDD`
+### 4.1. Endpoint de Sumario Diario (API Datos Abiertos)
+* **Ruta:** `https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}`
 * **Método:** `GET`
-* **Parámetros:** `id` con el formato `BOE-S-YYYYMMDD` (donde YYYYMMDD representa la fecha requerida).
-* **Respuesta Esperada:** Documento XML conteniendo el índice del día. Se deberán parsear las etiquetas correspondientes a los identificadores del documento.
+* **Parámetros:** `fecha` en formato `YYYYMMDD` (*path parameter*).
+* **Respuestas HTTP Esperadas:** 
+  * `200`: Documento XML conteniendo el índice del día. Se deberán parsear las etiquetas de identificadores.
+  * `400`: Identificador no válido o parámetros incorrectos.
+  * `404`: La información solicitada no existe.
+  * `500`: Error del servidor.
 
 ### 4.2. Endpoint de Documento Individual
 * **Ruta:** `https://www.boe.es/diario_boe/xml.php?id={ID}`
