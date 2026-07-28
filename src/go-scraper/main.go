@@ -9,21 +9,78 @@ import (
 	"time"
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boe"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
+)
+
+var (
+	blobStorage storage.DocumentStorage
+	providers   []scraper.BoletinProvider
 )
 
 func main() {
 	fmt.Println("Iniciando BOE Scraper...")
 
-	// Endpoint health check para validación en .NET Aspire
+	ctx := context.Background()
+
+	shutdown, err := telemetry.InitProvider(ctx)
+	if err != nil {
+		log.Printf("Error inicializando OpenTelemetry: %v\n", err)
+	} else {
+		defer shutdown(ctx)
+	}
+
+	blobStorage, err = storage.NewDocumentStorage(ctx)
+	if err != nil {
+		log.Printf("Error inicializando storage: %v\n", err)
+		return
+	}
+	defer blobStorage.Close()
+
+	providers = []scraper.BoletinProvider{
+		boe.NewProvider(),
+	}
+
+	// Ejecutar el scraping automático por defecto si hay env vars
+	go runDefaultScraperWorkflow(ctx)
+
+	// Endpoints HTTP
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("BOE Scraper is running\n"))
 	})
 
-	// Ejecutar el scraping en una goroutine para no bloquear el health check
-	go runScraperWorkflow()
+	http.HandleFunc("/api/scrape", func(w http.ResponseWriter, r *http.Request) {
+		startStr := r.URL.Query().Get("start")
+		endStr := r.URL.Query().Get("end")
+
+		if startStr == "" {
+			http.Error(w, "El parámetro 'start' (YYYY-MM-DD) es requerido", http.StatusBadRequest)
+			return
+		}
+
+		startDate, err := time.Parse("2006-01-02", startStr)
+		if err != nil {
+			http.Error(w, "Formato de 'start' inválido", http.StatusBadRequest)
+			return
+		}
+
+		endDate := startDate
+		if endStr != "" {
+			endDate, err = time.Parse("2006-01-02", endStr)
+			if err != nil {
+				http.Error(w, "Formato de 'end' inválido", http.StatusBadRequest)
+				return
+			}
+		}
+
+		// Lanzamos el trabajo en background y respondemos inmediatamente
+		go scrapeDateRange(context.Background(), startDate, endDate)
+		
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(fmt.Sprintf("Scraping encolado desde %s hasta %s\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))))
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -35,29 +92,7 @@ func main() {
 	}
 }
 
-func runScraperWorkflow() {
-	ctx := context.Background()
-
-	shutdown, err := telemetry.InitProvider(ctx)
-	if err != nil {
-		log.Printf("Error inicializando OpenTelemetry: %v\n", err)
-	} else {
-		defer shutdown(ctx)
-	}
-
-	blobStorage, err := storage.NewDocumentStorage(ctx)
-	if err != nil {
-		log.Printf("Error inicializando storage: %v\n", err)
-		return
-	}
-	defer blobStorage.Close()
-
-	// Lista de fuentes (boletines) a procesar
-	providers := []scraper.BoletinProvider{
-		boe.NewProvider(),
-	}
-
-	// Determinamos el rango de fechas a extraer
+func runDefaultScraperWorkflow(ctx context.Context) {
 	startDateStr := os.Getenv("SCRAPE_START_DATE")
 	endDateStr := os.Getenv("SCRAPE_END_DATE")
 	
@@ -67,22 +102,30 @@ func runScraperWorkflow() {
 	if startDateStr != "" {
 		startDate, err = time.Parse("2006-01-02", startDateStr)
 		if err != nil {
-			log.Fatalf("Error parseando SCRAPE_START_DATE (formato YYYY-MM-DD): %v", err)
+			log.Printf("Error parseando SCRAPE_START_DATE: %v", err)
+			return
 		}
 		if endDateStr != "" {
 			endDate, err = time.Parse("2006-01-02", endDateStr)
 			if err != nil {
-				log.Fatalf("Error parseando SCRAPE_END_DATE (formato YYYY-MM-DD): %v", err)
+				log.Printf("Error parseando SCRAPE_END_DATE: %v", err)
+				return
 			}
 		} else {
 			endDate = time.Now()
 		}
 	} else {
-		// Por defecto, descargamos el boletín de hace 2 días para garantizar publicación
+		// Por defecto
 		targetDate := time.Now().AddDate(0, 0, -2)
 		startDate = targetDate
 		endDate = targetDate
 	}
+
+	scrapeDateRange(ctx, startDate, endDate)
+}
+
+func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
+	log.Printf("Iniciando scraping global desde %s hasta %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
 	for _, provider := range providers {
 		log.Printf("=== Iniciando scraping para la fuente: %s ===", provider.Name())
@@ -103,7 +146,6 @@ func runScraperWorkflow() {
 
 			log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
 
-			// Procesar cada documento
 			for _, id := range ids {
 				doc, err := provider.FetchDocument(ctx, id)
 				if err != nil {
@@ -111,9 +153,7 @@ func runScraperWorkflow() {
 					continue
 				}
 
-				// Guardar el documento estructurado en JSON
-				err = blobStorage.SaveDocument(ctx, doc)
-				if err != nil {
+				if err := blobStorage.SaveDocument(ctx, doc); err != nil {
 					log.Printf("Error guardando JSON para %s: %v\n", id, err)
 					continue
 				}
