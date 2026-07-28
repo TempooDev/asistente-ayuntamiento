@@ -16,6 +16,7 @@ public class ChatPersistenceWorker : BackgroundService
     private readonly ChatMessageBuffer _buffer;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ChatPersistenceWorker> _logger;
+    private readonly Dictionary<Guid, int> _retryCounts = new();
 
     public ChatPersistenceWorker(
         ChatMessageBuffer buffer,
@@ -75,14 +76,29 @@ public class ChatPersistenceWorker : BackgroundService
             await dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Flushed {Count} messages to database", messages.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to flush {Count} messages, re-queued for retry: {Error}", messages.Count, ex.Message);
             
             foreach (var msg in messages)
             {
-                _buffer.Enqueue(msg);
+                _retryCounts.Remove(msg.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to flush {Count} messages. Checking retry limits: {Error}", messages.Count, ex.Message);
+            
+            foreach (var msg in messages)
+            {
+                var retries = _retryCounts.GetValueOrDefault(msg.Id, 0) + 1;
+                if (retries <= 3)
+                {
+                    _retryCounts[msg.Id] = retries;
+                    _buffer.Enqueue(msg);
+                }
+                else
+                {
+                    _logger.LogCritical("Message {Id} exceeded maximum retry limit (3) and will be dropped to prevent poison loop.", msg.Id);
+                    _retryCounts.Remove(msg.Id);
+                }
             }
         }
     }

@@ -48,6 +48,7 @@ public sealed class AiMetricsService
     // ── In-memory log (bounded ring-buffer of recent calls) ─────────────
     private const int MaxRecentCalls = 200;
     private readonly ConcurrentQueue<AiCallRecord> _recentCalls = new();
+    private int _recentCallsCount;
 
     // Aggregate counters (thread-safe via Interlocked)
     private long _totalCalls;
@@ -113,8 +114,18 @@ public sealed class AiMetricsService
 
         // Bounded queue
         _recentCalls.Enqueue(record);
-        while (_recentCalls.Count > MaxRecentCalls)
-            _recentCalls.TryDequeue(out _);
+        var currentCount = Interlocked.Increment(ref _recentCallsCount);
+        while (currentCount > MaxRecentCalls)
+        {
+            if (_recentCalls.TryDequeue(out _))
+            {
+                currentCount = Interlocked.Decrement(ref _recentCallsCount);
+            }
+            else
+            {
+                break;
+            }
+        }
     }
 
     /// <summary>

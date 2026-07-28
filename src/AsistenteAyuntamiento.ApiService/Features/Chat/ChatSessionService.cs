@@ -26,40 +26,6 @@ public class ChatSessionService
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
     }
 
-    /// <summary>
-    /// Finds the most recent chat session for the specified user and tenant within the last 7 days,
-    /// or creates a new one if none exists.
-    /// </summary>
-    /// <param name="userId">The user ID.</param>
-    /// <param name="tenantId">The tenant ID.</param>
-    /// <returns>The existing or newly created <see cref="ChatSession"/>.</returns>
-    public async Task<ChatSession> GetOrCreateSessionAsync(string userId, string tenantId)
-    {
-        var cutoff = DateTime.UtcNow.AddDays(-7);
-
-        var session = await _dbContext.ChatSessions
-            .Include(s => s.Messages)
-            .Where(s => s.UserId == userId && s.TenantId == tenantId && s.CreatedAt >= cutoff)
-            .OrderByDescending(s => s.CreatedAt)
-            .FirstOrDefaultAsync();
-
-        if (session == null)
-        {
-            session = new ChatSession
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                TenantId = tenantId,
-                CreatedAt = DateTime.UtcNow,
-                Messages = new List<ChatMessage>()
-            };
-
-            _dbContext.ChatSessions.Add(session);
-            await _dbContext.SaveChangesAsync();
-        }
-
-        return session;
-    }
 
     /// <summary>
     /// Explicitly creates a brand new chat session, bypassing the 7-day reuse logic.
