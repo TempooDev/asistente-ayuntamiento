@@ -22,8 +22,8 @@ var blobs = blobStorage.AddBlobs("BlobStorage");
 
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
-var postgresServer = builder.AddPostgres("postgres")
-    .WithDataVolume()
+var postgresServer = builder.AddPostgres("postgres", port: 5432)
+    .WithDataVolume("asistente-ayuntamiento-pgdata")
     .WithLifetime(ContainerLifetime.Persistent);
     
 var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");

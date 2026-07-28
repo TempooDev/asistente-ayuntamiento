@@ -53,11 +53,11 @@ public class ChatSignalRService : IAsyncDisposable
         await _hubConnection.StartAsync();
     }
 
-    public async Task SendMessageAsync(string message)
+    public async Task SendMessageAsync(Guid sessionId, string message)
     {
         if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
         {
-            await _hubConnection.SendAsync("SendMessage", message);
+            await _hubConnection.SendAsync("SendMessage", sessionId, message);
         }
     }
 

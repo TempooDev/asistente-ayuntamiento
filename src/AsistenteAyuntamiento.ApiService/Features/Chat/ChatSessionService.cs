@@ -235,4 +235,14 @@ public class ChatSessionService
 
         return session.Messages.OrderBy(m => m.CreatedAt).ToList();
     }
+
+    /// <summary>
+    /// Gets a specific chat session by ID.
+    /// </summary>
+    public async Task<ChatSession?> GetSessionByIdAsync(Guid sessionId, string userId, string tenantId)
+    {
+        return await _dbContext.ChatSessions
+            .Include(s => s.Messages)
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+    }
 }

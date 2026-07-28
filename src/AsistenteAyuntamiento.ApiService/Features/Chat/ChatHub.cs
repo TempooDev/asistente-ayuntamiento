@@ -33,7 +33,7 @@ public class ChatHub : Hub
         _logger = logger;
     }
 
-    public async Task SendMessage(string message)
+    public async Task SendMessage(Guid sessionId, string message)
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var tenantId = _tenantService.TenantId;
@@ -46,10 +46,15 @@ public class ChatHub : Hub
 
         try
         {
-            _logger.LogInformation("Message from {User} in tenant {Tenant}", userId, tenantId);
+            _logger.LogInformation("Message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
 
-            // 1. Session & user message persistence
-            var session = await _sessionService.GetOrCreateSessionAsync(userId, tenantId);
+            // 1. Fetch specific session
+            var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+            if (session == null)
+            {
+                await Clients.Caller.SendAsync("ReceiveMessage", "Error: Sesión no encontrada o no autorizada.");
+                return;
+            }
             _sessionService.EnqueueUserMessage(session, message);
 
             // 2. Build history for the model
