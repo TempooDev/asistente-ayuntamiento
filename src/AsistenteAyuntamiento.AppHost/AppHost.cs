@@ -25,7 +25,7 @@ var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 var postgresServer = builder.AddPostgres("postgres", port: 5432)
     .WithDataVolume("asistente-ayuntamiento-pgdata")
     .WithLifetime(ContainerLifetime.Persistent);
-    
+
 var db = postgresServer.AddDatabase("asistente-ayuntamiento-db");
 
 var ollama = builder.AddOllama("ollama").AddModel("llama3.2");
@@ -62,9 +62,14 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
-var goScraper = builder.AddGoApp("go-scraper", "../go-scraper")
+var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
     .WithHttpHealthCheck("/health")
-    .WithReference(blobs);
+    .WithReference(blobs)
+    .WaitFor(blobs)
+    .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
+    .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
+    .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")
+    .WithEnvironment("Blob__BucketName", blobBucketName ?? "");
 
 builder.Build().Run();
