@@ -54,11 +54,12 @@ func runScraperWorkflow() {
 
 	boeProvider := boe.NewProvider()
 
-	// Obtenemos los documentos de hoy (o de una fecha específica de prueba)
-	today := time.Now()
-	log.Printf("Obteniendo sumario BOE para %s...\n", today.Format("2006-01-02"))
-
-	ids, err := boeProvider.FetchSummary(ctx, today)
+	// Obtenemos los documentos de hace 2 días para garantizar que el BOE ya esté publicado
+	// (si pedimos el BOE a las 00:00 del mismo día, el BOE devuelve error 400 porque no existe aún).
+	targetDate := time.Now().AddDate(0, 0, -2)
+	log.Printf("Obteniendo sumario BOE para %s...\n", targetDate.Format("2006-01-02"))
+	
+	ids, err := boeProvider.FetchSummary(ctx, targetDate)
 	if err != nil {
 		log.Printf("Error obteniendo sumario: %v\n", err)
 		return

@@ -32,7 +32,7 @@ func InitProvider(ctx context.Context) (func(context.Context) error, error) {
 	res, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
-			semconv.SchemaURL,
+			"", // Ignoramos el SchemaURL para evitar conflictos de versiones entre dependencias
 			semconv.ServiceName("go-scraper"),
 		),
 	)
