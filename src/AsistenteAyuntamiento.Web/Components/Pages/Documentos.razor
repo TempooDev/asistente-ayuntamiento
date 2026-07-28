@@ -18,6 +18,29 @@
     }
     else
     {
+        <div class="mb-md flex gap-4 items-center flex-wrap">
+            <input type="text" class="px-3 py-2 border rounded bg-transparent" placeholder="Buscar por nombre..." @bind="searchTerm" @bind:event="oninput" />
+            <select class="px-3 py-2 border rounded bg-transparent" @bind="filterStatus">
+                <option value="Todos">Todos los estados</option>
+                <option value="Procesados">Solo Procesados</option>
+                <option value="Pendientes">Solo Pendientes</option>
+            </select>
+            
+            <div class="flex items-center gap-2 ml-auto">
+                <label class="text-sm font-medium">Por página:</label>
+                <select class="px-2 py-1 border rounded bg-transparent" @bind="pageSize">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            
+            <div class="text-sm opacity-70">
+                Mostrando @FilteredBlobs.Count() de @blobs.Length
+            </div>
+        </div>
+
         <div class="table-container">
             <table class="table w-full text-left border-collapse">
                 <thead>
@@ -30,7 +53,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var blob in blobs)
+                    @foreach (var blob in PagedBlobs)
                     {
                         <tr class="border-b border-surface-variant hover:bg-surface-variant/30 transition-colors">
                             <td class="p-sm font-body-md font-medium text-primary">@blob.Name</td>
@@ -60,6 +83,19 @@
                 </tbody>
             </table>
         </div>
+
+        @if (TotalPages > 1)
+        {
+            <div class="mt-md flex justify-center items-center gap-4">
+                <button class="btn btn-sm btn-outline" disabled="@(currentPage == 1)" @onclick="() => ChangePage(currentPage - 1)">
+                    Anterior
+                </button>
+                <span class="text-sm font-medium">Página @currentPage de @TotalPages</span>
+                <button class="btn btn-sm btn-outline" disabled="@(currentPage == TotalPages)" @onclick="() => ChangePage(currentPage + 1)">
+                    Siguiente
+                </button>
+            </div>
+        }
     }
     
     @if (!string.IsNullOrEmpty(statusMessage))
@@ -73,6 +109,50 @@
 @code {
     private AsistenteAyuntamiento.Web.Client.BlobInfo[]? blobs;
     private string statusMessage = string.Empty;
+    
+    private string _searchTerm = string.Empty;
+    private string searchTerm 
+    {
+        get => _searchTerm;
+        set { _searchTerm = value; currentPage = 1; }
+    }
+    
+    private string _filterStatus = "Todos";
+    private string filterStatus 
+    {
+        get => _filterStatus;
+        set { _filterStatus = value; currentPage = 1; }
+    }
+
+    private int _pageSize = 20;
+    private int pageSize 
+    {
+        get => _pageSize;
+        set { _pageSize = value; currentPage = 1; }
+    }
+
+    private int currentPage = 1;
+
+    private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> FilteredBlobs => blobs?.Where(b => 
+        (string.IsNullOrWhiteSpace(searchTerm) || b.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+        (filterStatus == "Todos" || 
+        (filterStatus == "Procesados" && b.IsProcessed) || 
+        (filterStatus == "Pendientes" && !b.IsProcessed))
+    ) ?? Array.Empty<AsistenteAyuntamiento.Web.Client.BlobInfo>();
+
+    private int TotalPages => (int)Math.Ceiling(FilteredBlobs.Count() / (double)pageSize);
+
+    private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> PagedBlobs => FilteredBlobs
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= TotalPages)
+        {
+            currentPage = newPage;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
