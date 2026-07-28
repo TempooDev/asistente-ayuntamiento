@@ -57,41 +57,70 @@ func runScraperWorkflow() {
 		boe.NewProvider(),
 	}
 
-	// Obtenemos los documentos de hace 2 días para garantizar que ya estén publicados
-	// (ej. a las 00:00 del mismo día, muchos boletines aún no existen).
-	targetDate := time.Now().AddDate(0, 0, -2)
+	// Determinamos el rango de fechas a extraer
+	startDateStr := os.Getenv("SCRAPE_START_DATE")
+	endDateStr := os.Getenv("SCRAPE_END_DATE")
+	
+	var startDate, endDate time.Time
+	var err error
+
+	if startDateStr != "" {
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			log.Fatalf("Error parseando SCRAPE_START_DATE (formato YYYY-MM-DD): %v", err)
+		}
+		if endDateStr != "" {
+			endDate, err = time.Parse("2006-01-02", endDateStr)
+			if err != nil {
+				log.Fatalf("Error parseando SCRAPE_END_DATE (formato YYYY-MM-DD): %v", err)
+			}
+		} else {
+			endDate = time.Now()
+		}
+	} else {
+		// Por defecto, descargamos el boletín de hace 2 días para garantizar publicación
+		targetDate := time.Now().AddDate(0, 0, -2)
+		startDate = targetDate
+		endDate = targetDate
+	}
 
 	for _, provider := range providers {
 		log.Printf("=== Iniciando scraping para la fuente: %s ===", provider.Name())
-		log.Printf("Obteniendo sumario %s para %s...\n", provider.Name(), targetDate.Format("2006-01-02"))
 
-		ids, err := provider.FetchSummary(ctx, targetDate)
-		if err != nil {
-			log.Printf("Error obteniendo sumario de %s: %v\n", provider.Name(), err)
-			continue
-		}
+		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+			log.Printf("--- Procesando %s para la fecha: %s ---", provider.Name(), d.Format("2006-01-02"))
 
-		log.Printf("Encontrados %d documentos en el sumario de %s.\n", len(ids), provider.Name())
-
-		// Procesar cada documento
-		for _, id := range ids {
-			log.Printf("Procesando documento %s...", id)
-
-			doc, err := provider.FetchDocument(ctx, id)
+			ids, err := provider.FetchSummary(ctx, d)
 			if err != nil {
-				log.Printf("Error al procesar %s: %v\n", id, err)
+				log.Printf("Error obteniendo sumario de %s para %s: %v\n", provider.Name(), d.Format("2006-01-02"), err)
 				continue
 			}
 
-			// Guardar el documento estructurado en JSON
-			err = blobStorage.SaveDocument(ctx, doc)
-			if err != nil {
-				log.Printf("Error guardando JSON para %s: %v\n", id, err)
+			if len(ids) == 0 {
+				log.Printf("No hay documentos en %s para %s.\n", provider.Name(), d.Format("2006-01-02"))
 				continue
 			}
-			log.Printf("Documento %s guardado con éxito.\n", id)
-		}
 
+			log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
+
+			// Procesar cada documento
+			for _, id := range ids {
+				doc, err := provider.FetchDocument(ctx, id)
+				if err != nil {
+					log.Printf("Error al procesar %s: %v\n", id, err)
+					continue
+				}
+
+				// Guardar el documento estructurado en JSON
+				err = blobStorage.SaveDocument(ctx, doc)
+				if err != nil {
+					log.Printf("Error guardando JSON para %s: %v\n", id, err)
+					continue
+				}
+			}
+			log.Printf("Día %s completado con éxito.\n", d.Format("2006-01-02"))
+		}
+		
 		log.Printf("=== Scraping de la fuente %s completado ===", provider.Name())
 	}
 
