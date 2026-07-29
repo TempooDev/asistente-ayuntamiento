@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Features.Chat.ChatSession> ChatSessions { get; set; }
     public DbSet<Features.Chat.ChatMessage> ChatMessages { get; set; }
+    public DbSet<Features.Chat.AiCallLog> AiCallLogs { get; set; }
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentJobState> DocumentJobStates { get; set; }
@@ -58,6 +59,12 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("ChatMessages", "chat");
             entity.HasQueryFilter(m => m.Session.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<Features.Chat.AiCallLog>(entity =>
+        {
+            entity.ToTable("AiCallLogs", "chat");
+            entity.HasQueryFilter(c => c.TenantId == CurrentTenantId);
         });
 
         modelBuilder.Entity<AiConfiguration>(entity =>

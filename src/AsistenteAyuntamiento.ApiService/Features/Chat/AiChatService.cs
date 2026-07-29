@@ -97,7 +97,13 @@ public sealed class AiChatService
         try
         {
             var kernelBuilder = Kernel.CreateBuilder();
-            if (config.Provider == "openai")
+            if (config.Provider == "google")
+            {
+#pragma warning disable SKEXP0070
+                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty);
+#pragma warning restore SKEXP0070
+            }
+            else if (config.Provider == "openai")
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
@@ -189,6 +195,21 @@ public sealed class AiChatService
             activity?.SetTag("ai.tokens.output", tokenUsage.OutputTokens);
             activity?.SetTag("ai.tokens.total", tokenUsage.TotalTokens);
 
+            // ── Guardar métrica en base de datos ────────────────────────────────
+            var callLog = new AiCallLog
+            {
+                ModelId = modelId,
+                TenantId = tenantId,
+                UserId = userId,
+                Success = true,
+                DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+                InputTokens = tokenUsage.InputTokens,
+                OutputTokens = tokenUsage.OutputTokens,
+                TotalTokens = tokenUsage.TotalTokens
+            };
+            _dbContext.AiCallLogs.Add(callLog);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
             _metricsService.RecordCall(new AiCallRecord
             {
                 ModelId = modelId,
@@ -220,6 +241,18 @@ public sealed class AiChatService
         catch (Exception ex)
         {
             stopwatch.Stop();
+
+            var callLog = new AiCallLog
+            {
+                ModelId = config.Model,
+                TenantId = tenantId,
+                UserId = userId,
+                Success = false,
+                DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+                ErrorMessage = ex.Message
+            };
+            _dbContext.AiCallLogs.Add(callLog);
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
             _metricsService.RecordCall(new AiCallRecord
             {
@@ -287,7 +320,13 @@ public sealed class AiChatService
         try
         {
             var kernelBuilder = Kernel.CreateBuilder();
-            if (config.Provider == "openai")
+            if (config.Provider == "google")
+            {
+#pragma warning disable SKEXP0070
+                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty);
+#pragma warning restore SKEXP0070
+            }
+            else if (config.Provider == "openai")
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
@@ -407,6 +446,9 @@ public sealed class AiChatService
             executionSettings: executionSettings,
             cancellationToken: cancellationToken);
 
+        int totalInputTokens = 0;
+        int totalOutputTokens = 0;
+
         await foreach (var chunk in responseStream)
         {
             var content = chunk.Content;
@@ -415,11 +457,35 @@ public sealed class AiChatService
                 fullContent += content;
                 yield return content;
             }
+
+            // Attempt to extract token usage from chunk metadata
+            if (chunk.Metadata != null)
+            {
+                var usage = ExtractTokenUsage(new ChatMessageContent(AuthorRole.Assistant, "", metadata: chunk.Metadata));
+                if (usage.TotalTokens > 0)
+                {
+                    totalInputTokens = usage.InputTokens;
+                    totalOutputTokens = usage.OutputTokens;
+                }
+            }
         }
 
-
-
         stopwatch.Stop();
+
+        // ── Guardar métrica en base de datos ────────────────────────────────
+        var callLog = new AiCallLog
+        {
+            ModelId = modelId,
+            TenantId = tenantId,
+            UserId = userId,
+            Success = success,
+            DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+            InputTokens = totalInputTokens,
+            OutputTokens = totalOutputTokens,
+            TotalTokens = totalInputTokens + totalOutputTokens
+        };
+        _dbContext.AiCallLogs.Add(callLog);
+        await _dbContext.SaveChangesAsync();
 
         _metricsService.RecordCall(new AiCallRecord
         {
@@ -431,9 +497,9 @@ public sealed class AiChatService
             PromptLength = promptLength,
             ResponseLength = fullContent.Length,
             HistoryMessageCount = history.Count,
-            InputTokens = 0,
-            OutputTokens = 0,
-            TotalTokens = 0
+            InputTokens = totalInputTokens,
+            OutputTokens = totalOutputTokens,
+            TotalTokens = totalInputTokens + totalOutputTokens
         });
     }
 

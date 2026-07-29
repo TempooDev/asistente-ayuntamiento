@@ -98,6 +98,30 @@ public static class IngestionEndpoints
             return Results.Ok(blobs);
         })
         .WithName("ListBlobs");
+
+        group.MapPost("/reset", async (
+            Infrastructure.Data.AppDbContext dbContext,
+            ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
+            try
+            {
+                logger.LogInformation("Restableciendo la base de datos de vectores y estados...");
+                
+                // Truncate vector database and job states using raw SQL
+                await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
+                    dbContext.Database, 
+                    "TRUNCATE TABLE public.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";");
+                
+                return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error al reiniciar la base de datos de documentos");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("ResetIngestion");
     }
 }
 

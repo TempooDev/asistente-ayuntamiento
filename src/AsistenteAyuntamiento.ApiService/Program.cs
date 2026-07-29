@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.ApiService.Features.Users;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -149,6 +150,12 @@ app.UseExceptionHandler();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("Asistente Ayuntamiento API");
+        options.WithTheme(ScalarTheme.Mars); // Opcional, dale un poco de color
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
 }
 
 // Apply database migrations and ensure S3 bucket on startup

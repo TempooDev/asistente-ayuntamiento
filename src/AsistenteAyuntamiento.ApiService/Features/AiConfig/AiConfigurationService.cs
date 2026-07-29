@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,15 +8,17 @@ namespace AsistenteAyuntamiento.ApiService.Features.AiConfig;
 
 public class AiConfigurationService
 {
+    private readonly IConfiguration _configuration;
     private readonly AppDbContext _dbContext;
     private readonly CurrentTenantService _tenantService;
     private readonly IDataProtector _dataProtector;
 
-    public AiConfigurationService(AppDbContext dbContext, CurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider)
+    public AiConfigurationService(AppDbContext dbContext, CurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration)
     {
         _dbContext = dbContext;
         _tenantService = tenantService;
         _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
+        _configuration = configuration;
     }
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
@@ -23,9 +26,18 @@ public class AiConfigurationService
         var tenantId = _tenantService.TenantId;
         var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
         
+        var defaultConfig = _configuration; // IConfiguration injected
+
         if (config == null)
         {
-            return new AiConfigurationDto();
+            return new AiConfigurationDto
+            {
+                Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
+                Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                Temperature = 0.3,
+                HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
+                EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+            };
         }
 
         return new AiConfigurationDto
@@ -65,7 +77,15 @@ public class AiConfigurationService
         
         if (config == null)
         {
-            return (new AiConfigurationDto(), null);
+            var defaultConfig = new AiConfigurationDto
+            {
+                Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
+                Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                Temperature = 0.3,
+                HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
+                EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+            };
+            return (defaultConfig, _configuration["Ai:Chat:ApiKey"]);
         }
 
         var dto = new AiConfigurationDto
