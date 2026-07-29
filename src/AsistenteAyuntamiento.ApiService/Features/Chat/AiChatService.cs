@@ -134,11 +134,9 @@ public sealed class AiChatService
             var documentSources = new List<DocumentSource>();
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
-#pragma warning disable CS0618
-                var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore CS0618
-                var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
-                var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
+                var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+                var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+                var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 // Find top 3 closest chunks using CosineDistance
                 var closestChunks = await _dbContext.DocumentChunks
@@ -372,11 +370,9 @@ public sealed class AiChatService
         {
             try
             {
-#pragma warning disable CS0618
-                var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore CS0618
-                var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
-                var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
+                var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+                var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+                var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 var closestChunks = await _dbContext.DocumentChunks
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))

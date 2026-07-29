@@ -107,9 +107,7 @@ public class DocumentIngestionService
         }
 
         // 3. Obtener servicio de embeddings
-#pragma warning disable CS0618
-        var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore CS0618
+        var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
         var chunks = new List<DocumentChunk>();
         for (int i = 0; i < paragraphs.Count; i++)
@@ -117,7 +115,8 @@ public class DocumentIngestionService
             var p = paragraphs[i];
             
             // 4. Vectorización
-            var embedding = await embeddingGenerator.GenerateEmbeddingAsync(p, _kernel, cancellationToken);
+            var embeddings = await embeddingGenerator.GenerateAsync(new[] { p }, cancellationToken: cancellationToken);
+            var embedding = embeddings[0].Vector;
             
             var chunk = new DocumentChunk
             {
