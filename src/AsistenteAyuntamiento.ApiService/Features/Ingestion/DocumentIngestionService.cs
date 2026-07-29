@@ -1,5 +1,7 @@
-using Azure.Storage.Blobs;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
@@ -12,14 +14,16 @@ namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
 public class DocumentIngestionService
 {
-    private readonly BlobServiceClient _blobServiceClient;
+    private readonly IAmazonS3 _s3Client;
+    private readonly string _bucketName;
     private readonly AppDbContext _dbContext;
     private readonly Kernel _kernel;
     private readonly ILogger<DocumentIngestionService> _logger;
 
-    public DocumentIngestionService(BlobServiceClient blobServiceClient, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger)
+    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger)
     {
-        _blobServiceClient = blobServiceClient;
+        _s3Client = s3Client;
+        _bucketName = config["Blob:BucketName"] ?? "boletines";
         _dbContext = dbContext;
         _kernel = kernel;
         _logger = logger;
@@ -27,17 +31,24 @@ public class DocumentIngestionService
 
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
-        // 1. Descargar JSON desde Azurite
-        var containerClient = _blobServiceClient.GetBlobContainerClient("boletines");
-        var blobClient = containerClient.GetBlobClient(blobPath);
-
-        if (!await blobClient.ExistsAsync(cancellationToken))
+        // 1. Descargar JSON desde S3/MinIO
+        string jsonContent;
+        try
         {
-            throw new Exception($"El blob {blobPath} no existe en Azurite.");
+            var request = new GetObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = blobPath
+            };
+            using var response = await _s3Client.GetObjectAsync(request, cancellationToken);
+            using var reader = new StreamReader(response.ResponseStream);
+            jsonContent = await reader.ReadToEndAsync(cancellationToken);
+        }
+        catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchKey")
+        {
+            throw new Exception($"El blob {blobPath} no existe en S3/MinIO.", ex);
         }
 
-        var downloadResult = await blobClient.DownloadContentAsync(cancellationToken);
-        var jsonContent = downloadResult.Value.Content.ToString();
         _logger.LogInformation($"JSON descargado ({jsonContent.Length} caracteres). Deserializando...");
         
         var document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

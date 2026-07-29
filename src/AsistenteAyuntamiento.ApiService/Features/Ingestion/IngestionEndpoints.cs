@@ -32,33 +32,46 @@ public static class IngestionEndpoints
         })
         .WithName("ProcessBlobManually");
         group.MapGet("/blobs", async (
-            Azure.Storage.Blobs.BlobServiceClient blobServiceClient,
+            Amazon.S3.IAmazonS3 s3Client,
+            Microsoft.Extensions.Configuration.IConfiguration config,
             AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext) =>
         {
-            var containerClient = blobServiceClient.GetBlobContainerClient("boletines");
-            
-            if (!await containerClient.ExistsAsync())
-            {
-                return Results.Ok(new System.Collections.Generic.List<object>());
-            }
+            var bucketName = config["Blob:BucketName"] ?? "boletines";
             
             var processedDocIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
                 System.Linq.Queryable.Distinct(System.Linq.Queryable.Select(dbContext.DocumentChunks, c => c.DocumentId))
             );
 
             var blobs = new System.Collections.Generic.List<object>();
-            await foreach (var blobItem in containerClient.GetBlobsAsync(Azure.Storage.Blobs.Models.BlobTraits.None, Azure.Storage.Blobs.Models.BlobStates.None, "json/", default))
+            
+            try 
             {
-                var parts = blobItem.Name.Split('/');
-                var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
+                var request = new Amazon.S3.Model.ListObjectsV2Request
+                {
+                    BucketName = bucketName,
+                    Prefix = "json/"
+                };
                 
-                blobs.Add(new {
-                    Name = blobItem.Name,
-                    Size = blobItem.Properties.ContentLength,
-                    LastModified = blobItem.Properties.LastModified,
-                    IsProcessed = processedDocIds.Contains(docId)
-                });
+                var response = await s3Client.ListObjectsV2Async(request);
+                
+                foreach (var s3Obj in response.S3Objects)
+                {
+                    var parts = s3Obj.Key.Split('/');
+                    var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
+                    
+                    blobs.Add(new {
+                        Name = s3Obj.Key,
+                        Size = s3Obj.Size,
+                        LastModified = s3Obj.LastModified,
+                        IsProcessed = processedDocIds.Contains(docId)
+                    });
+                }
+            } 
+            catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
+            {
+                // Bucket not created yet
             }
+
             return Results.Ok(blobs);
         })
         .WithName("ListBlobs");

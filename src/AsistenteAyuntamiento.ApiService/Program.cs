@@ -74,7 +74,15 @@ builder.Services.AddKernel()
 #pragma warning restore SKEXP0070
 
 builder.AddRabbitMQClient("messaging");
-builder.AddAzureBlobClient("boletines");
+var blobEndpoint = builder.Configuration["Blob:Endpoint"];
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    var accessKeyId = builder.Configuration["Blob:AccessKeyId"] ?? "admin";
+    var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"] ?? "password123";
+    var s3Config = new Amazon.S3.AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
+    var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
+    builder.Services.AddSingleton<Amazon.S3.IAmazonS3>(new Amazon.S3.AmazonS3Client(credentials, s3Config));
+}
 builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentIngestionService>();
 builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Ingestion.RabbitMqConsumerService>();
 

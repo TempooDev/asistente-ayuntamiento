@@ -15,10 +15,24 @@ var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
-var blobBucketName = builder.Configuration["Blob:BucketName"];
+var blobBucketName = builder.Configuration["Blob:BucketName"] ?? "boletines";
 
-var blobStorage = builder.AddAzureStorage("storage").RunAsEmulator();
-var blobs = blobStorage.AddBlobs("boletines");
+// Configure MinIO container
+var minio = builder.AddContainer("minio", "minio/minio")
+    .WithArgs("server", "/data", "--console-address", ":9001")
+    .WithEnvironment("MINIO_ROOT_USER", "admin")
+    .WithEnvironment("MINIO_ROOT_PASSWORD", "password123")
+    .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "s3")
+    .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console");
+
+var minioEndpoint = minio.GetEndpoint("s3");
+
+// Init container to create bucket
+var minioInit = builder.AddContainer("minio-init", "minio/mc")
+    .WithEntrypoint("sh")
+    .WithArgs("-c", "sleep 5; mc alias set myminio $MINIO_ENDPOINT admin password123; mc mb myminio/boletines || true; mc anonymous set public myminio/boletines || true")
+    .WithEnvironment("MINIO_ENDPOINT", minioEndpoint)
+    .WaitFor(minio);
 
 var auth0Audience = builder.AddParameter("auth0-audience", secret: false);
 
@@ -43,30 +57,49 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WithReference(rabbitmq)
-    .WithReference(blobs)
     .WaitFor(db)
     .WaitFor(rabbitmq)
-    .WaitFor(blobs)
+    .WaitFor(rabbitmq)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__Audience", auth0Audience);
+
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    apiService.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    apiService.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
+
+apiService.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+          .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+          .WithEnvironment("Blob__BucketName", blobBucketName);
 
 var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
     .WithReference(apiService)
     .WithReference(db)
-    .WithReference(blobs)
     .WaitFor(apiService)
     // Auth0 — injected as environment variables (ASP.NET Core config key format: __ = :)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__ClientId", auth0ClientId)
     .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
-    .WithEnvironment("Auth0__Audience", auth0Audience)
-    // Cloudflare R2 / S3 (Only injected if configured, otherwise uses Azurite via Reference)
-    .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
-    .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
-    .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")
-    .WithEnvironment("Blob__BucketName", blobBucketName ?? "");
+    .WithEnvironment("Auth0__Audience", auth0Audience);
+
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    webfrontend.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    webfrontend.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
+
+webfrontend.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+           .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+           .WithEnvironment("Blob__BucketName", blobBucketName);
 
 var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
     .WithReference(apiService)
@@ -77,13 +110,20 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
 var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
     .WithHttpHealthCheck("/health")
-    .WithReference(blobs)
     .WithReference(rabbitmq)
-    .WaitFor(blobs)
-    .WaitFor(rabbitmq)
-    .WithEnvironment("Blob__Endpoint", blobEndpoint ?? "")
-    .WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "")
-    .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "")
-    .WithEnvironment("Blob__BucketName", blobBucketName ?? "");
+    .WaitFor(rabbitmq);
+
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    goScraper.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    goScraper.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
+
+goScraper.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+         .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+         .WithEnvironment("Blob__BucketName", blobBucketName);
 
 builder.Build().Run();

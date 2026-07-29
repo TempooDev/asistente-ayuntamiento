@@ -27,7 +27,7 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 |---|---|---|
 | **PostgreSQL + pgvector** | `pgvector/pgvector:pg16` | Base de datos principal + búsqueda vectorial |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
-| **Azurite** | `mcr.microsoft.com/azure-storage/azurite` | Emulador local de Azure Blob Storage (equivalente a Cloudflare R2 en dev) |
+| **MinIO** | `minio/minio` | Almacenamiento S3 local para PDFs y documentos |
 | **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`nomic-embed-text`) y LLM de fallback (`llama3.2`) |
 
 > [!TIP]

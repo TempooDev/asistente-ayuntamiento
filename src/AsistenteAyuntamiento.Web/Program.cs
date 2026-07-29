@@ -77,21 +77,14 @@ builder.Services.AddHttpClient<IngestionApiClient>(c =>
 builder.Services.Configure<ChatHubOptions>(o => o.HubUrl = "http://apiservice/hubs/chat");
 
 // ── Blob Storage ──────────────────────────────────────────────────────────────
-// Aspire inyecta las credenciales de R2 como env vars (Blob__*).
-// En desarrollo, si el endpoint no está configurado, se usa Azurite como fallback.
+// Aspire inyecta las credenciales de R2/MinIO como env vars (Blob__*).
 builder.Services.AddSingleton<IBlobStorageRepository>(sp =>
 {
     var config   = sp.GetRequiredService<IConfiguration>();
-    var endpoint = config["Blob:Endpoint"];
+    var endpoint = config["Blob:Endpoint"]
+        ?? throw new InvalidOperationException("Blob:Endpoint is required.");
 
-    if (string.IsNullOrWhiteSpace(endpoint))
-    {
-        // Fallback: Azurite emulator (inyectado por Aspire via AddAzureStorage / Aspire.Hosting.Azure.Storage)
-        var connectionString = config.GetConnectionString("boletines") ?? "UseDevelopmentStorage=true";
-        return new AzuriteBlobStorageRepository(connectionString);
-    }
-
-    // Cloudflare R2 (o cualquier endpoint S3-compatible)
+    // Cloudflare R2 / MinIO (o cualquier endpoint S3-compatible)
     var accessKeyId     = config["Blob:AccessKeyId"]
         ?? throw new InvalidOperationException("Blob:AccessKeyId is required when Blob:Endpoint is set.");
     var secretAccessKey = config["Blob:SecretAccessKey"]
