@@ -111,7 +111,7 @@ public static class IngestionEndpoints
                 // Truncate vector database and job states using raw SQL
                 await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
                     dbContext.Database, 
-                    "TRUNCATE TABLE public.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";");
+                    "TRUNCATE TABLE identity.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";");
                 
                 return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
             }
