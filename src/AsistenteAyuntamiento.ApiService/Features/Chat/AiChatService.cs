@@ -99,7 +99,17 @@ public sealed class AiChatService
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "openai")
             {
-                kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+                if (!string.IsNullOrEmpty(config.EndpointUrl))
+                {
+                    #pragma warning disable SKEXP0070
+                    var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
+                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
+                    #pragma warning restore SKEXP0070
+                }
+                else
+                {
+                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+                }
             }
             else
             {
@@ -279,7 +289,17 @@ public sealed class AiChatService
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "openai")
             {
-                kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+                if (!string.IsNullOrEmpty(config.EndpointUrl))
+                {
+                    #pragma warning disable SKEXP0070
+                    var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
+                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
+                    #pragma warning restore SKEXP0070
+                }
+                else
+                {
+                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+                }
             }
             else
             {

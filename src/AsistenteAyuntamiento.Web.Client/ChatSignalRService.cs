@@ -10,6 +10,7 @@ public class ChatSignalRService : IAsyncDisposable
     private readonly ChatHubOptions _hubOptions;
     private readonly AppTokenProvider _tokenProvider;
     private readonly IServiceProvider _serviceProvider;
+    private readonly Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider _authStateProvider;
     private HubConnection? _hubConnection;
 
     public event Action<string>? OnMessageReceived;
@@ -17,11 +18,13 @@ public class ChatSignalRService : IAsyncDisposable
     public ChatSignalRService(
         IOptions<ChatHubOptions> hubOptions,
         AppTokenProvider tokenProvider,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider authStateProvider)
     {
         _hubOptions = hubOptions.Value;
         _tokenProvider = tokenProvider;
         _serviceProvider = serviceProvider;
+        _authStateProvider = authStateProvider;
     }
 
     public async Task ConnectAsync()
@@ -31,7 +34,15 @@ public class ChatSignalRService : IAsyncDisposable
         _hubConnection ??= new HubConnectionBuilder()
             .WithUrl(_hubOptions.HubUrl, options =>
             {
-                options.AccessTokenProvider = () => Task.FromResult(_tokenProvider.AccessToken);
+                options.AccessTokenProvider = async () =>
+                {
+                    if (!string.IsNullOrEmpty(_tokenProvider.AccessToken))
+                    {
+                        return _tokenProvider.AccessToken;
+                    }
+                    var authState = await _authStateProvider.GetAuthenticationStateAsync();
+                    return authState.User.FindFirst("access_token")?.Value ?? string.Empty;
+                };
 
                 // On the server, use the handler from IHttpClientFactory which has
                 // Aspire service discovery configured — this resolves "http://apiservice"

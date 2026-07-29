@@ -48,6 +48,21 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
     {
         options.TokenValidationParameters.RoleClaimType = "https://asistente.ayuntamiento.com/roles";
         options.SaveTokens = true;
+        options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
+        {
+            OnTokenValidated = context =>
+            {
+                var accessToken = context.TokenEndpointResponse?.AccessToken;
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    if (context.Principal?.Identity is System.Security.Claims.ClaimsIdentity identity)
+                    {
+                        identity.AddClaim(new System.Security.Claims.Claim("access_token", accessToken));
+                    }
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(

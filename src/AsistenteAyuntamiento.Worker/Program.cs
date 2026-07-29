@@ -37,10 +37,35 @@ var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
     ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
     : ollamaConnString;
 
-builder.Services.AddKernel()
+var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
+var embProvider = aiEmbeddingsConfig["Provider"] ?? "ollama";
+var embModel = aiEmbeddingsConfig["Model"] ?? "nomic-embed-text";
+var embEndpoint = aiEmbeddingsConfig["EndpointUrl"] ?? ollamaEndpoint;
+var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
+
+var kernelBuilder = builder.Services.AddKernel();
+
+if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+{
+    if (!string.IsNullOrEmpty(aiEmbeddingsConfig["EndpointUrl"]))
+    {
+        #pragma warning disable SKEXP0070
+        var httpClient = new HttpClient { BaseAddress = new Uri(aiEmbeddingsConfig["EndpointUrl"]!) };
+        kernelBuilder.AddOpenAITextEmbeddingGeneration(embModel, embApiKey, httpClient: httpClient);
+        #pragma warning restore SKEXP0070
+    }
+    else
+    {
+        kernelBuilder.AddOpenAITextEmbeddingGeneration(embModel, embApiKey);
+    }
+}
+else
+{
+    var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
 #pragma warning disable SKEXP0001
-    .AddOllamaTextEmbeddingGeneration("nomic-embed-text", new Uri(ollamaEndpoint));
+    kernelBuilder.AddOllamaTextEmbeddingGeneration(embModel, new Uri(embUri));
 #pragma warning restore SKEXP0001
+}
 #pragma warning restore SKEXP0070
 
 // Register background services for ingestion

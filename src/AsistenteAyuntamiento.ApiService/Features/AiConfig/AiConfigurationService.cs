@@ -33,7 +33,8 @@ public class AiConfigurationService
             Provider = config.Provider,
             Model = config.Model,
             Temperature = config.Temperature,
-            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey)
+            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey),
+            EndpointUrl = config.EndpointUrl
         };
     }
 
@@ -72,7 +73,8 @@ public class AiConfigurationService
             Provider = config.Provider,
             Model = config.Model,
             Temperature = config.Temperature,
-            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey)
+            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey),
+            EndpointUrl = config.EndpointUrl
         };
 
         string? decryptedKey = null;
@@ -108,6 +110,7 @@ public class AiConfigurationService
         config.Provider = dto.Provider;
         config.Model = dto.Model;
         config.Temperature = dto.Temperature;
+        config.EndpointUrl = dto.EndpointUrl;
 
         if (!string.IsNullOrEmpty(dto.ApiKey))
         {
@@ -125,6 +128,7 @@ public class AiConfigurationDto
     public string Model { get; set; } = "llama3.2";
     public double Temperature { get; set; } = 0.3;
     public bool HasApiKey { get; set; }
+    public string? EndpointUrl { get; set; }
 }
 
 public class SaveAiConfigurationDto
@@ -133,4 +137,5 @@ public class SaveAiConfigurationDto
     public string Model { get; set; } = "llama3.2";
     public double Temperature { get; set; } = 0.3;
     public string? ApiKey { get; set; }
+    public string? EndpointUrl { get; set; }
 }

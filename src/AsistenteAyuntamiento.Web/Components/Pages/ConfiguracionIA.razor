@@ -42,6 +42,11 @@
                         <input @bind="Config.Model" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. llama3.2 o gpt-4o" />
                     </div>
 
+                    <div class="space-y-sm mb-md">
+                        <label class="font-label-md text-label-md text-on-surface">Endpoint URL (Opcional)</label>
+                        <input @bind="Config.EndpointUrl" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. https://openrouter.ai/api/v1" />
+                    </div>
+
                     <div class="space-y-sm">
                         <label class="font-label-md text-label-md text-on-surface">API Key</label>
                         <input @bind="Config.ApiKey" type="password" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="@(HasSavedApiKey ? "•••••••••••• (Guardada)" : "Introduce API Key (opcional para local)")" />
@@ -175,6 +180,7 @@
                 Provider = currentConfig.Provider,
                 Model = currentConfig.Model,
                 Temperature = currentConfig.Temperature,
+                EndpointUrl = currentConfig.EndpointUrl,
                 ApiKey = null // Never show the real API key on the frontend
             };
             HasSavedApiKey = currentConfig.HasApiKey;
