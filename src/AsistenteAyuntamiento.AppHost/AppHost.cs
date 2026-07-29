@@ -9,6 +9,16 @@ var auth0Domain = builder.AddParameter("auth0-domain", secret: false);
 var auth0ClientId = builder.AddParameter("auth0-client-id", secret: false);
 var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true);
 
+// ── AI configuration ─────────────────────────────────────────────────────────
+// Stored in user-secrets on AppHost for local dev
+var aiChatProvider = builder.AddParameter("ai-chat-provider", secret: false);
+var aiChatModel = builder.AddParameter("ai-chat-model", secret: false);
+var aiChatApiKey = builder.AddParameter("ai-chat-api-key", secret: true);
+
+var aiEmbeddingsProvider = builder.AddParameter("ai-embeddings-provider", secret: false);
+var aiEmbeddingsModel = builder.AddParameter("ai-embeddings-model", secret: false);
+var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: true);
+
 // ── Cloudflare R2 secrets (Optional) ────────────────────────────────────────
 // To use R2, set these in user-secrets or appsettings.json instead of parameters.
 // If missing, it will fallback to the local Azurite emulator.
@@ -61,7 +71,13 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WaitFor(rabbitmq)
     .WaitFor(rabbitmq)
     .WithEnvironment("Auth0__Domain", auth0Domain)
-    .WithEnvironment("Auth0__Audience", auth0Audience);
+    .WithEnvironment("Auth0__Audience", auth0Audience)
+    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
+    .WithEnvironment("Ai__Chat__Model", aiChatModel)
+    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
+    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
+    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
+    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
 
 if (!string.IsNullOrEmpty(blobEndpoint))
 {
@@ -132,7 +148,13 @@ var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
     .WithReference(ollama)
     .WaitFor(db)
     .WaitFor(rabbitmq)
-    .WaitFor(ollama);
+    .WaitFor(ollama)
+    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
+    .WithEnvironment("Ai__Chat__Model", aiChatModel)
+    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
+    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
+    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
+    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
 
 if (!string.IsNullOrEmpty(blobEndpoint))
 {

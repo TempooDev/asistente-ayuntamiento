@@ -87,7 +87,7 @@ public sealed class AiChatService
         var config = fullConfig.Config;
         var apiKey = fullConfig.DecryptedApiKey;
         var modelId = config.Model;
-        
+
         activity?.SetTag("ai.model", modelId);
         activity?.SetTag("ai.tenant", tenantId);
         activity?.SetTag("ai.user", userId);
@@ -101,10 +101,10 @@ public sealed class AiChatService
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
-                    #pragma warning disable SKEXP0070
+#pragma warning disable SKEXP0070
                     var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-                    #pragma warning restore SKEXP0070
+#pragma warning restore SKEXP0070
                 }
                 else
                 {
@@ -114,23 +114,23 @@ public sealed class AiChatService
             else
             {
                 var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
-                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
+                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
-                #pragma warning disable SKEXP0070
+#pragma warning disable SKEXP0070
                 kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-                #pragma warning restore SKEXP0070
+#pragma warning restore SKEXP0070
             }
             var kernel = kernelBuilder.Build();
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-            
+
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
-                #pragma warning disable CS0618
+#pragma warning disable CS0618
                 var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-                #pragma warning restore CS0618
+#pragma warning restore CS0618
                 var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
                 var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
 
@@ -142,26 +142,26 @@ public sealed class AiChatService
 
                 if (closestChunks.Any())
                 {
-                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
+                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
-                    
+
                     var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
-                    
+
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
-                    
+
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
-                    
+
                     if (!history.Any(m => m.Role == AuthorRole.System))
                     {
                         history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
                     }
 
                     documentSources = closestChunks.Select(c => new DocumentSource(
-                        c.Title, 
-                        c.Department, 
-                        c.PublicationDate.ToString("yyyy-MM-dd"), 
+                        c.Title,
+                        c.Department,
+                        c.PublicationDate.ToString("yyyy-MM-dd"),
                         GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
                 }
             }
@@ -291,10 +291,10 @@ public sealed class AiChatService
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
-                    #pragma warning disable SKEXP0070
+#pragma warning disable SKEXP0070
                     var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-                    #pragma warning restore SKEXP0070
+#pragma warning restore SKEXP0070
                 }
                 else
                 {
@@ -304,12 +304,12 @@ public sealed class AiChatService
             else
             {
                 var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
-                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
+                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
-                #pragma warning disable SKEXP0070
+#pragma warning disable SKEXP0070
                 kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-                #pragma warning restore SKEXP0070
+#pragma warning restore SKEXP0070
             }
             var kernel = kernelBuilder.Build();
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -333,9 +333,9 @@ public sealed class AiChatService
         {
             try
             {
-                #pragma warning disable CS0618
+#pragma warning disable CS0618
                 var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-                #pragma warning restore CS0618
+#pragma warning restore CS0618
                 var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
                 var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
 
@@ -346,28 +346,28 @@ public sealed class AiChatService
 
                 if (closestChunks.Any())
                 {
-                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
+                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
-                    
+
                     var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
-                    
+
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
-                    
+
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
-                    
+
                     if (!history.Any(m => m.Role == AuthorRole.System))
                     {
                         history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
                     }
 
                     documentSources = closestChunks.Select(c => new DocumentSource(
-                        c.Title, 
-                        c.Department, 
-                        c.PublicationDate.ToString("yyyy-MM-dd"), 
+                        c.Title,
+                        c.Department,
+                        c.PublicationDate.ToString("yyyy-MM-dd"),
                         GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
-                        
+
                     if (documentSources.Any())
                     {
                         var sourcesText = "\n\n**Fuentes consultadas:**\n";
@@ -401,7 +401,6 @@ public sealed class AiChatService
         };
 
         bool success = true;
-        string? streamError = null;
 
         var responseStream = chatCompletionService!.GetStreamingChatMessageContentsAsync(
             history,
@@ -421,7 +420,7 @@ public sealed class AiChatService
 
 
         stopwatch.Stop();
-        
+
         _metricsService.RecordCall(new AiCallRecord
         {
             ModelId = modelId,

@@ -43,27 +43,46 @@ var embModel = aiEmbeddingsConfig["Model"] ?? "nomic-embed-text";
 var embEndpoint = aiEmbeddingsConfig["EndpointUrl"] ?? ollamaEndpoint;
 var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
 
+var chatProvider = builder.Configuration["Ai:Chat:Provider"] ?? "ollama";
+var chatModel = builder.Configuration["Ai:Chat:Model"] ?? "llama3.2";
+var chatApiKey = builder.Configuration["Ai:Chat:ApiKey"] ?? "";
+
 var kernelBuilder = builder.Services.AddKernel();
 
-if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 {
+    kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey);
+}
+else
+{
+    kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+}
+
+if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
+{
+    kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey);
+}
+else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+{
+#pragma warning disable SKEXP0010
     if (!string.IsNullOrEmpty(aiEmbeddingsConfig["EndpointUrl"]))
     {
         #pragma warning disable SKEXP0070
         var httpClient = new HttpClient { BaseAddress = new Uri(aiEmbeddingsConfig["EndpointUrl"]!) };
-        kernelBuilder.AddOpenAITextEmbeddingGeneration(embModel, embApiKey, httpClient: httpClient);
+        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey, httpClient: httpClient);
         #pragma warning restore SKEXP0070
     }
     else
     {
-        kernelBuilder.AddOpenAITextEmbeddingGeneration(embModel, embApiKey);
+        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey);
     }
+#pragma warning restore SKEXP0010
 }
 else
 {
     var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
 #pragma warning disable SKEXP0001
-    kernelBuilder.AddOllamaTextEmbeddingGeneration(embModel, new Uri(embUri));
+    kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUri));
 #pragma warning restore SKEXP0001
 }
 #pragma warning restore SKEXP0070

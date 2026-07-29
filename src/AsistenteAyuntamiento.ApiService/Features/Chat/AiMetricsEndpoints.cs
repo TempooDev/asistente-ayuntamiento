@@ -17,8 +17,7 @@ public static class AiMetricsEndpoints
             return Results.Ok(snapshot);
         })
         .WithName("GetAiMetrics")
-        .WithSummary("Returns AI model invocation metrics and recent call history")
-        .WithOpenApi();
+        .WithSummary("Returns AI model invocation metrics and recent call history");
 
         // GET /api/ai/metrics/summary — Lightweight summary (no recent calls list)
         group.MapGet("/metrics/summary", (AiMetricsService metricsService) =>
@@ -39,8 +38,7 @@ public static class AiMetricsEndpoints
             });
         })
         .WithName("GetAiMetricsSummary")
-        .WithSummary("Returns a lightweight AI metrics summary without recent call details")
-        .WithOpenApi();
+        .WithSummary("Returns a lightweight AI metrics summary without recent call details");
 
         // GET /api/ai/health — Quick health check: is the AI model reachable?
         group.MapGet("/health", (AiMetricsService metricsService) =>
@@ -61,7 +59,6 @@ public static class AiMetricsEndpoints
             });
         })
         .WithName("GetAiHealth")
-        .WithSummary("Returns AI model health status based on recent call success rate")
-        .WithOpenApi();
+        .WithSummary("Returns AI model health status based on recent call success rate");
     }
 }
