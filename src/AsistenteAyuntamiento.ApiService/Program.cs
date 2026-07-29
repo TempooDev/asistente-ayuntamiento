@@ -83,8 +83,9 @@ if (!string.IsNullOrEmpty(blobEndpoint))
     var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
     builder.Services.AddSingleton<Amazon.S3.IAmazonS3>(new Amazon.S3.AmazonS3Client(credentials, s3Config));
 }
+// Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
+// pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
 builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentIngestionService>();
-builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Ingestion.RabbitMqConsumerService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -104,11 +105,34 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Apply database migrations on startup
+// Apply database migrations and ensure S3 bucket on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>();
     dbContext.Database.Migrate();
+
+    var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();
+    if (s3Client != null)
+    {
+        try
+        {
+            var bucketName = app.Configuration["Blob:BucketName"] ?? "boletines";
+            s3Client.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest
+            {
+                BucketName = bucketName,
+                UseClientRegion = true
+            }).GetAwaiter().GetResult();
+        }
+        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "BucketAlreadyOwnedByYou" || e.ErrorCode == "BucketAlreadyExists")
+        {
+            // Bucket already exists, all good
+        }
+        catch (Exception ex)
+        {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning(ex, "Could not automatically create S3 bucket. It might already exist or require manual creation.");
+        }
+    }
 }
 
 app.UseAuthentication();

@@ -61,6 +61,18 @@ public class ChatSignalRService : IAsyncDisposable
         }
     }
 
+    public async IAsyncEnumerable<string> StreamMessageAsync(Guid sessionId, string message, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
+        {
+            var stream = _hubConnection.StreamAsync<string>("StreamMessage", sessionId, message, cancellationToken);
+            await foreach (var chunk in stream)
+            {
+                yield return chunk;
+            }
+        }
+    }
+
     public async Task<List<ChatSessionSummaryDto>> GetSessionsAsync()
     {
         if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)

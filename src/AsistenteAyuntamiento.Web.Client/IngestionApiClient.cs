@@ -8,6 +8,7 @@ public class BlobInfo
     public long Size { get; set; }
     public DateTimeOffset? LastModified { get; set; }
     public bool IsProcessed { get; set; }
+    public string Status { get; set; } = "Pending";
 }
 
 public class IngestionApiClient

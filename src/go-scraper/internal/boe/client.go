@@ -66,27 +66,41 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 	}
 
 	var ids []string
-	var findIDs func(v interface{})
-	findIDs = func(v interface{}) {
+	var processNode func(v interface{}, active bool)
+	processNode = func(v interface{}, active bool) {
 		switch node := v.(type) {
 		case map[string]interface{}:
-			for k, val := range node {
-				if k == "identificador" {
-					if idStr, ok := val.(string); ok {
-						ids = append(ids, idStr)
-					}
+			// Si el nodo es una sección, revisamos su código
+			if cod, ok := node["codigo"].(string); ok && node["departamento"] != nil {
+				// 1 (Sección I), 2B (Sección II.B), 3 (Sección III), 5A (Sección V.A)
+				if cod == "1" || cod == "2B" || cod == "3" || cod == "5A" {
+					active = true
 				} else {
-					findIDs(val)
+					active = false
 				}
+			}
+
+			if active {
+				if idVal, ok := node["identificador"].(string); ok {
+					// Extraemos el identificador solo si estamos en una sección activa y es un documento (BOE-A-...)
+					if strings.HasPrefix(idVal, "BOE-A-") {
+						ids = append(ids, idVal)
+					}
+				}
+			}
+
+			// Continuar iterando por los hijos (departamentos, epígrafes, items)
+			for _, val := range node {
+				processNode(val, active)
 			}
 		case []interface{}:
 			for _, item := range node {
-				findIDs(item)
+				processNode(item, active)
 			}
 		}
 	}
 
-	findIDs(data)
+	processNode(data, false)
 	return ids, nil
 }
 
@@ -116,7 +130,9 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 			Departamento     string `xml:"departamento"`
 			FechaPublicacion string `xml:"fecha_publicacion"`
 		} `xml:"metadatos"`
-		Texto string `xml:"texto,innerxml"`
+		Texto struct {
+			InnerXML string `xml:",innerxml"`
+		} `xml:"texto"`
 	}
 
 	if err := xml.Unmarshal(rawXML, &docXML); err != nil {
@@ -129,7 +145,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 	}
 
 	// Limpiar el HTML/XML interno para quedarse solo con el texto.
-	cleanText := strings.TrimSpace(docXML.Texto)
+	cleanText := strings.TrimSpace(docXML.Texto.InnerXML)
 	// Un reemplazo básico de tags HTML para que el motor vectorial trabaje mejor
 	cleanText = scraper.StripHTMLTags(cleanText)
 

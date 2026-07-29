@@ -126,4 +126,25 @@ goScraper.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
          .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
          .WithEnvironment("Blob__BucketName", blobBucketName);
 
+var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
+    .WithReference(db)
+    .WithReference(rabbitmq)
+    .WithReference(ollama)
+    .WaitFor(db)
+    .WaitFor(rabbitmq)
+    .WaitFor(ollama);
+
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    worker.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    worker.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
+
+worker.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+      .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+      .WithEnvironment("Blob__BucketName", blobBucketName);
+
 builder.Build().Run();

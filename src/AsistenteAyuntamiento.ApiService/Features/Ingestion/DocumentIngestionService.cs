@@ -31,6 +31,31 @@ public class DocumentIngestionService
 
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
+        var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
+        var initialJobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
+        
+        if (initialJobState != null && initialJobState.Status == "Processing")
+        {
+            _logger.LogWarning($"El documento {docIdFromPath} ya está en estado 'Processing'. Previniendo duplicidad.");
+            return;
+        }
+
+        if (initialJobState != null)
+        {
+            initialJobState.Status = "Processing";
+            initialJobState.LastUpdatedAt = DateTime.UtcNow;
+            initialJobState.ErrorMessage = null;
+        }
+        else
+        {
+            _dbContext.DocumentJobStates.Add(new DocumentJobState 
+            { 
+                DocumentId = docIdFromPath, 
+                Status = "Processing" 
+            });
+        }
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
         try
@@ -109,27 +134,73 @@ public class DocumentIngestionService
         }
 
         // 5. Persistencia transaccional
-        using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // Opcional: Eliminar chunks antiguos si es un re-procesamiento
-            var existing = await _dbContext.DocumentChunks.Where(c => c.DocumentId == document.DocumentId).ToListAsync(cancellationToken);
-            if (existing.Any())
+            using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                _dbContext.DocumentChunks.RemoveRange(existing);
-            }
+                // Eliminar los chunks anteriores directamente en base de datos de manera atómica
+                await _dbContext.DocumentChunks
+                    .Where(c => c.DocumentId == document.DocumentId)
+                    .ExecuteDeleteAsync(cancellationToken);
 
-            await _dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            
-            _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+                await _dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                
+                // Update state to Completed
+                var jobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == document.DocumentId, cancellationToken);
+                if (jobState != null)
+                {
+                    jobState.Status = "Completed";
+                    jobState.LastUpdatedAt = DateTime.UtcNow;
+                    jobState.ErrorMessage = null;
+                }
+                else
+                {
+                    _dbContext.DocumentJobStates.Add(new DocumentJobState 
+                    { 
+                        DocumentId = document.DocumentId, 
+                        Status = "Completed" 
+                    });
+                }
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+                
+                _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                
+                // Tratar de registrar el fallo si tenemos un DocumentId
+                try 
+                {
+                    var fallbackDocId = document?.DocumentId ?? blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
+                    var jobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == fallbackDocId, cancellationToken);
+                    if (jobState != null)
+                    {
+                        jobState.Status = "Failed";
+                        jobState.LastUpdatedAt = DateTime.UtcNow;
+                        jobState.ErrorMessage = ex.Message;
+                    }
+                    else
+                    {
+                        _dbContext.DocumentJobStates.Add(new DocumentJobState 
+                        { 
+                            DocumentId = fallbackDocId, 
+                            Status = "Failed",
+                            ErrorMessage = ex.Message
+                        });
+                    }
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                } 
+                catch { /* Ignore inner failure */ }
+                
+                throw;
+            }
+        });
     }
 }
 #pragma warning restore SKEXP0001

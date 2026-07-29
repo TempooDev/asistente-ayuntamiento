@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-AsistenteAyuntamiento.Worker-2db02f0f-9d0c-45b0-a363-6b7737d41b54</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AsistenteAyuntamiento.Shared\AsistenteAyuntamiento.Shared.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.ServiceDefaults\AsistenteAyuntamiento.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.ApiService\AsistenteAyuntamiento.ApiService.csproj" />
+  </ItemGroup>
+</Project>

@@ -286,6 +286,8 @@
         return date.ToString("dd MMM", new System.Globalization.CultureInfo("es-ES"));
     }
 
+    private CancellationTokenSource? _streamingCts;
+
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected || _isWaitingForResponse) return;
@@ -301,16 +303,36 @@
 
         // Add to UI immediately
         _messages.Add(new ChatMessage { Text = text, IsUser = true });
+        
+        var assistantMessage = new ChatMessage { Text = "", IsUser = false };
+        _messages.Add(assistantMessage);
+        
         StateHasChanged();
 
-        // Send to backend
+        // Send to backend via stream
         try
         {
-            await ChatService.SendMessageAsync(_currentSessionId, text);
+            _streamingCts = new CancellationTokenSource();
+            var stream = ChatService.StreamMessageAsync(_currentSessionId, text, _streamingCts.Token);
+            
+            bool firstChunk = true;
+            await foreach (var chunk in stream)
+            {
+                if (firstChunk)
+                {
+                    _isWaitingForResponse = false;
+                    firstChunk = false;
+                }
+                assistantMessage.Text += chunk;
+                StateHasChanged();
+            }
+            if (firstChunk) _isWaitingForResponse = false;
+            
+            await LoadSessions(); // Refresh list to update message count/preview
         }
         catch (Exception ex)
         {
-            _messages.Add(new ChatMessage { Text = $"Error de envío: {ex.Message}", IsUser = false });
+            assistantMessage.Text += $"\n[Error: {ex.Message}]";
             _isWaitingForResponse = false;
             StateHasChanged();
         }

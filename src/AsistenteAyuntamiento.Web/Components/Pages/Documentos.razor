@@ -102,10 +102,22 @@
                             <td class="p-sm font-body-md">@(Math.Round((double)blob.Size / 1024, 2)) KB</td>
                             <td class="p-sm font-body-md">@(blob.LastModified?.LocalDateTime.ToString("g") ?? "-")</td>
                             <td class="p-sm font-body-md">
-                                @if (blob.IsProcessed)
+                                @if (blob.Status == "Completed")
                                 {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                                         Procesado
+                                    </span>
+                                }
+                                else if (blob.Status == "Processing")
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+                                        Procesando...
+                                    </span>
+                                }
+                                else if (blob.Status == "Failed")
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                        Fallo
                                     </span>
                                 }
                                 else
@@ -116,8 +128,8 @@
                                 }
                             </td>
                             <td class="p-sm font-body-md">
-                                <button class="btn btn-sm btn-outline" @onclick="() => ProcessBlob(blob.Name)">
-                                    @(blob.IsProcessed ? "Reprocesar" : "Procesar")
+                                <button class="btn btn-sm btn-outline" disabled="@(blob.Status == "Processing")" @onclick="() => ProcessBlob(blob.Name)">
+                                    @(blob.Status == "Completed" ? "Reprocesar" : (blob.Status == "Processing" ? "Procesando..." : "Procesar"))
                                 </button>
                             </td>
                         </tr>
@@ -206,8 +218,8 @@
     private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> FilteredBlobs => blobs?.Where(b => 
         (string.IsNullOrWhiteSpace(searchTerm) || b.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
         (filterStatus == "Todos" || 
-        (filterStatus == "Procesados" && b.IsProcessed) || 
-        (filterStatus == "Pendientes" && !b.IsProcessed)) &&
+        (filterStatus == "Procesados" && b.Status == "Completed") || 
+        (filterStatus == "Pendientes" && (b.Status == "Pending" || b.Status == "Failed" || b.Status == "Processing"))) &&
         (!filterDateFrom.HasValue || b.LastModified?.LocalDateTime.Date >= filterDateFrom.Value.Date) &&
         (!filterDateTo.HasValue || b.LastModified?.LocalDateTime.Date <= filterDateTo.Value.Date) &&
         (!filterMinSize.HasValue || Math.Round((double)b.Size / 1024, 2) >= filterMinSize.Value) &&

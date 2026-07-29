@@ -87,6 +87,54 @@ public class ChatHub : Hub
         }
     }
 
+    public async IAsyncEnumerable<string> StreamMessage(
+        Guid sessionId, 
+        string message, 
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            yield return "Error: No user ID found.";
+            yield break;
+        }
+
+        ChatSession session;
+        try
+        {
+            _logger.LogInformation("Streaming message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
+
+            session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+            if (session == null)
+            {
+                yield return "Error: Sesión no encontrada o no autorizada.";
+                yield break;
+            }
+            _sessionService.EnqueueUserMessage(session, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error preparing stream for {User}", userId);
+            yield return $"System Error: {ex.GetType().Name} - {ex.Message}";
+            yield break;
+        }
+
+        var recentMessages = _sessionService.GetCompactedHistory(session);
+        var history = BuildChatHistory(recentMessages);
+
+        var fullResponseBuilder = new System.Text.StringBuilder();
+
+        await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        {
+            fullResponseBuilder.Append(chunk);
+            yield return chunk;
+        }
+
+        _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
+    }
+
     /// <summary>
     /// Converts persisted <see cref="ChatMessage"/> entities into a Semantic Kernel <see cref="ChatHistory"/>.
     /// </summary>

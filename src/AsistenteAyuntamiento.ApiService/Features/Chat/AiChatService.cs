@@ -135,7 +135,7 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
                     
-                    var ragPrompt = $"Utiliza EXCLUSIVAMENTE el siguiente contexto legal extraído de los boletines oficiales para responder a la pregunta del usuario. Si el contexto no contiene la respuesta, indica que no tienes información suficiente basándote en los boletines publicados.\n\nContexto:\n{contextText}";
+                    var ragPrompt = $"Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.\n\nContexto:\n{contextText}";
                     
                     // Insert context before the last user message
                     var lastMsgIndex = history.Count - 1;
@@ -236,6 +236,160 @@ public sealed class AiChatService
                 ErrorMessage: errorMessage,
                 TokenUsage: TokenUsageInfo.Empty);
         }
+    }
+
+    /// <summary>
+    /// Streams the completion response back to the caller chunk by chunk.
+    /// </summary>
+    public async IAsyncEnumerable<string> GetStreamingCompletionAsync(
+        ChatHistory history,
+        string tenantId,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion.Stream");
+
+        var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
+        var promptLength = lastUserMessage?.Content?.Length ?? 0;
+
+        var fullConfig = await _aiConfigurationService.GetFullConfigurationAsync();
+        var config = fullConfig.Config;
+        var apiKey = fullConfig.DecryptedApiKey;
+        var modelId = config.Model;
+
+        activity?.SetTag("ai.model", modelId);
+        activity?.SetTag("ai.tenant", tenantId);
+        activity?.SetTag("ai.user", userId);
+
+        IChatCompletionService chatCompletionService;
+        try
+        {
+            var kernelBuilder = Kernel.CreateBuilder();
+            if (config.Provider == "openai")
+            {
+                kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
+            }
+            else
+            {
+                var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
+                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+                    : ollamaConnString;
+                #pragma warning disable SKEXP0070
+                kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
+                #pragma warning restore SKEXP0070
+            }
+            var kernel = kernelBuilder.Build();
+            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize kernel for streaming.");
+            yield return $"Error de inicialización de IA: {ex.Message}";
+            yield break;
+        }
+
+        var documentSources = new List<DocumentSource>();
+        if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
+        {
+            try
+            {
+                #pragma warning disable CS0618
+                var embeddingGenerator = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
+                #pragma warning restore CS0618
+                var queryEmbedding = await embeddingGenerator.GenerateEmbeddingAsync(lastUserMessage.Content, _kernel, cancellationToken);
+                var queryVector = new Pgvector.Vector(queryEmbedding.ToArray());
+
+                var closestChunks = await _dbContext.DocumentChunks
+                    .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
+                    .Take(3)
+                    .ToListAsync(cancellationToken);
+
+                if (closestChunks.Any())
+                {
+                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
+                        $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                    
+                    var ragPrompt = $"Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.\n\nContexto:\n{contextText}";
+                    
+                    var lastMsgIndex = history.Count - 1;
+                    history.Insert(lastMsgIndex, new ChatMessageContent(AuthorRole.System, ragPrompt));
+
+                    documentSources = closestChunks.Select(c => new DocumentSource(
+                        c.Title, 
+                        c.Department, 
+                        c.PublicationDate.ToString("yyyy-MM-dd"), 
+                        GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to perform RAG vector search during streaming.");
+            }
+        }
+
+        var executionSettings = new PromptExecutionSettings
+        {
+            ExtensionData = new Dictionary<string, object>
+            {
+                { "Temperature", config.Temperature }
+            }
+        };
+
+        string fullContent = "";
+        bool success = true;
+        try
+        {
+            var responseStream = chatCompletionService.GetStreamingChatMessageContentsAsync(
+                history,
+                executionSettings: executionSettings,
+                cancellationToken: cancellationToken);
+
+            await foreach (var chunk in responseStream)
+            {
+                var content = chunk.Content;
+                if (!string.IsNullOrEmpty(content))
+                {
+                    fullContent += content;
+                    yield return content;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            _logger.LogError(ex, "Error during AI streaming");
+            yield return $"\n\n[Error de comunicación: {ex.Message}]";
+        }
+
+        if (documentSources.Any())
+        {
+            var sourcesText = "\n\n**Fuentes consultadas:**\n";
+            foreach (var src in documentSources)
+            {
+                sourcesText += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
+            }
+            fullContent += sourcesText;
+            yield return sourcesText;
+        }
+
+        stopwatch.Stop();
+        
+        _metricsService.RecordCall(new AiCallRecord
+        {
+            ModelId = modelId,
+            TenantId = tenantId,
+            UserId = userId,
+            Success = success,
+            DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+            PromptLength = promptLength,
+            ResponseLength = fullContent.Length,
+            HistoryMessageCount = history.Count,
+            InputTokens = 0,
+            OutputTokens = 0,
+            TotalTokens = 0
+        });
     }
 
     /// <summary>

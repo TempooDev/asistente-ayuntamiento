@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage> ChatMessages { get; set; }
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
+    public DbSet<DocumentJobState> DocumentJobStates { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
