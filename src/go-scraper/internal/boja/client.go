@@ -113,11 +113,23 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 
 	cleanText := scraper.StripHTMLTags(string(htmlContent))
 	
-	// Create a stable document ID from the URL (e.g. hash it or extract the end)
-	parts := strings.Split(id, "/")
-	docId := parts[len(parts)-1]
-	if docId == "" || docId == "index.html" {
-		docId = fmt.Sprintf("BOJA-%d", time.Now().UnixNano())
+	// Create a stable document ID from the URL
+	// Example: https://www.juntadeandalucia.es/boja/2026/123/1
+	docId := id
+	parts := strings.Split(strings.TrimRight(id, "/"), "/")
+	if len(parts) >= 3 {
+		// e.g. boja/2026/123/1 -> BOJA-2026-123-1
+		docId = "BOJA-" + strings.Join(parts[len(parts)-3:], "-")
+		docId = strings.ReplaceAll(docId, ".html", "")
+	}
+
+	// Extract title from HTML
+	titulo := "Documento BOJA"
+	titleStart := strings.Index(string(htmlContent), "<title>")
+	titleEnd := strings.Index(string(htmlContent), "</title>")
+	if titleStart != -1 && titleEnd != -1 && titleEnd > titleStart {
+		titulo = string(htmlContent)[titleStart+7 : titleEnd]
+		titulo = strings.TrimSpace(strings.ReplaceAll(titulo, "\n", " "))
 	}
 
 	doc := &scraper.Document{
@@ -125,9 +137,9 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 		Metadata: scraper.Metadata{
 			Source:           p.Name(),
 			DocumentID:       docId,
-			Titulo:           "BOJA Document", // Should parse from HTML in a real scenario
+			Titulo:           titulo,
 			Departamento:     "Junta de Andalucía",
-			FechaPublicacion: time.Now().Format("20060102"),
+			FechaPublicacion: time.Now().Format("2006-01-02"),
 		},
 		Text: cleanText,
 	}

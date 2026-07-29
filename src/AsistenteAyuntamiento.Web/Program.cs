@@ -51,7 +51,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
     });
 
 builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(
-    Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
+    CookieAuthenticationDefaults.AuthenticationScheme,
     options =>
     {
         options.LoginPath = "/login";
@@ -67,7 +67,7 @@ builder.Services.AddClientServices(builder.Configuration);
 builder.Services.AddHttpClient<WeatherApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<UserApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<AiConfigApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
-builder.Services.AddHttpClient<IngestionApiClient>(c => 
+builder.Services.AddHttpClient<IngestionApiClient>(c =>
 {
     c.BaseAddress = new Uri("http://apiservice");
     c.Timeout = TimeSpan.FromMinutes(10);
@@ -80,19 +80,19 @@ builder.Services.Configure<ChatHubOptions>(o => o.HubUrl = "http://apiservice/hu
 // Aspire inyecta las credenciales de R2/MinIO como env vars (Blob__*).
 builder.Services.AddSingleton<IBlobStorageRepository>(sp =>
 {
-    var config   = sp.GetRequiredService<IConfiguration>();
+    var config = sp.GetRequiredService<IConfiguration>();
     var endpoint = config["Blob:Endpoint"]
         ?? throw new InvalidOperationException("Blob:Endpoint is required.");
 
     // Cloudflare R2 / MinIO (o cualquier endpoint S3-compatible)
-    var accessKeyId     = config["Blob:AccessKeyId"]
+    var accessKeyId = config["Blob:AccessKeyId"]
         ?? throw new InvalidOperationException("Blob:AccessKeyId is required when Blob:Endpoint is set.");
     var secretAccessKey = config["Blob:SecretAccessKey"]
         ?? throw new InvalidOperationException("Blob:SecretAccessKey is required when Blob:Endpoint is set.");
-    var bucketName      = config["Blob:BucketName"]
+    var bucketName = config["Blob:BucketName"]
         ?? throw new InvalidOperationException("Blob:BucketName is required when Blob:Endpoint is set.");
 
-    var s3Config    = new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true };
+    var s3Config = new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true };
     var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
     return new S3BlobStorageRepository(new AmazonS3Client(credentials, s3Config), bucketName);
 });
@@ -147,7 +147,7 @@ app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
         .Build();
 
     await httpContext.SignOutAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
-    await httpContext.SignOutAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
+    await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 });
 
 app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>

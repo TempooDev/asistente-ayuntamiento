@@ -135,11 +135,18 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
                     
-                    var ragPrompt = $"Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.\n\nContexto:\n{contextText}";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
                     
-                    // Insert context before the last user message
+                    var originalMessage = lastUserMessage.Content;
+                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
+                    
                     var lastMsgIndex = history.Count - 1;
-                    history.Insert(lastMsgIndex, new ChatMessageContent(AuthorRole.System, ragPrompt));
+                    history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
+                    
+                    if (!history.Any(m => m.Role == AuthorRole.System))
+                    {
+                        history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
+                    }
 
                     documentSources = closestChunks.Select(c => new DocumentSource(
                         c.Title, 
@@ -262,7 +269,11 @@ public sealed class AiChatService
         activity?.SetTag("ai.tenant", tenantId);
         activity?.SetTag("ai.user", userId);
 
-        IChatCompletionService chatCompletionService;
+        string fullContent = "";
+
+        IChatCompletionService? chatCompletionService = null;
+        string? initError = null;
+
         try
         {
             var kernelBuilder = Kernel.CreateBuilder();
@@ -286,11 +297,18 @@ public sealed class AiChatService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize kernel for streaming.");
-            yield return $"Error de inicialización de IA: {ex.Message}";
+            initError = $"Error de inicialización de IA: {ex.Message}";
+        }
+
+        if (initError != null)
+        {
+            yield return initError;
             yield break;
         }
 
         var documentSources = new List<DocumentSource>();
+        string? sourcesChunkToYield = null;
+
         if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
         {
             try
@@ -311,22 +329,47 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c => 
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
                     
-                    var ragPrompt = $"Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.\n\nContexto:\n{contextText}";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+                    
+                    var originalMessage = lastUserMessage.Content;
+                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
                     
                     var lastMsgIndex = history.Count - 1;
-                    history.Insert(lastMsgIndex, new ChatMessageContent(AuthorRole.System, ragPrompt));
+                    history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
+                    
+                    if (!history.Any(m => m.Role == AuthorRole.System))
+                    {
+                        history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
+                    }
 
                     documentSources = closestChunks.Select(c => new DocumentSource(
                         c.Title, 
                         c.Department, 
                         c.PublicationDate.ToString("yyyy-MM-dd"), 
                         GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
+                        
+                    if (documentSources.Any())
+                    {
+                        var sourcesText = "\n\n**Fuentes consultadas:**\n";
+                        foreach (var src in documentSources)
+                        {
+                            sourcesText += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
+                        }
+                        sourcesText += "\n---\n\n";
+                        fullContent += sourcesText;
+                        sourcesChunkToYield = sourcesText;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to perform RAG vector search during streaming.");
             }
+        }
+
+        if (sourcesChunkToYield != null)
+        {
+            yield return sourcesChunkToYield;
         }
 
         var executionSettings = new PromptExecutionSettings
@@ -337,42 +380,25 @@ public sealed class AiChatService
             }
         };
 
-        string fullContent = "";
         bool success = true;
-        try
-        {
-            var responseStream = chatCompletionService.GetStreamingChatMessageContentsAsync(
-                history,
-                executionSettings: executionSettings,
-                cancellationToken: cancellationToken);
+        string? streamError = null;
 
-            await foreach (var chunk in responseStream)
+        var responseStream = chatCompletionService!.GetStreamingChatMessageContentsAsync(
+            history,
+            executionSettings: executionSettings,
+            cancellationToken: cancellationToken);
+
+        await foreach (var chunk in responseStream)
+        {
+            var content = chunk.Content;
+            if (!string.IsNullOrEmpty(content))
             {
-                var content = chunk.Content;
-                if (!string.IsNullOrEmpty(content))
-                {
-                    fullContent += content;
-                    yield return content;
-                }
+                fullContent += content;
+                yield return content;
             }
         }
-        catch (Exception ex)
-        {
-            success = false;
-            _logger.LogError(ex, "Error during AI streaming");
-            yield return $"\n\n[Error de comunicación: {ex.Message}]";
-        }
 
-        if (documentSources.Any())
-        {
-            var sourcesText = "\n\n**Fuentes consultadas:**\n";
-            foreach (var src in documentSources)
-            {
-                sourcesText += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
-            }
-            fullContent += sourcesText;
-            yield return sourcesText;
-        }
+
 
         stopwatch.Stop();
         

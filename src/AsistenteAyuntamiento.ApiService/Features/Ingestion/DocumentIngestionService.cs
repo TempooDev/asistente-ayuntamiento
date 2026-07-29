@@ -100,8 +100,8 @@ public class DocumentIngestionService
 #pragma warning disable SKEXP0050
             paragraphs = TextChunker.SplitPlainTextParagraphs(
                 TextChunker.SplitPlainTextLines(document.Content, 200),
-                1000,
-                100 // overlap
+                400,
+                50 // overlap
             );
 #pragma warning restore SKEXP0050
         }

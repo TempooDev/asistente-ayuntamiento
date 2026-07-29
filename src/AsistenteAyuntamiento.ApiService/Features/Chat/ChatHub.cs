@@ -101,7 +101,9 @@ public class ChatHub : Hub
             yield break;
         }
 
-        ChatSession session;
+        ChatSession? session = null;
+        string? errorMessage = null;
+
         try
         {
             _logger.LogInformation("Streaming message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
@@ -109,15 +111,22 @@ public class ChatHub : Hub
             session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
             if (session == null)
             {
-                yield return "Error: Sesión no encontrada o no autorizada.";
-                yield break;
+                errorMessage = "Error: Sesión no encontrada o no autorizada.";
             }
-            _sessionService.EnqueueUserMessage(session, message);
+            else 
+            {
+                _sessionService.EnqueueUserMessage(session, message);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error preparing stream for {User}", userId);
-            yield return $"System Error: {ex.GetType().Name} - {ex.Message}";
+            errorMessage = $"System Error: {ex.GetType().Name} - {ex.Message}";
+        }
+
+        if (errorMessage != null)
+        {
+            yield return errorMessage;
             yield break;
         }
 

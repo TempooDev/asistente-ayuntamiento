@@ -13,8 +13,8 @@ public static class IngestionEndpoints
                        .WithTags("Ingestion");
 
         group.MapPost("/process-blob", async (
-            [FromBody] ProcessBlobRequest request, 
-            DocumentIngestionService ingestionService, 
+            [FromBody] ProcessBlobRequest request,
+            DocumentIngestionService ingestionService,
             ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
@@ -33,24 +33,24 @@ public static class IngestionEndpoints
         .WithName("ProcessBlobManually");
         group.MapGet("/blobs", async (
             Amazon.S3.IAmazonS3 s3Client,
-            Microsoft.Extensions.Configuration.IConfiguration config,
-            AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext) =>
+            IConfiguration config,
+            Infrastructure.Data.AppDbContext dbContext) =>
         {
             var bucketName = config["Blob:BucketName"] ?? "boletines";
-            
+
             var processedDocIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                System.Linq.Queryable.Distinct(System.Linq.Queryable.Select(dbContext.DocumentChunks, c => c.DocumentId))
+                Queryable.Distinct(Queryable.Select(dbContext.DocumentChunks, c => c.DocumentId))
             );
-            
+
             var jobStates = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToDictionaryAsync(
                 dbContext.DocumentJobStates,
                 j => j.DocumentId,
                 j => j.Status
             );
 
-            var blobs = new System.Collections.Generic.List<object>();
-            
-            try 
+            var blobs = new List<object>();
+
+            try
             {
                 if (s3Client == null)
                 {
@@ -62,9 +62,9 @@ public static class IngestionEndpoints
                     BucketName = bucketName,
                     Prefix = "json/"
                 };
-                
+
                 var response = await s3Client.ListObjectsV2Async(request);
-                
+
                 if (response?.S3Objects != null)
                 {
                     foreach (var s3Obj in response.S3Objects)
@@ -73,13 +73,14 @@ public static class IngestionEndpoints
 
                         var parts = s3Obj.Key.Split('/');
                         var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-                        
+
                         var isProcessed = processedDocIds != null && processedDocIds.Contains(docId);
-                        var status = jobStates.TryGetValue(docId, out var jobStatus) 
-                            ? jobStatus 
+                        var status = jobStates.TryGetValue(docId, out var jobStatus)
+                            ? jobStatus
                             : (isProcessed ? "Completed" : "Pending");
 
-                        blobs.Add(new {
+                        blobs.Add(new
+                        {
                             Name = s3Obj.Key,
                             Size = s3Obj.Size,
                             LastModified = s3Obj.LastModified,
@@ -88,7 +89,7 @@ public static class IngestionEndpoints
                         });
                     }
                 }
-            } 
+            }
             catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
             {
                 // Bucket not created yet
