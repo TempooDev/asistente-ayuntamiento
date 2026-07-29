@@ -30,8 +30,7 @@ public static class IngestionEndpoints
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         })
-        .WithName("ProcessBlobManually")
-        .WithOpenApi();
+        .WithName("ProcessBlobManually");
         group.MapGet("/blobs", async (
             Azure.Storage.Blobs.BlobServiceClient blobServiceClient,
             AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext) =>
@@ -43,24 +42,26 @@ public static class IngestionEndpoints
                 return Results.Ok(new System.Collections.Generic.List<object>());
             }
             
-            var processedSources = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                System.Linq.Queryable.Distinct(System.Linq.Queryable.Select(dbContext.DocumentChunks, c => c.Source))
+            var processedDocIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                System.Linq.Queryable.Distinct(System.Linq.Queryable.Select(dbContext.DocumentChunks, c => c.DocumentId))
             );
 
             var blobs = new System.Collections.Generic.List<object>();
-            await foreach (var blobItem in containerClient.GetBlobsAsync())
+            await foreach (var blobItem in containerClient.GetBlobsAsync(Azure.Storage.Blobs.Models.BlobTraits.None, Azure.Storage.Blobs.Models.BlobStates.None, "json/", default))
             {
+                var parts = blobItem.Name.Split('/');
+                var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
+                
                 blobs.Add(new {
                     Name = blobItem.Name,
                     Size = blobItem.Properties.ContentLength,
                     LastModified = blobItem.Properties.LastModified,
-                    IsProcessed = processedSources.Contains(blobItem.Name)
+                    IsProcessed = processedDocIds.Contains(docId)
                 });
             }
             return Results.Ok(blobs);
         })
-        .WithName("ListBlobs")
-        .WithOpenApi();
+        .WithName("ListBlobs");
     }
 }
 

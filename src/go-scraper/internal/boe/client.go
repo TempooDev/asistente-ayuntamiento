@@ -116,7 +116,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 			Departamento     string `xml:"departamento"`
 			FechaPublicacion string `xml:"fecha_publicacion"`
 		} `xml:"metadatos"`
-		Texto string `xml:"texto"`
+		Texto string `xml:"texto,innerxml"`
 	}
 
 	if err := xml.Unmarshal(rawXML, &docXML); err != nil {
@@ -128,6 +128,11 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 		return nil, rawXML, fmt.Errorf("documento %s no válido (sin metadatos)", id)
 	}
 
+	// Limpiar el HTML/XML interno para quedarse solo con el texto.
+	cleanText := strings.TrimSpace(docXML.Texto)
+	// Un reemplazo básico de tags HTML para que el motor vectorial trabaje mejor
+	cleanText = scraper.StripHTMLTags(cleanText)
+
 	doc := &scraper.Document{
 		DocumentID: docXML.Metadatos.Identificador,
 		Metadata: scraper.Metadata{
@@ -137,7 +142,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 			Departamento:     docXML.Metadatos.Departamento,
 			FechaPublicacion: docXML.Metadatos.FechaPublicacion,
 		},
-		Text: strings.TrimSpace(docXML.Texto),
+		Text: cleanText,
 	}
 
 	return doc, rawXML, nil

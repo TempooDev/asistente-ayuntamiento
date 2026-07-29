@@ -1,5 +1,10 @@
 package scraper
 
+import (
+	"html"
+	"regexp"
+)
+
 // Metadata representa los metadatos comunes extraídos de cualquier boletín oficial.
 // Estos campos se utilizan para proporcionar contexto al LLM y permitir filtrado en la base de datos vectorial.
 type Metadata struct {
@@ -16,4 +21,15 @@ type Document struct {
 	DocumentID string   `json:"document_id"`
 	Metadata   Metadata `json:"metadata"`
 	Text       string   `json:"text"`
+}
+
+var htmlTagRegex = regexp.MustCompile(`<.*?>`)
+
+// StripHTMLTags elimina las etiquetas HTML/XML de un texto y decodifica entidades HTML.
+func StripHTMLTags(text string) string {
+	// Eliminar los tags
+	text = htmlTagRegex.ReplaceAllString(text, " ")
+	// Decodificar entidades (como &amp;, &lt;)
+	text = html.UnescapeString(text)
+	return text
 }

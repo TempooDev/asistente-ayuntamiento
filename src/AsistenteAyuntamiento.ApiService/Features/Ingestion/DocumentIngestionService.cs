@@ -38,22 +38,37 @@ public class DocumentIngestionService
 
         var downloadResult = await blobClient.DownloadContentAsync(cancellationToken);
         var jsonContent = downloadResult.Value.Content.ToString();
+        _logger.LogInformation($"JSON descargado ({jsonContent.Length} caracteres). Deserializando...");
+        
         var document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-        if (document == null || string.IsNullOrEmpty(document.Content))
+        if (document == null)
         {
-            _logger.LogWarning($"El blob {blobPath} está vacío o no es parseable.");
+            _logger.LogWarning($"El blob {blobPath} no se pudo deserializar (document es null).");
             return;
         }
+        
+        _logger.LogInformation($"DocumentId deserializado: '{document.DocumentId}', Longitud del texto: {document.Content?.Length ?? 0}");
 
         // 2. Chunking
+        List<string> paragraphs;
+        if (string.IsNullOrWhiteSpace(document.Content))
+        {
+            _logger.LogInformation($"El blob {blobPath} tiene texto vacío. Se guardará un chunk con sus metadatos.");
+            // Usar el título como contenido para que el motor vectorial pueda encontrarlo semánticamente
+            var title = !string.IsNullOrWhiteSpace(document.Metadata?.Title) ? document.Metadata.Title : "Documento sin contenido";
+            paragraphs = new List<string> { title };
+        }
+        else
+        {
 #pragma warning disable SKEXP0050
-        var paragraphs = TextChunker.SplitPlainTextParagraphs(
-            TextChunker.SplitPlainTextLines(document.Content, 200),
-            1000,
-            100 // overlap
-        );
+            paragraphs = TextChunker.SplitPlainTextParagraphs(
+                TextChunker.SplitPlainTextLines(document.Content, 200),
+                1000,
+                100 // overlap
+            );
 #pragma warning restore SKEXP0050
+        }
 
         // 3. Obtener servicio de embeddings
 #pragma warning disable CS0618

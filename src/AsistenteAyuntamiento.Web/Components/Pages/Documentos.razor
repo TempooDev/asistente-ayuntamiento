@@ -18,26 +18,48 @@
     }
     else
     {
-        <div class="mb-md flex gap-4 items-center flex-wrap">
-            <input type="text" class="px-3 py-2 border rounded bg-transparent" placeholder="Buscar por nombre..." @bind="searchTerm" @bind:event="oninput" />
-            <select class="px-3 py-2 border rounded bg-transparent" @bind="filterStatus">
-                <option value="Todos">Todos los estados</option>
-                <option value="Procesados">Solo Procesados</option>
-                <option value="Pendientes">Solo Pendientes</option>
-            </select>
-            
-            <div class="flex items-center gap-2 ml-auto">
-                <label class="text-sm font-medium">Por página:</label>
-                <select class="px-2 py-1 border rounded bg-transparent" @bind="pageSize">
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
+        <div class="mb-md flex flex-col gap-4">
+            <div class="flex gap-4 items-center flex-wrap">
+                <input type="text" class="px-3 py-2 border rounded bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..." @bind="searchTerm" @bind:event="oninput" />
+                <select class="px-3 py-2 border rounded bg-transparent" @bind="filterStatus">
+                    <option value="Todos">Todos los estados</option>
+                    <option value="Procesados">Solo Procesados</option>
+                    <option value="Pendientes">Solo Pendientes</option>
                 </select>
+                
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Desde:</label>
+                    <input type="date" class="px-2 py-1 border rounded bg-transparent" @bind="filterDateFrom" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Hasta:</label>
+                    <input type="date" class="px-2 py-1 border rounded bg-transparent" @bind="filterDateTo" />
+                </div>
             </div>
             
-            <div class="text-sm opacity-70">
-                Mostrando @FilteredBlobs.Count() de @blobs.Length
+            <div class="flex gap-4 items-center flex-wrap">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Tamaño Min (KB):</label>
+                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Min" @bind="filterMinSize" @bind:event="oninput" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Tamaño Max (KB):</label>
+                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Max" @bind="filterMaxSize" @bind:event="oninput" />
+                </div>
+                
+                <div class="flex items-center gap-2 ml-auto">
+                    <label class="text-sm font-medium">Por página:</label>
+                    <select class="px-2 py-1 border rounded bg-transparent" @bind="pageSize">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                
+                <div class="text-sm opacity-70">
+                    Mostrando @FilteredBlobs.Count() de @blobs.Length
+                </div>
             </div>
         </div>
 
@@ -56,7 +78,27 @@
                     @foreach (var blob in PagedBlobs)
                     {
                         <tr class="border-b border-surface-variant hover:bg-surface-variant/30 transition-colors">
-                            <td class="p-sm font-body-md font-medium text-primary">@blob.Name</td>
+                            <td class="p-sm font-body-md font-medium text-primary">
+                                @{
+                                    var parts = blob.Name.Split('/');
+                                    var docId = parts.LastOrDefault()?.Replace(".json", "");
+                                    var source = parts.Length > 1 ? parts[1] : "";
+                                    string? url = source == "BOE" ? $"https://www.boe.es/buscar/doc.php?id={docId}" : null;
+                                }
+                                @if (url != null)
+                                {
+                                    <a href="@url" target="_blank" class="hover:underline text-blue-600 flex items-center gap-1">
+                                        @blob.Name
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
+                                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                        </svg>
+                                    </a>
+                                }
+                                else
+                                {
+                                    @blob.Name
+                                }
+                            </td>
                             <td class="p-sm font-body-md">@(Math.Round((double)blob.Size / 1024, 2)) KB</td>
                             <td class="p-sm font-body-md">@(blob.LastModified?.LocalDateTime.ToString("g") ?? "-")</td>
                             <td class="p-sm font-body-md">
@@ -131,13 +173,45 @@
         set { _pageSize = value; currentPage = 1; }
     }
 
+    private DateTime? _filterDateFrom;
+    private DateTime? filterDateFrom 
+    {
+        get => _filterDateFrom;
+        set { _filterDateFrom = value; currentPage = 1; }
+    }
+    
+    private DateTime? _filterDateTo;
+    private DateTime? filterDateTo 
+    {
+        get => _filterDateTo;
+        set { _filterDateTo = value; currentPage = 1; }
+    }
+
+    private double? _filterMinSize;
+    private double? filterMinSize 
+    {
+        get => _filterMinSize;
+        set { _filterMinSize = value; currentPage = 1; }
+    }
+
+    private double? _filterMaxSize;
+    private double? filterMaxSize 
+    {
+        get => _filterMaxSize;
+        set { _filterMaxSize = value; currentPage = 1; }
+    }
+
     private int currentPage = 1;
 
     private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> FilteredBlobs => blobs?.Where(b => 
         (string.IsNullOrWhiteSpace(searchTerm) || b.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
         (filterStatus == "Todos" || 
         (filterStatus == "Procesados" && b.IsProcessed) || 
-        (filterStatus == "Pendientes" && !b.IsProcessed))
+        (filterStatus == "Pendientes" && !b.IsProcessed)) &&
+        (!filterDateFrom.HasValue || b.LastModified?.LocalDateTime.Date >= filterDateFrom.Value.Date) &&
+        (!filterDateTo.HasValue || b.LastModified?.LocalDateTime.Date <= filterDateTo.Value.Date) &&
+        (!filterMinSize.HasValue || Math.Round((double)b.Size / 1024, 2) >= filterMinSize.Value) &&
+        (!filterMaxSize.HasValue || Math.Round((double)b.Size / 1024, 2) <= filterMaxSize.Value)
     ) ?? Array.Empty<AsistenteAyuntamiento.Web.Client.BlobInfo>();
 
     private int TotalPages => (int)Math.Ceiling(FilteredBlobs.Count() / (double)pageSize);
@@ -178,7 +252,10 @@
             statusMessage = $"Procesando {blobName}... (esto puede tardar unos minutos)";
             StateHasChanged();
             
-            var result = await IngestionClient.ProcessBlobAsync(blobName, blobName);
+            var parts = blobName.Split('/');
+            var source = parts.Length > 1 ? parts[1] : "Unknown";
+            
+            var result = await IngestionClient.ProcessBlobAsync(blobName, source);
             statusMessage = result;
             await LoadBlobsAsync();
         }
