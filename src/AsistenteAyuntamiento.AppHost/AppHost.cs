@@ -118,6 +118,7 @@ webfrontend.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
            .WithEnvironment("Blob__BucketName", blobBucketName);
 
 var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gateway")
+    .WithExternalHttpEndpoints()
     .WithReference(apiService)
     .WaitFor(apiService)
     .WaitFor(webfrontend)

@@ -1,10 +1,11 @@
 @page "/perfil"
+@rendermode InteractiveWebAssembly
 @using Microsoft.AspNetCore.Components.Authorization
 @using AsistenteAyuntamiento.Shared.Features.Users
 @using AsistenteAyuntamiento.Web.Client
 @inject UserApiClient UserApi
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Funcionario")]
-@rendermode InteractiveServer
+
 <PageTitle>Perfil de Usuario - AdminAI</PageTitle>
 
 <div class="max-w-[max-width] mx-auto px-margin-mobile md:px-margin-desktop py-xl md:py-margin-desktop grid grid-cols-1 md:grid-cols-12 gap-gutter">

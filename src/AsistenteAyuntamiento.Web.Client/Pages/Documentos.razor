@@ -1,6 +1,7 @@
 @page "/documentos"
+@rendermode InteractiveWebAssembly
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
-@rendermode InteractiveServer
+
 @inject AsistenteAyuntamiento.Web.Client.IngestionApiClient IngestionClient
 <PageTitle>Documentos - AdminAI</PageTitle>
 

@@ -31,28 +31,8 @@ public class ChatSignalRService : IAsyncDisposable
     {
         if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected) return;
 
-        _hubConnection ??= new HubConnectionBuilder()
-            .WithUrl(_hubOptions.HubUrl, options =>
-            {
-                options.AccessTokenProvider = async () =>
-                {
-                    if (!string.IsNullOrEmpty(_tokenProvider.AccessToken))
-                    {
-                        return _tokenProvider.AccessToken;
-                    }
-                    var authState = await _authStateProvider.GetAuthenticationStateAsync();
-                    return authState.User.FindFirst("access_token")?.Value ?? string.Empty;
-                };
-
-                // On the server, use the handler from IHttpClientFactory which has
-                // Aspire service discovery configured — this resolves "http://apiservice"
-                // to the actual host:port.
-                var handlerFactory = _serviceProvider.GetService<IHttpMessageHandlerFactory>();
-                if (handlerFactory is not null)
-                {
-                    options.HttpMessageHandlerFactory = _ => handlerFactory.CreateHandler();
-                }
-            })
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(_hubOptions.HubUrl)
             .WithAutomaticReconnect()
             .Build();
 

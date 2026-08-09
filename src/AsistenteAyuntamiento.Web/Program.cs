@@ -5,6 +5,7 @@ using AsistenteAyuntamiento.Web.Components;
 using AsistenteAyuntamiento.Web.Infrastructure;
 using Auth0.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Yarp.ReverseProxy.Transforms;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,9 @@ builder.Services.AddRazorComponents()
 
 // ── Output Cache ──────────────────────────────────────────────────────────────
 builder.Services.AddOutputCache();
+
+// ── HTTP Forwarder (Proxy for WASM) ──────────────────────────────────────────
+builder.Services.AddHttpForwarderWithServiceDiscovery();
 
 // ── Auth0 OIDC ────────────────────────────────────────────────────────────────
 // Los valores llegan como variables de entorno inyectadas por Aspire (AppHost.cs).
@@ -48,20 +52,23 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
     {
         options.TokenValidationParameters.RoleClaimType = "https://asistente.ayuntamiento.com/roles";
         options.SaveTokens = true;
-        options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
+        var previousOnTokenValidated = options.Events.OnTokenValidated;
+        options.Events.OnTokenValidated = context =>
         {
-            OnTokenValidated = context =>
+            var accessToken = context.TokenEndpointResponse?.AccessToken;
+            if (!string.IsNullOrEmpty(accessToken))
             {
-                var accessToken = context.TokenEndpointResponse?.AccessToken;
-                if (!string.IsNullOrEmpty(accessToken))
+                if (context.Principal?.Identity is System.Security.Claims.ClaimsIdentity identity)
                 {
-                    if (context.Principal?.Identity is System.Security.Claims.ClaimsIdentity identity)
-                    {
-                        identity.AddClaim(new System.Security.Claims.Claim("access_token", accessToken));
-                    }
+                    identity.AddClaim(new System.Security.Claims.Claim("access_token", accessToken));
                 }
-                return Task.CompletedTask;
             }
+            
+            if (previousOnTokenValidated != null)
+            {
+                return previousOnTokenValidated(context);
+            }
+            return Task.CompletedTask;
         };
     });
 
@@ -131,8 +138,13 @@ app.Use(async (context, next) =>
     var token = await context.GetTokenAsync("access_token");
     if (!string.IsNullOrEmpty(token))
     {
+        Console.WriteLine($"[Middleware] Token found! Length: {token.Length}");
         var tokenProvider = context.RequestServices.GetRequiredService<AppTokenProvider>();
         tokenProvider.AccessToken = token;
+    }
+    else
+    {
+        Console.WriteLine("[Middleware] Token is null or empty!");
     }
     await next();
 });
@@ -171,5 +183,32 @@ app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
 }).RequireAuthorization();
 
 app.MapDefaultEndpoints();
+
+app.UseWebSockets();
+
+// Forward /api and /hubs to apiservice using Service Discovery
+app.MapForwarder("/api/{**catch-all}", "http://apiservice", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        if (!string.IsNullOrEmpty(token))
+        {
+            transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+    });
+});
+
+app.MapForwarder("/hubs/{**catch-all}", "http://apiservice", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        if (!string.IsNullOrEmpty(token))
+        {
+            transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+    });
+});
 
 app.Run();
