@@ -138,8 +138,9 @@ public sealed class AiChatService
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                // Find top 3 closest chunks using CosineDistance
+                // Find top 3 closest chunks using CosineDistance and filter out low relevance ones
                 var closestChunks = await _dbContext.DocumentChunks
+                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(3)
                     .ToListAsync(cancellationToken);
@@ -375,6 +376,7 @@ public sealed class AiChatService
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 var closestChunks = await _dbContext.DocumentChunks
+                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(3)
                     .ToListAsync(cancellationToken);

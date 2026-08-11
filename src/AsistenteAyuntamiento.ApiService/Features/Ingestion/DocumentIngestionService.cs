@@ -109,14 +109,21 @@ public class DocumentIngestionService
         // 3. Obtener servicio de embeddings
         var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
-        // 4. Vectorización (en batch para mejor rendimiento)
-        var embeddings = await embeddingGenerator.GenerateAsync(paragraphs, cancellationToken: cancellationToken);
+        // 4. Vectorización (en batch segmentado para evitar límites de payload)
+        int batchSize = 100;
+        var allEmbeddings = new List<Microsoft.Extensions.AI.Embedding<float>>();
+        for (int i = 0; i < paragraphs.Count; i += batchSize)
+        {
+            var batch = paragraphs.Skip(i).Take(batchSize).ToList();
+            var batchEmbeddings = await embeddingGenerator.GenerateAsync(batch, cancellationToken: cancellationToken);
+            allEmbeddings.AddRange(batchEmbeddings);
+        }
 
         var chunks = new List<DocumentChunk>();
         for (int i = 0; i < paragraphs.Count; i++)
         {
             var p = paragraphs[i];
-            var embedding = embeddings[i].Vector;
+            var embedding = allEmbeddings[i].Vector;
             
             var chunk = new DocumentChunk
             {
