@@ -6,3 +6,6 @@
 - [x] **Tarea 4:** Implementar la lógica del `RabbitMqConsumerService` heredando de `BackgroundService`, para suscribirse y parsear el `DocumentMessage` de forma asíncrona y transaccional.
 - [x] **Tarea 5:** Integrar la descarga de blobs desde Azurite / Azure Blob Storage dentro del flujo del consumidor, convirtiendo el JSON descargado en el modelo nativo de C#.
 - [x] **Tarea 6:** Implementar el particionado de texto utilizando `Microsoft.SemanticKernel.Text` e invocar la API de embeddings de Ollama, volcando los resultados finales a la tabla de Postgres y confirmando (ACK) el mensaje de RabbitMQ.
+- [x] **Tarea 7:** Implementar la lógica del chat (RAG) para buscar los chunks relevantes usando Ollama embeddings y generar una respuesta vía Google Gemini.
+- [x] **Tarea 8:** Asegurar la persistencia de los datos ingestados configurando `.WithBindMount` en MinIO (dentro de AppHost) para evitar pérdida de datos en reinicios.
+- [x] **Tarea 9:** Manejo robusto del streaming (SSE) para evitar excepciones cuando Gemini corta la conexión inesperadamente al final de la respuesta, y asignar valores por defecto a los parámetros del endpoint `/api/ai/metrics/history`.
