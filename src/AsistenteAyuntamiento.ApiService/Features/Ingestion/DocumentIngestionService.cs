@@ -112,10 +112,9 @@ public class DocumentIngestionService
         // 4. Vectorización (en batch segmentado para evitar límites de payload)
         int batchSize = 100;
         var allEmbeddings = new List<Microsoft.Extensions.AI.Embedding<float>>();
-        for (int i = 0; i < paragraphs.Count; i += batchSize)
+        foreach (var batch in paragraphs.Chunk(batchSize))
         {
-            var batch = paragraphs.Skip(i).Take(batchSize).ToList();
-            var batchEmbeddings = await embeddingGenerator.GenerateAsync(batch, cancellationToken: cancellationToken);
+            var batchEmbeddings = await embeddingGenerator.GenerateAsync(batch.ToList(), cancellationToken: cancellationToken);
             allEmbeddings.AddRange(batchEmbeddings);
         }
 

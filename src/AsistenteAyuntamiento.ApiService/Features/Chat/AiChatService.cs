@@ -636,4 +636,51 @@ public sealed class AiChatService
             _ => $"json/{source}/{docId}.json" // fallback
         };
     }
+
+    private async Task<List<DocumentSource>?> EnrichHistoryWithContextAsync(ChatHistory history, CancellationToken cancellationToken)
+    {
+        var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
+        if (string.IsNullOrWhiteSpace(lastUserMessage?.Content)) return null;
+
+        var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+        var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+        var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+
+        // 1. Get Top 3 using HNSW Index
+        var topChunks = await _dbContext.DocumentChunks
+            .Select(c => new { Chunk = c, Distance = c.Embedding!.CosineDistance(queryVector) })
+            .OrderBy(x => x.Distance)
+            .Take(3)
+            .ToListAsync(cancellationToken);
+
+        // 2. Filter locally by distance to prevent Hallucinations
+        var closestChunks = topChunks
+            .Where(x => x.Distance < 0.35)
+            .Select(x => x.Chunk)
+            .ToList();
+
+        if (!closestChunks.Any()) return null;
+
+        var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
+            $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+
+        var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+
+        var originalMessage = lastUserMessage.Content;
+        var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
+
+        var lastMsgIndex = history.Count - 1;
+        history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
+
+        if (!history.Any(m => m.Role == AuthorRole.System))
+        {
+            history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
+        }
+
+        return closestChunks.Select(c => new DocumentSource(
+            c.Title,
+            c.Department,
+            c.PublicationDate.ToString("yyyy-MM-dd"),
+            GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
+    }
 }
