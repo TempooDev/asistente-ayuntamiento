@@ -11,20 +11,26 @@ builder.Services.AddAuthenticationStateDeserialization();
 builder.Services.AddClientServices(builder.Configuration);
 
 // Set BaseAddress for typed HttpClients — in WASM, API calls go through the gateway at the host origin.
-builder.Services.AddHttpClient<AsistenteAyuntamiento.Web.Client.WeatherApiClient>((sp, client) =>
+builder.Services.AddHttpClient<WeatherApiClient>((sp, client) =>
 {
     var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
     client.BaseAddress = new Uri(navManager.BaseUri);
 });
-builder.Services.AddHttpClient<AsistenteAyuntamiento.Web.Client.UserApiClient>((sp, client) =>
+builder.Services.AddHttpClient<UserApiClient>((sp, client) =>
 {
     var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
     client.BaseAddress = new Uri(navManager.BaseUri);
 });
-builder.Services.AddHttpClient<AsistenteAyuntamiento.Web.Client.AiConfigApiClient>((sp, client) =>
+builder.Services.AddHttpClient<AiConfigApiClient>((sp, client) =>
 {
     var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
     client.BaseAddress = new Uri(navManager.BaseUri);
+});
+builder.Services.AddHttpClient<IngestionApiClient>((sp, client) =>
+{
+    var navManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+    client.BaseAddress = new Uri(navManager.BaseUri);
+    client.Timeout = TimeSpan.FromMinutes(10);
 });
 
 // SignalR hub URL — in WASM, connect via the browser origin (gateway routes /hubs/* → apiservice)

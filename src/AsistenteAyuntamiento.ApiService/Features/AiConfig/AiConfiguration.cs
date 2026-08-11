@@ -15,4 +15,6 @@ public class AiConfiguration
     
     // Almacenada de forma encriptada
     public string? EncryptedApiKey { get; set; }
+    
+    public string? EndpointUrl { get; set; }
 }

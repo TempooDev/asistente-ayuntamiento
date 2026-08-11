@@ -173,3 +173,4 @@ docker-compose.override.yml
 *.temp
 coverage/
 dist/
+.miniodata/

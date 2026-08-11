@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using Pgvector;
 
 #nullable disable
 
@@ -21,6 +22,7 @@ namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data.Migrations
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.AiConfig.AiConfiguration", b =>
@@ -29,6 +31,9 @@ namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("EncryptedApiKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EndpointUrl")
                         .HasColumnType("text");
 
                     b.Property<string>("Model")
@@ -45,6 +50,53 @@ namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data.Migrations
                     b.HasKey("TenantId");
 
                     b.ToTable("AiConfigurations", "identity");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.AiCallLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("DurationMs")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<int>("InputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("OutputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("TotalTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AiCallLogs", "chat");
                 });
 
             modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.ChatMessage", b =>
@@ -94,6 +146,71 @@ namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ChatSessions", "chat");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentChunk", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChunkIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Vector>("Embedding")
+                        .HasColumnType("vector");
+
+                    b.Property<DateTime>("PublicationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DocumentChunks", "identity");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentJobState", b =>
+                {
+                    b.Property<string>("DocumentId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("DocumentId");
+
+                    b.ToTable("DocumentJobStates", "public");
                 });
 
             modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Users.UserProfile", b =>

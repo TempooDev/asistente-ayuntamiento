@@ -10,10 +10,15 @@ import (
 	"time"
 
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boe"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/boja"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/bopma"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/messaging"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var (
@@ -51,6 +56,8 @@ func main() {
 
 	providers = []scraper.BoletinProvider{
 		boe.NewProvider(),
+		boja.NewProvider(),
+		bopma.NewProvider(),
 	}
 
 	// Ejecutar el scraping automático por defecto si hay env vars
@@ -176,28 +183,50 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
 					sem <- struct{}{}        // Adquirir token
 					defer func() { <-sem }() // Liberar token
 
-					doc, rawXML, err := provider.FetchDocument(ctx, docID)
+					tracer := otel.Tracer("go-scraper")
+					spanCtx, span := tracer.Start(ctx, "ProcessDocument")
+					span.SetAttributes(attribute.String("document.id", docID))
+					defer span.End()
+
+					doc, rawXML, err := provider.FetchDocument(spanCtx, docID)
 					if err != nil {
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
 						log.Printf("Error al procesar %s: %v\n", docID, err)
 						return
 					}
 
 					// Backup del XML crudo
-					if err := blobStorage.SaveRawXML(ctx, doc.Metadata.Source, doc.DocumentID, rawXML); err != nil {
+					_, xmlSpan := tracer.Start(spanCtx, "SaveRawXML")
+					if err := blobStorage.SaveRawXML(spanCtx, doc.Metadata.Source, doc.DocumentID, rawXML); err != nil {
+						xmlSpan.RecordError(err)
+						xmlSpan.SetStatus(codes.Error, err.Error())
 						log.Printf("Aviso: error guardando XML para %s: %v\n", docID, err)
 					}
+					xmlSpan.End()
 
-					if err := blobStorage.SaveDocument(ctx, doc); err != nil {
+					_, jsonSpan := tracer.Start(spanCtx, "SaveDocumentJSON")
+					if err := blobStorage.SaveDocument(spanCtx, doc); err != nil {
+						jsonSpan.RecordError(err)
+						jsonSpan.SetStatus(codes.Error, err.Error())
 						log.Printf("Error guardando JSON para %s: %v\n", docID, err)
+						jsonSpan.End()
 						return
 					}
+					jsonSpan.End()
 
 					if msgPublisher != nil {
-						_ = msgPublisher.PublishDocument(ctx, messaging.DocumentMessage{
+						_, pubSpan := tracer.Start(spanCtx, "PublishRabbitMQ")
+						errPub := msgPublisher.PublishDocument(spanCtx, messaging.DocumentMessage{
 							Source:     doc.Metadata.Source,
 							DocumentID: doc.DocumentID,
 							BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
 						})
+						if errPub != nil {
+							pubSpan.RecordError(errPub)
+							pubSpan.SetStatus(codes.Error, errPub.Error())
+						}
+						pubSpan.End()
 					}
 				}(id)
 			}

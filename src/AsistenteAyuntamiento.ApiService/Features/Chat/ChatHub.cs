@@ -64,17 +64,91 @@ public class ChatHub : Hub
             // 3. Call AI (metrics and tracing are handled inside AiChatService)
             var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId);
 
+            var finalContent = result.Content;
+            if (result.Sources?.Any() == true)
+            {
+                finalContent += "\n\n**Fuentes consultadas:**\n";
+                foreach (var src in result.Sources)
+                {
+                    finalContent += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
+                }
+            }
+
             // 4. Persist assistant response
-            _sessionService.EnqueueAssistantMessage(session, result.Content);
+            _sessionService.EnqueueAssistantMessage(session, finalContent);
 
             // 5. Send to client
-            await Clients.Caller.SendAsync("ReceiveMessage", result.Content);
+            await Clients.Caller.SendAsync("ReceiveMessage", finalContent);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error in SendMessage for {User}", userId);
             await Clients.Caller.SendAsync("ReceiveMessage", $"System Error: {ex.GetType().Name} - {ex.Message}");
         }
+    }
+
+    public async IAsyncEnumerable<string> StreamMessage(
+        string sessionIdStr, 
+        string message, 
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            yield return "Error: No user ID found.";
+            yield break;
+        }
+
+        ChatSession? session = null;
+        string? errorMessage = null;
+
+        try
+        {
+            _logger.LogInformation("Streaming message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionIdStr);
+
+            if (!Guid.TryParse(sessionIdStr, out var sessionId))
+            {
+                errorMessage = "Error: Invalid session ID format.";
+            }
+            else
+            {
+                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+                if (session == null)
+                {
+                    errorMessage = "Error: Sesión no encontrada o no autorizada.";
+                }
+                else 
+                {
+                    _sessionService.EnqueueUserMessage(session, message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error preparing stream for {User}", userId);
+            errorMessage = $"System Error: {ex.GetType().Name} - {ex.Message}";
+        }
+
+        if (errorMessage != null)
+        {
+            yield return errorMessage;
+            yield break;
+        }
+
+        var recentMessages = _sessionService.GetCompactedHistory(session);
+        var history = BuildChatHistory(recentMessages);
+
+        var fullResponseBuilder = new System.Text.StringBuilder();
+
+        await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        {
+            fullResponseBuilder.Append(chunk);
+            yield return chunk;
+        }
+
+        _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
     }
 
     /// <summary>

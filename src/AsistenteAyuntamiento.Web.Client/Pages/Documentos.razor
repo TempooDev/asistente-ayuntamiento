@@ -1,0 +1,280 @@
+@page "/documentos"
+@rendermode InteractiveWebAssembly
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+
+@inject AsistenteAyuntamiento.Web.Client.IngestionApiClient IngestionClient
+<PageTitle>Documentos - AdminAI</PageTitle>
+
+<div class="p-margin-desktop text-on-surface">
+    <h2 class="font-headline-lg mb-sm">Documentos en Almacenamiento</h2>
+    <p class="mb-md">Aquí puedes ver los documentos alojados en el Blob Storage y si han sido procesados por el motor vectorial.</p>
+
+    @if (blobs == null)
+    {
+        <p><em>Cargando documentos...</em></p>
+    }
+    else if (!blobs.Any())
+    {
+        <p>No se encontraron documentos.</p>
+    }
+    else
+    {
+        <div class="mb-md flex flex-col gap-4">
+            <div class="flex gap-4 items-center flex-wrap">
+                <input type="text" class="px-3 py-2 border rounded bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..." @bind="searchTerm" @bind:event="oninput" />
+                <select class="px-3 py-2 border rounded bg-transparent" @bind="filterStatus">
+                    <option value="Todos">Todos los estados</option>
+                    <option value="Procesados">Solo Procesados</option>
+                    <option value="Pendientes">Solo Pendientes</option>
+                </select>
+                
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Desde:</label>
+                    <input type="date" class="px-2 py-1 border rounded bg-transparent" @bind="filterDateFrom" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Hasta:</label>
+                    <input type="date" class="px-2 py-1 border rounded bg-transparent" @bind="filterDateTo" />
+                </div>
+            </div>
+            
+            <div class="flex gap-4 items-center flex-wrap">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Tamaño Min (KB):</label>
+                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Min" @bind="filterMinSize" @bind:event="oninput" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Tamaño Max (KB):</label>
+                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Max" @bind="filterMaxSize" @bind:event="oninput" />
+                </div>
+                
+                <div class="flex items-center gap-2 ml-auto">
+                    <label class="text-sm font-medium">Por página:</label>
+                    <select class="px-2 py-1 border rounded bg-transparent" @bind="pageSize">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                
+                <div class="text-sm opacity-70">
+                    Mostrando @FilteredBlobs.Count() de @blobs.Length
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="table w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-outline">
+                        <th class="p-sm font-label-lg">Nombre del archivo</th>
+                        <th class="p-sm font-label-lg">Tamaño</th>
+                        <th class="p-sm font-label-lg">Última modificación</th>
+                        <th class="p-sm font-label-lg">Estado</th>
+                        <th class="p-sm font-label-lg">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var blob in PagedBlobs)
+                    {
+                        <tr class="border-b border-surface-variant hover:bg-surface-variant/30 transition-colors">
+                            <td class="p-sm font-body-md font-medium text-primary">
+                                @{
+                                    var parts = blob.Name.Split('/');
+                                    var docId = parts.LastOrDefault()?.Replace(".json", "");
+                                    var source = parts.Length > 1 ? parts[1] : "";
+                                    string? url = source == "BOE" ? $"https://www.boe.es/buscar/doc.php?id={docId}" : null;
+                                }
+                                @if (url != null)
+                                {
+                                    <a href="@url" target="_blank" class="hover:underline text-blue-600 flex items-center gap-1">
+                                        @blob.Name
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
+                                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                        </svg>
+                                    </a>
+                                }
+                                else
+                                {
+                                    @blob.Name
+                                }
+                            </td>
+                            <td class="p-sm font-body-md">@(Math.Round((double)blob.Size / 1024, 2)) KB</td>
+                            <td class="p-sm font-body-md">@(blob.LastModified?.LocalDateTime.ToString("g") ?? "-")</td>
+                            <td class="p-sm font-body-md">
+                                @if (blob.Status == "Completed")
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                        Procesado
+                                    </span>
+                                }
+                                else if (blob.Status == "Processing")
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+                                        Procesando...
+                                    </span>
+                                }
+                                else if (blob.Status == "Failed")
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                        Fallo
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        Pendiente
+                                    </span>
+                                }
+                            </td>
+                            <td class="p-sm font-body-md">
+                                <button class="btn btn-sm btn-outline" disabled="@(blob.Status == "Processing")" @onclick="() => ProcessBlob(blob.Name)">
+                                    @(blob.Status == "Completed" ? "Reprocesar" : (blob.Status == "Processing" ? "Procesando..." : "Procesar"))
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (TotalPages > 1)
+        {
+            <div class="mt-md flex justify-center items-center gap-4">
+                <button class="btn btn-sm btn-outline" disabled="@(currentPage == 1)" @onclick="() => ChangePage(currentPage - 1)">
+                    Anterior
+                </button>
+                <span class="text-sm font-medium">Página @currentPage de @TotalPages</span>
+                <button class="btn btn-sm btn-outline" disabled="@(currentPage == TotalPages)" @onclick="() => ChangePage(currentPage + 1)">
+                    Siguiente
+                </button>
+            </div>
+        }
+    }
+    
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="mt-md p-sm bg-primary/10 text-primary rounded">
+            @statusMessage
+        </div>
+    }
+</div>
+
+@code {
+    private AsistenteAyuntamiento.Web.Client.BlobInfo[]? blobs;
+    private string statusMessage = string.Empty;
+    
+    private string _searchTerm = string.Empty;
+    private string searchTerm 
+    {
+        get => _searchTerm;
+        set { _searchTerm = value; currentPage = 1; }
+    }
+    
+    private string _filterStatus = "Todos";
+    private string filterStatus 
+    {
+        get => _filterStatus;
+        set { _filterStatus = value; currentPage = 1; }
+    }
+
+    private int _pageSize = 20;
+    private int pageSize 
+    {
+        get => _pageSize;
+        set { _pageSize = value; currentPage = 1; }
+    }
+
+    private DateTime? _filterDateFrom;
+    private DateTime? filterDateFrom 
+    {
+        get => _filterDateFrom;
+        set { _filterDateFrom = value; currentPage = 1; }
+    }
+    
+    private DateTime? _filterDateTo;
+    private DateTime? filterDateTo 
+    {
+        get => _filterDateTo;
+        set { _filterDateTo = value; currentPage = 1; }
+    }
+
+    private double? _filterMinSize;
+    private double? filterMinSize 
+    {
+        get => _filterMinSize;
+        set { _filterMinSize = value; currentPage = 1; }
+    }
+
+    private double? _filterMaxSize;
+    private double? filterMaxSize 
+    {
+        get => _filterMaxSize;
+        set { _filterMaxSize = value; currentPage = 1; }
+    }
+
+    private int currentPage = 1;
+
+    private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> FilteredBlobs => blobs?.Where(b => 
+        (string.IsNullOrWhiteSpace(searchTerm) || b.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+        (filterStatus == "Todos" || 
+        (filterStatus == "Procesados" && b.Status == "Completed") || 
+        (filterStatus == "Pendientes" && (b.Status == "Pending" || b.Status == "Failed" || b.Status == "Processing"))) &&
+        (!filterDateFrom.HasValue || b.LastModified?.LocalDateTime.Date >= filterDateFrom.Value.Date) &&
+        (!filterDateTo.HasValue || b.LastModified?.LocalDateTime.Date <= filterDateTo.Value.Date) &&
+        (!filterMinSize.HasValue || Math.Round((double)b.Size / 1024, 2) >= filterMinSize.Value) &&
+        (!filterMaxSize.HasValue || Math.Round((double)b.Size / 1024, 2) <= filterMaxSize.Value)
+    ) ?? Array.Empty<AsistenteAyuntamiento.Web.Client.BlobInfo>();
+
+    private int TotalPages => (int)Math.Ceiling(FilteredBlobs.Count() / (double)pageSize);
+
+    private IEnumerable<AsistenteAyuntamiento.Web.Client.BlobInfo> PagedBlobs => FilteredBlobs
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= TotalPages)
+        {
+            currentPage = newPage;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBlobsAsync();
+    }
+
+    private async Task LoadBlobsAsync()
+    {
+        try
+        {
+            blobs = await IngestionClient.GetBlobsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error al cargar: {ex.Message}";
+        }
+    }
+
+    private async Task ProcessBlob(string blobName)
+    {
+        try
+        {
+            statusMessage = $"Procesando {blobName}... (esto puede tardar unos minutos)";
+            StateHasChanged();
+            
+            var parts = blobName.Split('/');
+            var source = parts.Length > 1 ? parts[1] : "Unknown";
+            
+            var result = await IngestionClient.ProcessBlobAsync(blobName, source);
+            statusMessage = result;
+            await LoadBlobsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error: {ex.Message}";
+        }
+    }
+}

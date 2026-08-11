@@ -29,23 +29,27 @@
             var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(HttpContextAccessor.HttpContext, "access_token");
             if (!string.IsNullOrEmpty(token))
             {
+                Console.WriteLine($"[Routes.razor] GetTokenAsync found token length: {token.Length}");
                 TokenProvider.AccessToken = token;
             }
-        }
-        else
-        {
-            if (ApplicationState.TryTakeFromJson<string>("AccessToken", out var token))
+            else
             {
-                TokenProvider.AccessToken = token;
+                Console.WriteLine("[Routes.razor] GetTokenAsync returned null/empty.");
             }
         }
     }
 
     private Task PersistToken()
     {
+        Console.WriteLine($"[Routes.razor] PersistToken called. Token length: {(TokenProvider.AccessToken?.Length ?? 0)}");
         if (!string.IsNullOrEmpty(TokenProvider.AccessToken))
         {
             ApplicationState.PersistAsJson("AccessToken", TokenProvider.AccessToken);
+            Console.WriteLine("[Routes.razor] Token persisted to ApplicationState.");
+        }
+        else
+        {
+            Console.WriteLine("[Routes.razor] Token is empty, skipping persistence.");
         }
         return Task.CompletedTask;
     }

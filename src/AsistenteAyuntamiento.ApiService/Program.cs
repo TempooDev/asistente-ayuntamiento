@@ -4,6 +4,9 @@ using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
+using AsistenteAyuntamiento.ApiService.Features.Users;
+using AsistenteAyuntamiento.ApiService.Features.Ingestion;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +27,11 @@ builder.Services.AddHostedService<ChatPersistenceWorker>();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<AiConfigurationService>();
 
-builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>("asistente-ayuntamiento-db");
+builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>(
+    "asistente-ayuntamiento-db",
+    configureDbContextOptions: options => options
+        .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector())
+        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 var auth0Domain = builder.Configuration["Auth0:Domain"];
 var auth0Audience = builder.Configuration["Auth0:Audience"];
@@ -58,12 +65,79 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 
-// Register Semantic Kernel with Ollama
-#pragma warning disable SKEXP0070
-var ollamaEndpoint = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-builder.Services.AddKernel()
-    .AddOllamaChatCompletion("llama3.2", new Uri(ollamaEndpoint));
+// Register Semantic Kernel with configurable provider
+#pragma warning disable SKEXP0070 // Experimental connectors warning
+var ollamaConnString = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
+    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
+    : ollamaConnString;
+
+var chatProvider = builder.Configuration["Ai:Chat:Provider"] ?? "ollama";
+var chatModel = builder.Configuration["Ai:Chat:Model"] ?? "llama3.2";
+var chatApiKey = builder.Configuration["Ai:Chat:ApiKey"] ?? "";
+
+var kernelBuilder = builder.Services.AddKernel();
+
+if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
+{
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
+    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+    kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
+}
+else
+{
+    kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+}
+
+var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
+var embProvider = aiEmbeddingsConfig["Provider"] ?? "ollama";
+var embModel = aiEmbeddingsConfig["Model"] ?? "nomic-embed-text";
+var embEndpoint = aiEmbeddingsConfig["EndpointUrl"] ?? ollamaEndpoint;
+var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
+
+if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
+{
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
+    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+    kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
+}
+else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+{
+#pragma warning disable SKEXP0010
+    if (!string.IsNullOrEmpty(embEndpoint))
+    {
+        var httpClient = new HttpClient { BaseAddress = new Uri(embEndpoint) };
+        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey, httpClient: httpClient);
+    }
+    else
+    {
+        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey);
+    }
+#pragma warning restore SKEXP0010
+}
+else
+{
+    var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
+#pragma warning disable SKEXP0001
+    kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUri));
+#pragma warning restore SKEXP0001
+}
 #pragma warning restore SKEXP0070
+
+builder.AddRabbitMQClient("messaging");
+var blobEndpoint = builder.Configuration["Blob:Endpoint"];
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    var accessKeyId = builder.Configuration["Blob:AccessKeyId"] ?? "admin";
+    var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"] ?? "password123";
+    var s3Config = new Amazon.S3.AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
+    var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
+    builder.Services.AddSingleton<Amazon.S3.IAmazonS3>(new Amazon.S3.AmazonS3Client(credentials, s3Config));
+}
+// Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
+// pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
+builder.Services.AddScoped<DocumentIngestionService>();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -80,41 +154,53 @@ app.UseExceptionHandler();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("Asistente Ayuntamiento API");
+        options.WithTheme(ScalarTheme.Mars); // Opcional, dale un poco de color
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
 }
 
-// Apply database migrations on startup
+// Apply database migrations and ensure S3 bucket on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>();
     dbContext.Database.Migrate();
+
+    var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();
+    if (s3Client != null)
+    {
+        try
+        {
+            var bucketName = app.Configuration["Blob:BucketName"] ?? "boletines";
+            s3Client.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest
+            {
+                BucketName = bucketName,
+                UseClientRegion = true
+            }).GetAwaiter().GetResult();
+        }
+        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "BucketAlreadyOwnedByYou" || e.ErrorCode == "BucketAlreadyExists")
+        {
+            // Bucket already exists, all good
+        }
+        catch (Exception ex)
+        {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning(ex, "Could not automatically create S3 bucket. It might already exist or require manual creation.");
+        }
+    }
 }
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
+app.MapHub<ChatHub>("/hubs/chat");
 
-app.MapGet("/", () => "API service is running. Navigate to /weatherforecast to see sample data.");
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
-app.MapHub<AsistenteAyuntamiento.ApiService.Features.Chat.ChatHub>("/hubs/chat");
-
-AsistenteAyuntamiento.ApiService.Features.Users.UserEndpoints.MapUserEndpoints(app);
+UserEndpoints.MapUserEndpoints(app);
+AiConfigEndpoints.MapAiConfigEndpoints(app);
+IngestionEndpoints.MapIngestionEndpoints(app);
 app.MapAiMetricsEndpoints();
-AsistenteAyuntamiento.ApiService.Features.AiConfig.AiConfigEndpoints.MapAiConfigEndpoints(app);
 
 app.MapDefaultEndpoints();
 

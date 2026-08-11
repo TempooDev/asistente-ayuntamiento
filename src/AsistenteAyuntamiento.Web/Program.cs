@@ -5,8 +5,12 @@ using AsistenteAyuntamiento.Web.Components;
 using AsistenteAyuntamiento.Web.Infrastructure;
 using Auth0.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Yarp.ReverseProxy.Transforms;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOpenApi();
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -20,6 +24,9 @@ builder.Services.AddRazorComponents()
 
 // ── Output Cache ──────────────────────────────────────────────────────────────
 builder.Services.AddOutputCache();
+
+// ── HTTP Forwarder (Proxy for WASM) ──────────────────────────────────────────
+builder.Services.AddHttpForwarderWithServiceDiscovery();
 
 // ── Auth0 OIDC ────────────────────────────────────────────────────────────────
 // Los valores llegan como variables de entorno inyectadas por Aspire (AppHost.cs).
@@ -48,10 +55,28 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
     {
         options.TokenValidationParameters.RoleClaimType = "https://asistente.ayuntamiento.com/roles";
         options.SaveTokens = true;
+        var previousOnTokenValidated = options.Events.OnTokenValidated;
+        options.Events.OnTokenValidated = context =>
+        {
+            var accessToken = context.TokenEndpointResponse?.AccessToken;
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                if (context.Principal?.Identity is System.Security.Claims.ClaimsIdentity identity)
+                {
+                    identity.AddClaim(new System.Security.Claims.Claim("access_token", accessToken));
+                }
+            }
+            
+            if (previousOnTokenValidated != null)
+            {
+                return previousOnTokenValidated(context);
+            }
+            return Task.CompletedTask;
+        };
     });
 
-builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(
-    Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
+builder.Services.Configure<CookieAuthenticationOptions>(
+    CookieAuthenticationDefaults.AuthenticationScheme,
     options =>
     {
         options.LoginPath = "/login";
@@ -67,34 +92,32 @@ builder.Services.AddClientServices(builder.Configuration);
 builder.Services.AddHttpClient<WeatherApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<UserApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
 builder.Services.AddHttpClient<AiConfigApiClient>(c => c.BaseAddress = new Uri("http://apiservice"));
+builder.Services.AddHttpClient<IngestionApiClient>(c =>
+{
+    c.BaseAddress = new Uri("http://apiservice");
+    c.Timeout = TimeSpan.FromMinutes(10);
+});
 
 // SignalR hub URL — server connects directly to apiservice (bypasses gateway)
 builder.Services.Configure<ChatHubOptions>(o => o.HubUrl = "http://apiservice/hubs/chat");
 
 // ── Blob Storage ──────────────────────────────────────────────────────────────
-// Aspire inyecta las credenciales de R2 como env vars (Blob__*).
-// En desarrollo, si el endpoint no está configurado, se usa Azurite como fallback.
+// Aspire inyecta las credenciales de R2/MinIO como env vars (Blob__*).
 builder.Services.AddSingleton<IBlobStorageRepository>(sp =>
 {
-    var config   = sp.GetRequiredService<IConfiguration>();
-    var endpoint = config["Blob:Endpoint"];
+    var config = sp.GetRequiredService<IConfiguration>();
+    var endpoint = config["Blob:Endpoint"]
+        ?? throw new InvalidOperationException("Blob:Endpoint is required.");
 
-    if (string.IsNullOrWhiteSpace(endpoint))
-    {
-        // Fallback: Azurite emulator (inyectado por Aspire via AddAzureStorage / Aspire.Hosting.Azure.Storage)
-        var connectionString = config.GetConnectionString("boletines") ?? "UseDevelopmentStorage=true";
-        return new AzuriteBlobStorageRepository(connectionString);
-    }
-
-    // Cloudflare R2 (o cualquier endpoint S3-compatible)
-    var accessKeyId     = config["Blob:AccessKeyId"]
+    // Cloudflare R2 / MinIO (o cualquier endpoint S3-compatible)
+    var accessKeyId = config["Blob:AccessKeyId"]
         ?? throw new InvalidOperationException("Blob:AccessKeyId is required when Blob:Endpoint is set.");
     var secretAccessKey = config["Blob:SecretAccessKey"]
         ?? throw new InvalidOperationException("Blob:SecretAccessKey is required when Blob:Endpoint is set.");
-    var bucketName      = config["Blob:BucketName"]
+    var bucketName = config["Blob:BucketName"]
         ?? throw new InvalidOperationException("Blob:BucketName is required when Blob:Endpoint is set.");
 
-    var s3Config    = new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true };
+    var s3Config = new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true };
     var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
     return new S3BlobStorageRepository(new AmazonS3Client(credentials, s3Config), bucketName);
 });
@@ -118,8 +141,13 @@ app.Use(async (context, next) =>
     var token = await context.GetTokenAsync("access_token");
     if (!string.IsNullOrEmpty(token))
     {
+        Console.WriteLine($"[Middleware] Token found! Length: {token.Length}");
         var tokenProvider = context.RequestServices.GetRequiredService<AppTokenProvider>();
         tokenProvider.AccessToken = token;
+    }
+    else
+    {
+        Console.WriteLine("[Middleware] Token is null or empty!");
     }
     await next();
 });
@@ -149,7 +177,7 @@ app.MapGet("/logout", async (HttpContext httpContext, string returnUrl = "/") =>
         .Build();
 
     await httpContext.SignOutAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
-    await httpContext.SignOutAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
+    await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 });
 
 app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
@@ -158,5 +186,57 @@ app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
 }).RequireAuthorization();
 
 app.MapDefaultEndpoints();
+
+if (app.Environment.IsDevelopment())
+{
+    // Render Scalar at /docs and point it to the proxied OpenAPI JSON
+    app.MapScalarApiReference("/docs", options =>
+    {
+        options.WithTitle("Asistente Ayuntamiento API (Autenticada)");
+        options.WithTheme(ScalarTheme.Mars);
+    });
+}
+
+app.UseWebSockets();
+
+// Forward /api and /hubs to apiservice using Service Discovery
+app.MapForwarder("/api/{**catch-all}", "http://apiservice/api", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/api/{routeValue}{transformContext.HttpContext.Request.QueryString}");
+        Console.WriteLine($"[Proxy /api] Outgoing URI explicitly set to: {transformContext.ProxyRequest.RequestUri}");
+        if (!string.IsNullOrEmpty(token))
+        {
+            transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+    });
+}).DisableAntiforgery();
+
+app.MapForwarder("/hubs/{**catch-all}", "http://apiservice/hubs", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/hubs/{routeValue}{transformContext.HttpContext.Request.QueryString}");
+        Console.WriteLine($"[Proxy /hubs] Outgoing URI explicitly set to: {transformContext.ProxyRequest.RequestUri}");
+        if (!string.IsNullOrEmpty(token))
+        {
+            transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+    });
+}).DisableAntiforgery();
+
+app.MapForwarder("/openapi/{**catch-all}", "http://apiservice/openapi", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/openapi/{routeValue}");
+    });
+}).DisableAntiforgery();
 
 app.Run();

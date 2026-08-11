@@ -1,11 +1,12 @@
 @page "/chat"
+@rendermode InteractiveWebAssembly
 @using Microsoft.AspNetCore.Components.Authorization
 @using AsistenteAyuntamiento.Web.Client
 @using Markdig
 @implements IDisposable
 @inject ChatSignalRService ChatService
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@rendermode InteractiveServer
+
 
 <PageTitle>Chat - AdminAI</PageTitle>
 
@@ -128,14 +129,16 @@
                     placeholder="Escribe tu consulta aquí..."
                     @bind="_currentMessage"
                     @bind:event="oninput"
-                    @onkeydown="HandleKeyDown">
+                    onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); document.getElementById('btn-send').click(); }"
+                    disabled="@_isGenerating">
                 </textarea>
                 
                 <button 
+                    id="btn-send"
                     class="gov-btn gov-btn-primary shadow-sm"
                     style="padding: 12px; min-height: unset; border-radius: 12px; margin-bottom: 2px;"
                     @onclick="SendMessage"
-                    disabled="@(string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected)">
+                    disabled="@(string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected || _isGenerating)">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                     </svg>
@@ -163,6 +166,7 @@
     private string _currentMessage = string.Empty;
     private bool _isConnected = false;
     private bool _isWaitingForResponse = false;
+    private bool _isGenerating = false;
     private List<ChatMessage> _messages = new();
     
     private bool _sidebarOpen = false;
@@ -286,13 +290,16 @@
         return date.ToString("dd MMM", new System.Globalization.CultureInfo("es-ES"));
     }
 
+    private CancellationTokenSource? _streamingCts;
+
     private async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected || _isWaitingForResponse) return;
+        if (string.IsNullOrWhiteSpace(_currentMessage) || !_isConnected || _isGenerating) return;
 
         var text = _currentMessage;
         _currentMessage = string.Empty;
         _isWaitingForResponse = true;
+        _isGenerating = true;
 
         if (_currentSessionId == Guid.Empty)
         {
@@ -301,26 +308,40 @@
 
         // Add to UI immediately
         _messages.Add(new ChatMessage { Text = text, IsUser = true });
+        
+        var assistantMessage = new ChatMessage { Text = "", IsUser = false };
+        _messages.Add(assistantMessage);
+        
         StateHasChanged();
 
-        // Send to backend
+        // Send to backend via stream
         try
         {
-            await ChatService.SendMessageAsync(_currentSessionId, text);
+            _streamingCts = new CancellationTokenSource();
+            var stream = ChatService.StreamMessageAsync(_currentSessionId, text, _streamingCts.Token);
+            
+            bool firstChunk = true;
+            await foreach (var chunk in stream)
+            {
+                if (firstChunk)
+                {
+                    _isWaitingForResponse = false;
+                    firstChunk = false;
+                }
+                assistantMessage.Text += chunk;
+                StateHasChanged();
+            }
+            if (firstChunk) _isWaitingForResponse = false;
+            
+            _isGenerating = false;
+            await LoadSessions(); // Refresh list to update message count/preview
         }
         catch (Exception ex)
         {
-            _messages.Add(new ChatMessage { Text = $"Error de envío: {ex.Message}", IsUser = false });
+            assistantMessage.Text += $"\n[Error: {ex.Message}]";
             _isWaitingForResponse = false;
+            _isGenerating = false;
             StateHasChanged();
-        }
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !e.ShiftKey)
-        {
-            await SendMessage();
         }
     }
 

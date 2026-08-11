@@ -24,6 +24,7 @@ public static class ServiceExtensions
         services.AddHttpClient<UserApiClient>();
 
         services.AddHttpClient<AiConfigApiClient>();
+        services.AddHttpClient<IngestionApiClient>();
 
         return services;
     }
