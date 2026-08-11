@@ -80,7 +80,8 @@ var kernelBuilder = builder.Services.AddKernel();
 
 if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 {
-    kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey);
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck, RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true } };
+    kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
 }
 else
 {
@@ -95,7 +96,8 @@ var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
 
 if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 {
-    kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey);
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck, RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true } };
+    kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
 }
 else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
 {
@@ -132,7 +134,7 @@ if (!string.IsNullOrEmpty(blobEndpoint))
 }
 // Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
 // pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
-builder.Services.AddScoped<AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentIngestionService>();
+builder.Services.AddScoped<DocumentIngestionService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

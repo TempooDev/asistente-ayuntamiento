@@ -14,8 +14,8 @@ public static class IngestionEndpoints
 
         group.MapPost("/process-blob", async (
             [FromBody] ProcessBlobRequest request,
-            DocumentIngestionService ingestionService,
-            ILoggerFactory loggerFactory) =>
+            [FromServices] DocumentIngestionService ingestionService,
+            [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
@@ -32,9 +32,9 @@ public static class IngestionEndpoints
         })
         .WithName("ProcessBlobManually");
         group.MapGet("/blobs", async (
-            Amazon.S3.IAmazonS3 s3Client,
-            IConfiguration config,
-            Infrastructure.Data.AppDbContext dbContext) =>
+            [FromServices] Amazon.S3.IAmazonS3 s3Client,
+            [FromServices] IConfiguration config,
+            [FromServices] Infrastructure.Data.AppDbContext dbContext) =>
         {
             var bucketName = config["Blob:BucketName"] ?? "boletines";
 
@@ -100,8 +100,8 @@ public static class IngestionEndpoints
         .WithName("ListBlobs");
 
         group.MapPost("/reset", async (
-            Infrastructure.Data.AppDbContext dbContext,
-            ILoggerFactory loggerFactory) =>
+            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try

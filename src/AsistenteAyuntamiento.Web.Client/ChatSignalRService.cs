@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
 namespace AsistenteAyuntamiento.Web.Client;
 
@@ -32,7 +33,11 @@ public class ChatSignalRService : IAsyncDisposable
         if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected) return;
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(_hubOptions.HubUrl)
+            .WithUrl(_hubOptions.HubUrl, options =>
+            {
+                options.HttpMessageHandlerFactory = innerHandler =>
+                    new IncludeCredentialsMessageHandler { InnerHandler = innerHandler };
+            })
             .WithAutomaticReconnect()
             .Build();
 
@@ -42,6 +47,16 @@ public class ChatSignalRService : IAsyncDisposable
         });
 
         await _hubConnection.StartAsync();
+    }
+
+    private class IncludeCredentialsMessageHandler : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+            return base.SendAsync(request, cancellationToken);
+        }
     }
 
     public async Task SendMessageAsync(Guid sessionId, string message)
@@ -56,7 +71,7 @@ public class ChatSignalRService : IAsyncDisposable
     {
         if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected)
         {
-            var stream = _hubConnection.StreamAsync<string>("StreamMessage", sessionId, message, cancellationToken);
+            var stream = _hubConnection.StreamAsync<string>("StreamMessage", sessionId.ToString(), message, cancellationToken);
             await foreach (var chunk in stream)
             {
                 yield return chunk;

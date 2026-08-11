@@ -6,8 +6,11 @@ using AsistenteAyuntamiento.Web.Infrastructure;
 using Auth0.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Yarp.ReverseProxy.Transforms;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOpenApi();
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -72,7 +75,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.OpenIdConnect.Ope
         };
     });
 
-builder.Services.Configure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(
+builder.Services.Configure<CookieAuthenticationOptions>(
     CookieAuthenticationDefaults.AuthenticationScheme,
     options =>
     {
@@ -184,31 +187,56 @@ app.MapGet("/debug-claims", (System.Security.Claims.ClaimsPrincipal user) =>
 
 app.MapDefaultEndpoints();
 
+if (app.Environment.IsDevelopment())
+{
+    // Render Scalar at /docs and point it to the proxied OpenAPI JSON
+    app.MapScalarApiReference("/docs", options =>
+    {
+        options.WithTitle("Asistente Ayuntamiento API (Autenticada)");
+        options.WithTheme(ScalarTheme.Mars);
+    });
+}
+
 app.UseWebSockets();
 
 // Forward /api and /hubs to apiservice using Service Discovery
-app.MapForwarder("/api/{**catch-all}", "http://apiservice", transformBuilder =>
+app.MapForwarder("/api/{**catch-all}", "http://apiservice/api", transformBuilder =>
 {
     transformBuilder.AddRequestTransform(async transformContext =>
     {
         var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/api/{routeValue}{transformContext.HttpContext.Request.QueryString}");
+        Console.WriteLine($"[Proxy /api] Outgoing URI explicitly set to: {transformContext.ProxyRequest.RequestUri}");
         if (!string.IsNullOrEmpty(token))
         {
             transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
     });
-});
+}).DisableAntiforgery();
 
-app.MapForwarder("/hubs/{**catch-all}", "http://apiservice", transformBuilder =>
+app.MapForwarder("/hubs/{**catch-all}", "http://apiservice/hubs", transformBuilder =>
 {
     transformBuilder.AddRequestTransform(async transformContext =>
     {
         var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/hubs/{routeValue}{transformContext.HttpContext.Request.QueryString}");
+        Console.WriteLine($"[Proxy /hubs] Outgoing URI explicitly set to: {transformContext.ProxyRequest.RequestUri}");
         if (!string.IsNullOrEmpty(token))
         {
             transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
     });
-});
+}).DisableAntiforgery();
+
+app.MapForwarder("/openapi/{**catch-all}", "http://apiservice/openapi", transformBuilder =>
+{
+    transformBuilder.AddRequestTransform(async transformContext =>
+    {
+        var routeValue = transformContext.HttpContext.Request.RouteValues["catch-all"]?.ToString() ?? "";
+        transformContext.ProxyRequest.RequestUri = new Uri($"http://apiservice/openapi/{routeValue}");
+    });
+}).DisableAntiforgery();
 
 app.Run();

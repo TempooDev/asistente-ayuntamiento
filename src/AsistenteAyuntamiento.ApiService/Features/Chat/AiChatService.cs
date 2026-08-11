@@ -445,58 +445,85 @@ public sealed class AiChatService
         int totalInputTokens = 0;
         int totalOutputTokens = 0;
 
-        await foreach (var chunk in responseStream)
+        var enumerator = responseStream.GetAsyncEnumerator(cancellationToken);
+        try
         {
-            var content = chunk.Content;
-            if (!string.IsNullOrEmpty(content))
+            while (true)
             {
-                fullContent += content;
-                yield return content;
-            }
-
-            // Attempt to extract token usage from chunk metadata
-            if (chunk.Metadata != null)
-            {
-                var usage = ExtractTokenUsage(new ChatMessageContent(AuthorRole.Assistant, "", metadata: chunk.Metadata));
-                if (usage.TotalTokens > 0)
+                Microsoft.SemanticKernel.StreamingChatMessageContent chunk = null!;
+                try
                 {
-                    totalInputTokens = usage.InputTokens;
-                    totalOutputTokens = usage.OutputTokens;
+                    if (!await enumerator.MoveNextAsync())
+                        break;
+                    chunk = enumerator.Current;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
+                    break;
+                }
+
+                var content = chunk.Content;
+                if (!string.IsNullOrEmpty(content))
+                {
+                    fullContent += content;
+                    yield return content;
+                }
+
+                if (chunk.Metadata != null)
+                {
+                    var usage = ExtractTokenUsage(new ChatMessageContent(AuthorRole.Assistant, "", metadata: chunk.Metadata));
+                    if (usage.TotalTokens > 0)
+                    {
+                        totalInputTokens = usage.InputTokens;
+                        totalOutputTokens = usage.OutputTokens;
+                    }
                 }
             }
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
         }
 
         stopwatch.Stop();
 
         // ── Guardar métrica en base de datos ────────────────────────────────
-        var callLog = new AiCallLog
+        try
         {
-            ModelId = modelId,
-            TenantId = tenantId,
-            UserId = userId,
-            Success = success,
-            DurationMs = stopwatch.Elapsed.TotalMilliseconds,
-            InputTokens = totalInputTokens,
-            OutputTokens = totalOutputTokens,
-            TotalTokens = totalInputTokens + totalOutputTokens
-        };
-        _dbContext.AiCallLogs.Add(callLog);
-        await _dbContext.SaveChangesAsync();
+            var callLog = new AiCallLog
+            {
+                ModelId = modelId,
+                TenantId = tenantId,
+                UserId = userId,
+                Success = success,
+                DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+                InputTokens = totalInputTokens,
+                OutputTokens = totalOutputTokens,
+                TotalTokens = totalInputTokens + totalOutputTokens
+            };
+            _dbContext.AiCallLogs.Add(callLog);
+            await _dbContext.SaveChangesAsync();
 
-        _metricsService.RecordCall(new AiCallRecord
+            _metricsService.RecordCall(new AiCallRecord
+            {
+                ModelId = modelId,
+                TenantId = tenantId,
+                UserId = userId,
+                Success = success,
+                DurationMs = stopwatch.Elapsed.TotalMilliseconds,
+                PromptLength = promptLength,
+                ResponseLength = fullContent.Length,
+                HistoryMessageCount = history.Count,
+                InputTokens = totalInputTokens,
+                OutputTokens = totalOutputTokens,
+                TotalTokens = totalInputTokens + totalOutputTokens
+            });
+        }
+        catch (Exception ex)
         {
-            ModelId = modelId,
-            TenantId = tenantId,
-            UserId = userId,
-            Success = success,
-            DurationMs = stopwatch.Elapsed.TotalMilliseconds,
-            PromptLength = promptLength,
-            ResponseLength = fullContent.Length,
-            HistoryMessageCount = history.Count,
-            InputTokens = totalInputTokens,
-            OutputTokens = totalOutputTokens,
-            TotalTokens = totalInputTokens + totalOutputTokens
-        });
+            _logger.LogError(ex, "Failed to save AiCallLog or metrics after streaming completion.");
+        }
     }
 
     /// <summary>

@@ -88,7 +88,7 @@ public class ChatHub : Hub
     }
 
     public async IAsyncEnumerable<string> StreamMessage(
-        Guid sessionId, 
+        string sessionIdStr, 
         string message, 
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -106,16 +106,23 @@ public class ChatHub : Hub
 
         try
         {
-            _logger.LogInformation("Streaming message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
+            _logger.LogInformation("Streaming message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionIdStr);
 
-            session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
-            if (session == null)
+            if (!Guid.TryParse(sessionIdStr, out var sessionId))
             {
-                errorMessage = "Error: Sesión no encontrada o no autorizada.";
+                errorMessage = "Error: Invalid session ID format.";
             }
-            else 
+            else
             {
-                _sessionService.EnqueueUserMessage(session, message);
+                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+                if (session == null)
+                {
+                    errorMessage = "Error: Sesión no encontrada o no autorizada.";
+                }
+                else 
+                {
+                    _sessionService.EnqueueUserMessage(session, message);
+                }
             }
         }
         catch (Exception ex)
