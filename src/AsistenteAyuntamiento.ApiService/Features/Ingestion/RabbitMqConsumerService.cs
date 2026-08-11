@@ -79,10 +79,9 @@ public class RabbitMqConsumerService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error procesando el documento. Devolviendo a la cola (NACK).");
-                // Re-encolar si falla
-                await _channel.BasicNackAsync(deliveryTag: ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: stoppingToken);
-                await Task.Delay(5000, stoppingToken); // Simple backoff
+                _logger.LogError(ex, "Error crítico procesando el documento. Descartando mensaje (NACK sin requeue) para evitar bucles infinitos.");
+                // NACK sin requeue para que se envíe a DLQ o se descarte, evitando bloquear la cola
+                await _channel.BasicNackAsync(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: stoppingToken);
             }
         };
 

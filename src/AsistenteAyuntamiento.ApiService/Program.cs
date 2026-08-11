@@ -80,7 +80,8 @@ var kernelBuilder = builder.Services.AddKernel();
 
 if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 {
-    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck, RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true } };
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
+    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
     kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
 }
 else
@@ -96,7 +97,8 @@ var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
 
 if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 {
-    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck, RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true } };
+    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
+    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
     kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
 }
 else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))

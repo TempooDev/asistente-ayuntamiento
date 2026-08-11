@@ -28,15 +28,16 @@ var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
 var blobBucketName = builder.Configuration["Blob:BucketName"] ?? "boletines";
 
 // Configure MinIO container
+// Persistent MinIO Object Storage
 var minio = builder.AddContainer("minio", "minio/minio")
     .WithArgs("server", "/data", "--console-address", ":9001")
+    .WithVolume("minio-data", "/data")
+    .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "api")
+    .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console")
     .WithEnvironment("MINIO_ROOT_USER", "admin")
-    .WithEnvironment("MINIO_ROOT_PASSWORD", "password123")
-    .WithBindMount("../.miniodata", "/data")
-    .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "s3")
-    .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console");
+    .WithEnvironment("MINIO_ROOT_PASSWORD", "password123");
 
-var minioEndpoint = minio.GetEndpoint("s3");
+var minioEndpoint = minio.GetEndpoint("api");
 
 // Init container to create bucket
 var minioInit = builder.AddContainer("minio-init", "minio/mc")
