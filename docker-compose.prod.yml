@@ -1,0 +1,103 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-SECRETO_RABBIT}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "admin"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASS:-SECRETO_MINIO123!}"
+    volumes:
+      - minio_data:/data
+
+  minio-init: 
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      mc alias set myminio http://minio:9000 admin ${MINIO_PASS:-SECRETO_MINIO123!};
+      mc mb myminio/boletines || true;
+      mc anonymous set public myminio/boletines || true;
+      "
+
+  apiservice:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
+    restart: always
+    environment:
+      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Ai__Chat__Provider: "google"
+      Ai__Chat__Model: "gemini-1.5-pro"
+      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
+      Ai__Embeddings__Provider: "google"
+      Ai__Embeddings__Model: "text-embedding-004"
+      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
+      Blob__Endpoint: "http://minio:9000"
+      Blob__AccessKeyId: "admin"
+      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
+      Blob__BucketName: "boletines"
+      Auth0__Domain: "${AUTH0_DOMAIN}"
+      Auth0__Audience: "${AUTH0_AUDIENCE}"
+
+  worker:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
+    restart: always
+    environment:
+      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Ai__Chat__Provider: "google"
+      Ai__Chat__Model: "gemini-1.5-pro"
+      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
+      Ai__Embeddings__Provider: "google"
+      Ai__Embeddings__Model: "text-embedding-004"
+      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
+      Blob__Endpoint: "http://minio:9000"
+      Blob__AccessKeyId: "admin"
+      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
+      Blob__BucketName: "boletines"
+
+  go-scraper:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
+    restart: always
+    environment:
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Blob__Endpoint: "http://minio:9000"
+      Blob__AccessKeyId: "admin"
+      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
+      Blob__BucketName: "boletines"
+
+  gateway:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      services__apiservice__http__0: "http://apiservice:8080"
+      services__webfrontend__http__0: "http://webfrontend:8080"
+
+  webfrontend:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.web:latest
+    restart: always
+    environment:
+      services__apiservice__http__0: "http://apiservice:8080"
+      Auth0__Domain: "${AUTH0_DOMAIN}"
+      Auth0__ClientId: "${AUTH0_CLIENT_ID}"
+      Auth0__ClientSecret: "${AUTH0_CLIENT_SECRET}"
+      Blob__Endpoint: "http://minio:9000"
+      Blob__AccessKeyId: "admin"
+      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
+      Blob__BucketName: "boletines"
+
+volumes:
+  rabbitmq_data:
+  minio_data:
