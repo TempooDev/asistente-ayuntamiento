@@ -84,6 +84,19 @@ if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
     if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
     kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
 }
+else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+{
+    var chatEndpointUrl = builder.Configuration["Ai:Chat:EndpointUrl"];
+    if (!string.IsNullOrEmpty(chatEndpointUrl))
+    {
+        var httpClient = new HttpClient { BaseAddress = new Uri(chatEndpointUrl) };
+        kernelBuilder.AddOpenAIChatCompletion(chatModel, chatApiKey, httpClient: httpClient);
+    }
+    else
+    {
+        kernelBuilder.AddOpenAIChatCompletion(chatModel, chatApiKey);
+    }
+}
 else
 {
     kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
