@@ -8,28 +8,6 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  minio:
-    image: minio/minio:latest
-    restart: always
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: "admin"
-      MINIO_ROOT_PASSWORD: "${MINIO_PASS:-SECRETO_MINIO123!}"
-    volumes:
-      - minio_data:/data
-
-  minio-init: 
-    image: minio/mc:latest
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10;
-      mc alias set myminio http://minio:9000 admin ${MINIO_PASS:-SECRETO_MINIO123!};
-      mc mb myminio/boletines || true;
-      mc anonymous set public myminio/boletines || true;
-      "
-
   apiservice:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
     restart: always
@@ -42,10 +20,10 @@ services:
       Ai__Embeddings__Provider: "google"
       Ai__Embeddings__Model: "text-embedding-004"
       Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
-      Blob__BucketName: "boletines"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
       Auth0__Domain: "${AUTH0_DOMAIN}"
       Auth0__Audience: "${AUTH0_AUDIENCE}"
 
@@ -61,20 +39,20 @@ services:
       Ai__Embeddings__Provider: "google"
       Ai__Embeddings__Model: "text-embedding-004"
       Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
-      Blob__BucketName: "boletines"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
 
   go-scraper:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
     restart: always
     environment:
       ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
-      Blob__BucketName: "boletines"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
 
   gateway:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
@@ -93,11 +71,10 @@ services:
       Auth0__Domain: "${AUTH0_DOMAIN}"
       Auth0__ClientId: "${AUTH0_CLIENT_ID}"
       Auth0__ClientSecret: "${AUTH0_CLIENT_SECRET}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "${MINIO_PASS:-SECRETO_MINIO123!}"
-      Blob__BucketName: "boletines"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
 
 volumes:
   rabbitmq_data:
-  minio_data:
