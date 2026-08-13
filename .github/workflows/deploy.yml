@@ -1,0 +1,69 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [ "main" ] # Se dispara al mergear en main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/asistente-ayuntamiento
+
+jobs:
+  build-dotnet:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        project: 
+          - AsistenteAyuntamiento.ApiService
+          - AsistenteAyuntamiento.Gateway
+          - AsistenteAyuntamiento.Web
+          - AsistenteAyuntamiento.Worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x' # Actualizado a .NET 10
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish and Push Container
+        run: |
+          dotnet publish src/${{ matrix.project }}/${{ matrix.project }}.csproj \
+            -c Release \
+            -p:ContainerRepository=${{ env.IMAGE_PREFIX }}-${{ matrix.project }} \
+            -p:ContainerRegistry=${{ env.REGISTRY }} \
+            -t:PublishContainer
+
+  build-go:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Go Scraper
+        uses: docker/build-push-action@v5
+        with:
+          context: src/go-scraper
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-go-scraper:latest
