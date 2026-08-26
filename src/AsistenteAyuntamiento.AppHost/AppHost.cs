@@ -60,7 +60,8 @@ var rabbitmq = builder.AddRabbitMQ("messaging")
     .WithDataVolume("asistente-ayuntamiento-rmqdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var ollama = builder.AddOllama("ollama");
+var ollama = builder.AddOllama("ollama")
+    .WithDataVolume();
 ollama.AddModel("llama3.2");
 ollama.AddModel("nomic-embed-text");
 
@@ -94,17 +95,16 @@ apiService.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
           .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
           .WithEnvironment("Blob__BucketName", blobBucketName);
 
-var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
+var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
+    .WithHttpEndpoint(port: 4200, env: "PORT")
     .WithExternalHttpEndpoints()
-    .WithHttpHealthCheck("/health")
     .WithReference(apiService)
     .WithReference(db)
     .WaitFor(apiService)
-    // Auth0 — injected as environment variables (ASP.NET Core config key format: __ = :)
-    .WithEnvironment("Auth0__Domain", auth0Domain)
-    .WithEnvironment("Auth0__ClientId", auth0ClientId)
-    .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
-    .WithEnvironment("Auth0__Audience", auth0Audience);
+    // Auth0 — injected as environment variables (Angular native NG_APP_ format)
+    .WithEnvironment("NG_APP_AUTH0_DOMAIN", auth0Domain)
+    .WithEnvironment("NG_APP_AUTH0_CLIENT_ID", auth0ClientId)
+    .WithEnvironment("NG_APP_AUTH0_AUDIENCE", auth0Audience);
 
 if (!string.IsNullOrEmpty(blobEndpoint))
 {

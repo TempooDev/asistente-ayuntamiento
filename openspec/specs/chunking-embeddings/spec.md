@@ -26,3 +26,12 @@ The system SHALL batch-generate embedding vectors for all paragraphs and save th
 - **WHEN** chunks are created
 - **THEN** the system SHALL batch generate embeddings using `nomic-embed-text`
 - **AND** store each chunk and its floating-point vector inside PostgreSQL database
+
+### Requirement: Massive Asynchronous Reprocessing via RabbitMQ
+The system SHALL support triggering a massive ingestion flow via RabbitMQ to process thousands of S3 blobs asynchronously.
+
+#### Scenario: Enqueuing blobs for reprocessing
+- **WHEN** the `POST /api/ingestion/reprocess-all` endpoint is called
+- **THEN** the API SHALL list all JSON blobs in the S3 bucket
+- **AND** publish a `DocumentMessage` to the `documents_to_process` RabbitMQ queue for each blob
+- **AND** the `RabbitMqConsumerService` background worker SHALL consume the messages safely without blocking the API.
