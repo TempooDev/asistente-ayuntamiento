@@ -100,11 +100,10 @@ var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Ang
     .WithReference(apiService)
     .WithReference(db)
     .WaitFor(apiService)
-    // Auth0 — injected as environment variables (ASP.NET Core config key format: __ = :)
-    .WithEnvironment("Auth0__Domain", auth0Domain)
-    .WithEnvironment("Auth0__ClientId", auth0ClientId)
-    .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
-    .WithEnvironment("Auth0__Audience", auth0Audience);
+    // Auth0 — injected as environment variables (Angular native NG_APP_ format)
+    .WithEnvironment("NG_APP_AUTH0_DOMAIN", auth0Domain)
+    .WithEnvironment("NG_APP_AUTH0_CLIENT_ID", auth0ClientId)
+    .WithEnvironment("NG_APP_AUTH0_AUDIENCE", auth0Audience);
 
 if (!string.IsNullOrEmpty(blobEndpoint))
 {

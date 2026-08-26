@@ -38,7 +38,7 @@ export class ChatService {
     const token = await firstValueFrom(this.auth.getAccessTokenSilently());
 
     this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('/hubs/chat', {
+      .withUrl(`${environment.apiBaseUrl}/hubs/chat`, {
         accessTokenFactory: () => token
       })
       .withAutomaticReconnect()

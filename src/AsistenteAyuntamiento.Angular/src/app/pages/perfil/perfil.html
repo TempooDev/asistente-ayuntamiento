@@ -1,0 +1,115 @@
+<div class="max-w-[800px] mx-auto py-xl px-margin-mobile md:px-margin-desktop">
+  
+  <div class="mb-lg flex justify-between items-end">
+    <div>
+      <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background mb-xs">Ajustes de Perfil</h2>
+      <p class="font-body-md text-body-md text-on-surface-variant">Gestiona tu información personal y de seguridad.</p>
+    </div>
+    <button *ngIf="!isEditing" (click)="toggleEdit()" class="px-4 py-2 bg-primary-container text-on-primary-container rounded-full font-label-lg transition-colors hover:bg-primary hover:text-on-primary">
+      Editar Perfil
+    </button>
+  </div>
+
+  <ng-container *ngIf="auth.user$ | async as user; else loading">
+    
+    <!-- Alerta de éxito -->
+    <div *ngIf="saveSuccess" class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg flex items-center gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+      </svg>
+      <span class="font-medium text-sm">Perfil actualizado correctamente.</span>
+    </div>
+
+    <div class="space-y-6">
+      <!-- Tarjeta Principal: Información Pública -->
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+        <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest">
+          <h3 class="font-title-md text-on-surface">Información Pública</h3>
+        </div>
+        
+        <div class="p-6 flex flex-col md:flex-row gap-8 items-start">
+          <!-- Avatar -->
+          <div class="flex flex-col items-center gap-4">
+            <div class="relative">
+              <img [src]="user.picture || 'assets/default-avatar.png'" alt="Avatar de usuario" class="w-28 h-28 rounded-full object-cover border-4 border-surface shadow-sm" />
+              <button *ngIf="isEditing" class="absolute bottom-0 right-0 p-2 bg-primary text-on-primary rounded-full shadow-md hover:bg-primary-container hover:text-on-primary-container transition-colors" title="Cambiar foto">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Formulario / Vista de datos -->
+          <div class="flex-1 w-full" [formGroup]="profileForm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              <!-- Nombre -->
+              <div>
+                <label class="block font-label-sm text-on-surface-variant mb-1">Nombre Completo</label>
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">{{ user.name }}</div>
+                <input *ngIf="isEditing" type="text" formControlName="name" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+              </div>
+
+              <!-- Nickname -->
+              <div>
+                <label class="block font-label-sm text-on-surface-variant mb-1">Apodo / Nombre corto</label>
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">{{ user.nickname || '-' }}</div>
+                <input *ngIf="isEditing" type="text" formControlName="nickname" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+              </div>
+            </div>
+
+            <!-- Botones de Guardar (solo si edita) -->
+            <div *ngIf="isEditing" class="mt-8 flex gap-3 justify-end border-t border-outline-variant pt-6">
+              <button (click)="toggleEdit()" class="px-4 py-2 bg-transparent text-on-surface font-label-md rounded-full hover:bg-surface-variant transition-colors">
+                Cancelar
+              </button>
+              <button (click)="saveProfile()" [disabled]="isSaving || profileForm.invalid" class="px-6 py-2 bg-primary text-on-primary font-label-md rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50">
+                <span *ngIf="isSaving" class="animate-spin w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full"></span>
+                {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tarjeta Secundaria: Seguridad y Cuenta -->
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+        <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest">
+          <h3 class="font-title-md text-on-surface">Cuenta y Seguridad</h3>
+        </div>
+        
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div>
+              <label class="block font-label-sm text-on-surface-variant mb-1">Correo Electrónico (No modificable)</label>
+              <div class="font-body-lg text-on-surface flex items-center gap-2">
+                {{ user.email }}
+                <span *ngIf="user.email_verified" class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium" title="Correo verificado">
+                  Verificado
+                </span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-2">Para cambiar tu correo electrónico institucional, por favor contacta con el administrador del sistema.</p>
+            </div>
+
+            <div class="flex md:justify-end">
+              <button (click)="changePassword()" class="px-4 py-2 border border-outline text-on-surface font-label-md rounded-full hover:bg-surface-variant transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Restablecer Contraseña
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </ng-container>
+
+  <ng-template #loading>
+    <div class="flex justify-center items-center py-20">
+      <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+    </div>
+  </ng-template>
+</div>

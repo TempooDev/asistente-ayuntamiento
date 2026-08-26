@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface AiConfigurationDto {
   provider: string;
@@ -26,7 +27,7 @@ export class AiConfigService {
 
   async getConfiguration(): Promise<AiConfigurationDto> {
     const config = await firstValueFrom(
-      this.http.get<AiConfigurationDto>('/api/settings/ai')
+      this.http.get<AiConfigurationDto>(`${environment.apiBaseUrl}/api/settings/ai`)
     );
     return config || {
       provider: 'ollama',
@@ -38,7 +39,7 @@ export class AiConfigService {
 
   async saveConfiguration(dto: SaveAiConfigurationDto): Promise<void> {
     await firstValueFrom(
-      this.http.put('/api/settings/ai', dto)
+      this.http.put(`${environment.apiBaseUrl}/api/settings/ai`, dto)
     );
   }
 }

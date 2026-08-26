@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "node generate-env.js && ng serve --port ${PORT:-4200}",
-    "build": "node generate-env.js && ng build",
-    "watch": "node generate-env.js && ng build --watch --configuration development",
+    "start": "ng serve --port ${PORT:-4200}",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
   "private": true,
@@ -28,8 +28,10 @@
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.0",
+    "@ngx-env/builder": "^22.0.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
+    "@types/node": "^26.3.0",
     "autoprefixer": "^10.5.4",
     "cross-env": "^10.1.0",
     "jsdom": "^28.0.0",
@@ -38,5 +40,8 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"
+  },
+  "ngxEnv": {
+    "prefix": "Auth0__"
   }
 }

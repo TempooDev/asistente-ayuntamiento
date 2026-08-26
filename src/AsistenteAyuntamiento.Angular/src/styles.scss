@@ -189,6 +189,13 @@ h1:focus {
     box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.2);
 }
 
+.gov-input:disabled {
+    background-color: #F3F4F6;
+    color: #9CA3AF;
+    cursor: not-allowed;
+    border-color: #E5E7EB;
+}
+
 /* Buttons */
 .gov-btn {
     display: inline-flex;
@@ -203,13 +210,19 @@ h1:focus {
     transition: all 0.2s;
 }
 
+.gov-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #9CA3AF;
+}
+
 .gov-btn-primary {
     background-color: var(--primary);
     color: #ffffff;
     border: none;
 }
 
-.gov-btn-primary:hover {
+.gov-btn-primary:hover:not(:disabled) {
     background-color: #112440;
 }
 
@@ -219,7 +232,7 @@ h1:focus {
     border: 1px solid var(--primary);
 }
 
-.gov-btn-ghost:hover {
+.gov-btn-ghost:hover:not(:disabled) {
     background-color: rgba(26, 54, 93, 0.05);
 }
 

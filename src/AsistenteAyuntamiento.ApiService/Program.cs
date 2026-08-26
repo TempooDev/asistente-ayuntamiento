@@ -86,7 +86,8 @@ if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
 }
 else
 {
-    kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+    var ollamaUriStr = ollamaEndpoint.TrimEnd('/');
+    kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaUriStr));
 }
 
 var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
@@ -117,9 +118,10 @@ else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
 }
 else
 {
-    var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
+    var embUriStr = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
+    embUriStr = embUriStr.TrimEnd('/');
 #pragma warning disable SKEXP0001
-    kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUri));
+    kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUriStr));
 #pragma warning restore SKEXP0001
 }
 #pragma warning restore SKEXP0070

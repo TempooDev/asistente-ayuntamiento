@@ -21,10 +21,14 @@ export const appConfig: ApplicationConfig = {
         redirect_uri: window.location.origin + '/callback',
         audience: environment.auth0.audience
       },
+      cacheLocation: 'localstorage',
+      useRefreshTokens: true,
       httpInterceptor: {
         allowedList: [
           '/api/*',
-          '/hubs/*'
+          '/hubs/*',
+          `${environment.apiBaseUrl}/api/*`,
+          `${environment.apiBaseUrl}/hubs/*`
         ]
       }
     })
