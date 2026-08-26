@@ -8,12 +8,11 @@
         </div>
         <div class="flex items-center gap-sm">
             <button class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" (click)="toggleTheme()" title="Cambiar Tema">dark_mode</button>
-            <ng-container *ngIf="auth.isAuthenticated$ | async; else notAuthorizedMobile">
-                <img *ngIf="auth.user$ | async as user" [src]="user.picture || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDRzh4xi4S2Cy3l41fTkbdvmWfQyqY0-VEz3ULrKZmqmGYCRdzOqlwEE8SNA7E-TJTpZN6IR0BYMTigg-pVFm9Z5DhKEO-OH2IfAaXuBkiEGsZidHkPhc-prOPuDrNOqeKjeWtrtrbOv_62sk8rFa-ewLY7WYOjaUENz1IzYRkU4TuSrX6RSF9QoxeBBeJ05-CSe5FwD8AwIrOl_yAyYL3Ny62z_9Ego_EEGWrp5bsFRZ2coodosq6w'" alt="User avatar" class="w-8 h-8 rounded-full bg-surface-variant object-cover"/>
-            </ng-container>
-            <ng-template #notAuthorizedMobile>
+            @if (isAuthenticated()) {
+                <img [src]="user()?.picture || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDRzh4xi4S2Cy3l41fTkbdvmWfQyqY0-VEz3ULrKZmqmGYCRdzOqlwEE8SNA7E-TJTpZN6IR0BYMTigg-pVFm9Z5DhKEO-OH2IfAaXuBkiEGsZidHkPhc-prOPuDrNOqeKjeWtrtrbOv_62sk8rFa-ewLY7WYOjaUENz1IzYRkU4TuSrX6RSF9QoxeBBeJ05-CSe5FwD8AwIrOl_yAyYL3Ny62z_9Ego_EEGWrp5bsFRZ2coodosq6w'" alt="User avatar" class="w-8 h-8 rounded-full bg-surface-variant object-cover"/>
+            } @else {
                 <button (click)="login()" class="material-symbols-outlined text-secondary p-sm rounded-full">login</button>
-            </ng-template>
+            }
         </div>
     </header>
 
@@ -47,30 +46,29 @@
                 <span class="material-symbols-outlined">settings_input_component</span>
                 <span>Configuración IA</span>
             </a>
-            <ng-container *ngIf="auth.isAuthenticated$ | async">
+            @if (isAuthenticated()) {
                 <a routerLink="/perfil" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                     <span class="material-symbols-outlined">account_circle</span>
                     <span class="truncate">Perfil</span>
                 </a>
-            </ng-container>
+            }
         </div>
         <div class="mt-auto px-md flex flex-col gap-xs font-label-md text-label-md border-t border-outline-variant pt-md">
             <button class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" (click)="toggleTheme()">
                 <span class="material-symbols-outlined">dark_mode</span>
                 <span>Cambiar Tema</span>
             </button>
-            <ng-container *ngIf="auth.isAuthenticated$ | async; else notAuthorizedDesktop">
+            @if (isAuthenticated()) {
                 <button (click)="logout()" class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                     <span class="material-symbols-outlined">logout</span>
                     <span>Cerrar Sesión</span>
                 </button>
-            </ng-container>
-            <ng-template #notAuthorizedDesktop>
+            } @else {
                 <button (click)="login()" class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                     <span class="material-symbols-outlined">login</span>
                     <span>Iniciar Sesión</span>
                 </button>
-            </ng-template>
+            }
         </div>
     </aside>
 

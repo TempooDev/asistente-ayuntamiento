@@ -1,7 +1,7 @@
 <div class="chat-layout flex h-[calc(100vh-80px)] w-full max-w-[max-width] mx-auto overflow-hidden relative">
     <!-- Sidebar -->
     <div class="chat-sidebar bg-white border-r border-gray-200 flex flex-col w-[280px] shrink-0 transition-transform duration-300 md:translate-x-0 absolute md:relative z-10 h-full shadow-lg md:shadow-none"
-         [ngClass]="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+         [class.translate-x-0]="sidebarOpen()" [class.-translate-x-full]="!sidebarOpen()">
         <div class="chat-sidebar-header p-4 border-b border-gray-100 sticky top-0 bg-white z-20 flex justify-between items-center">
             <button class="gov-btn gov-btn-primary w-full flex items-center justify-center gap-2" (click)="createNewChat()">
                 <span class="material-symbols-outlined text-[20px]">add</span>
@@ -12,23 +12,29 @@
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-2">
-            <div *ngIf="sessions.length === 0" class="text-center text-sm text-gray-500 py-4">No hay chats recientes</div>
-            <div *ngIf="sessions.length > 0" class="space-y-1">
-                <div *ngFor="let session of sessions" 
-                     class="chat-session-item p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                     [class.bg-blue-50]="currentSessionId === session.id"
-                     [class.border-l-4]="currentSessionId === session.id"
-                     [class.border-blue-600]="currentSessionId === session.id"
-                     (click)="selectSession(session.id)">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-xs font-medium text-gray-500">{{ formatDate(session.createdAt) }}</span>
-                        <span *ngIf="session.messageCount > 0" class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ session.messageCount }} msgs</span>
-                    </div>
-                    <p class="text-sm text-gray-800 line-clamp-2 leading-tight">
-                        {{ session.preview ? session.preview : 'Nueva conversación' }}
-                    </p>
+            @if (sessions().length === 0) {
+                <div class="text-center text-sm text-gray-500 py-4">No hay chats recientes</div>
+            } @else {
+                <div class="space-y-1">
+                    @for (session of sessions(); track session.id) {
+                        <div class="chat-session-item p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                             [class.bg-blue-50]="currentSessionId() === session.id"
+                             [class.border-l-4]="currentSessionId() === session.id"
+                             [class.border-blue-600]="currentSessionId() === session.id"
+                             (click)="selectSession(session.id)">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs font-medium text-gray-500">{{ formatDate(session.createdAt) }}</span>
+                                @if (session.messageCount > 0) {
+                                    <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ session.messageCount }} msgs</span>
+                                }
+                            </div>
+                            <p class="text-sm text-gray-800 line-clamp-2 leading-tight">
+                                {{ session.preview ? session.preview : 'Nueva conversación' }}
+                            </p>
+                        </div>
+                    }
                 </div>
-            </div>
+            }
         </div>
     </div>
 
@@ -50,30 +56,39 @@
 
         <!-- Messages Area -->
         <div class="flex-1 overflow-y-auto p-4 md:p-margin-desktop relative" #messagesContainer>
-            <div *ngIf="isLoadingHistory" class="h-full flex flex-col items-center justify-center text-gray-400 max-w-md mx-auto text-center">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-                <p class="text-lg font-medium text-gray-600 mb-2">Cargando conversación...</p>
-            </div>
-            
-            <div *ngIf="!isLoadingHistory && messages.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400 max-w-md mx-auto text-center">
-                <span class="material-symbols-outlined text-[48px] mb-4 text-gray-300">chat_bubble_outline</span>
-                <p class="text-lg font-medium text-gray-600 mb-2">¿En qué puedo ayudarte hoy?</p>
-                <p class="text-sm">Selecciona una conversación anterior o escribe un mensaje para comenzar una nueva.</p>
-            </div>
-            
-            <div *ngIf="!isLoadingHistory && messages.length > 0" class="chat-container w-full max-w-3xl mx-auto pb-4">
-                <div *ngFor="let msg of messages" class="chat-bubble shadow-sm" [ngClass]="msg.isUser ? 'citizen' : 'assistant'">
-                    <p *ngIf="msg.isUser" class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
-                    <div *ngIf="!msg.isUser" class="markdown-content" [innerHTML]="msg.html"></div>
+            @if (isLoadingHistory()) {
+                <div class="h-full flex flex-col items-center justify-center text-gray-400 max-w-md mx-auto text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                    <p class="text-lg font-medium text-gray-600 mb-2">Cargando conversación...</p>
                 </div>
-                
-                <div *ngIf="isWaitingForResponse" class="chat-bubble assistant flex items-center gap-2 shadow-sm">
-                    <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s;"></span>
-                    <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s;"></span>
-                    <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s;"></span>
-                    <span class="text-sm text-gray-500 ml-1">Procesando...</span>
+            } @else if (messages().length === 0) {
+                <div class="h-full flex flex-col items-center justify-center text-gray-400 max-w-md mx-auto text-center">
+                    <span class="material-symbols-outlined text-[48px] mb-4 text-gray-300">chat_bubble_outline</span>
+                    <p class="text-lg font-medium text-gray-600 mb-2">¿En qué puedo ayudarte hoy?</p>
+                    <p class="text-sm">Selecciona una conversación anterior o escribe un mensaje para comenzar una nueva.</p>
                 </div>
-            </div>
+            } @else {
+                <div class="chat-container w-full max-w-3xl mx-auto pb-4">
+                    @for (msg of messages(); track $index) {
+                        <div class="chat-bubble shadow-sm" [class.citizen]="msg.isUser" [class.assistant]="!msg.isUser">
+                            @if (msg.isUser) {
+                                <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
+                            } @else {
+                                <div class="markdown-content" [innerHTML]="msg.html"></div>
+                            }
+                        </div>
+                    }
+                    
+                    @if (isWaitingForResponse()) {
+                        <div class="chat-bubble assistant flex items-center gap-2 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s;"></span>
+                            <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s;"></span>
+                            <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s;"></span>
+                            <span class="text-sm text-gray-500 ml-1">Procesando...</span>
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
         <!-- Input Area -->
@@ -85,25 +100,29 @@
                     placeholder="Escribe tu consulta aquí..."
                     [(ngModel)]="currentMessage"
                     (keydown)="handleKeydown($event)"
-                    [disabled]="isGenerating">
+                    [disabled]="isGenerating()">
                 </textarea>
                 
                 <button 
                     class="gov-btn gov-btn-primary shadow-sm"
                     style="padding: 12px; min-height: unset; border-radius: 12px; margin-bottom: 2px;"
                     (click)="sendMessage()"
-                    [disabled]="!currentMessage.trim() || !isConnected || isGenerating">
+                    [disabled]="!currentMessage.trim() || !isConnected() || isGenerating()">
                     <span class="material-symbols-outlined text-[24px]">send</span>
                 </button>
             </div>
             
-            <div *ngIf="!isConnected" class="text-center mt-2 text-sm text-gray-500 flex items-center justify-center max-w-3xl mx-auto">
-                <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
-                Conectando al servidor...
-            </div>
+            @if (!isConnected()) {
+                <div class="text-center mt-2 text-sm text-gray-500 flex items-center justify-center max-w-3xl mx-auto">
+                    <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+                    Conectando al servidor...
+                </div>
+            }
         </div>
     </div>
     
     <!-- Mobile Backdrop -->
-    <div *ngIf="sidebarOpen" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-[5]" (click)="toggleSidebar()"></div>
+    @if (sidebarOpen()) {
+        <div class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-[5]" (click)="toggleSidebar()"></div>
+    }
 </div>

@@ -1,18 +1,22 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
-import { AsyncPipe, NgIf } from '@angular/common';
 import { DOCUMENT } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, AsyncPipe, NgIf],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
 export class App {
   public auth = inject(AuthService);
   private document = inject(DOCUMENT);
+
+  // Using signals for reactive state
+  isAuthenticated = toSignal(this.auth.isAuthenticated$, { initialValue: false });
+  user = toSignal(this.auth.user$);
 
   login() {
     this.auth.loginWithRedirect();

@@ -1,5 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChatService, ChatSessionSummaryDto } from '../../services/chat';
 import { marked } from 'marked';
@@ -14,22 +13,26 @@ interface ChatMessage {
 @Component({
   selector: 'app-chat-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './chat-panel.html',
   styleUrl: './chat-panel.scss'
 })
 export class ChatPanelComponent implements OnInit, OnDestroy {
   private chatService = inject(ChatService);
   
+  // Non-signal for two-way binding with ngModel (though model() is an option, this is simpler)
   currentMessage = '';
-  isWaitingForResponse = false;
-  isGenerating = false;
-  messages: ChatMessage[] = [];
   
-  sidebarOpen = false;
-  isLoadingHistory = false;
-  currentSessionId = '';
-  sessions: ChatSessionSummaryDto[] = [];
+  // Signals for state
+  isWaitingForResponse = signal(false);
+  isGenerating = signal(false);
+  messages = signal<ChatMessage[]>([]);
+  
+  sidebarOpen = signal(false);
+  isLoadingHistory = signal(false);
+  currentSessionId = signal('');
+  sessions = signal<ChatSessionSummaryDto[]>([]);
+  isConnected = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
 
@@ -40,36 +43,35 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
 
     try {
       await this.chatService.connect();
+      this.isConnected.set(true);
       await this.loadSessions();
-      if (this.sessions.length > 0) {
-        await this.selectSession(this.sessions[0].id);
+      if (this.sessions().length > 0) {
+        await this.selectSession(this.sessions()[0].id);
       }
     } catch (e) {
       console.error(e);
+      this.isConnected.set(false);
     }
   }
 
   ngOnDestroy() {
-    // Ideally unsubscribe or disconnect
-  }
-
-  get isConnected() {
-    return this.chatService.isConnected;
+    // Cleanup if needed
   }
 
   async loadSessions() {
-    this.sessions = await this.chatService.getSessions();
+    const data = await this.chatService.getSessions();
+    this.sessions.set(data);
   }
 
   async selectSession(id: string) {
-    this.currentSessionId = id;
-    this.sidebarOpen = false;
-    this.messages = [];
-    this.isLoadingHistory = true;
+    this.currentSessionId.set(id);
+    this.sidebarOpen.set(false);
+    this.messages.set([]);
+    this.isLoadingHistory.set(true);
 
     try {
       const history = await this.chatService.loadSession(id);
-      this.messages = history.map(m => {
+      const mapped = history.map(m => {
         const isUser = m.role.toLowerCase() === 'user';
         return {
           text: m.content,
@@ -77,21 +79,23 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
           html: isUser ? undefined : this.renderMarkdown(m.content)
         };
       });
+      this.messages.set(mapped);
       this.scrollToBottom();
     } catch (e) {
       console.error(e);
     } finally {
-      this.isLoadingHistory = false;
+      this.isLoadingHistory.set(false);
     }
   }
 
   async createNewChat() {
-    this.sidebarOpen = false;
-    this.messages = [];
+    this.sidebarOpen.set(false);
+    this.messages.set([]);
     this.currentMessage = '';
     
     try {
-      this.currentSessionId = await this.chatService.createNewSession();
+      const newId = await this.chatService.createNewSession();
+      this.currentSessionId.set(newId);
       await this.loadSessions();
     } catch (e) {
       console.error(e);
@@ -99,7 +103,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
   }
 
   toggleSidebar() {
-    this.sidebarOpen = !this.sidebarOpen;
+    this.sidebarOpen.update(v => !v);
   }
 
   formatDate(dateStr: string) {
@@ -131,60 +135,62 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
   }
 
   async sendMessage() {
-    if (!this.currentMessage.trim() || !this.isConnected || this.isGenerating) return;
+    if (!this.currentMessage.trim() || !this.isConnected() || this.isGenerating()) return;
 
     const text = this.currentMessage;
     this.currentMessage = '';
-    this.isWaitingForResponse = true;
-    this.isGenerating = true;
+    this.isWaitingForResponse.set(true);
+    this.isGenerating.set(true);
 
-    if (!this.currentSessionId) {
+    if (!this.currentSessionId()) {
       await this.createNewChat();
     }
 
-    this.messages.push({ text, isUser: true });
-    
     const assistantMsg: ChatMessage = { text: '', isUser: false, html: '' };
-    this.messages.push(assistantMsg);
+    this.messages.update(msgs => [...msgs, { text, isUser: true }, assistantMsg]);
     this.scrollToBottom();
 
     try {
-      const stream = this.chatService.streamMessage(this.currentSessionId, text);
+      const stream = this.chatService.streamMessage(this.currentSessionId(), text);
       let firstChunk = true;
 
       stream.subscribe({
         next: (chunk) => {
           if (firstChunk) {
-            this.isWaitingForResponse = false;
+            this.isWaitingForResponse.set(false);
             firstChunk = false;
           }
           assistantMsg.text += chunk;
           assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+          // Trigger change detection for array mutation
+          this.messages.update(msgs => [...msgs]); 
           this.scrollToBottom();
         },
         complete: () => {
-          if (firstChunk) this.isWaitingForResponse = false;
-          this.isGenerating = false;
+          if (firstChunk) this.isWaitingForResponse.set(false);
+          this.isGenerating.set(false);
           this.loadSessions();
         },
         error: (err) => {
           assistantMsg.text += `\n[Error: ${err.message || err}]`;
           assistantMsg.html = this.renderMarkdown(assistantMsg.text);
-          this.isWaitingForResponse = false;
-          this.isGenerating = false;
+          this.messages.update(msgs => [...msgs]);
+          this.isWaitingForResponse.set(false);
+          this.isGenerating.set(false);
         }
       });
     } catch (e: any) {
       assistantMsg.text += `\n[Error: ${e.message}]`;
       assistantMsg.html = this.renderMarkdown(assistantMsg.text);
-      this.isWaitingForResponse = false;
-      this.isGenerating = false;
+      this.messages.update(msgs => [...msgs]);
+      this.isWaitingForResponse.set(false);
+      this.isGenerating.set(false);
     }
   }
 
   async handleIncomingMessage(msg: string) {
-    this.isWaitingForResponse = false;
-    this.messages.push({ text: msg, isUser: false, html: this.renderMarkdown(msg) });
+    this.isWaitingForResponse.set(false);
+    this.messages.update(msgs => [...msgs, { text: msg, isUser: false, html: this.renderMarkdown(msg) }]);
     await this.loadSessions();
     this.scrollToBottom();
   }
