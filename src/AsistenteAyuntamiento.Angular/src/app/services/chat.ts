@@ -32,6 +32,10 @@ export class ChatService {
   public isGenerating = signal(false);
   public isWaitingForResponse = signal(false);
   public sessions = signal<ChatSessionSummaryDto[]>([]);
+  
+  // Cache to maintain state of background streams and loaded chats
+  public sessionMessages = new Map<string, ChatMessage[]>();
+  public activeStreams = new Map<string, any>();
 
   private hubConnection: signalR.HubConnection | null = null;
   private auth = inject(AuthService);

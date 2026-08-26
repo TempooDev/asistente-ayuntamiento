@@ -6,7 +6,7 @@ context: |
   ## Current Tech Stack
 
   ### Core Services
-  - Frontend: Blazor Auto (C# / .NET 10) — SSR on first load, switches to WASM in browser
+  - Frontend: Angular (Standalone, Signals) — Single Page Application (SPA)
   - Backend API: ASP.NET Core Web API (AsistenteAyuntamiento.ApiService)
   - Ingestion Worker: .NET Background Worker using Semantic Kernel (AsistenteAyuntamiento.Worker)
 
@@ -26,7 +26,7 @@ context: |
 
   ### Auth & Identity
   - Identity Provider: Auth0 (managed SaaS, OIDC/OAuth2)
-  - Frontend auth: OIDC PKCE flow (Blazor Auto/WASM compatible)
+  - Frontend auth: Auth0 SPA SDK (OIDC PKCE flow) with Angular AuthGuard
   - API auth: JWT Bearer validation (Auth0 issuer)
   - User identity key: Auth0 `sub` claim (e.g. "auth0|abc123")
 

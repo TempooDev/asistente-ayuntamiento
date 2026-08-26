@@ -79,6 +79,17 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
   async selectSession(id: string) {
     this.currentSessionId.set(id);
     this.sidebarOpen.set(false);
+
+    // If we have an active stream for this session, restore the generating state
+    this.isGenerating.set(this.chatService.activeStreams.has(id));
+
+    if (this.chatService.sessionMessages.has(id)) {
+      // Restore from cache so active streams aren't interrupted visually
+      this.messages.set([...this.chatService.sessionMessages.get(id)!]);
+      this.scrollToBottom();
+      return;
+    }
+
     this.messages.set([]);
     this.isLoadingHistory.set(true);
 
@@ -92,7 +103,8 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
           html: isUser ? undefined : this.renderMarkdown(m.content)
         };
       });
-      this.messages.set(mapped);
+      this.chatService.sessionMessages.set(id, mapped);
+      this.messages.set([...mapped]);
       this.scrollToBottom();
     } catch (e) {
       console.error(e);
@@ -109,6 +121,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
     try {
       const newId = await this.chatService.createNewSession();
       this.currentSessionId.set(newId);
+      this.chatService.sessionMessages.set(newId, []);
       await this.loadSessions();
     } catch (e) {
       console.error(e);
@@ -147,62 +160,82 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
     }, 50);
   }
 
-  private currentStreamSub: any = null;
-
   async sendMessage() {
     if (!this.currentMessage.trim() || !this.isConnected() || this.isGenerating()) return;
 
     const text = this.currentMessage;
     this.currentMessage = '';
-    this.isWaitingForResponse.set(true);
-    this.isGenerating.set(true);
-
+    
     if (!this.currentSessionId()) {
       await this.createNewChat();
     }
+    
+    const sessionId = this.currentSessionId();
+    this.isWaitingForResponse.set(true);
+    this.isGenerating.set(true);
 
     const assistantMsg: ChatMessage = { text: '', isUser: false, html: '' };
-    this.messages.update(msgs => [...msgs, { text, isUser: true }, assistantMsg]);
-    this.scrollToBottom();
+    
+    // Add to cache
+    const currentMsgs = this.chatService.sessionMessages.get(sessionId) || [];
+    currentMsgs.push({ text, isUser: true }, assistantMsg);
+    this.chatService.sessionMessages.set(sessionId, currentMsgs);
+
+    // Update UI if we're still on this chat
+    if (this.currentSessionId() === sessionId) {
+      this.messages.set([...currentMsgs]);
+      this.scrollToBottom();
+    }
 
     try {
-      if (this.currentStreamSub) {
-        this.currentStreamSub.dispose();
-        this.currentStreamSub = null;
-      }
-
-      const stream = this.chatService.streamMessage(this.currentSessionId(), text);
+      const stream = this.chatService.streamMessage(sessionId, text);
       let firstChunk = true;
 
-      this.currentStreamSub = stream.subscribe({
+      const sub = stream.subscribe({
         next: (chunk) => {
           if (firstChunk) {
-            this.isWaitingForResponse.set(false);
+            if (this.currentSessionId() === sessionId) this.isWaitingForResponse.set(false);
             firstChunk = false;
           }
+          
+          // Modify the object reference in memory (this updates the cache automatically)
           assistantMsg.text += chunk;
           assistantMsg.html = this.renderMarkdown(assistantMsg.text);
-          // Trigger change detection for array mutation
-          this.messages.update(msgs => [...msgs]); 
-          this.scrollToBottom();
+          
+          // Only trigger UI change detection if the user is currently viewing THIS chat
+          if (this.currentSessionId() === sessionId) {
+            this.messages.update(msgs => [...msgs]);
+            this.scrollToBottom();
+          }
         },
         complete: () => {
-          if (firstChunk) this.isWaitingForResponse.set(false);
-          this.isGenerating.set(false);
+          this.chatService.activeStreams.delete(sessionId);
+          if (this.currentSessionId() === sessionId) {
+            if (firstChunk) this.isWaitingForResponse.set(false);
+            this.isGenerating.set(false);
+          }
           this.loadSessions();
         },
         error: (err) => {
-          assistantMsg.text += `\n[Error: ${err.message || err}]`;
+          assistantMsg.text += `
+[Error: ${err.message || err}]`;
           assistantMsg.html = this.renderMarkdown(assistantMsg.text);
-          this.messages.update(msgs => [...msgs]);
-          this.isWaitingForResponse.set(false);
-          this.isGenerating.set(false);
+          if (this.currentSessionId() === sessionId) this.messages.update(msgs => [...msgs]);
+          console.error(err);
+          this.chatService.activeStreams.delete(sessionId);
+          if (this.currentSessionId() === sessionId) {
+            this.isWaitingForResponse.set(false);
+            this.isGenerating.set(false);
+          }
         }
       });
+      
+      this.chatService.activeStreams.set(sessionId, sub);
     } catch (e: any) {
-      assistantMsg.text += `\n[Error: ${e.message}]`;
+      assistantMsg.text += `\n[Error: ${e.message || e}]`;
       assistantMsg.html = this.renderMarkdown(assistantMsg.text);
-      this.messages.update(msgs => [...msgs]);
+      if (this.currentSessionId() === sessionId) this.messages.update(msgs => [...msgs]);
+      console.error(e);
       this.isWaitingForResponse.set(false);
       this.isGenerating.set(false);
     }

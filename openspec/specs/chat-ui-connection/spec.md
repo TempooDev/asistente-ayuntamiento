@@ -1,21 +1,26 @@
 # Capability: Chat UI Connection
 
 ## Purpose
-TBD
+Establishes a robust, real-time connection between the Angular frontend and the backend API using SignalR, ensuring isolated chat sessions, persistent background processing, and secure communication.
 
 ## Requirements
 
 ### Requirement: Authenticated Real-Time Chat Connection
-The system SHALL establish a secure real-time WebSocket connection between the Blazor frontend and the API, authenticated via Auth0 JWT.
+The system SHALL establish a secure real-time WebSocket connection between the Angular frontend and the API, authenticated via Auth0 JWT.
 
 #### Scenario: Connecting to the Chat Hub
-- **WHEN** the chat panel component initializes
-- **THEN** it SHALL establish a SignalR connection to the `/hubs/chat` endpoint
-- **AND** the connection SHALL transmit the Auth0 access token (e.g. via `access_token` query parameter or bearer header)
-- **AND** the backend SHALL validate the JWT and associate the connection with the user's `sub` and `org_id`
+- **WHEN** the Angular `ChatService` initializes
+- **THEN** it SHALL establish a SignalR connection to the `/hubs/chat` endpoint (routed via YARP Gateway)
+- **AND** the connection SHALL transmit the Auth0 access token
+- **AND** the backend SHALL validate the JWT and associate the connection with the user's identity.
 
-#### Scenario: Sending and receiving messages
-- **WHEN** the user submits a message in the chat panel
-- **THEN** the frontend SHALL send the message to the SignalR Hub
-- **AND** the backend SHALL process the query
-- **AND** the frontend SHALL listen for the Hub's real-time events to append the assistant's reply and any relevant citations to the chat UI.
+### Requirement: Independent Background Streaming
+The UI SHALL support asynchronous streaming of AI responses across multiple chat sessions simultaneously without UI locking or cross-contamination.
+
+#### Scenario: Switching chats during generation
+- **GIVEN** an active AI generation in Chat A
+- **WHEN** the user switches the UI view to Chat B
+- **THEN** the Angular frontend SHALL continue receiving SignalR chunks for Chat A in the background
+- **AND** update Chat A's in-memory message cache (`sessionMessages`)
+- **AND** NOT render Chat A's fragments inside Chat B's view
+- **AND** instantly restore Chat A's visual generation state when the user switches back.

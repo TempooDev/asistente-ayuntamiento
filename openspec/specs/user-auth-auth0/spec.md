@@ -5,14 +5,14 @@ Integrate Auth0 as the delegated identity provider so that every user authentica
 
 ## Requirements
 
-### Requirement: Auth0 OIDC Login in Blazor Auto
-The system SHALL authenticate users via Auth0 using the OIDC PKCE flow compatible with Blazor Auto render mode.
+### Requirement: Auth0 OIDC Login in Angular
+The system SHALL authenticate users via Auth0 using the OIDC PKCE flow compatible with Angular render mode.
 
 #### Scenario: User logs in successfully
 - **WHEN** an unauthenticated user accesses the application
 - **THEN** the system SHALL redirect them to the Auth0 Universal Login page
 - **AND** upon successful login, redirect back with a JWT containing the `sub`, `email`, and `name` claims
-- **AND** the Blazor app SHALL store the session and provide the JWT to downstream API calls
+- **AND** the Angular app SHALL store the session and provide the JWT to downstream API calls
 
 #### Scenario: Unauthenticated access to protected page
 - **WHEN** a user without a valid session attempts to access the chat or settings pages
