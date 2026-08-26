@@ -131,9 +131,9 @@ public class ChatHub : Hub
             errorMessage = $"System Error: {ex.GetType().Name} - {ex.Message}";
         }
 
-        if (errorMessage != null)
+        if (errorMessage != null || session == null)
         {
-            yield return errorMessage;
+            yield return errorMessage ?? "Error inesperado.";
             yield break;
         }
 

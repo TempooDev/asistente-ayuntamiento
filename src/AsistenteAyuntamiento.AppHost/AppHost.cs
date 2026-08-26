@@ -60,7 +60,8 @@ var rabbitmq = builder.AddRabbitMQ("messaging")
     .WithDataVolume("asistente-ayuntamiento-rmqdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var ollama = builder.AddOllama("ollama");
+var ollama = builder.AddOllama("ollama")
+    .WithDataVolume();
 ollama.AddModel("llama3.2");
 ollama.AddModel("nomic-embed-text");
 

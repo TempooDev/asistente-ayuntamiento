@@ -4,6 +4,13 @@ import { ChatService, ChatSessionSummaryDto } from '../../services/chat';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
+DOMPurify.addHook('afterSanitizeAttributes', function(node) {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
 interface ChatMessage {
   text: string;
   isUser: boolean;
@@ -23,15 +30,15 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
   // Non-signal for two-way binding with ngModel (though model() is an option, this is simpler)
   currentMessage = '';
   
-  // Signals for state
-  isWaitingForResponse = signal(false);
-  isGenerating = signal(false);
-  messages = signal<ChatMessage[]>([]);
+  // Signals for state exposed directly from ChatService
+  isWaitingForResponse = this.chatService.isWaitingForResponse;
+  isGenerating = this.chatService.isGenerating;
+  messages = this.chatService.messages;
+  currentSessionId = this.chatService.currentSessionId;
+  sessions = this.chatService.sessions;
   
   sidebarOpen = signal(false);
   isLoadingHistory = signal(false);
-  currentSessionId = signal('');
-  sessions = signal<ChatSessionSummaryDto[]>([]);
   isConnected = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
@@ -44,9 +51,15 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
     try {
       await this.chatService.connect();
       this.isConnected.set(true);
-      await this.loadSessions();
-      if (this.sessions().length > 0) {
-        await this.selectSession(this.sessions()[0].id);
+      
+      if (this.currentSessionId() && this.messages().length > 0) {
+        // Chat is already loaded (user came back from profile)
+        this.scrollToBottom();
+      } else {
+        await this.loadSessions();
+        if (this.sessions().length > 0) {
+          await this.selectSession(this.sessions()[0].id);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -122,7 +135,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
 
   renderMarkdown(text: string): string {
     const raw = marked.parse(text) as string;
-    return DOMPurify.sanitize(raw);
+    return DOMPurify.sanitize(raw, { ADD_ATTR: ['target'] });
   }
 
   scrollToBottom() {
@@ -133,6 +146,8 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       }
     }, 50);
   }
+
+  private currentStreamSub: any = null;
 
   async sendMessage() {
     if (!this.currentMessage.trim() || !this.isConnected() || this.isGenerating()) return;
@@ -151,10 +166,15 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
     this.scrollToBottom();
 
     try {
+      if (this.currentStreamSub) {
+        this.currentStreamSub.dispose();
+        this.currentStreamSub = null;
+      }
+
       const stream = this.chatService.streamMessage(this.currentSessionId(), text);
       let firstChunk = true;
 
-      stream.subscribe({
+      this.currentStreamSub = stream.subscribe({
         next: (chunk) => {
           if (firstChunk) {
             this.isWaitingForResponse.set(false);

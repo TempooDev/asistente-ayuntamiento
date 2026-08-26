@@ -150,10 +150,10 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea relevante.\nSi el usuario hace una pregunta general, de seguimiento o te saluda, ten una conversación normal de forma natural, usando el historial de la conversación.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
 
                     var originalMessage = lastUserMessage.Content;
-                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
+                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nSi el contexto es útil para el mensaje del usuario, úsalo. Si no, responde de forma conversacional basándote en el historial de chat previo.\n\nPregunta: {originalMessage}";
 
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
@@ -386,10 +386,10 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea relevante.\nSi el usuario hace una pregunta general, de seguimiento o te saluda, ten una conversación normal de forma natural, usando el historial de la conversación.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
 
                     var originalMessage = lastUserMessage.Content;
-                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
+                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nSi el contexto es útil para el mensaje del usuario, úsalo. Si no, responde de forma conversacional basándote en el historial de chat previo.\n\nPregunta: {originalMessage}";
 
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
@@ -448,6 +448,8 @@ public sealed class AiChatService
         int totalOutputTokens = 0;
 
         var enumerator = responseStream.GetAsyncEnumerator(cancellationToken);
+        bool hasYieldedChunks = false;
+        string? errorToYield = null;
         try
         {
             while (true)
@@ -462,12 +464,18 @@ public sealed class AiChatService
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
+                    if (!hasYieldedChunks)
+                    {
+                        errorToYield = $"\n\n[Error de conexión con la IA local/Ollama: {ex.Message}]";
+                        fullContent += errorToYield;
+                    }
                     break;
                 }
 
                 var content = chunk.Content;
                 if (!string.IsNullOrEmpty(content))
                 {
+                    hasYieldedChunks = true;
                     fullContent += content;
                     yield return content;
                 }
@@ -486,6 +494,11 @@ public sealed class AiChatService
         finally
         {
             await enumerator.DisposeAsync();
+        }
+
+        if (errorToYield != null)
+        {
+            yield return errorToYield;
         }
 
         stopwatch.Stop();
@@ -664,10 +677,10 @@ public sealed class AiChatService
         var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
             $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-        var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.\nSi la información no está disponible en el contexto, indícalo claramente.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+        var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea relevante.\nSi el usuario hace una pregunta general, de seguimiento o te saluda, ten una conversación normal de forma natural, usando el historial de la conversación.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
 
         var originalMessage = lastUserMessage.Content;
-        var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nBasándote exclusivamente en el contexto anterior, responde a la siguiente pregunta del usuario.\n\nPregunta: {originalMessage}";
+        var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nSi el contexto es útil para el mensaje del usuario, úsalo. Si no, responde de forma conversacional basándote en el historial de chat previo.\n\nPregunta: {originalMessage}";
 
         var lastMsgIndex = history.Count - 1;
         history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);

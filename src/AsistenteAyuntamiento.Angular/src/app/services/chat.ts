@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { AuthService } from '@auth0/auth0-angular';
 import * as signalR from '@microsoft/signalr';
 import { Subject, Observable, firstValueFrom } from 'rxjs';
@@ -17,10 +17,22 @@ export interface ChatMessageDto {
   createdAt: string;
 }
 
+export interface ChatMessage {
+  text: string;
+  isUser: boolean;
+  html?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ChatService {
+  public currentSessionId = signal<string>('');
+  public messages = signal<ChatMessage[]>([]);
+  public isGenerating = signal(false);
+  public isWaitingForResponse = signal(false);
+  public sessions = signal<ChatSessionSummaryDto[]>([]);
+
   private hubConnection: signalR.HubConnection | null = null;
   private auth = inject(AuthService);
   
