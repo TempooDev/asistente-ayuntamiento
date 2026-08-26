@@ -2,9 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/AsistenteAyuntamiento.ApiService/AsistenteAyuntamiento.ApiService.csproj" />
     <Project Path="src/AsistenteAyuntamiento.AppHost/AsistenteAyuntamiento.AppHost.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Gateway/AsistenteAyuntamiento.Gateway.csproj" />
     <Project Path="src/AsistenteAyuntamiento.ServiceDefaults/AsistenteAyuntamiento.ServiceDefaults.csproj" />
-    <Project Path="src/AsistenteAyuntamiento.Web/AsistenteAyuntamiento.Web.csproj" />
-    <Project Path="src/AsistenteAyuntamiento.Web.Client/AsistenteAyuntamiento.Web.Client.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Shared/AsistenteAyuntamiento.Shared.csproj" />
     <Project Path="src/AsistenteAyuntamiento.Worker/AsistenteAyuntamiento.Worker.csproj" />
   </Folder>
 </Solution>
