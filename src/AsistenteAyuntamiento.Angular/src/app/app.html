@@ -1,0 +1,81 @@
+<div class="bg-background text-on-background font-body-md antialiased min-h-screen flex w-full">
+    
+    <!-- TopNavBar (Mobile Only) -->
+    <header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 fixed top-0 z-50 bg-surface border-b border-outline-variant shadow-sm transition-all duration-200">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-primary font-bold">menu</span>
+            <span class="font-headline-md text-headline-md font-bold text-primary">AdminAI</span>
+        </div>
+        <div class="flex items-center gap-sm">
+            <button class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" (click)="toggleTheme()" title="Cambiar Tema">dark_mode</button>
+            <ng-container *ngIf="auth.isAuthenticated$ | async; else notAuthorizedMobile">
+                <img *ngIf="auth.user$ | async as user" [src]="user.picture || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDRzh4xi4S2Cy3l41fTkbdvmWfQyqY0-VEz3ULrKZmqmGYCRdzOqlwEE8SNA7E-TJTpZN6IR0BYMTigg-pVFm9Z5DhKEO-OH2IfAaXuBkiEGsZidHkPhc-prOPuDrNOqeKjeWtrtrbOv_62sk8rFa-ewLY7WYOjaUENz1IzYRkU4TuSrX6RSF9QoxeBBeJ05-CSe5FwD8AwIrOl_yAyYL3Ny62z_9Ego_EEGWrp5bsFRZ2coodosq6w'" alt="User avatar" class="w-8 h-8 rounded-full bg-surface-variant object-cover"/>
+            </ng-container>
+            <ng-template #notAuthorizedMobile>
+                <button (click)="login()" class="material-symbols-outlined text-secondary p-sm rounded-full">login</button>
+            </ng-template>
+        </div>
+    </header>
+
+    <!-- SideNavBar (Desktop) -->
+    <aside class="hidden md:flex fixed left-0 top-0 h-full flex-col py-lg border-r z-40 bg-surface-container-low border-outline-variant w-64">
+        <div class="px-md mb-xl flex items-center gap-sm">
+            <div class="w-10 h-10 rounded bg-primary flex items-center justify-center text-on-primary">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assured_workload</span>
+            </div>
+            <div>
+                <h1 class="font-headline-md text-headline-md font-bold text-on-surface">AdminAI</h1>
+                <p class="font-label-sm text-label-sm text-on-surface-variant">Institutional Portal</p>
+            </div>
+        </div>
+        <div class="px-md mb-lg">
+            <a routerLink="/chat" class="w-full bg-primary text-on-primary font-label-md text-label-md py-3 rounded-lg hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-sm min-h-[44px]">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+                Nueva Consulta
+            </a>
+        </div>
+        <div class="flex-1 px-md flex flex-col gap-xs font-label-md text-label-md">
+            <a routerLink="/chat" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                <span class="material-symbols-outlined">chat</span>
+                <span>Chat</span>
+            </a>
+            <a routerLink="/documentos" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                <span class="material-symbols-outlined">description</span>
+                <span>Documentos</span>
+            </a>
+            <a routerLink="/configuracion" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                <span class="material-symbols-outlined">settings_input_component</span>
+                <span>Configuración IA</span>
+            </a>
+            <ng-container *ngIf="auth.isAuthenticated$ | async">
+                <a routerLink="/perfil" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                    <span class="material-symbols-outlined">account_circle</span>
+                    <span class="truncate">Perfil</span>
+                </a>
+            </ng-container>
+        </div>
+        <div class="mt-auto px-md flex flex-col gap-xs font-label-md text-label-md border-t border-outline-variant pt-md">
+            <button class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg" (click)="toggleTheme()">
+                <span class="material-symbols-outlined">dark_mode</span>
+                <span>Cambiar Tema</span>
+            </button>
+            <ng-container *ngIf="auth.isAuthenticated$ | async; else notAuthorizedDesktop">
+                <button (click)="logout()" class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                    <span class="material-symbols-outlined">logout</span>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </ng-container>
+            <ng-template #notAuthorizedDesktop>
+                <button (click)="login()" class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                    <span class="material-symbols-outlined">login</span>
+                    <span>Iniciar Sesión</span>
+                </button>
+            </ng-template>
+        </div>
+    </aside>
+
+    <!-- Main Canvas -->
+    <main class="flex-1 flex flex-col min-h-screen bg-surface relative pt-16 md:pt-0 md:ml-64 w-full">
+        <router-outlet></router-outlet>
+    </main>
+</div>

@@ -94,9 +94,9 @@ apiService.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
           .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
           .WithEnvironment("Blob__BucketName", blobBucketName);
 
-var webfrontend = builder.AddProject<Projects.AsistenteAyuntamiento_Web>("webfrontend")
+var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
+    .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints()
-    .WithHttpHealthCheck("/health")
     .WithReference(apiService)
     .WithReference(db)
     .WaitFor(apiService)
