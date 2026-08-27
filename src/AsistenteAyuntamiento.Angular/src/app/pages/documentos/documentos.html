@@ -89,15 +89,15 @@
                             <td class="p-sm font-body-md whitespace-nowrap">{{ getSizeKb(blob.size) }} KB</td>
                             <td class="p-sm font-body-md whitespace-nowrap">{{ blob.lastModified ? (blob.lastModified | date:'short') : '-' }}</td>
                             <td class="p-sm font-body-md">
-                                @if (blob.status === 'Completed') {
+                                @if (blob.status === IngestionStatus.Completed) {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                                         Procesado
                                     </span>
-                                } @else if (blob.status === 'Processing') {
+                                } @else if (blob.status === IngestionStatus.Processing) {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
                                         Procesando...
                                     </span>
-                                } @else if (blob.status === 'Failed') {
+                                } @else if (blob.status === IngestionStatus.Failed) {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                         Fallo
                                     </span>
@@ -109,9 +109,9 @@
                             </td>
                             <td class="p-sm font-body-md">
                                 <button class="btn btn-sm btn-outline border border-outline rounded px-3 py-1" 
-                                        [disabled]="blob.status === 'Processing'" 
+                                        [disabled]="blob.status === IngestionStatus.Processing" 
                                         (click)="processBlob(blob.name)">
-                                    {{ blob.status === 'Completed' ? 'Reprocesar' : (blob.status === 'Processing' ? 'Procesando...' : 'Procesar') }}
+                                    {{ blob.status === IngestionStatus.Completed ? 'Reprocesar' : (blob.status === IngestionStatus.Processing ? 'Procesando...' : 'Procesar') }}
                                 </button>
                             </td>
                         </tr>

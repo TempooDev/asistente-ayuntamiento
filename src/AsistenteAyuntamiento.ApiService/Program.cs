@@ -74,6 +74,7 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 {
     options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(30);
     options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
+    options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(60);
 });
 
 // Register Semantic Kernel with configurable provider

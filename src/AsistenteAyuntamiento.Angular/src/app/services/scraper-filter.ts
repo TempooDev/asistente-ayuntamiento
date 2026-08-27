@@ -2,17 +2,30 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 
+export enum DocumentSource {
+  BOE = 'BOE',
+  BOJA = 'BOJA',
+  BOPMA = 'BOPMA',
+  Unknown = 'Unknown'
+}
+
+export enum FilterType {
+  Department = 'Department',
+  Section = 'Section',
+  Keyword = 'Keyword'
+}
+
 export interface ScraperFilterRuleDto {
   id: number;
-  provider: string;
-  filterType: string;
+  provider: DocumentSource;
+  filterType: FilterType;
   value: string;
   isActive: boolean;
 }
 
 export interface CreateFilterRuleDto {
-  provider: string;
-  filterType: string;
+  provider: DocumentSource;
+  filterType: FilterType;
   value: string;
 }
 
@@ -21,7 +34,7 @@ export interface UpdateFilterRuleStatusDto {
 }
 
 export interface TriggerScrapeDto {
-  provider: string;
+  provider: DocumentSource;
 }
 
 @Injectable({

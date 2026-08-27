@@ -3,12 +3,20 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
+export enum IngestionStatus {
+  Pending = 'Pending',
+  Processing = 'Processing',
+  Completed = 'Completed',
+  Failed = 'Failed',
+  Unknown = 'Unknown'
+}
+
 export interface BlobInfo {
   name: string;
   size: number;
   lastModified?: string;
   isProcessed: boolean;
-  status: string;
+  status: IngestionStatus;
 }
 
 export interface ProcessResponse {

@@ -1,7 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { IngestionService, BlobInfo } from '../../services/ingestion';
+import { IngestionService, BlobInfo, IngestionStatus } from '../../services/ingestion';
+import { DocumentSource } from '../../services/scraper-filter';
 
 @Component({
   selector: 'app-documentos',
@@ -27,6 +28,9 @@ export class DocumentosComponent implements OnInit {
   
   currentPage = signal(1);
 
+  // Expose enum to template
+  IngestionStatus = IngestionStatus;
+
   // Computed state for pagination and filtering
   filteredBlobs = computed(() => {
     const currentBlobs = this.blobs();
@@ -45,8 +49,8 @@ export class DocumentosComponent implements OnInit {
       
       // Status match
       if (status !== 'Todos') {
-        if (status === 'Procesados' && b.status !== 'Completed') return false;
-        if (status === 'Pendientes' && !['Pending', 'Failed', 'Processing'].includes(b.status)) return false;
+        if (status === 'Procesados' && b.status !== IngestionStatus.Completed) return false;
+        if (status === 'Pendientes' && ![IngestionStatus.Pending, IngestionStatus.Failed, IngestionStatus.Processing].includes(b.status)) return false;
       }
       
       // Date match
@@ -128,20 +132,20 @@ export class DocumentosComponent implements OnInit {
     const docId = parts.length > 0 ? parts[parts.length - 1].replace('.json', '') : '';
     const source = parts.length > 1 ? parts[1] : '';
     
-    if (source === 'BOE') {
+    if (source === DocumentSource.BOE) {
       return `https://www.boe.es/buscar/doc.php?id=${docId}`;
-    } else if (source === 'BOJA') {
+    } else if (source === DocumentSource.BOJA) {
       const docParts = docId.split('-');
-      if (docParts.length >= 4 && docParts[0] === 'BOJA') {
+      if (docParts.length >= 4 && docParts[0] === DocumentSource.BOJA) {
         const year = docParts[1];
         const num = docParts[2];
         const disp = docParts.slice(3).join('-');
         return `http://www.juntadeandalucia.es/boja/${year}/${num}/${disp}.html`;
       }
-    } else if (source === 'BOPMA') {
-      const docParts = docId.split('BOPMA-');
+    } else if (source === DocumentSource.BOPMA) {
+      const docParts = docId.split(`${DocumentSource.BOPMA}-`);
       if (docParts.length > 1) {
-        let filename = docParts.slice(1).join('BOPMA-');
+        let filename = docParts.slice(1).join(`${DocumentSource.BOPMA}-`);
         if (filename.includes('verificacion.php?archivo=')) {
           filename = filename.split('verificacion.php?archivo=')[1];
         }

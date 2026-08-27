@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { AiConfigService, SaveAiConfigurationDto } from '../../services/ai-config';
-import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto } from '../../services/scraper-filter';
+import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto, DocumentSource, FilterType } from '../../services/scraper-filter';
 
 @Component({
   selector: 'app-configuracion',
@@ -34,7 +34,10 @@ export class ConfiguracionComponent implements OnInit {
   filters = signal<ScraperFilterRuleDto[]>([]);
   isLoadingFilters = signal(false);
   isTriggeringScrape = signal(false);
-  newFilter = signal<CreateFilterRuleDto>({ provider: 'BOE', filterType: 'Department', value: '' });
+  newFilter = signal<CreateFilterRuleDto>({ provider: DocumentSource.BOE, filterType: FilterType.Department, value: '' });
+
+  // Expose enums to template
+  DocumentSource = DocumentSource;
 
   async ngOnInit() {
     await this.cargarConfiguracion();
@@ -115,7 +118,7 @@ export class ConfiguracionComponent implements OnInit {
     this.scraperClient.createFilter(this.newFilter()).subscribe({
       next: (rule) => {
         this.filters.update(f => [...f, rule]);
-        this.newFilter.set({ provider: 'BOE', filterType: 'Department', value: '' });
+        this.newFilter.set({ provider: DocumentSource.BOE, filterType: FilterType.Department, value: '' });
       },
       error: (e) => console.error(e)
     });
@@ -141,7 +144,7 @@ export class ConfiguracionComponent implements OnInit {
 
   scrapeResultMessage = signal<{ type: 'success' | 'error', text: string } | null>(null);
 
-  forzarScrape(provider: string) {
+  forzarScrape(provider: DocumentSource) {
     this.isTriggeringScrape.set(true);
     this.scrapeResultMessage.set(null);
     this.scraperClient.triggerScrape({ provider }).subscribe({

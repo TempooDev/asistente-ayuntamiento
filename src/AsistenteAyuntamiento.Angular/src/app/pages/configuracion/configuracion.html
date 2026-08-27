@@ -171,9 +171,9 @@
             <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
             <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de los documentos correspondientes al día de hoy.</p>
             <div class="flex gap-4">
-                <button (click)="forzarScrape('BOE')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOE</button>
-                <button (click)="forzarScrape('BOJA')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOJA</button>
-                <button (click)="forzarScrape('BOPMA')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOPMA</button>
+                <button (click)="forzarScrape(DocumentSource.BOE)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOE</button>
+                <button (click)="forzarScrape(DocumentSource.BOJA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOJA</button>
+                <button (click)="forzarScrape(DocumentSource.BOPMA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOPMA</button>
             </div>
             <p *ngIf="isTriggeringScrape()" class="mt-4 text-sm text-primary flex items-center gap-2">
                 <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span> 
