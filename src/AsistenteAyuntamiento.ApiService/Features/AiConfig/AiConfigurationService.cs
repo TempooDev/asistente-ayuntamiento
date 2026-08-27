@@ -24,7 +24,7 @@ public class AiConfigurationService
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {
         var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
         
         var defaultConfig = _configuration; // IConfiguration injected
 
@@ -53,7 +53,7 @@ public class AiConfigurationService
     public async Task<string?> GetDecryptedApiKeyAsync()
     {
         var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
         
         if (config == null || string.IsNullOrEmpty(config.EncryptedApiKey))
         {
@@ -70,10 +70,10 @@ public class AiConfigurationService
         }
     }
 
-    public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync()
+    public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync(string? explicitTenantId = null)
     {
-        var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var tenantId = explicitTenantId ?? _tenantService.TenantId;
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
         
         if (config == null)
         {
@@ -116,7 +116,7 @@ public class AiConfigurationService
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto)
     {
         var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
         
         if (config == null)
         {
