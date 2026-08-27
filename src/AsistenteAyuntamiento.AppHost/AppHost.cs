@@ -128,9 +128,13 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
 
 var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
+    .WithHttpEndpoint(targetPort: 50051, name: "grpc", env: "GRPC_PORT")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
-    .WaitFor(rabbitmq);
+    .WithReference(apiService)
+    .WithEnvironment("DOTNET_API_GRPC_URL", apiService.GetEndpoint("http"))
+    .WaitFor(rabbitmq)
+    .WaitFor(apiService);
 
 if (!string.IsNullOrEmpty(blobEndpoint))
 {
@@ -144,6 +148,8 @@ else
 goScraper.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
          .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
          .WithEnvironment("Blob__BucketName", blobBucketName);
+
+apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
 var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
     .WithReference(db)

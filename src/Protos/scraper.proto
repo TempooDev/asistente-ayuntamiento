@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package scraper;
+
+option csharp_namespace = "AsistenteAyuntamiento.ApiService.Protos";
+option go_package = "./protos";
+
+// ------------------------------------
+// Service hosted by .NET API
+// ------------------------------------
+service FilterConfigService {
+  rpc GetActiveFilters (EmptyRequest) returns (FilterRulesResponse);
+}
+
+// ------------------------------------
+// Service hosted by Go Scraper
+// ------------------------------------
+service ScraperCommandService {
+  rpc ForceScrape (ForceScrapeRequest) returns (ForceScrapeResponse);
+}
+
+// Messages
+
+message EmptyRequest {}
+
+message FilterRule {
+  int32 id = 1;
+  string provider = 2;
+  string filter_type = 3;
+  string value = 4;
+}
+
+message FilterRulesResponse {
+  repeated FilterRule rules = 1;
+}
+
+message ForceScrapeRequest {
+  string provider = 1; // "BOE", "BOJA", "BOPMA"
+  // Could add more parameters like date range or section if needed
+}
+
+message ForceScrapeResponse {
+  bool success = 1;
+  string message = 2;
+  int32 items_extracted = 3;
+}

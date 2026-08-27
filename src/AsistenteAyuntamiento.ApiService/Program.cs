@@ -64,6 +64,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
+builder.Services.AddGrpc();
+builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
+{
+    var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
+    o.Address = new Uri(goScraperUrl);
+});
 
 // Register Semantic Kernel with configurable provider
 #pragma warning disable SKEXP0070 // Experimental connectors warning
@@ -212,9 +218,12 @@ app.UseAuthorization();
 
 app.MapHub<ChatHub>("/hubs/chat");
 
+app.MapGrpcService<AsistenteAyuntamiento.ApiService.Features.Scraper.FilterConfigServiceImpl>();
+
 UserEndpoints.MapUserEndpoints(app);
 AiConfigEndpoints.MapAiConfigEndpoints(app);
 IngestionEndpoints.MapIngestionEndpoints(app);
+AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
 app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();

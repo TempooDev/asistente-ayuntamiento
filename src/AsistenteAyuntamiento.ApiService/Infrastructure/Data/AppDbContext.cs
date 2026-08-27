@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentJobState> DocumentJobStates { get; set; }
+    public DbSet<Features.Scraper.ScraperFilterRule> ScraperFilterRules { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,6 +72,12 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("AiConfigurations", "identity");
             entity.HasQueryFilter(c => c.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<Features.Scraper.ScraperFilterRule>(entity =>
+        {
+            entity.ToTable("ScraperFilterRules", "scraper");
+            // Not adding tenant filter because scraping is global, according to domain rules
         });
     }
 }

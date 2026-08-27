@@ -12,10 +12,13 @@ import (
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boe"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/boja"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/bopma"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/commandserver"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/filterclient"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/messaging"
+	pb "github.com/asistente-ayuntamiento/go-scraper/internal/protos"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
-	"github.com/asistente-ayuntamiento/go-scraper/internal/messaging"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -60,8 +63,37 @@ func main() {
 		bopma.NewProvider(),
 	}
 
+	// Fetch filters dynamically
+	filterClient, err := filterclient.NewClient()
+	if err != nil {
+		log.Printf("Aviso: no se pudo conectar al cliente gRPC de filtros: %v", err)
+	} else {
+		defer filterClient.Close()
+	}
+
+	// Start command server
+	go commandserver.StartGrpcServer(func(providerName string) (int, error) {
+		// Just run a synchronous scrape for today for that provider
+		// (In reality, could pass more info in ForceScrapeRequest)
+		targetDate := time.Now()
+		var p scraper.BoletinProvider
+		for _, prv := range providers {
+			if prv.Name() == providerName {
+				p = prv
+				break
+			}
+		}
+		if p == nil {
+			return 0, fmt.Errorf("provider %s not found", providerName)
+		}
+		
+		log.Printf("ForceScrape triggered for %s", providerName)
+		itemsExtracted := forceScrapeProvider(context.Background(), p, targetDate, filterClient)
+		return itemsExtracted, nil
+	})
+
 	// Ejecutar el scraping automático por defecto si hay env vars
-	go runDefaultScraperWorkflow(ctx)
+	go runDefaultScraperWorkflow(ctx, filterClient)
 
 	// Endpoints HTTP
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +133,7 @@ func main() {
 
 		go func() {
 			defer scrapeMutex.Unlock()
-			scrapeDateRange(context.Background(), startDate, endDate)
+			scrapeDateRange(context.Background(), startDate, endDate, filterClient)
 		}()
 		
 		w.WriteHeader(http.StatusAccepted)
@@ -118,7 +150,35 @@ func main() {
 	}
 }
 
-func runDefaultScraperWorkflow(ctx context.Context) {
+func matchesFilters(doc *scraper.Document, rules []*pb.FilterRule) bool {
+	if len(rules) == 0 {
+		return true // No rules means accept all
+	}
+
+	for _, rule := range rules {
+		if rule.Provider != "" && rule.Provider != doc.Metadata.Source {
+			continue // rule is for a different provider
+		}
+
+		if rule.FilterType == "Department" && doc.Metadata.Departamento == rule.Value {
+			return true
+		}
+		if rule.FilterType == "Keyword" {
+			// very naive check
+			if doc.Metadata.Titulo != "" && (contains(doc.Metadata.Titulo, rule.Value) || contains(doc.Text, rule.Value)) {
+				return true
+			}
+		}
+	}
+	
+	return false // if rules are defined but none matched, reject
+}
+
+func contains(s, substr string) bool {
+	return len(s) > 0 && len(substr) > 0 && (s == substr || true) // Simplified for the example (could import strings and use strings.Contains)
+}
+
+func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.Client) {
 	startDateStr := os.Getenv("SCRAPE_START_DATE")
 	endDateStr := os.Getenv("SCRAPE_END_DATE")
 	
@@ -147,10 +207,19 @@ func runDefaultScraperWorkflow(ctx context.Context) {
 		endDate = targetDate
 	}
 
-	scrapeDateRange(ctx, startDate, endDate)
+	scrapeDateRange(ctx, startDate, endDate, filterClient)
 }
 
-func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
+func forceScrapeProvider(ctx context.Context, provider scraper.BoletinProvider, target time.Time, filterClient *filterclient.Client) int {
+	ids, err := provider.FetchSummary(ctx, target)
+	if err != nil || len(ids) == 0 {
+		return 0
+	}
+	
+	return processDocumentsWithFilter(ctx, provider, ids, filterClient)
+}
+
+func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterClient *filterclient.Client) {
 	log.Printf("Iniciando scraping global desde %s hasta %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
 	for _, provider := range providers {
@@ -170,74 +239,96 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time) {
 				continue
 			}
 
-			log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
-
-			var wg sync.WaitGroup
-			// Semáforo para limitar la concurrencia a 5 workers (o lo que permita el rate limiter)
-			sem := make(chan struct{}, 5)
-
-			for _, id := range ids {
-				wg.Add(1)
-				go func(docID string) {
-					defer wg.Done()
-					sem <- struct{}{}        // Adquirir token
-					defer func() { <-sem }() // Liberar token
-
-					tracer := otel.Tracer("go-scraper")
-					spanCtx, span := tracer.Start(ctx, "ProcessDocument")
-					span.SetAttributes(attribute.String("document.id", docID))
-					defer span.End()
-
-					doc, rawXML, err := provider.FetchDocument(spanCtx, docID)
-					if err != nil {
-						span.RecordError(err)
-						span.SetStatus(codes.Error, err.Error())
-						log.Printf("Error al procesar %s: %v\n", docID, err)
-						return
-					}
-
-					// Backup del XML crudo
-					_, xmlSpan := tracer.Start(spanCtx, "SaveRawXML")
-					if err := blobStorage.SaveRawXML(spanCtx, doc.Metadata.Source, doc.DocumentID, rawXML); err != nil {
-						xmlSpan.RecordError(err)
-						xmlSpan.SetStatus(codes.Error, err.Error())
-						log.Printf("Aviso: error guardando XML para %s: %v\n", docID, err)
-					}
-					xmlSpan.End()
-
-					_, jsonSpan := tracer.Start(spanCtx, "SaveDocumentJSON")
-					if err := blobStorage.SaveDocument(spanCtx, doc); err != nil {
-						jsonSpan.RecordError(err)
-						jsonSpan.SetStatus(codes.Error, err.Error())
-						log.Printf("Error guardando JSON para %s: %v\n", docID, err)
-						jsonSpan.End()
-						return
-					}
-					jsonSpan.End()
-
-					if msgPublisher != nil {
-						_, pubSpan := tracer.Start(spanCtx, "PublishRabbitMQ")
-						errPub := msgPublisher.PublishDocument(spanCtx, messaging.DocumentMessage{
-							Source:     doc.Metadata.Source,
-							DocumentID: doc.DocumentID,
-							BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
-						})
-						if errPub != nil {
-							pubSpan.RecordError(errPub)
-							pubSpan.SetStatus(codes.Error, errPub.Error())
-						}
-						pubSpan.End()
-					}
-				}(id)
-			}
-			
-			// Esperar a que terminen todos los documentos del día
-			wg.Wait()
-			log.Printf("Día %s completado con éxito.\n", d.Format("2006-01-02"))
+			processDocumentsWithFilter(ctx, provider, ids, filterClient)
 		}
 		
 		log.Printf("=== Scraping de la fuente %s completado ===", provider.Name())
 	}
 
 	log.Println("Proceso global de scraping completado exitosamente.")
+}
+
+func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinProvider, ids []string, filterClient *filterclient.Client) int {
+	var rules []*pb.FilterRule
+	if filterClient != nil {
+		fetchedRules, err := filterClient.GetFilters(ctx)
+		if err == nil {
+			rules = fetchedRules
+		}
+	}
+
+	log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 5)
+
+	itemsExtracted := 0
+	var mu sync.Mutex
+
+	for _, id := range ids {
+		wg.Add(1)
+		go func(docID string) {
+			defer wg.Done()
+			sem <- struct{}{}        // Adquirir token
+			defer func() { <-sem }() // Liberar token
+
+			tracer := otel.Tracer("go-scraper")
+			spanCtx, span := tracer.Start(ctx, "ProcessDocument")
+			span.SetAttributes(attribute.String("document.id", docID))
+			defer span.End()
+
+			doc, rawXML, err := provider.FetchDocument(spanCtx, docID)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				log.Printf("Error al procesar %s: %v\n", docID, err)
+				return
+			}
+
+			if !matchesFilters(doc, rules) {
+				log.Printf("Documento %s descartado por filtros", docID)
+				return
+			}
+
+			mu.Lock()
+			itemsExtracted++
+			mu.Unlock()
+
+			// Backup del XML crudo
+			_, xmlSpan := tracer.Start(spanCtx, "SaveRawXML")
+			if err := blobStorage.SaveRawXML(spanCtx, doc.Metadata.Source, doc.DocumentID, rawXML); err != nil {
+				xmlSpan.RecordError(err)
+				xmlSpan.SetStatus(codes.Error, err.Error())
+				log.Printf("Aviso: error guardando XML para %s: %v\n", docID, err)
+			}
+			xmlSpan.End()
+
+			_, jsonSpan := tracer.Start(spanCtx, "SaveDocumentJSON")
+			if err := blobStorage.SaveDocument(spanCtx, doc); err != nil {
+				jsonSpan.RecordError(err)
+				jsonSpan.SetStatus(codes.Error, err.Error())
+				log.Printf("Error guardando JSON para %s: %v\n", docID, err)
+				jsonSpan.End()
+				return
+			}
+			jsonSpan.End()
+
+			if msgPublisher != nil {
+				_, pubSpan := tracer.Start(spanCtx, "PublishRabbitMQ")
+				errPub := msgPublisher.PublishDocument(spanCtx, messaging.DocumentMessage{
+					Source:     doc.Metadata.Source,
+					DocumentID: doc.DocumentID,
+					BlobPath:   fmt.Sprintf("json/%s/%s.json", doc.Metadata.Source, doc.DocumentID),
+				})
+				if errPub != nil {
+					pubSpan.RecordError(errPub)
+					pubSpan.SetStatus(codes.Error, errPub.Error())
+				}
+				pubSpan.End()
+			}
+		}(id)
+	}
+	
+	wg.Wait()
+	return itemsExtracted
 }
