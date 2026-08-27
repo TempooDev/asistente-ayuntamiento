@@ -22,11 +22,17 @@ public static class UserEndpoints
 
             if (profile == null)
             {
+                // Try to get name from standard claims or custom namespaced claims
+                var nameClaim = user.FindFirst("name")?.Value 
+                             ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
+                             ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
+
                 // Create empty profile on first access
                 profile = new UserProfile
                 {
                     Auth0UserId = auth0Id,
-                    TenantId = tenantService.TenantId
+                    TenantId = tenantService.TenantId,
+                    FullName = nameClaim ?? string.Empty
                 };
                 db.UserProfiles.Add(profile);
                 await db.SaveChangesAsync();
