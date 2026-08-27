@@ -39,21 +39,35 @@ export class PerfilComponent implements OnInit {
 
   loadProfile() {
     this.isLoading = true;
-    this.userService.getProfile()
-      .pipe(finalize(() => this.isLoading = false))
-      .subscribe({
-        next: (profile) => {
-          this.profileForm.patchValue({
-            fullName: profile.fullName || '',
-            department: profile.department || '',
-            position: profile.position || '',
-            phoneNumber: profile.phoneNumber || ''
+    
+    // First subscribe to Auth0 user to get default values
+    this.auth.user$.subscribe(authUser => {
+      if (authUser) {
+        // Pre-fill with Auth0 data
+        this.profileForm.patchValue({
+          fullName: authUser.name || '',
+        });
+
+        // Then fetch from backend, which will overwrite if there are saved values
+        this.userService.getProfile()
+          .pipe(finalize(() => this.isLoading = false))
+          .subscribe({
+            next: (profile) => {
+              this.profileForm.patchValue({
+                fullName: profile.fullName || authUser.name || '',
+                department: profile.department || '',
+                position: profile.position || '',
+                phoneNumber: profile.phoneNumber || ''
+              });
+            },
+            error: (err) => {
+              console.error('Error loading profile', err);
+            }
           });
-        },
-        error: (err) => {
-          console.error('Error loading profile', err);
-        }
-      });
+      } else {
+        this.isLoading = false;
+      }
+    });
   }
 
   toggleEdit() {

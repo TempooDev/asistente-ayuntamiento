@@ -29,7 +29,7 @@ export interface TriggerScrapeDto {
 })
 export class ScraperFilterService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiBaseUrl}/api/scraper-filters`;
+  private apiUrl = `${environment.apiBaseUrl}/api/scraper/filters`;
 
   getFilters() {
     return this.http.get<ScraperFilterRuleDto[]>(this.apiUrl);
