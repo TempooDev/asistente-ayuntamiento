@@ -139,15 +139,24 @@ export class ConfiguracionComponent implements OnInit {
     });
   }
 
+  scrapeResultMessage = signal<{ type: 'success' | 'error', text: string } | null>(null);
+
   forzarScrape(provider: string) {
     this.isTriggeringScrape.set(true);
+    this.scrapeResultMessage.set(null);
     this.scraperClient.triggerScrape({ provider }).subscribe({
       next: (res: any) => {
-        alert(`Scrape finalizado. Éxito: ${res.success}. Items extraídos: ${res.itemsExtracted}`);
+        this.scrapeResultMessage.set({
+          type: res.success ? 'success' : 'error',
+          text: `Scrape de ${provider} finalizado. Éxito: ${res.success}. Items extraídos: ${res.itemsExtracted}`
+        });
         this.isTriggeringScrape.set(false);
       },
       error: (e) => {
-        alert(`Error al forzar el scrape: ${e.message}`);
+        this.scrapeResultMessage.set({
+          type: 'error',
+          text: `Error al forzar el scrape de ${provider}: ${e.message}`
+        });
         this.isTriggeringScrape.set(false);
       }
     });

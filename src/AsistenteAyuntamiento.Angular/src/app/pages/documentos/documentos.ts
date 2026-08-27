@@ -127,8 +127,26 @@ export class DocumentosComponent implements OnInit {
     const parts = blobName.split('/');
     const docId = parts.length > 0 ? parts[parts.length - 1].replace('.json', '') : '';
     const source = parts.length > 1 ? parts[1] : '';
+    
     if (source === 'BOE') {
       return `https://www.boe.es/buscar/doc.php?id=${docId}`;
+    } else if (source === 'BOJA') {
+      const docParts = docId.split('-');
+      if (docParts.length >= 4 && docParts[0] === 'BOJA') {
+        const year = docParts[1];
+        const num = docParts[2];
+        const disp = docParts.slice(3).join('-');
+        return `http://www.juntadeandalucia.es/boja/${year}/${num}/${disp}.html`;
+      }
+    } else if (source === 'BOPMA') {
+      const docParts = docId.split('BOPMA-');
+      if (docParts.length > 1) {
+        let filename = docParts.slice(1).join('BOPMA-');
+        if (filename.includes('verificacion.php?archivo=')) {
+          filename = filename.split('verificacion.php?archivo=')[1];
+        }
+        return `https://www.bopmalaga.es/verificacion.php?archivo=${filename}.pdf`;
+      }
     }
     return null;
   }

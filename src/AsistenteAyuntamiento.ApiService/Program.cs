@@ -69,6 +69,11 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 {
     var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
     o.Address = new Uri(goScraperUrl);
+})
+.AddStandardResilienceHandler(options => 
+{
+    options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(30);
+    options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
 });
 
 // Register Semantic Kernel with configurable provider

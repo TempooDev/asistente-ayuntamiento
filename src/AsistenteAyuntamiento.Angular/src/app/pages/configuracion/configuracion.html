@@ -169,7 +169,7 @@
         <!-- Force Scrape section -->
         <div class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
             <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la ejecución síncrona del scraper para el día de hoy utilizando la configuración de gRPC.</p>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de los documentos correspondientes al día de hoy.</p>
             <div class="flex gap-4">
                 <button (click)="forzarScrape('BOE')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOE</button>
                 <button (click)="forzarScrape('BOJA')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOJA</button>
@@ -179,6 +179,12 @@
                 <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span> 
                 Procesando documentos. Esto puede tardar varios minutos dependiendo del volumen del boletín...
             </p>
+
+            @if (scrapeResultMessage()) {
+                <div class="mt-4 p-3 rounded" [ngClass]="scrapeResultMessage()!.type === 'success' ? 'bg-tertiary-fixed-dim text-on-tertiary-fixed-variant' : 'bg-error-container text-on-error-container'">
+                    {{ scrapeResultMessage()!.text }}
+                </div>
+            }
         </div>
     </ng-container>
 </div>
