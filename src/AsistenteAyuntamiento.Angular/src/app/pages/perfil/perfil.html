@@ -44,18 +44,44 @@
           <div class="flex-1 w-full" [formGroup]="profileForm">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              <!-- Nombre -->
+              <!-- Full Name -->
               <div>
                 <label class="block font-label-sm text-on-surface-variant mb-1">Nombre Completo</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">{{ user.name }}</div>
-                <input *ngIf="isEditing" type="text" formControlName="name" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
+                  <span *ngIf="profileForm.get('fullName')?.value">{{ profileForm.get('fullName')?.value }}</span>
+                  <span *ngIf="!profileForm.get('fullName')?.value" class="text-on-surface-variant italic">No especificado</span>
+                </div>
+                <input *ngIf="isEditing" type="text" formControlName="fullName" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
               </div>
 
-              <!-- Nickname -->
+              <!-- Department -->
               <div>
-                <label class="block font-label-sm text-on-surface-variant mb-1">Apodo / Nombre corto</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">{{ user.nickname || '-' }}</div>
-                <input *ngIf="isEditing" type="text" formControlName="nickname" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                <label class="block font-label-sm text-on-surface-variant mb-1">Departamento</label>
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
+                  <span *ngIf="profileForm.get('department')?.value">{{ profileForm.get('department')?.value }}</span>
+                  <span *ngIf="!profileForm.get('department')?.value" class="text-on-surface-variant italic">No especificado</span>
+                </div>
+                <input *ngIf="isEditing" type="text" formControlName="department" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+              </div>
+
+              <!-- Position -->
+              <div>
+                <label class="block font-label-sm text-on-surface-variant mb-1">Cargo</label>
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
+                  <span *ngIf="profileForm.get('position')?.value">{{ profileForm.get('position')?.value }}</span>
+                  <span *ngIf="!profileForm.get('position')?.value" class="text-on-surface-variant italic">No especificado</span>
+                </div>
+                <input *ngIf="isEditing" type="text" formControlName="position" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+              </div>
+
+              <!-- Phone Number -->
+              <div>
+                <label class="block font-label-sm text-on-surface-variant mb-1">Teléfono</label>
+                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
+                  <span *ngIf="profileForm.get('phoneNumber')?.value">{{ profileForm.get('phoneNumber')?.value }}</span>
+                  <span *ngIf="!profileForm.get('phoneNumber')?.value" class="text-on-surface-variant italic">No especificado</span>
+                </div>
+                <input *ngIf="isEditing" type="tel" formControlName="phoneNumber" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
               </div>
             </div>
 

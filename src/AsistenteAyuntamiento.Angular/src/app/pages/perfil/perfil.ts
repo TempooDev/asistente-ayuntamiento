@@ -2,6 +2,8 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '@auth0/auth0-angular';
 import { CommonModule } from '@angular/common';
+import { UserService, UserProfileDto } from '../../services/user';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-perfil',
@@ -12,54 +14,84 @@ import { CommonModule } from '@angular/common';
 export class PerfilComponent implements OnInit {
   public auth = inject(AuthService);
   private fb = inject(FormBuilder);
+  private userService = inject(UserService);
 
   profileForm: FormGroup;
   isEditing = false;
   isSaving = false;
+  isLoading = true;
   saveSuccess = false;
+  saveError = false;
 
   constructor() {
     this.profileForm = this.fb.group({
-      name: ['', Validators.required],
-      nickname: ['']
+      fullName: ['', Validators.required],
+      department: [''],
+      position: [''],
+      phoneNumber: ['']
     });
   }
 
   ngOnInit() {
-    this.auth.user$.subscribe(user => {
-      if (user) {
-        this.profileForm.patchValue({
-          name: user.name || '',
-          nickname: user.nickname || ''
-        });
-      }
-    });
+    this.loadProfile();
+  }
+
+  loadProfile() {
+    this.isLoading = true;
+    this.userService.getProfile()
+      .pipe(finalize(() => this.isLoading = false))
+      .subscribe({
+        next: (profile) => {
+          this.profileForm.patchValue({
+            fullName: profile.fullName || '',
+            department: profile.department || '',
+            position: profile.position || '',
+            phoneNumber: profile.phoneNumber || ''
+          });
+        },
+        error: (err) => {
+          console.error('Error loading profile', err);
+        }
+      });
   }
 
   toggleEdit() {
     this.isEditing = !this.isEditing;
     this.saveSuccess = false;
+    this.saveError = false;
+    if (!this.isEditing) {
+      // Revert changes if cancelled
+      this.loadProfile();
+    }
   }
 
   saveProfile() {
     if (this.profileForm.invalid) return;
     
     this.isSaving = true;
+    this.saveSuccess = false;
+    this.saveError = false;
     
-    // Simulate API call for saving profile
-    setTimeout(() => {
-      this.isSaving = false;
-      this.isEditing = false;
-      this.saveSuccess = true;
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => this.saveSuccess = false, 3000);
-    }, 800);
+    const profileData: UserProfileDto = this.profileForm.value;
+    
+    this.userService.updateProfile(profileData)
+      .pipe(finalize(() => this.isSaving = false))
+      .subscribe({
+        next: (updatedProfile) => {
+          this.isEditing = false;
+          this.saveSuccess = true;
+          this.profileForm.patchValue(updatedProfile);
+          
+          setTimeout(() => this.saveSuccess = false, 3000);
+        },
+        error: (err) => {
+          console.error('Error saving profile', err);
+          this.saveError = true;
+        }
+      });
   }
 
   changePassword() {
-    // In a real Auth0 app, this would trigger a password reset email
-    // or redirect to the Auth0 universal login password reset flow.
     alert('Se ha enviado un correo para restablecer tu contraseña.');
   }
 }
