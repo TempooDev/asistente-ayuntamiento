@@ -76,6 +76,39 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
     this.sessions.set(data);
   }
 
+  chatToDelete = signal<string | null>(null);
+
+  confirmDeleteSession(id: string) {
+    this.chatToDelete.set(id);
+  }
+
+  cancelDeleteSession() {
+    this.chatToDelete.set(null);
+  }
+
+  async executeDeleteSession() {
+    const id = this.chatToDelete();
+    if (!id) return;
+    
+    this.chatToDelete.set(null);
+    
+    try {
+      await this.chatService.deleteSession(id);
+      
+      // Update local state
+      this.chatService.sessionMessages.delete(id);
+      
+      // If we deleted the current active session, create a new one
+      if (this.currentSessionId() === id) {
+        await this.createNewChat();
+      } else {
+        await this.loadSessions();
+      }
+    } catch (e) {
+      console.error('Error al eliminar chat:', e);
+    }
+  }
+
   async selectSession(id: string) {
     this.currentSessionId.set(id);
     this.sidebarOpen.set(false);

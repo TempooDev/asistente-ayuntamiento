@@ -206,8 +206,18 @@ public class ChatHub : Hub
         if (string.IsNullOrEmpty(userId))
             throw new HubException("User ID not found");
 
-        // Force creation of a brand new session
         var session = await _sessionService.CreateNewSessionAsync(userId, tenantId);
         return session.Id;
+    }
+
+    public async Task DeleteSession(Guid sessionId)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+            throw new HubException("User ID not found");
+
+        await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }

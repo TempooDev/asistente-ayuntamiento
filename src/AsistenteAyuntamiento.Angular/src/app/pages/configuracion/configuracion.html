@@ -31,6 +31,7 @@
                             <select [ngModel]="config().provider" (ngModelChange)="updateConfig('provider', $event)" name="provider" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2">
                                 <option value="ollama">Ollama (Local)</option>
                                 <option value="openai">OpenAI</option>
+                                <option value="google">Google (Gemini)</option>
                             </select>
                         </div>
 

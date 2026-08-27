@@ -100,7 +100,8 @@ public sealed class AiChatService
             if (config.Provider == "google")
             {
 #pragma warning disable SKEXP0070
-                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty);
+                var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
+                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
 #pragma warning restore SKEXP0070
             }
             else if (config.Provider == "openai")
@@ -276,7 +277,7 @@ public sealed class AiChatService
                 "AI completion failed for tenant {TenantId}, user {UserId} after {DurationMs:F1} ms",
                 tenantId, userId, stopwatch.Elapsed.TotalMilliseconds);
 
-            var errorMessage = $"Error de comunicación con el modelo de IA local: {ex.Message}";
+            var errorMessage = $"Error de comunicación con el modelo de IA ({config.Provider}): {ex.Message}";
 
             return new AiCompletionResult(
                 Success: false,
@@ -322,7 +323,8 @@ public sealed class AiChatService
             if (config.Provider == "google")
             {
 #pragma warning disable SKEXP0070
-                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty);
+                var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
+                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
 #pragma warning restore SKEXP0070
             }
             else if (config.Provider == "openai")
@@ -466,7 +468,7 @@ public sealed class AiChatService
                     _logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
                     if (!hasYieldedChunks)
                     {
-                        errorToYield = $"\n\n[Error de conexión con la IA local/Ollama: {ex.Message}]";
+                        errorToYield = $"\n\n[Error de conexión con la IA ({config.Provider}): {ex.Message}]";
                         fullContent += errorToYield;
                     }
                     break;

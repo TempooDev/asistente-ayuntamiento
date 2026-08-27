@@ -202,6 +202,18 @@ public class ChatSessionService
         return session.Messages.OrderBy(m => m.CreatedAt).ToList();
     }
 
+    public async Task<bool> DeleteSessionAsync(Guid sessionId, string userId, string tenantId)
+    {
+        var session = await _dbContext.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+        if (session != null)
+        {
+            _dbContext.ChatSessions.Remove(session);
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        return false;
+    }
+
     /// <summary>
     /// Gets a specific chat session by ID.
     /// </summary>

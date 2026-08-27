@@ -107,4 +107,10 @@ export class ChatService {
       this.hubConnection = null;
     }
   }
+
+  public async deleteSession(sessionId: string): Promise<void> {
+    if (this.isConnected) {
+      await this.hubConnection!.invoke('DeleteSession', sessionId);
+    }
+  }
 }
