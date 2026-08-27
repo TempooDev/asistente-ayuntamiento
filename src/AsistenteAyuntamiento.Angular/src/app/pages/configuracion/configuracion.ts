@@ -1,19 +1,23 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DecimalPipe } from '@angular/common';
+import { CommonModule, DecimalPipe } from '@angular/common';
 import { AiConfigService, SaveAiConfigurationDto } from '../../services/ai-config';
+import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto } from '../../services/scraper-filter';
 
 @Component({
   selector: 'app-configuracion',
   standalone: true,
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule, DecimalPipe, CommonModule],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss'
 })
 export class ConfiguracionComponent implements OnInit {
   private aiClient = inject(AiConfigService);
+  private scraperClient = inject(ScraperFilterService);
 
-  // Form Model
+  activeTab = signal<'ai' | 'scraper'>('ai');
+
+  // Form Model AI
   config = signal<SaveAiConfigurationDto>({
     provider: 'ollama',
     model: 'llama3.2',
@@ -26,8 +30,15 @@ export class ConfiguracionComponent implements OnInit {
   showSuccessMessage = signal(false);
   showErrorMessage = signal(false);
 
+  // Scraper State
+  filters = signal<ScraperFilterRuleDto[]>([]);
+  isLoadingFilters = signal(false);
+  isTriggeringScrape = signal(false);
+  newFilter = signal<CreateFilterRuleDto>({ provider: 'BOE', filterType: 'Department', value: '' });
+
   async ngOnInit() {
     await this.cargarConfiguracion();
+    await this.cargarFiltros();
   }
 
   async cargarConfiguracion() {
@@ -60,8 +71,6 @@ export class ConfiguracionComponent implements OnInit {
 
     try {
       const currentConfig = this.config();
-      // Ensure empty string is sent as undefined to not wipe it if not intended,
-      // or handle backend logic. If it's an empty string and not meant to be updated, delete it.
       const payload = { ...currentConfig };
       if (!payload.apiKey) {
         delete payload.apiKey;
@@ -72,7 +81,7 @@ export class ConfiguracionComponent implements OnInit {
 
       if (payload.apiKey) {
         this.hasSavedApiKey.set(true);
-        this.config.update(c => ({ ...c, apiKey: '' })); // Clear from input
+        this.config.update(c => ({ ...c, apiKey: '' }));
       }
 
       setTimeout(() => {
@@ -88,5 +97,59 @@ export class ConfiguracionComponent implements OnInit {
 
   updateConfig(key: keyof SaveAiConfigurationDto, value: any) {
     this.config.update(c => ({ ...c, [key]: value }));
+  }
+
+  // SCRAPER LOGIC
+
+  async cargarFiltros() {
+    this.isLoadingFilters.set(true);
+    this.scraperClient.getFilters().subscribe({
+      next: (data) => this.filters.set(data),
+      error: (e) => console.error(e),
+      complete: () => this.isLoadingFilters.set(false)
+    });
+  }
+
+  crearFiltro() {
+    if (!this.newFilter().value) return;
+    this.scraperClient.createFilter(this.newFilter()).subscribe({
+      next: (rule) => {
+        this.filters.update(f => [...f, rule]);
+        this.newFilter.set({ provider: 'BOE', filterType: 'Department', value: '' });
+      },
+      error: (e) => console.error(e)
+    });
+  }
+
+  toggleFiltro(filter: ScraperFilterRuleDto) {
+    this.scraperClient.updateFilterStatus(filter.id, { isActive: !filter.isActive }).subscribe({
+      next: () => {
+        this.filters.update(f => f.map(x => x.id === filter.id ? { ...x, isActive: !x.isActive } : x));
+      },
+      error: (e) => console.error(e)
+    });
+  }
+
+  eliminarFiltro(id: number) {
+    this.scraperClient.deleteFilter(id).subscribe({
+      next: () => {
+        this.filters.update(f => f.filter(x => x.id !== id));
+      },
+      error: (e) => console.error(e)
+    });
+  }
+
+  forzarScrape(provider: string) {
+    this.isTriggeringScrape.set(true);
+    this.scraperClient.triggerScrape({ provider }).subscribe({
+      next: (res: any) => {
+        alert(`Scrape finalizado. Éxito: ${res.success}. Items extraídos: ${res.itemsExtracted}`);
+        this.isTriggeringScrape.set(false);
+      },
+      error: (e) => {
+        alert(`Error al forzar el scrape: ${e.message}`);
+        this.isTriggeringScrape.set(false);
+      }
+    });
   }
 }

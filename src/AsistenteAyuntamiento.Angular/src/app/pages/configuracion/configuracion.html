@@ -1,140 +1,184 @@
 <div class="max-w-[800px] mx-auto py-xl">
     <div class="mb-lg">
-        <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background mb-xs">Configuración de IA</h2>
-        <p class="font-body-md text-body-md text-on-surface-variant">Gestionar modelos de IA, parámetros de comportamiento e integraciones externas.</p>
+        <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background mb-xs">Configuración</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant">Gestiona opciones del sistema.</p>
     </div>
 
-    @if (isLoading()) {
-        <p>Cargando configuración...</p>
-    } @else {
-        <form (ngSubmit)="guardarConfiguracion()">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-                
-                <!-- Model Selection Card -->
-                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
-                    <div class="flex items-center gap-sm mb-md">
-                        <span class="material-symbols-outlined text-primary">model_training</span>
-                        <h3 class="font-headline-md text-headline-md text-on-surface">Selección de Modelo</h3>
-                    </div>
-                    <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Selecciona el modelo base para las consultas.</p>
+    <!-- Tabs -->
+    <div class="flex border-b border-outline-variant mb-6 space-x-4">
+        <button (click)="activeTab.set('ai')" [class.border-primary]="activeTab() === 'ai'" [class.text-primary]="activeTab() === 'ai'" class="py-2 px-4 border-b-2 font-label-lg transition-colors border-transparent text-on-surface-variant hover:text-on-surface">Configuración de IA</button>
+        <button (click)="activeTab.set('scraper')" [class.border-primary]="activeTab() === 'scraper'" [class.text-primary]="activeTab() === 'scraper'" class="py-2 px-4 border-b-2 font-label-lg transition-colors border-transparent text-on-surface-variant hover:text-on-surface">Filtros del Scraper</button>
+    </div>
+
+    <!-- AI Tab -->
+    <ng-container *ngIf="activeTab() === 'ai'">
+        @if (isLoading()) {
+            <p>Cargando configuración...</p>
+        } @else {
+            <form (ngSubmit)="guardarConfiguracion()">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
                     
-                    <div class="space-y-sm mb-md">
-                        <label class="font-label-md text-label-md text-on-surface">Proveedor</label>
-                        <select [ngModel]="config().provider" (ngModelChange)="updateConfig('provider', $event)" name="provider" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2">
-                            <option value="ollama">Ollama (Local)</option>
-                            <option value="openai">OpenAI</option>
-                        </select>
-                    </div>
-
-                    <div class="space-y-sm mb-md">
-                        <label class="font-label-md text-label-md text-on-surface">Modelo</label>
-                        <input [ngModel]="config().model" (ngModelChange)="updateConfig('model', $event)" name="model" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. llama3.2 o gpt-4o" />
-                    </div>
-
-                    <div class="space-y-sm mb-md">
-                        <label class="font-label-md text-label-md text-on-surface">Endpoint URL (Opcional)</label>
-                        <input [ngModel]="config().endpointUrl" (ngModelChange)="updateConfig('endpointUrl', $event)" name="endpointUrl" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. https://openrouter.ai/api/v1" />
-                    </div>
-
-                    <div class="space-y-sm">
-                        <label class="font-label-md text-label-md text-on-surface">API Key</label>
-                        <input [ngModel]="config().apiKey" (ngModelChange)="updateConfig('apiKey', $event)" name="apiKey" type="password" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" [placeholder]="hasSavedApiKey() ? '•••••••••••• (Guardada)' : 'Introduce API Key (opcional para local)'" />
-                        @if (hasSavedApiKey() && !config().apiKey) {
-                            <span class="text-xs text-on-surface-variant">La clave está guardada de forma segura. Ingresa una nueva para sobrescribirla.</span>
-                        }
-                    </div>
-                </div>
-
-                <!-- Parameters Card -->
-                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm flex flex-col justify-between">
-                    <div>
+                    <!-- Model Selection Card -->
+                    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
                         <div class="flex items-center gap-sm mb-md">
-                            <span class="material-symbols-outlined text-primary">tune</span>
-                            <h3 class="font-headline-md text-headline-md text-on-surface">Parámetros</h3>
+                            <span class="material-symbols-outlined text-primary">model_training</span>
+                            <h3 class="font-headline-md text-headline-md text-on-surface">Selección de Modelo</h3>
                         </div>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Ajusta el estilo de respuesta para el contexto institucional.</p>
+                        <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Selecciona el modelo base para las consultas.</p>
                         
-                        <div class="mb-lg">
-                            <div class="flex justify-between items-end mb-xs">
-                                <label class="font-label-md text-label-md text-on-surface">Creatividad vs Precisión (Temperature)</label>
-                                <span class="text-xs font-bold text-primary bg-primary-container px-2 py-1 rounded-full">{{ config().temperature | number:'1.1-1' }}</span>
+                        <div class="space-y-sm mb-md">
+                            <label class="font-label-md text-label-md text-on-surface">Proveedor</label>
+                            <select [ngModel]="config().provider" (ngModelChange)="updateConfig('provider', $event)" name="provider" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2">
+                                <option value="ollama">Ollama (Local)</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-sm mb-md">
+                            <label class="font-label-md text-label-md text-on-surface">Modelo</label>
+                            <input [ngModel]="config().model" (ngModelChange)="updateConfig('model', $event)" name="model" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. llama3.2 o gpt-4o" />
+                        </div>
+
+                        <div class="space-y-sm mb-md">
+                            <label class="font-label-md text-label-md text-on-surface">Endpoint URL (Opcional)</label>
+                            <input [ngModel]="config().endpointUrl" (ngModelChange)="updateConfig('endpointUrl', $event)" name="endpointUrl" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. https://openrouter.ai/api/v1" />
+                        </div>
+
+                        <div class="space-y-sm">
+                            <label class="font-label-md text-label-md text-on-surface">API Key</label>
+                            <input [ngModel]="config().apiKey" (ngModelChange)="updateConfig('apiKey', $event)" name="apiKey" type="password" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" [placeholder]="hasSavedApiKey() ? '•••••••••••• (Guardada)' : 'Introduce API Key (opcional para local)'" />
+                            @if (hasSavedApiKey() && !config().apiKey) {
+                                <span class="text-xs text-on-surface-variant">La clave está guardada de forma segura. Ingresa una nueva para sobrescribirla.</span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Parameters Card -->
+                    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-sm mb-md">
+                                <span class="material-symbols-outlined text-primary">tune</span>
+                                <h3 class="font-headline-md text-headline-md text-on-surface">Parámetros</h3>
                             </div>
-                            <input type="range" [ngModel]="config().temperature" (ngModelChange)="updateConfig('temperature', $event)" name="temperature" min="0" max="1" step="0.1" class="w-full h-1 bg-surface-variant rounded-lg appearance-none cursor-pointer" />
-                            <div class="flex justify-between text-xs text-on-surface-variant mt-1">
-                                <span>Factual</span>
-                                <span>Creativo</span>
+                            <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Ajusta el estilo de respuesta para el contexto institucional.</p>
+                            
+                            <div class="mb-lg">
+                                <div class="flex justify-between items-end mb-xs">
+                                    <label class="font-label-md text-label-md text-on-surface">Creatividad vs Precisión (Temperature)</label>
+                                    <span class="text-xs font-bold text-primary bg-primary-container px-2 py-1 rounded-full">{{ config().temperature | number:'1.1-1' }}</span>
+                                </div>
+                                <input type="range" [ngModel]="config().temperature" (ngModelChange)="updateConfig('temperature', $event)" name="temperature" min="0" max="1" step="0.1" class="w-full h-1 bg-surface-variant rounded-lg appearance-none cursor-pointer" />
+                                <div class="flex justify-between text-xs text-on-surface-variant mt-1">
+                                    <span>Factual</span>
+                                    <span>Creativo</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Integrations Card (Full Width) -->
-                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm md:col-span-2">
-                    <div class="flex items-center gap-sm mb-md">
-                        <span class="material-symbols-outlined text-primary">api</span>
-                        <h3 class="font-headline-md text-headline-md text-on-surface">Integraciones Institucionales (Knowledge Base)</h3>
+                @if (showSuccessMessage()) {
+                    <div class="mt-4 p-3 bg-tertiary-fixed-dim text-on-tertiary-fixed-variant rounded">
+                        Configuración guardada exitosamente.
                     </div>
-                    <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Gestiona conexiones API a bases de datos internas para recuperación (RAG).</p>
-                    
-                    <div class="border border-outline-variant rounded-lg divide-y divide-outline-variant">
-                        <div class="p-md flex items-center justify-between">
-                            <div class="flex items-center gap-md">
-                                <div class="w-10 h-10 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant">
-                                    <span class="material-symbols-outlined">folder_shared</span>
-                                </div>
-                                <div>
-                                    <h4 class="font-label-md text-label-md text-on-surface">Base de Datos de Ciudadanos</h4>
-                                    <p class="text-xs text-on-surface-variant">PostgreSQL via Internal Gateway</p>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-sm">
-                                <span class="flex items-center gap-1 text-xs font-bold text-on-tertiary-container bg-tertiary-fixed-dim px-2 py-1 rounded-full">
-                                    <span class="w-2 h-2 rounded-full bg-tertiary"></span> Conectado
-                                </span>
-                                <button type="button" class="p-sm text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
-                            </div>
-                        </div>
-                        <div class="p-md flex items-center justify-between">
-                            <div class="flex items-center gap-md">
-                                <div class="w-10 h-10 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant">
-                                    <span class="material-symbols-outlined">policy</span>
-                                </div>
-                                <div>
-                                    <h4 class="font-label-md text-label-md text-on-surface">API de Jurisprudencia</h4>
-                                    <p class="text-xs text-on-surface-variant">External REST Endpoint</p>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-sm">
-                                <span class="flex items-center gap-1 text-xs font-bold text-on-error-container bg-error-container px-2 py-1 rounded-full">
-                                    <span class="w-2 h-2 rounded-full bg-error"></span> Error
-                                </span>
-                                <button type="button" class="font-label-sm text-label-sm text-primary hover:underline px-2">Reconectar</button>
-                            </div>
-                        </div>
+                }
+                @if (showErrorMessage()) {
+                    <div class="mt-4 p-3 bg-error-container text-on-error-container rounded">
+                        Hubo un error al guardar la configuración.
                     </div>
-                    <button type="button" class="mt-md text-primary font-label-md text-label-md hover:underline flex items-center gap-xs">
-                        <span class="material-symbols-outlined text-[18px]">add_link</span> Añadir Integración
+                }
+
+                <div class="mt-xl flex justify-end gap-md border-t border-outline-variant pt-lg">
+                    <button type="button" (click)="cargarConfiguracion()" class="px-lg py-2 border border-primary text-primary font-label-md text-label-md rounded-lg hover:bg-surface-container-low transition-colors min-h-[44px]">Restaurar</button>
+                    <button type="submit" [disabled]="isSaving()" class="px-lg py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:bg-on-primary-fixed-variant transition-colors min-h-[44px]">
+                        {{ isSaving() ? 'Guardando...' : 'Guardar Configuración' }}
                     </button>
                 </div>
-            </div>
+            </form>
+        }
+    </ng-container>
 
-            @if (showSuccessMessage()) {
-                <div class="mt-4 p-3 bg-tertiary-fixed-dim text-on-tertiary-fixed-variant rounded">
-                    Configuración guardada exitosamente.
+    <!-- Scraper Filters Tab -->
+    <ng-container *ngIf="activeTab() === 'scraper'">
+        <!-- New Filter Form -->
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-6">
+            <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Añadir Nuevo Filtro</h3>
+            <div class="flex gap-4 items-end">
+                <div class="flex-1">
+                    <label class="block font-label-sm mb-1 text-on-surface">Boletín</label>
+                    <select [ngModel]="newFilter().provider" (ngModelChange)="newFilter.set({ provider: $event, filterType: newFilter().filterType, value: newFilter().value })" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+                        <option value="BOE">BOE</option>
+                        <option value="BOJA">BOJA</option>
+                        <option value="BOPMA">BOPMA</option>
+                    </select>
                 </div>
-            }
-            @if (showErrorMessage()) {
-                <div class="mt-4 p-3 bg-error-container text-on-error-container rounded">
-                    Hubo un error al guardar la configuración.
+                <div class="flex-1">
+                    <label class="block font-label-sm mb-1 text-on-surface">Tipo de Filtro</label>
+                    <select [ngModel]="newFilter().filterType" (ngModelChange)="newFilter.set({ provider: newFilter().provider, filterType: $event, value: newFilter().value })" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+                        <option value="Department">Departamento</option>
+                        <option value="Section">Sección</option>
+                        <option value="Keyword">Palabra Clave</option>
+                    </select>
                 </div>
-            }
-
-            <div class="mt-xl flex justify-end gap-md border-t border-outline-variant pt-lg">
-                <button type="button" (click)="cargarConfiguracion()" class="px-lg py-2 border border-primary text-primary font-label-md text-label-md rounded-lg hover:bg-surface-container-low transition-colors min-h-[44px]">Restaurar</button>
-                <button type="submit" [disabled]="isSaving()" class="px-lg py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:bg-on-primary-fixed-variant transition-colors min-h-[44px]">
-                    {{ isSaving() ? 'Guardando...' : 'Guardar Configuración' }}
-                </button>
+                <div class="flex-1">
+                    <label class="block font-label-sm mb-1 text-on-surface">Valor</label>
+                    <input [ngModel]="newFilter().value" (ngModelChange)="newFilter.set({ provider: newFilter().provider, filterType: newFilter().filterType, value: $event })" type="text" placeholder="Ej: Ministerio de Sanidad" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+                </div>
+                <button (click)="crearFiltro()" [disabled]="!newFilter().value" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md disabled:opacity-50">Añadir</button>
             </div>
-        </form>
-    }
+        </div>
+
+        <!-- Filter List -->
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+            <table class="w-full text-left">
+                <thead class="bg-surface-variant">
+                    <tr>
+                        <th class="p-4 font-label-md text-on-surface-variant">Boletín</th>
+                        <th class="p-4 font-label-md text-on-surface-variant">Tipo</th>
+                        <th class="p-4 font-label-md text-on-surface-variant">Valor</th>
+                        <th class="p-4 font-label-md text-on-surface-variant">Estado</th>
+                        <th class="p-4 font-label-md text-on-surface-variant">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    <tr *ngIf="filters().length === 0">
+                        <td colspan="5" class="p-6 text-center text-on-surface-variant italic">No hay filtros configurados. Se procesarán todos los documentos.</td>
+                    </tr>
+                    <tr *ngFor="let filter of filters()">
+                        <td class="p-4">{{ filter.provider }}</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 bg-surface-variant text-on-surface-variant rounded text-xs">{{ filter.filterType }}</span>
+                        </td>
+                        <td class="p-4 font-medium">{{ filter.value }}</td>
+                        <td class="p-4">
+                            <button (click)="toggleFiltro(filter)" [ngClass]="filter.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'" class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors">
+                                <span class="w-2 h-2 rounded-full" [ngClass]="filter.isActive ? 'bg-green-500' : 'bg-red-500'"></span>
+                                {{ filter.isActive ? 'Activo' : 'Inactivo' }}
+                            </button>
+                        </td>
+                        <td class="p-4">
+                            <button (click)="eliminarFiltro(filter.id)" class="text-error hover:underline text-sm font-medium flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[16px]">delete</span> Eliminar
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Force Scrape section -->
+        <div class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
+            <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la ejecución síncrona del scraper para el día de hoy utilizando la configuración de gRPC.</p>
+            <div class="flex gap-4">
+                <button (click)="forzarScrape('BOE')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOE</button>
+                <button (click)="forzarScrape('BOJA')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOJA</button>
+                <button (click)="forzarScrape('BOPMA')" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOPMA</button>
+            </div>
+            <p *ngIf="isTriggeringScrape()" class="mt-4 text-sm text-primary flex items-center gap-2">
+                <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span> 
+                Procesando documentos. Esto puede tardar varios minutos dependiendo del volumen del boletín...
+            </p>
+        </div>
+    </ng-container>
 </div>
