@@ -67,18 +67,18 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 			continue
 		}
 
-		var rss struct {
-			Channel struct {
-				Items []struct {
-					Link string `xml:"link"`
-				} `xml:"item"`
-			} `xml:"channel"`
+		var atom struct {
+			Entries []struct {
+				Link struct {
+					Href string `xml:"href,attr"`
+				} `xml:"link"`
+			} `xml:"entry"`
 		}
 
-		if err := xml.NewDecoder(resp.Body).Decode(&rss); err == nil {
-			for _, item := range rss.Channel.Items {
-				if item.Link != "" {
-					ids = append(ids, item.Link)
+		if err := xml.NewDecoder(resp.Body).Decode(&atom); err == nil {
+			for _, entry := range atom.Entries {
+				if entry.Link.Href != "" {
+					ids = append(ids, entry.Link.Href)
 				}
 			}
 		}
