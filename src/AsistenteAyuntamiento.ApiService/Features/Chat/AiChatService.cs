@@ -149,9 +149,9 @@ public sealed class AiChatService
                 if (closestChunks.Any())
                 {
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
-                        $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                        $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
 
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario.\n\nPregunta: {originalMessage}";
@@ -163,12 +163,6 @@ public sealed class AiChatService
                     {
                         history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
                     }
-
-                    documentSources = closestChunks.Select(c => new DocumentSource(
-                        c.Title,
-                        c.Department,
-                        c.PublicationDate.ToString("yyyy-MM-dd"),
-                        GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
                 }
             }
             // -------------------------
@@ -386,9 +380,9 @@ public sealed class AiChatService
                 if (closestChunks.Any())
                 {
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
-                        $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                        $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nCita las fuentes cuando sea posible.";
+                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
 
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario.\n\nPregunta: {originalMessage}";
@@ -400,35 +394,12 @@ public sealed class AiChatService
                     {
                         history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
                     }
-
-                    documentSources = closestChunks.Select(c => new DocumentSource(
-                        c.Title,
-                        c.Department,
-                        c.PublicationDate.ToString("yyyy-MM-dd"),
-                        GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
-
-                    if (documentSources.Any())
-                    {
-                        var sourcesText = "\n\n**Fuentes consultadas:**\n";
-                        foreach (var src in documentSources)
-                        {
-                            sourcesText += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
-                        }
-                        sourcesText += "\n---\n\n";
-                        fullContent += sourcesText;
-                        sourcesChunkToYield = sourcesText;
-                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to perform RAG vector search during streaming.");
             }
-        }
-
-        if (sourcesChunkToYield != null)
-        {
-            yield return sourcesChunkToYield;
         }
 
         var executionSettings = new PromptExecutionSettings

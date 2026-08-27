@@ -65,14 +65,7 @@ public class ChatHub : Hub
             var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId);
 
             var finalContent = result.Content;
-            if (result.Sources?.Any() == true)
-            {
-                finalContent += "\n\n**Fuentes consultadas:**\n";
-                foreach (var src in result.Sources)
-                {
-                    finalContent += $"- [{src.Title}]({src.BlobPath}) - {src.Department} ({src.Date})\n";
-                }
-            }
+
 
             // 4. Persist assistant response
             _sessionService.EnqueueAssistantMessage(session, finalContent);
