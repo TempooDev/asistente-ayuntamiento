@@ -18,25 +18,7 @@ public static class UserEndpoints
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
 
-            var profile = await db.UserProfiles.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
-
-            if (profile == null)
-            {
-                // Try to get name from standard claims or custom namespaced claims
-                var nameClaim = user.FindFirst("name")?.Value 
-                             ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
-                             ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
-
-                // Create empty profile on first access
-                profile = new UserProfile
-                {
-                    Auth0UserId = auth0Id,
-                    TenantId = tenantService.TenantId,
-                    FullName = nameClaim ?? string.Empty
-                };
-                db.UserProfiles.Add(profile);
-                await db.SaveChangesAsync();
-            }
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService);
 
             return Results.Ok(new UserProfileDto
             {
@@ -55,17 +37,7 @@ public static class UserEndpoints
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
 
-            var profile = await db.UserProfiles.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
-
-            if (profile == null)
-            {
-                profile = new UserProfile
-                {
-                    Auth0UserId = auth0Id,
-                    TenantId = tenantService.TenantId
-                };
-                db.UserProfiles.Add(profile);
-            }
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService);
 
             profile.FullName = dto.FullName;
             profile.Department = dto.Department;
@@ -77,5 +49,30 @@ public static class UserEndpoints
 
             return Results.Ok(dto);
         });
+    }
+
+    private static async Task<UserProfile> GetOrCreateProfileAsync(AppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService)
+    {
+        var profile = await db.UserProfiles.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
+
+        if (profile == null)
+        {
+            // Try to get name from standard claims or custom namespaced claims
+            var nameClaim = user.FindFirst("name")?.Value 
+                         ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
+                         ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
+
+            // Create empty profile on first access
+            profile = new UserProfile
+            {
+                Auth0UserId = auth0Id,
+                TenantId = tenantService.TenantId,
+                FullName = nameClaim ?? string.Empty
+            };
+            db.UserProfiles.Add(profile);
+            await db.SaveChangesAsync();
+        }
+
+        return profile;
     }
 }
