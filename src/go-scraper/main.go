@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,9 +58,18 @@ func main() {
 		defer msgPublisher.Close()
 	}
 
+	bojaFeeds := []string{}
+	if envFeeds := os.Getenv("BOJA_FEEDS"); envFeeds != "" {
+		for _, f := range strings.Split(envFeeds, ",") {
+			if trimmed := strings.TrimSpace(f); trimmed != "" {
+				bojaFeeds = append(bojaFeeds, trimmed)
+			}
+		}
+	}
+
 	providers = []scraper.BoletinProvider{
 		boe.NewProvider(),
-		boja.NewProvider(),
+		boja.NewProvider(bojaFeeds...),
 		bopma.NewProvider(),
 	}
 
@@ -210,7 +220,30 @@ func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.C
 	scrapeDateRange(ctx, startDate, endDate, filterClient)
 }
 
+func configureProviderFromRules(ctx context.Context, provider scraper.BoletinProvider, filterClient *filterclient.Client) {
+	if filterClient == nil {
+		return
+	}
+	rules, err := filterClient.GetFilters(ctx)
+	if err != nil {
+		return
+	}
+
+	if provider.Name() == "BOJA" {
+		var bojaFeeds []string
+		for _, rule := range rules {
+			if rule.Provider == "BOJA" && rule.FilterType == "BojaFeed" {
+				bojaFeeds = append(bojaFeeds, rule.Value)
+			}
+		}
+		if bojaProv, ok := provider.(*boja.Provider); ok && len(bojaFeeds) > 0 {
+			bojaProv.UpdateFeeds(bojaFeeds)
+		}
+	}
+}
+
 func forceScrapeProvider(ctx context.Context, provider scraper.BoletinProvider, target time.Time, filterClient *filterclient.Client) int {
+	configureProviderFromRules(ctx, provider, filterClient)
 	ids, err := provider.FetchSummary(ctx, target)
 	if err != nil || len(ids) == 0 {
 		return 0
@@ -223,6 +256,7 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterCl
 	log.Printf("Iniciando scraping global desde %s hasta %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
 	for _, provider := range providers {
+		configureProviderFromRules(ctx, provider, filterClient)
 		log.Printf("=== Iniciando scraping para la fuente: %s ===", provider.Name())
 
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {

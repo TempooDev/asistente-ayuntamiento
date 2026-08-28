@@ -12,7 +12,8 @@ export enum DocumentSource {
 export enum FilterType {
   Department = 'Department',
   Section = 'Section',
-  Keyword = 'Keyword'
+  Keyword = 'Keyword',
+  BojaFeed = 'BojaFeed'
 }
 
 export interface ScraperFilterRuleDto {

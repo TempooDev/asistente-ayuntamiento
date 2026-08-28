@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild, ElementRef, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChatService, ChatSessionSummaryDto } from '../../services/chat';
 import { marked } from 'marked';
@@ -24,7 +24,7 @@ interface ChatMessage {
   templateUrl: './chat-panel.html',
   styleUrl: './chat-panel.scss'
 })
-export class ChatPanelComponent implements OnInit, OnDestroy {
+export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   private chatService = inject(ChatService);
   
   // Non-signal for two-way binding with ngModel (though model() is an option, this is simpler)
@@ -42,6 +42,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
   isConnected = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
+  @ViewChild('chatInput') private chatInput!: ElementRef<HTMLTextAreaElement>;
 
   async ngOnInit() {
     this.chatService.messageReceived$.subscribe((msg) => {
@@ -65,6 +66,18 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       console.error(e);
       this.isConnected.set(false);
     }
+  }
+
+  ngAfterViewInit() {
+    this.focusInput();
+  }
+
+  focusInput() {
+    setTimeout(() => {
+      if (this.chatInput && this.chatInput.nativeElement) {
+        this.chatInput.nativeElement.focus();
+      }
+    }, 100);
   }
 
   ngOnDestroy() {
@@ -120,6 +133,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       // Restore from cache so active streams aren't interrupted visually
       this.messages.set([...this.chatService.sessionMessages.get(id)!]);
       this.scrollToBottom();
+      this.focusInput();
       return;
     }
 
@@ -143,6 +157,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       console.error(e);
     } finally {
       this.isLoadingHistory.set(false);
+      this.focusInput();
     }
   }
 
@@ -156,6 +171,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       this.currentSessionId.set(newId);
       this.chatService.sessionMessages.set(newId, []);
       await this.loadSessions();
+      this.focusInput();
     } catch (e) {
       console.error(e);
     }
@@ -246,6 +262,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
           if (this.currentSessionId() === sessionId) {
             if (firstChunk) this.isWaitingForResponse.set(false);
             this.isGenerating.set(false);
+            this.focusInput();
           }
           this.loadSessions();
         },
@@ -259,6 +276,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
           if (this.currentSessionId() === sessionId) {
             this.isWaitingForResponse.set(false);
             this.isGenerating.set(false);
+            this.focusInput();
           }
         }
       });
@@ -271,6 +289,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       console.error(e);
       this.isWaitingForResponse.set(false);
       this.isGenerating.set(false);
+      this.focusInput();
     }
   }
 

@@ -142,6 +142,36 @@ export class ConfiguracionComponent implements OnInit {
     });
   }
 
+  // BOJA specific feeds handling
+  readonly BOJA_FEEDS = [
+    { url: 'https://www.juntadeandalucia.es/boja/distribucion/s51.xml', label: '1. Disposiciones generales' },
+    { url: 'https://www.juntadeandalucia.es/boja/distribucion/s52.xml', label: '2. Autoridades y personal' },
+    { url: 'https://www.juntadeandalucia.es/boja/distribucion/s53.xml', label: '3. Otras disposiciones' },
+    { url: 'https://www.juntadeandalucia.es/boja/distribucion/s54.xml', label: '4. Administración de Justicia' },
+    { url: 'https://www.juntadeandalucia.es/boja/distribucion/s55.xml', label: '5. Anuncios' }
+  ];
+
+  hasBojaFeed(url: string): boolean {
+    return this.filters().some(f => f.provider === DocumentSource.BOJA && f.filterType === FilterType.BojaFeed && f.value === url && f.isActive);
+  }
+
+  toggleBojaFeed(url: string, event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    const existingFilter = this.filters().find(f => f.provider === DocumentSource.BOJA && f.filterType === FilterType.BojaFeed && f.value === url);
+
+    if (existingFilter) {
+      this.scraperClient.updateFilterStatus(existingFilter.id, { isActive: isChecked }).subscribe({
+        next: () => this.filters.update(f => f.map(x => x.id === existingFilter.id ? { ...x, isActive: isChecked } : x)),
+        error: (e) => console.error(e)
+      });
+    } else if (isChecked) {
+      this.scraperClient.createFilter({ provider: DocumentSource.BOJA, filterType: FilterType.BojaFeed, value: url }).subscribe({
+        next: (rule) => this.filters.update(f => [...f, rule]),
+        error: (e) => console.error(e)
+      });
+    }
+  }
+
   scrapeResultMessage = signal<{ type: 'success' | 'error', text: string } | null>(null);
 
   forzarScrape(provider: DocumentSource) {

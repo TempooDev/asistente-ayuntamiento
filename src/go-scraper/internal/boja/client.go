@@ -19,9 +19,27 @@ import (
 type Provider struct {
 	httpClient  *http.Client
 	rateLimiter *rate.Limiter
+	feeds       []string
 }
 
-func NewProvider() *Provider {
+func (p *Provider) UpdateFeeds(feeds []string) {
+	if len(feeds) > 0 {
+		p.feeds = feeds
+	}
+}
+
+func NewProvider(customFeeds ...string) *Provider {
+	feeds := customFeeds
+	if len(feeds) == 0 {
+		feeds = []string{
+			"https://www.juntadeandalucia.es/boja/distribucion/s51.xml",
+			"https://www.juntadeandalucia.es/boja/distribucion/s52.xml",
+			"https://www.juntadeandalucia.es/boja/distribucion/s53.xml",
+			"https://www.juntadeandalucia.es/boja/distribucion/s54.xml",
+			"https://www.juntadeandalucia.es/boja/distribucion/s55.xml",
+		}
+	}
+
 	limiter := rate.NewLimiter(rate.Every(1*time.Second), 1)
 	return &Provider{
 		httpClient: &http.Client{
@@ -29,6 +47,7 @@ func NewProvider() *Provider {
 			Timeout:   30 * time.Second,
 		},
 		rateLimiter: limiter,
+		feeds:       feeds,
 	}
 }
 
@@ -40,18 +59,8 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 	ctx, span := otel.Tracer("boja-client").Start(ctx, "FetchSummary")
 	defer span.End()
 
-	// BOJA feeds per section:
-	// s51.xml = 1. Disposiciones generales
-	// s52.xml = 2. Autoridades y personal
-	// s53.xml = 3. Otras disposiciones
-	feeds := []string{
-		"https://www.juntadeandalucia.es/boja/distribucion/s51.xml",
-		"https://www.juntadeandalucia.es/boja/distribucion/s52.xml",
-		"https://www.juntadeandalucia.es/boja/distribucion/s53.xml",
-	}
-
 	var ids []string
-	for _, feed := range feeds {
+	for _, feed := range p.feeds {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, feed, nil)
 		if err != nil {
 			continue

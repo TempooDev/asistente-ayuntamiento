@@ -101,6 +101,19 @@
 
     <!-- Scraper Filters Tab -->
     <ng-container *ngIf="activeTab() === 'scraper'">
+
+        <!-- BOJA Specific Configuration -->
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-6">
+            <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Secciones del BOJA</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Selecciona qué distribuciones del BOJA extraer. Si no seleccionas ninguna, se usarán los valores por defecto del sistema.</p>
+            <div class="flex flex-col gap-3">
+                <label *ngFor="let feed of BOJA_FEEDS" class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" [checked]="hasBojaFeed(feed.url)" (change)="toggleBojaFeed(feed.url, $event)" class="w-5 h-5 text-primary rounded border-outline focus:ring-primary">
+                    <span class="text-on-surface">{{ feed.label }}</span>
+                </label>
+            </div>
+        </div>
+
         <!-- New Filter Form -->
         <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-6">
             <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Añadir Nuevo Filtro</h3>
@@ -119,6 +132,7 @@
                         <option value="Department">Departamento</option>
                         <option value="Section">Sección</option>
                         <option value="Keyword">Palabra Clave</option>
+                        <option value="BojaFeed">Feed de BOJA (URL)</option>
                     </select>
                 </div>
                 <div class="flex-1">
