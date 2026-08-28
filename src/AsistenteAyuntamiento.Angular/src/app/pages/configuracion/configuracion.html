@@ -182,17 +182,29 @@
         </div>
 
         <!-- Force Scrape section -->
-        <div class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
+        <div class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-8">
             <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de los documentos correspondientes al día de hoy.</p>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de documentos para un rango de fechas. Si las dejas vacías, usará el día de hoy.</p>
+            
+            <div class="flex gap-4 mb-4">
+                <div class="flex-1">
+                    <label class="block font-label-sm mb-1 text-on-surface">Fecha Inicio (opcional)</label>
+                    <input type="date" [(ngModel)]="scrapeStartDate" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+                </div>
+                <div class="flex-1">
+                    <label class="block font-label-sm mb-1 text-on-surface">Fecha Fin (opcional)</label>
+                    <input type="date" [(ngModel)]="scrapeEndDate" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+                </div>
+            </div>
+
             <div class="flex gap-4">
-                <button (click)="forzarScrape(DocumentSource.BOE)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOE</button>
-                <button (click)="forzarScrape(DocumentSource.BOJA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOJA</button>
-                <button (click)="forzarScrape(DocumentSource.BOPMA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Forzar BOPMA</button>
+                <button (click)="forzarScrape(DocumentSource.BOE)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer BOE</button>
+                <button (click)="forzarScrape(DocumentSource.BOJA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer BOJA</button>
+                <button (click)="forzarScrape(DocumentSource.BOPMA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer BOPMA</button>
             </div>
             <p *ngIf="isTriggeringScrape()" class="mt-4 text-sm text-primary flex items-center gap-2">
                 <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span> 
-                Procesando documentos. Esto puede tardar varios minutos dependiendo del volumen del boletín...
+                Procesando documentos. Esto puede tardar varios minutos dependiendo del rango de fechas...
             </p>
 
             @if (scrapeResultMessage()) {

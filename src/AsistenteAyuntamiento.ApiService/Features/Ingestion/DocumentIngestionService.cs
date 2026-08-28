@@ -1,14 +1,12 @@
+using AsistenteAyuntamiento.ApiService.Features.Ingestion.Models;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
 using System.Text.Json;
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 #pragma warning disable SKEXP0001
-using Microsoft.SemanticKernel.Embeddings;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 

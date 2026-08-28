@@ -1,10 +1,8 @@
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using System.ComponentModel.DataAnnotations;
+using AsistenteAyuntamiento.ApiService.Features.Scraper.DTOs;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
@@ -79,7 +77,9 @@ public static class ScraperFilterEndpoints
         {
             var req = new AsistenteAyuntamiento.ApiService.Protos.ForceScrapeRequest
             {
-                Provider = dto.Provider
+                Provider = dto.Provider,
+                StartDate = dto.StartDate ?? "",
+                EndDate = dto.EndDate ?? ""
             };
 
             try
@@ -95,23 +95,4 @@ public static class ScraperFilterEndpoints
     }
 }
 
-public class TriggerScrapeDto
-{
-    [Required] public string Provider { get; set; } = string.Empty;
-}
 
-public class CreateFilterRuleDto
-{
-    [Required] public string Provider { get; set; } = string.Empty;
-    [Required] public string FilterType { get; set; } = string.Empty;
-    [Required] public string Value { get; set; } = string.Empty;
-    public bool IsActive { get; set; } = true;
-}
-
-public class UpdateFilterRuleDto
-{
-    [Required] public string Provider { get; set; } = string.Empty;
-    [Required] public string FilterType { get; set; } = string.Empty;
-    [Required] public string Value { get; set; } = string.Empty;
-    public bool IsActive { get; set; } = true;
-}

@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 

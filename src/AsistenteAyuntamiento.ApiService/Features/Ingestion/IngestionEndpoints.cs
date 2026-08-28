@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
@@ -191,10 +191,4 @@ public static class IngestionEndpoints
         })
         .WithName("ReprocessAllBlobs");
     }
-}
-
-public class ProcessBlobRequest
-{
-    public string BlobPath { get; set; } = string.Empty;
-    public string Source { get; set; } = "Unknown";
 }

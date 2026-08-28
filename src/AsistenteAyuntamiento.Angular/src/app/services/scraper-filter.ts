@@ -36,6 +36,8 @@ export interface UpdateFilterRuleStatusDto {
 
 export interface TriggerScrapeDto {
   provider: DocumentSource;
+  startDate?: string;
+  endDate?: string;
 }
 
 @Injectable({

@@ -1,8 +1,7 @@
+using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.Users;
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
@@ -20,8 +19,8 @@ public class AppDbContext : DbContext
     public string CurrentTenantId => _httpContextAccessor.HttpContext?.RequestServices.GetService<CurrentTenantService>()?.TenantId ?? "default";
 
     public DbSet<UserProfile> UserProfiles { get; set; }
-    public DbSet<Features.Chat.ChatSession> ChatSessions { get; set; }
-    public DbSet<Features.Chat.ChatMessage> ChatMessages { get; set; }
+    public DbSet<ChatSession> ChatSessions { get; set; }
+    public DbSet<ChatMessage> ChatMessages { get; set; }
     public DbSet<Features.Chat.AiCallLog> AiCallLogs { get; set; }
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
@@ -49,14 +48,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<UserProfile>()
             .HasQueryFilter(u => u.TenantId == CurrentTenantId);
 
-        modelBuilder.Entity<Features.Chat.ChatSession>(entity =>
+        modelBuilder.Entity<ChatSession>(entity =>
         {
             entity.ToTable("ChatSessions", "chat");
             entity.HasQueryFilter(s => s.TenantId == CurrentTenantId);
             entity.HasMany(s => s.Messages).WithOne(m => m.Session).HasForeignKey(m => m.SessionId);
         });
 
-        modelBuilder.Entity<Features.Chat.ChatMessage>(entity =>
+        modelBuilder.Entity<ChatMessage>(entity =>
         {
             entity.ToTable("ChatMessages", "chat");
             entity.HasQueryFilter(m => m.Session.TenantId == CurrentTenantId);

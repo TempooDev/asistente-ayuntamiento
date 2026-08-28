@@ -1,10 +1,8 @@
-using System;
+using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;

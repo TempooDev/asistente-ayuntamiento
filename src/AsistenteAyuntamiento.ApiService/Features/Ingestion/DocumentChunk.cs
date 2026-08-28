@@ -1,6 +1,5 @@
 using Pgvector;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 

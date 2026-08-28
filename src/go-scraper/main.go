@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -82,10 +83,7 @@ func main() {
 	}
 
 	// Start command server
-	go commandserver.StartGrpcServer(func(providerName string) (int, error) {
-		// Just run a synchronous scrape for today for that provider
-		// (In reality, could pass more info in ForceScrapeRequest)
-		targetDate := time.Now()
+	go commandserver.StartGrpcServer(func(providerName, startDateStr, endDateStr string) (int, error) {
 		var p scraper.BoletinProvider
 		for _, prv := range providers {
 			if prv.Name() == providerName {
@@ -97,8 +95,24 @@ func main() {
 			return 0, fmt.Errorf("provider %s not found", providerName)
 		}
 		
-		log.Printf("ForceScrape triggered for %s", providerName)
-		itemsExtracted := forceScrapeProvider(context.Background(), p, targetDate, filterClient)
+		targetStart := time.Now()
+		targetEnd := targetStart
+
+		if startDateStr != "" {
+			if t, err := time.Parse("2006-01-02", startDateStr); err == nil {
+				targetStart = t
+				targetEnd = t // default end to start
+			}
+		}
+		if endDateStr != "" {
+			if t, err := time.Parse("2006-01-02", endDateStr); err == nil {
+				targetEnd = t
+			}
+		}
+		
+		log.Printf("ForceScrape triggered for %s from %s to %s", providerName, targetStart.Format("2006-01-02"), targetEnd.Format("2006-01-02"))
+		
+		itemsExtracted := scrapeProviderDateRange(context.Background(), p, targetStart, targetEnd, filterClient)
 		return itemsExtracted, nil
 	})
 
@@ -252,6 +266,32 @@ func forceScrapeProvider(ctx context.Context, provider scraper.BoletinProvider, 
 	return processDocumentsWithFilter(ctx, provider, ids, filterClient)
 }
 
+func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvider, startDate, endDate time.Time, filterClient *filterclient.Client) int {
+	configureProviderFromRules(ctx, provider, filterClient)
+	log.Printf("=== Iniciando scraping para la fuente: %s desde %s hasta %s ===", provider.Name(), startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+
+	totalItems := 0
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		log.Printf("--- Procesando %s para la fecha: %s ---", provider.Name(), d.Format("2006-01-02"))
+
+		ids, err := provider.FetchSummary(ctx, d)
+		if err != nil {
+			log.Printf("Error obteniendo sumario de %s para %s: %v\n", provider.Name(), d.Format("2006-01-02"), err)
+			continue
+		}
+
+		if len(ids) == 0 {
+			log.Printf("No hay documentos en %s para %s.\n", provider.Name(), d.Format("2006-01-02"))
+			continue
+		}
+
+		totalItems += processDocumentsWithFilter(ctx, provider, ids, filterClient)
+	}
+	
+	log.Printf("=== Scraping de la fuente %s completado. Total: %d ===", provider.Name(), totalItems)
+	return totalItems
+}
+
 func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterClient *filterclient.Client) {
 	log.Printf("Iniciando scraping global desde %s hasta %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
@@ -283,6 +323,14 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterCl
 }
 
 func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinProvider, ids []string, filterClient *filterclient.Client) int {
+	meter := otel.Meter("go-scraper")
+	docCounter, _ := meter.Int64Counter("docs_processed", 
+		metric.WithDescription("Number of documents processed"),
+	)
+	errCounter, _ := meter.Int64Counter("docs_errors", 
+		metric.WithDescription("Number of documents failed to process"),
+	)
+
 	var rules []*pb.FilterRule
 	if filterClient != nil {
 		fetchedRules, err := filterClient.GetFilters(ctx)
@@ -316,6 +364,7 @@ func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinPro
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				log.Printf("Error al procesar %s: %v\n", docID, err)
+				errCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("provider", provider.Name())))
 				return
 			}
 
@@ -326,6 +375,7 @@ func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinPro
 
 			mu.Lock()
 			itemsExtracted++
+			docCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("provider", provider.Name())))
 			mu.Unlock()
 
 			// Backup del XML crudo

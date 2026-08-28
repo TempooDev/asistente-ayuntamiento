@@ -1,14 +1,11 @@
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
 #pragma warning disable SKEXP0001
-using Microsoft.SemanticKernel.Embeddings;
 #pragma warning restore SKEXP0001
 
 /// <summary>

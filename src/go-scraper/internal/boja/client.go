@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -58,6 +59,19 @@ func (p *Provider) Name() string {
 func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, error) {
 	ctx, span := otel.Tracer("boja-client").Start(ctx, "FetchSummary")
 	defer span.End()
+
+	// Si es el día de hoy, el XML es más rápido y estable.
+	// Nota: El XML del BOJA no contiene fecha, siempre tiene el último.
+	now := time.Now()
+	if date.Year() == now.Year() && date.YearDay() == now.YearDay() {
+		return p.fetchLatestFromXML(ctx)
+	}
+
+	// Para histórico, buscamos en el buscador HTML
+	return p.fetchFromHTMLSearch(ctx, date)
+}
+
+func (p *Provider) fetchLatestFromXML(ctx context.Context) ([]string, error) {
 
 	var ids []string
 	for _, feed := range p.feeds {
@@ -154,4 +168,53 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 	}
 
 	return doc, htmlContent, nil
+}
+
+func (p *Provider) fetchFromHTMLSearch(ctx context.Context, date time.Time) ([]string, error) {
+	// Buscador avanzado BOJA: eboja/buscador/search.do
+	// Puede sufrir timeouts (Error 500) intermitentes en la web de la Junta.
+	dateStr := date.Format("02/01/2006")
+	searchURL := fmt.Sprintf("https://www.juntadeandalucia.es/eboja/buscador/search.do?startDate=%s&endDate=%s&eboja=on&q=&summary=&type=&section=&organisation=&ordenacion=&sentido_ordenacion=", dateStr, dateStr)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creando request HTML BOJA: %w", err)
+	}
+	
+	// Timeout especial más largo porque el buscador en Solr suele tardar
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error llamando buscador HTML BOJA: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("buscador HTML BOJA devolvió status: %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	htmlContent := string(bodyBytes)
+
+	// Extraer enlaces con expresiones regulares simples a "<a href="http://www.juntadeandalucia.es/boja/..."
+	// Esto es un scraper muy básico para el HTML devuelto por la búsqueda.
+	var ids []string
+	
+	// Buscamos algo tipo: href="http://www.juntadeandalucia.es/boja/2026/167/1"
+	re := regexp.MustCompile(`href="(https?://www\.juntadeandalucia\.es/boja/\d{4}/\d+/\d+(?:\.html)?)"`)
+	matches := re.FindAllStringSubmatch(htmlContent, -1)
+	
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		link := m[1]
+		if !seen[link] {
+			seen[link] = true
+			ids = append(ids, link)
+		}
+	}
+	
+	return ids, nil
 }

@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 using System.Collections.Concurrent;

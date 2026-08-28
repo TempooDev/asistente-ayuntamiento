@@ -36,7 +36,8 @@ message FilterRulesResponse {
 
 message ForceScrapeRequest {
   string provider = 1; // "BOE", "BOJA", "BOPMA"
-  // Could add more parameters like date range or section if needed
+  string start_date = 2; // YYYY-MM-DD
+  string end_date = 3;   // YYYY-MM-DD
 }
 
 message ForceScrapeResponse {

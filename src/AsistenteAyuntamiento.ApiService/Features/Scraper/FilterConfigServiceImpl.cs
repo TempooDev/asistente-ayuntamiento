@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using AsistenteAyuntamiento.ApiService.Protos;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;

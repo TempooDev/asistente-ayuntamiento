@@ -36,6 +36,10 @@ export class ConfiguracionComponent implements OnInit {
   isTriggeringScrape = signal(false);
   newFilter = signal<CreateFilterRuleDto>({ provider: DocumentSource.BOE, filterType: FilterType.Department, value: '' });
 
+  // Manual Scrape State
+  scrapeStartDate = signal<string>('');
+  scrapeEndDate = signal<string>('');
+
   // Expose enums to template
   DocumentSource = DocumentSource;
 
@@ -177,7 +181,12 @@ export class ConfiguracionComponent implements OnInit {
   forzarScrape(provider: DocumentSource) {
     this.isTriggeringScrape.set(true);
     this.scrapeResultMessage.set(null);
-    this.scraperClient.triggerScrape({ provider }).subscribe({
+    
+    const payload: any = { provider };
+    if (this.scrapeStartDate()) payload.startDate = this.scrapeStartDate();
+    if (this.scrapeEndDate()) payload.endDate = this.scrapeEndDate();
+
+    this.scraperClient.triggerScrape(payload).subscribe({
       next: (res: any) => {
         this.scrapeResultMessage.set({
           type: res.success ? 'success' : 'error',

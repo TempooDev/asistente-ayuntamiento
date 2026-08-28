@@ -1,7 +1,4 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-
+using AsistenteAyuntamiento.ApiService.Features.AiConfig.DTOs;
 namespace AsistenteAyuntamiento.ApiService.Features.AiConfig;
 
 public static class AiConfigEndpoints

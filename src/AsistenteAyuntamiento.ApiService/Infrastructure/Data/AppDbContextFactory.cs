@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Http;
-using System.IO;
 
 namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 

@@ -1,15 +1,10 @@
-using System.Text;
-using System.Text.Json;
-using Azure.Storage.Blobs;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Text;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+using System.Text;
+using System.Text.Json;
+using AsistenteAyuntamiento.ApiService.Features.Ingestion.Models;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
@@ -101,43 +96,4 @@ public class RabbitMqConsumerService : BackgroundService
         if (_connection != null) await _connection.CloseAsync(cancellationToken: cancellationToken);
         await base.StopAsync(cancellationToken);
     }
-}
-
-public class DocumentMessage
-{
-    [System.Text.Json.Serialization.JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("document_id")]
-    public string DocumentId { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("blob_path")]
-    public string BlobPath { get; set; } = string.Empty;
-}
-
-public class ScrapedDocument
-{
-    [System.Text.Json.Serialization.JsonPropertyName("document_id")]
-    public string DocumentId { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("text")]
-    public string Content { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("metadata")]
-    public DocumentMetadata? Metadata { get; set; }
-}
-
-public class DocumentMetadata
-{
-    [System.Text.Json.Serialization.JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("titulo")]
-    public string Title { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("departamento")]
-    public string Department { get; set; } = string.Empty;
-    
-    [System.Text.Json.Serialization.JsonPropertyName("fecha_publicacion")]
-    public string PublicationDate { get; set; } = string.Empty;
 }
