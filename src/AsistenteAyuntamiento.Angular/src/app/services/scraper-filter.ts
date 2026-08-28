@@ -66,4 +66,8 @@ export class ScraperFilterService {
   triggerScrape(dto: TriggerScrapeDto) {
     return this.http.post(`${this.apiUrl}/trigger`, dto);
   }
+
+  getState() {
+    return this.http.get<{ isScraping: boolean, message: string }>(`${this.apiUrl}/state`);
+  }
 }

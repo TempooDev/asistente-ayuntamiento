@@ -2,6 +2,7 @@ using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.SignalR;
 using AsistenteAyuntamiento.ApiService.Features.Scraper.DTOs;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
@@ -73,8 +74,17 @@ public static class ScraperFilterEndpoints
         });
 
         // 6. Force scrape (manual trigger)
-        group.MapPost("/trigger", async ([FromBody] TriggerScrapeDto dto, AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient client) =>
+        group.MapPost("/trigger", async (
+            [FromBody] TriggerScrapeDto dto, 
+            AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient client,
+            ScraperStateService stateService,
+            IHubContext<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub> hubContext) =>
         {
+            if (stateService.IsScraping)
+            {
+                return Results.BadRequest("El scraper ya está en ejecución.");
+            }
+
             var req = new AsistenteAyuntamiento.ApiService.Protos.ForceScrapeRequest
             {
                 Provider = dto.Provider,
@@ -82,15 +92,38 @@ public static class ScraperFilterEndpoints
                 EndDate = dto.EndDate ?? ""
             };
 
-            try
+            stateService.IsScraping = true;
+            stateService.ScrapeMessage = $"Extrayendo {dto.Provider}...";
+            
+            // Broadcast start
+            await hubContext.Clients.All.SendAsync("ScraperStateChanged", new { isScraping = true, message = stateService.ScrapeMessage });
+
+            // Run in background so we don't block the HTTP response or timeout
+            _ = Task.Run(async () =>
             {
-                var response = await client.ForceScrapeAsync(req);
-                return Results.Ok(response);
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(ex.Message);
-            }
+                try
+                {
+                    await client.ForceScrapeAsync(req);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error en scrape background: {ex.Message}");
+                }
+                finally
+                {
+                    stateService.IsScraping = false;
+                    stateService.ScrapeMessage = "";
+                    await hubContext.Clients.All.SendAsync("ScraperStateChanged", new { isScraping = false, message = "" });
+                }
+            });
+
+            return Results.Accepted();
+        });
+
+        // 7. Get current state
+        group.MapGet("/state", (ScraperStateService stateService) =>
+        {
+            return Results.Ok(new { isScraping = stateService.IsScraping, message = stateService.ScrapeMessage });
         });
     }
 }

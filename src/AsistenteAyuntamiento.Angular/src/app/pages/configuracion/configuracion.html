@@ -204,7 +204,7 @@
             </div>
             <p *ngIf="isTriggeringScrape()" class="mt-4 text-sm text-primary flex items-center gap-2">
                 <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span> 
-                Procesando documentos. Esto puede tardar varios minutos dependiendo del rango de fechas...
+                {{ scrapeMessage() || 'Procesando documentos. Esto puede tardar varios minutos dependiendo del rango de fechas...' }}
             </p>
 
             @if (scrapeResultMessage()) {

@@ -22,6 +22,7 @@ builder.Services.AddSingleton<AiMetricsService>();
 builder.Services.AddScoped<ChatSessionService>();
 builder.Services.AddScoped<AiChatService>();
 builder.Services.AddSingleton<ChatMessageBuffer>();
+builder.Services.AddSingleton<AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperStateService>();
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.Services.AddDataProtection();
@@ -223,6 +224,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub>("/hubs/notifications");
 
 app.MapGrpcService<AsistenteAyuntamiento.ApiService.Features.Scraper.FilterConfigServiceImpl>();
 

@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule, DecimalPipe } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { AiConfigService, SaveAiConfigurationDto } from '../../services/ai-config';
 import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto, DocumentSource, FilterType } from '../../services/scraper-filter';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-configuracion',
@@ -11,9 +13,10 @@ import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto, Docume
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.scss'
 })
-export class ConfiguracionComponent implements OnInit {
+export class ConfiguracionComponent implements OnInit, OnDestroy {
   private aiClient = inject(AiConfigService);
   private scraperClient = inject(ScraperFilterService);
+  private notificationService = inject(NotificationService);
 
   activeTab = signal<'ai' | 'scraper'>('ai');
 
@@ -34,6 +37,7 @@ export class ConfiguracionComponent implements OnInit {
   filters = signal<ScraperFilterRuleDto[]>([]);
   isLoadingFilters = signal(false);
   isTriggeringScrape = signal(false);
+  scrapeMessage = signal<string>('');
   newFilter = signal<CreateFilterRuleDto>({ provider: DocumentSource.BOE, filterType: FilterType.Department, value: '' });
 
   // Manual Scrape State
@@ -42,10 +46,41 @@ export class ConfiguracionComponent implements OnInit {
 
   // Expose enums to template
   DocumentSource = DocumentSource;
+  
+  private scraperStateSub?: Subscription;
 
   async ngOnInit() {
     await this.cargarConfiguracion();
     await this.cargarFiltros();
+    this.cargarScraperState();
+    
+    // Conectar SignalR de notificaciones del sistema
+    await this.notificationService.connect();
+    
+    // Escuchar eventos en tiempo real
+    this.scraperStateSub = this.notificationService.scraperStateChanged$.subscribe(state => {
+      this.isTriggeringScrape.set(state.isScraping);
+      this.scrapeMessage.set(state.message);
+      
+      if (!state.isScraping && state.message === "") {
+         this.scrapeResultMessage.set({ type: 'success', text: 'Proceso de extracción finalizado correctamente.' });
+         // Borrar mensaje al cabo de unos segundos
+         setTimeout(() => this.scrapeResultMessage.set(null), 8000);
+      }
+    });
+  }
+
+  ngOnDestroy() {
+    this.scraperStateSub?.unsubscribe();
+  }
+
+  cargarScraperState() {
+    this.scraperClient.getState().subscribe({
+      next: (state) => {
+        this.isTriggeringScrape.set(state.isScraping);
+        this.scrapeMessage.set(state.message);
+      }
+    });
   }
 
   async cargarConfiguracion() {
@@ -179,7 +214,9 @@ export class ConfiguracionComponent implements OnInit {
   scrapeResultMessage = signal<{ type: 'success' | 'error', text: string } | null>(null);
 
   forzarScrape(provider: DocumentSource) {
+    // Optimistically update UI
     this.isTriggeringScrape.set(true);
+    this.scrapeMessage.set(`Iniciando petición para ${provider}...`);
     this.scrapeResultMessage.set(null);
     
     const payload: any = { provider };
@@ -187,19 +224,16 @@ export class ConfiguracionComponent implements OnInit {
     if (this.scrapeEndDate()) payload.endDate = this.scrapeEndDate();
 
     this.scraperClient.triggerScrape(payload).subscribe({
-      next: (res: any) => {
-        this.scrapeResultMessage.set({
-          type: res.success ? 'success' : 'error',
-          text: `Scrape de ${provider} finalizado. Éxito: ${res.success}. Items extraídos: ${res.itemsExtracted}`
-        });
-        this.isTriggeringScrape.set(false);
+      next: () => {
+        // La actualización real vendrá por SignalR
       },
       error: (e) => {
         this.scrapeResultMessage.set({
           type: 'error',
-          text: `Error al forzar el scrape de ${provider}: ${e.message}`
+          text: `Error al iniciar el scrape: ${e.error || e.message}`
         });
         this.isTriggeringScrape.set(false);
+        this.scrapeMessage.set('');
       }
     });
   }

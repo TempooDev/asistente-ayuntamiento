@@ -21,6 +21,9 @@ type Provider struct {
 	httpClient  *http.Client
 	rateLimiter *rate.Limiter
 	feeds       []string
+	
+	// Cache for binary search: year -> map[num]date
+	dateCache map[int]map[int]time.Time
 }
 
 func (p *Provider) UpdateFeeds(feeds []string) {
@@ -49,6 +52,7 @@ func NewProvider(customFeeds ...string) *Provider {
 		},
 		rateLimiter: limiter,
 		feeds:       feeds,
+		dateCache:   make(map[int]map[int]time.Time),
 	}
 }
 
@@ -170,51 +174,152 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 	return doc, htmlContent, nil
 }
 
-func (p *Provider) fetchFromHTMLSearch(ctx context.Context, date time.Time) ([]string, error) {
-	// Buscador avanzado BOJA: eboja/buscador/search.do
-	// Puede sufrir timeouts (Error 500) intermitentes en la web de la Junta.
-	dateStr := date.Format("02/01/2006")
-	searchURL := fmt.Sprintf("https://www.juntadeandalucia.es/eboja/buscador/search.do?startDate=%s&endDate=%s&eboja=on&q=&summary=&type=&section=&organisation=&ordenacion=&sentido_ordenacion=", dateStr, dateStr)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creando request HTML BOJA: %w", err)
-	}
+func (p *Provider) fetchFromHTMLSearch(ctx context.Context, targetDate time.Time) ([]string, error) {
+	year := targetDate.Year()
 	
-	// Timeout especial más largo porque el buscador en Solr suele tardar
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error llamando buscador HTML BOJA: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("buscador HTML BOJA devolvió status: %d", resp.StatusCode)
+	// Asegurar caché para el año
+	if p.dateCache[year] == nil {
+		p.dateCache[year] = make(map[int]time.Time)
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	htmlContent := string(bodyBytes)
-
-	// Extraer enlaces con expresiones regulares simples a "<a href="http://www.juntadeandalucia.es/boja/..."
-	// Esto es un scraper muy básico para el HTML devuelto por la búsqueda.
-	var ids []string
+	// Obtener el último número conocido a través del XML de hoy
+	// O podríamos hacer un approach estático, por ejemplo máximo 300 boletines al año.
+	// Pero para ser exactos, obtendremos el último BOJA desde s51.xml si es el año actual.
+	maxNum := 300 
 	
-	// Buscamos algo tipo: href="http://www.juntadeandalucia.es/boja/2026/167/1"
-	re := regexp.MustCompile(`href="(https?://www\.juntadeandalucia\.es/boja/\d{4}/\d+/\d+(?:\.html)?)"`)
-	matches := re.FindAllStringSubmatch(htmlContent, -1)
-	
-	seen := make(map[string]bool)
-	for _, m := range matches {
-		link := m[1]
-		if !seen[link] {
-			seen[link] = true
-			ids = append(ids, link)
+	latestURLs, err := p.fetchLatestFromXML(ctx)
+	if err == nil && len(latestURLs) > 0 {
+		// Parsear el NUM del URL: /boja/2026/167/1
+		re := regexp.MustCompile(`/boja/(\d{4})/(\d+)/`)
+		m := re.FindStringSubmatch(latestURLs[0])
+		if len(m) == 3 {
+			var currYear, currNum int
+			fmt.Sscanf(m[1], "%d", &currYear)
+			fmt.Sscanf(m[2], "%d", &currNum)
+			if currYear == year {
+				maxNum = currNum
+			}
 		}
 	}
+
+	low := 1
+	high := maxNum
+	var bestMatchURLs []string
 	
-	return ids, nil
+	// Función helper para obtener fecha y URLs de un boletín
+	fetchBulletin := func(num int) (time.Time, []string, error) {
+		if cachedDate, ok := p.dateCache[year][num]; ok {
+			// Si ya sabemos la fecha pero necesitamos las URLs, tenemos que bajarlas.
+			// Optimización: si no es la fecha target, no bajamos las URLs.
+			if !cachedDate.Equal(targetDate) {
+				return cachedDate, nil, nil
+			}
+		}
+		
+		url := fmt.Sprintf("https://www.juntadeandalucia.es/boja/%d/%d/index.html", year, num)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil { return time.Time{}, nil, err }
+		
+		resp, err := p.httpClient.Do(req)
+		if err != nil { return time.Time{}, nil, err }
+		defer resp.Body.Close()
+		
+		if resp.StatusCode == http.StatusNotFound {
+			return time.Time{}, nil, fmt.Errorf("404")
+		}
+		if resp.StatusCode != http.StatusOK {
+			return time.Time{}, nil, fmt.Errorf("status %d", resp.StatusCode)
+		}
+		
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil { return time.Time{}, nil, err }
+		htmlContent := string(bodyBytes)
+		
+		// Extraer fecha: <p class="titular">BOJA nº 130 de 08/07/2026</p>
+		reDate := regexp.MustCompile(`BOJA nº \d+(?:\.\d+)? de (\d{2}/\d{2}/\d{4})`)
+		mDate := reDate.FindStringSubmatch(htmlContent)
+		if len(mDate) < 2 {
+			return time.Time{}, nil, fmt.Errorf("no date found")
+		}
+		
+		parsedDate, err := time.Parse("02/01/2006", mDate[1])
+		if err != nil { return time.Time{}, nil, err }
+		
+		p.dateCache[year][num] = parsedDate
+		
+		if parsedDate.Equal(targetDate) {
+			reLinks := regexp.MustCompile(fmt.Sprintf(`href="(https?://www\.juntadeandalucia\.es/boja/%d/%d/\d+(?:\.html)?)"`, year, num))
+			matches := reLinks.FindAllStringSubmatch(htmlContent, -1)
+			
+			// Try relative links too
+			if len(matches) == 0 {
+				reLinksRel := regexp.MustCompile(fmt.Sprintf(`href="(/boja/%d/%d/\d+(?:\.html)?)"`, year, num))
+				matchesRel := reLinksRel.FindAllStringSubmatch(htmlContent, -1)
+				for _, m := range matchesRel {
+					bestMatchURLs = append(bestMatchURLs, "https://www.juntadeandalucia.es"+m[1])
+				}
+			} else {
+				for _, m := range matches {
+					bestMatchURLs = append(bestMatchURLs, m[1])
+				}
+			}
+		}
+		
+		return parsedDate, bestMatchURLs, nil
+	}
+	
+	// Asegurarnos de que el high existe, si no, bajarlo
+	for high > 0 {
+		_, _, err := fetchBulletin(high)
+		if err == nil {
+			break
+		}
+		high--
+	}
+	if high == 0 {
+		return nil, nil // No hay boletines
+	}
+
+	for low <= high {
+		mid := (low + high) / 2
+		dateMid, urls, err := fetchBulletin(mid)
+		if err != nil {
+			// Si falla un mid intermedio (ej. 404), asumimos que hay hueco.
+			// Hacemos una búsqueda lineal rápida hacia abajo para encontrar un válido.
+			validMid := mid - 1
+			for validMid >= low {
+				dateMid, urls, err = fetchBulletin(validMid)
+				if err == nil { break }
+				validMid--
+			}
+			if validMid < low {
+				low = mid + 1
+				continue
+			}
+			mid = validMid
+		}
+		
+		if dateMid.Equal(targetDate) {
+			// Lo encontramos
+			// Filter unique
+			seen := make(map[string]bool)
+			var uniqueURLs []string
+			for _, u := range urls {
+				if !seen[u] {
+					seen[u] = true
+					uniqueURLs = append(uniqueURLs, u)
+				}
+			}
+			return uniqueURLs, nil
+		}
+		
+		if dateMid.Before(targetDate) {
+			low = mid + 1
+		} else {
+			high = mid - 1
+		}
+	}
+
+	// No se publicó BOJA ese día (o fue un fin de semana/festivo)
+	return nil, nil
 }
