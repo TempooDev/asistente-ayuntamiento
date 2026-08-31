@@ -6,7 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/asistente-ayuntamiento
+  # Docker requiere que los nombres de los repositorios estén completamente en minúsculas.
+  IMAGE_PREFIX: ghcr.io/tempoodev/asistente-ayuntamiento
 
 jobs:
   build-dotnet:
@@ -19,7 +20,6 @@ jobs:
         project: 
           - AsistenteAyuntamiento.ApiService
           - AsistenteAyuntamiento.Gateway
-          - AsistenteAyuntamiento.Web
           - AsistenteAyuntamiento.Worker
     steps:
       - name: Checkout repository
@@ -68,8 +68,34 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_PREFIX }}-go-scraper:latest
 
+  build-angular:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Angular Web
+        uses: docker/build-push-action@v5
+        with:
+          context: src/AsistenteAyuntamiento.Angular
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-asistenteayuntamiento.web:latest
+          build-args: |
+            Auth0__Domain=${{ secrets.AUTH0_DOMAIN }}
+            Auth0__ClientId=${{ secrets.AUTH0_CLIENT_ID }}
+
   trigger-deployment:
-    needs: [build-dotnet, build-go]
+    needs: [build-dotnet, build-go, build-angular]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Dokploy Deployment
