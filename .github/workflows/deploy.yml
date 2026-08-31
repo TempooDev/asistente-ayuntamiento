@@ -23,7 +23,9 @@ jobs:
           - AsistenteAyuntamiento.Worker
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4 # (if v5 exists update if needed, but let's just stick to docker actions first)
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -52,7 +54,9 @@ jobs:
       packages: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4 # (if v5 exists update if needed, but let's just stick to docker actions first)
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
