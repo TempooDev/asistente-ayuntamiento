@@ -61,7 +61,7 @@ services:
       - "8080:8080"
     environment:
       services__apiservice__http__0: "http://apiservice:8080"
-      services__webfrontend__http__0: "http://webfrontend:8080"
+      services__webfrontend__http__0: "http://webfrontend:80"
 
   webfrontend:
     image: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-web:latest
