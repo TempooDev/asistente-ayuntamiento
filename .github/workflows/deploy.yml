@@ -43,7 +43,7 @@ jobs:
         run: |
           dotnet publish src/${{ matrix.project }}/${{ matrix.project }}.csproj \
             -c Release \
-            -p:ContainerRepository=${{ env.IMAGE_PREFIX }}-${{ matrix.project }} \
+            -p:ContainerRepository=tempoodev/asistente-ayuntamiento-${{ matrix.project }} \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
             -t:PublishContainer
 
@@ -93,7 +93,7 @@ jobs:
         with:
           context: src/AsistenteAyuntamiento.Angular
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}-asistenteayuntamiento.web:latest
+          tags: ${{ env.IMAGE_PREFIX }}-asistenteayuntamiento-web:latest
           build-args: |
             Auth0__Domain=${{ secrets.AUTH0_DOMAIN }}
             Auth0__ClientId=${{ secrets.AUTH0_CLIENT_ID }}

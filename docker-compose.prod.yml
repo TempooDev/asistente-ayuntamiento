@@ -9,7 +9,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
   apiservice:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
+    image: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-apiservice:latest
     restart: always
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
@@ -28,7 +28,7 @@ services:
       Auth0__Audience: "${AUTH0_AUDIENCE}"
 
   worker:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
+    image: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
     restart: always
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
@@ -45,7 +45,7 @@ services:
       Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
 
   go-scraper:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
+    image: ghcr.io/tempoodev/asistente-ayuntamiento-go-scraper:latest
     restart: always
     environment:
       ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
@@ -55,7 +55,7 @@ services:
       Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
 
   gateway:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
+    image: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-gateway:latest
     restart: always
     ports:
       - "8080:8080"
@@ -64,7 +64,7 @@ services:
       services__webfrontend__http__0: "http://webfrontend:8080"
 
   webfrontend:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.web:latest
+    image: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-web:latest
     restart: always
     environment:
       services__apiservice__http__0: "http://apiservice:8080"
