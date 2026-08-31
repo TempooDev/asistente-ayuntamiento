@@ -92,6 +92,7 @@ services:
       services__apiservice__http__0: "http://apiservice:8080"
       services__webfrontend__http__0: "http://webfrontend:80"
       ASPNETCORE_HTTP_PORTS: 80
+      ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address: "http://apiservice:8080"
 
   webfrontend:
     build:
