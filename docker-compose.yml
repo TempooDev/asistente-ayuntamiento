@@ -88,6 +88,9 @@ services:
         - Auth0__ClientId=${AUTH0_CLIENT_ID}
         - Auth0__Audience=${AUTH0_AUDIENCE}
     restart: always
+    depends_on:
+      apiservice:
+        condition: service_started
 
 volumes:
   rabbitmq_data:
