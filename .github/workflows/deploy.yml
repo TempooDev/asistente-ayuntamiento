@@ -67,3 +67,13 @@ jobs:
           context: src/go-scraper
           push: true
           tags: ${{ env.IMAGE_PREFIX }}-go-scraper:latest
+
+  trigger-deployment:
+    needs: [build-dotnet, build-go]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy Deployment
+        run: |
+          # Make sure to set DOKPLOY_WEBHOOK_URL in your GitHub repository secrets
+          echo "Triggering deployment in Dokploy..."
+          curl -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
