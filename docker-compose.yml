@@ -78,18 +78,6 @@ services:
       Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
       DOTNET_API_GRPC_URL: "apiservice:8080"
 
-  gateway:
-    build:
-      context: ./src
-      dockerfile: AsistenteAyuntamiento.Gateway/Dockerfile
-    restart: always
-    depends_on:
-      webfrontend:
-        condition: service_started
-      apiservice:
-        condition: service_started
-    environment:
-      ASPNETCORE_HTTP_PORTS: 80
 
   webfrontend:
     build:
