@@ -88,12 +88,10 @@ services:
         condition: service_started
       apiservice:
         condition: service_started
-    ports:
-      - "8080:8080"
     environment:
       services__apiservice__http__0: "http://apiservice:8080"
       services__webfrontend__http__0: "http://webfrontend:80"
-      ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_HTTP_PORTS: 80
 
   webfrontend:
     build:
