@@ -23,7 +23,7 @@ jobs:
           - AsistenteAyuntamiento.Worker
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
       - name: Setup .NET
         uses: actions/setup-dotnet@v4 # (if v5 exists update if needed, but let's just stick to docker actions first)
 
@@ -54,7 +54,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
       - name: Setup .NET
         uses: actions/setup-dotnet@v4 # (if v5 exists update if needed, but let's just stick to docker actions first)
 
@@ -66,7 +66,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Go Scraper
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: src/go-scraper
           push: true
@@ -89,7 +89,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Angular Web
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: src/AsistenteAyuntamiento.Angular
           push: true
