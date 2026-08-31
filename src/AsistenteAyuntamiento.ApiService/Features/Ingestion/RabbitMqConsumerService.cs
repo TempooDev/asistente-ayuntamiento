@@ -30,16 +30,25 @@ public class RabbitMqConsumerService : BackgroundService
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
-            try
+            var connected = false;
+            var retryCount = 0;
+            while (!connected && retryCount < 10 && !cancellationToken.IsCancellationRequested)
             {
-                _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
-                _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
-                await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error conectando a RabbitMQ al iniciar el servicio");
+                try
+                {
+                    _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
+                    _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
+                    await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
+                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
+                    connected = true;
+                    _logger.LogInformation("Conectado a RabbitMQ exitosamente.");
+                }
+                catch (Exception ex)
+                {
+                    retryCount++;
+                    _logger.LogError(ex, $"Error conectando a RabbitMQ (Intento {retryCount}/10). Reintentando en 5 segundos...");
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
             }
         }
         else

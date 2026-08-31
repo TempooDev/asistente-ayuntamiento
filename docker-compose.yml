@@ -7,12 +7,20 @@ services:
       RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-SECRETO_RABBIT}"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   apiservice:
     build:
       context: ./src
       dockerfile: AsistenteAyuntamiento.ApiService/Dockerfile
     restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
       ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
@@ -35,6 +43,9 @@ services:
       context: ./src
       dockerfile: AsistenteAyuntamiento.Worker/Dockerfile
     restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
       ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
@@ -54,18 +65,29 @@ services:
       context: ./src/go-scraper
       dockerfile: Dockerfile
     restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      apiservice:
+        condition: service_started
     environment:
       ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
       Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
       Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
       Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
       Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
+      DOTNET_API_GRPC_URL: "apiservice:8080"
 
   gateway:
     build:
       context: ./src
       dockerfile: AsistenteAyuntamiento.Gateway/Dockerfile
     restart: always
+    depends_on:
+      webfrontend:
+        condition: service_started
+      apiservice:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:

@@ -52,11 +52,18 @@ func main() {
 	}
 	defer blobStorage.Close()
 
-	msgPublisher, err = messaging.NewPublisher()
+	for i := 0; i < 10; i++ {
+		msgPublisher, err = messaging.NewPublisher()
+		if err == nil {
+			log.Println("Conectado a RabbitMQ exitosamente.")
+			defer msgPublisher.Close()
+			break
+		}
+		log.Printf("Aviso: no se pudo inicializar RabbitMQ (intento %d/10): %v\n", i+1, err)
+		time.Sleep(5 * time.Second)
+	}
 	if err != nil {
-		log.Printf("Aviso: no se pudo inicializar RabbitMQ: %v\n", err)
-	} else {
-		defer msgPublisher.Close()
+		log.Printf("No se pudo conectar a RabbitMQ después de 10 intentos: %v. Continuando sin RabbitMQ.", err)
 	}
 
 	bojaFeeds := []string{}
