@@ -1,0 +1,86 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-SECRETO_RABBIT}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  apiservice:
+    build:
+      context: ./src
+      dockerfile: AsistenteAyuntamiento.ApiService/Dockerfile
+    restart: always
+    environment:
+      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Ai__Chat__Provider: "google"
+      Ai__Chat__Model: "gemini-1.5-pro"
+      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
+      Ai__Embeddings__Provider: "google"
+      Ai__Embeddings__Model: "text-embedding-004"
+      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
+      Auth0__Domain: "${AUTH0_DOMAIN}"
+      Auth0__Audience: "${AUTH0_AUDIENCE}"
+      ASPNETCORE_HTTP_PORTS: 8080
+
+  worker:
+    build:
+      context: ./src
+      dockerfile: AsistenteAyuntamiento.Worker/Dockerfile
+    restart: always
+    environment:
+      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Ai__Chat__Provider: "google"
+      Ai__Chat__Model: "gemini-1.5-pro"
+      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
+      Ai__Embeddings__Provider: "google"
+      Ai__Embeddings__Model: "text-embedding-004"
+      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
+
+  go-scraper:
+    build:
+      context: ./src/go-scraper
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
+      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
+      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
+      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
+      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
+
+  gateway:
+    build:
+      context: ./src
+      dockerfile: AsistenteAyuntamiento.Gateway/Dockerfile
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      services__apiservice__http__0: "http://apiservice:8080"
+      services__webfrontend__http__0: "http://webfrontend:80"
+      ASPNETCORE_HTTP_PORTS: 8080
+
+  webfrontend:
+    build:
+      context: ./src/AsistenteAyuntamiento.Angular
+      dockerfile: Dockerfile
+      args:
+        - Auth0__Domain=${AUTH0_DOMAIN}
+        - Auth0__ClientId=${AUTH0_CLIENT_ID}
+    restart: always
+
+volumes:
+  rabbitmq_data:
