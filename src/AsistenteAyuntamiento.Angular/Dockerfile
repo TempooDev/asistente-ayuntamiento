@@ -9,8 +9,10 @@ COPY . .
 # Argumentos de build para ngx-env
 ARG Auth0__Domain
 ARG Auth0__ClientId
-ENV Auth0__Domain=$Auth0__Domain
-ENV Auth0__ClientId=$Auth0__ClientId
+ARG Auth0__Audience
+ENV NG_APP_AUTH0_DOMAIN=$Auth0__Domain
+ENV NG_APP_AUTH0_CLIENT_ID=$Auth0__ClientId
+ENV NG_APP_AUTH0_AUDIENCE=$Auth0__Audience
 
 RUN npm run build -- --configuration production
 
