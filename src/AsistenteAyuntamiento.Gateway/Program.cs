@@ -2,12 +2,9 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add OpenApi to ensure it can reference documents if needed, though we just host Scalar
 builder.Services.AddOpenApi();
-
 builder.AddServiceDefaults();
 
-// Add YARP reverse proxy and configure it
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -17,7 +14,6 @@ app.MapDefaultEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
-    // Render Scalar at /docs and point it to the proxied OpenAPI JSON
     app.MapScalarApiReference("/docs", options =>
     {
         options.WithTitle("Asistente Ayuntamiento API (Gateway)");
@@ -25,6 +21,13 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+// Servir archivos estáticos de Angular
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapReverseProxy();
+
+// Fallback para SPA routing (Angular)
+app.MapFallbackToFile("index.html");
 
 app.Run();

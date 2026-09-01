@@ -28,7 +28,6 @@ services:
       - Kestrel__Endpoints__Http__Protocols=Http1AndHttp2
       - Kestrel__Endpoints__Grpc__Url=http://+:50051
       - Kestrel__Endpoints__Grpc__Protocols=Http2
-      - Kestrel__Endpoints__Grpc__Protocols=Http2
       - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
       - Ai__Chat__ApiKey=${GEMINI_API_KEY}
       - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
@@ -38,8 +37,6 @@ services:
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
-      - Auth0__Domain=${AUTH0_DOMAIN}
-      - Auth0__Audience=${AUTH0_AUDIENCE}
       - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
       - GoScraper__GrpcUrl=http://go-scraper:${SCRAPER_GRPC_PORT:-50051}
     depends_on:
@@ -104,24 +101,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_HTTP_PORTS=${GATEWAY_PORT:-8000}
       - ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address=http://apiservice:${API_PORT:-8080}
-      - ReverseProxy__Clusters__web-cluster__Destinations__destination1__Address=http://webfrontend:80
       - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
     depends_on:
       - apiservice
-      - webfrontend
-    networks:
-      - dokploy-network
-
-  webfrontend:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-web:latest
-    container_name: asistente-web
-    restart: always
-    environment:
-      - PORT=${WEB_PORT:-8082}
-      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
-      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
-      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
-      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
     networks:
       - dokploy-network
 
