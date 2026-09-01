@@ -96,10 +96,10 @@ services:
     container_name: asistente-gateway
     restart: always
     ports:
-      - "${GATEWAY_PUBLISHED_PORT:-8000}:${GATEWAY_PORT:-8000}"
+      - "${GATEWAY_PUBLISHED_PORT:-8000}:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_HTTP_PORTS=${GATEWAY_PORT:-8000}
+      - ASPNETCORE_HTTP_PORTS=80
       - ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address=http://apiservice:${API_PORT:-8080}
       - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
     depends_on:
