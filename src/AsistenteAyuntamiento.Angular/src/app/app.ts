@@ -19,7 +19,10 @@ export class App {
   user = toSignal(this.auth.user$);
 
   login() {
-    this.auth.loginWithRedirect();
+    const lastOrgId = localStorage.getItem('last_org_id');
+    this.auth.loginWithRedirect({
+      authorizationParams: lastOrgId ? { organization: lastOrgId } : undefined
+    });
   }
 
   logout() {

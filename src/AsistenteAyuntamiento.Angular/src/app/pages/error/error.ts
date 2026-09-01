@@ -51,9 +51,11 @@ export class ErrorComponent implements OnInit {
   }
 
   volverALogin() {
+    const lastOrgId = localStorage.getItem('last_org_id');
     this.auth.loginWithRedirect({
       authorizationParams: {
-        prompt: 'login' // Forzamos pedir credenciales para romper la sesión SSO errónea
+        prompt: 'login', // Forzamos pedir credenciales para romper la sesión SSO errónea
+        ...(lastOrgId && { organization: lastOrgId })
       }
     });
   }
