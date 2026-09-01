@@ -8,9 +8,12 @@ import { provideAuth0, authHttpInterceptorFn, AuthClientConfig } from '@auth0/au
 import { environment } from '../environments/environment';
 import { firstValueFrom } from 'rxjs';
 
-function auth0ConfigFactory(http: HttpClient, config: AuthClientConfig) {
-  return () =>
-    firstValueFrom(http.get<any>('/api/config/auth0')).then((loadedConfig) => {
+import { HttpBackend } from '@angular/common/http';
+
+function auth0ConfigFactory(handler: HttpBackend, config: AuthClientConfig) {
+  return () => {
+    const http = new HttpClient(handler);
+    return firstValueFrom(http.get<any>('/api/config/auth0')).then((loadedConfig) => {
       // Update environment directly for other components that might read it (e.g. perfil.ts)
       environment.auth0.domain = loadedConfig.domain || '';
       environment.auth0.clientId = loadedConfig.clientId || '';
@@ -37,6 +40,7 @@ function auth0ConfigFactory(http: HttpClient, config: AuthClientConfig) {
     }).catch((err) => {
       console.error('Failed to load Auth0 config:', err);
     });
+  };
 }
 
 export const appConfig: ApplicationConfig = {
@@ -50,7 +54,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_INITIALIZER,
       useFactory: auth0ConfigFactory,
-      deps: [HttpClient, AuthClientConfig],
+      deps: [HttpBackend, AuthClientConfig],
       multi: true
     }
   ]
