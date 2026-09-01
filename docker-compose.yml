@@ -96,7 +96,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_HTTP_PORTS=${GATEWAY_PORT:-8000}
       - ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address=http://apiservice:${API_PORT:-8080}
-      - ReverseProxy__Clusters__web-cluster__Destinations__destination1__Address=http://webfrontend:${WEB_PORT:-8082}
+      - ReverseProxy__Clusters__web-cluster__Destinations__destination1__Address=http://webfrontend:80
       - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
     depends_on:
       - apiservice
