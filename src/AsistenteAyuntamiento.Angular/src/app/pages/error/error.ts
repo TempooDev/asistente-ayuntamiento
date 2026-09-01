@@ -19,12 +19,21 @@ import { Router, ActivatedRoute } from '@angular/router';
         {{ errorMessage || 'Ha ocurrido un error durante el inicio de sesión. Por favor, verifica tu cuenta o contacta al administrador.' }}
       </p>
       
-      <div class="flex gap-4">
+      <div class="flex flex-col items-center gap-4">
         <button 
           (click)="volverALogin()" 
           class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
           Volver a intentar
         </button>
+
+        <div class="mt-8 border-t pt-8">
+          <p class="text-sm font-bold text-gray-500 mb-2">HERRAMIENTA PARA DESARROLLADORES</p>
+          <p class="text-xs text-gray-400 mb-4 max-w-sm">Si no tienes invitación, pega aquí tu Organization ID (org_...) para entrar a la fuerza.</p>
+          <div class="flex gap-2 justify-center">
+            <input #orgInput type="text" placeholder="org_xxxxxxxxx" class="border rounded px-3 py-1 text-sm outline-none focus:border-blue-500">
+            <button (click)="forzarLogin(orgInput.value)" class="bg-gray-800 text-white text-sm px-3 py-1 rounded hover:bg-gray-700">Entrar forzado</button>
+          </div>
+        </div>
       </div>
     </div>
   `
@@ -57,6 +66,17 @@ export class ErrorComponent implements OnInit {
         prompt: 'login', // Forzamos pedir credenciales para romper la sesión SSO errónea
         ...(lastOrgId && { organization: lastOrgId })
       }
+    });
+  }
+
+  forzarLogin(orgId: string) {
+    if (!orgId || !orgId.startsWith('org_')) {
+      alert('Debes introducir un ID válido que empiece por org_');
+      return;
+    }
+    localStorage.setItem('last_org_id', orgId);
+    this.auth.loginWithRedirect({
+      authorizationParams: { organization: orgId }
     });
   }
 }
