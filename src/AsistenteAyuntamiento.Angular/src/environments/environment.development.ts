@@ -1,9 +1,9 @@
 export const environment = {
   production: false,
   auth0: {
-    domain: process.env.NG_APP_AUTH0_DOMAIN || '',
-    clientId: process.env.NG_APP_AUTH0_CLIENT_ID || '',
-    audience: process.env.NG_APP_AUTH0_AUDIENCE || ''
+    domain: (window as any).__env?.auth0Domain || '',
+    clientId: (window as any).__env?.auth0ClientId || '',
+    audience: (window as any).__env?.auth0Audience || ''
   },
   apiBaseUrl: ''
 };
