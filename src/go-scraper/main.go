@@ -233,7 +233,7 @@ func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.C
 		}
 	} else {
 		// Por defecto
-		targetDate := time.Now().AddDate(0, 0, -2)
+		targetDate := time.Now().AddDate(0, 0, -1)
 		startDate = targetDate
 		endDate = targetDate
 	}

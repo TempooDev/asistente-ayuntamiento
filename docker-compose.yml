@@ -1,96 +1,128 @@
 services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
+    container_name: asistente-rabbitmq
     restart: always
     environment:
-      RABBITMQ_DEFAULT_USER: "admin"
-      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-SECRETO_RABBIT}"
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-SECRETO_RABBIT}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - dokploy-network
 
   apiservice:
-    build:
-      context: ./src
-      dockerfile: AsistenteAyuntamiento.ApiService/Dockerfile
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
+    container_name: asistente-api
     restart: always
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
-      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
-      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
-      Ai__Chat__Provider: "google"
-      Ai__Chat__Model: "${GEMINI_MODEL}"
-      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
-      Ai__Embeddings__Provider: "google"
-      Ai__Embeddings__Model: "text-embedding-004"
-      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
-      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
-      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
-      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
-      Auth0__Domain: "${AUTH0_DOMAIN}"
-      Auth0__Audience: "${AUTH0_AUDIENCE}"
-      ASPNETCORE_HTTP_PORTS: 8080
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=${API_PORT:-8080}
+      - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
+      - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
+      - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
+      - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
+      - Ai__Embeddings__ApiKey=${GEMINI_API_KEY}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+      - Auth0__Domain=${AUTH0_DOMAIN}
+      - Auth0__Audience=${AUTH0_AUDIENCE}
+      - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
+      - GoScraper__GrpcUrl=http://go-scraper:${SCRAPER_GRPC_PORT:-50051}
+    depends_on:
+      - rabbitmq
+    networks:
+      - dokploy-network
+    extra_hosts:
+      - "postgres:host-gateway"
 
   worker:
-    build:
-      context: ./src
-      dockerfile: AsistenteAyuntamiento.Worker/Dockerfile
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
+    container_name: asistente-worker
     restart: always
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
-      ConnectionStrings__asistente-ayuntamiento-db: "Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}"
-      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
-      Ai__Chat__Provider: "google"
-      Ai__Chat__Model: "${GEMINI_MODEL}"
-      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
-      Ai__Embeddings__Provider: "google"
-      Ai__Embeddings__Model: "text-embedding-004"
-      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
-      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
-      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
-      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
+      - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
+      - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
+      - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
+      - Ai__Embeddings__ApiKey=${GEMINI_API_KEY}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    depends_on:
+      - rabbitmq
+      - apiservice
+    networks:
+      - dokploy-network
+    extra_hosts:
+      - "postgres:host-gateway"
 
   go-scraper:
-    build:
-      context: ./src/go-scraper
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
+    container_name: asistente-scraper
     restart: always
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      apiservice:
-        condition: service_started
     environment:
-      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672"
-      Blob__Endpoint: "${CLOUDFLARE_R2_ENDPOINT}"
-      Blob__AccessKeyId: "${CLOUDFLARE_R2_ACCESS_KEY_ID}"
-      Blob__SecretAccessKey: "${CLOUDFLARE_R2_SECRET_ACCESS_KEY}"
-      Blob__BucketName: "${CLOUDFLARE_R2_BUCKET_NAME}"
-      DOTNET_API_GRPC_URL: "apiservice:8080"
+      - PORT=${SCRAPER_PORT:-8080}
+      - GRPC_PORT=${SCRAPER_GRPC_PORT:-50051}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+      - DOTNET_API_GRPC_URL=http://apiservice:${API_PORT:-8080}
+    depends_on:
+      - rabbitmq
+      - apiservice
+    networks:
+      - dokploy-network
 
+  gateway:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
+    container_name: asistente-gateway
+    restart: always
+    ports:
+      - "${GATEWAY_PUBLISHED_PORT:-8000}:${GATEWAY_PORT:-8000}"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=${GATEWAY_PORT:-8000}
+      - ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address=http://apiservice:${API_PORT:-8080}
+      - ReverseProxy__Clusters__web-cluster__Destinations__destination1__Address=http://webfrontend:${WEB_PORT:-8082}
+      - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
+    depends_on:
+      - apiservice
+      - webfrontend
+    networks:
+      - dokploy-network
 
   webfrontend:
-    build:
-      context: ./src/AsistenteAyuntamiento.Angular
-      dockerfile: Dockerfile
-      args:
-        - Auth0__Domain=${AUTH0_DOMAIN}
-        - Auth0__ClientId=${AUTH0_CLIENT_ID}
-        - Auth0__Audience=${AUTH0_AUDIENCE}
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.web:latest
+    container_name: asistente-web
     restart: always
-    depends_on:
-      apiservice:
-        condition: service_started
+    environment:
+      - PORT=${WEB_PORT:-8082}
+      - Auth0__Domain=${AUTH0_DOMAIN}
+      - Auth0__ClientId=${AUTH0_CLIENT_ID}
+      - Auth0__ClientSecret=${AUTH0_CLIENT_SECRET}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
 
 volumes:
   rabbitmq_data:

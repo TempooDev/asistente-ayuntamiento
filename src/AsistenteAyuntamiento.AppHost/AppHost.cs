@@ -132,7 +132,7 @@ var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
     .WithReference(apiService)
-    .WithEnvironment("DOTNET_API_GRPC_URL", apiService.GetEndpoint("http"))
+    .WithEnvironment("DOTNET_API_GRPC_URL", apiService.GetEndpoint("https"))
     .WaitFor(rabbitmq)
     .WaitFor(apiService);
 
