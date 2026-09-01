@@ -12,7 +12,7 @@ services:
       - dokploy-network
 
   apiservice:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-apiservice:latest
     container_name: asistente-api
     restart: always
     environment:
@@ -47,7 +47,7 @@ services:
       - "postgres:host-gateway"
 
   worker:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
     container_name: asistente-worker
     restart: always
     environment:
@@ -92,7 +92,7 @@ services:
       - dokploy-network
 
   gateway:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-gateway:latest
     container_name: asistente-gateway
     restart: always
     ports:
