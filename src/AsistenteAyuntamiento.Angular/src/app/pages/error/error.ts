@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '@auth0/auth0-angular';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-error',
@@ -32,10 +32,17 @@ import { Router } from '@angular/router';
 export class ErrorComponent implements OnInit {
   public auth = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   
   errorMessage = '';
 
   ngOnInit() {
+    this.route.queryParams.subscribe(params => {
+      if (params['message']) {
+        this.errorMessage = params['message'];
+      }
+    });
+
     this.auth.error$.subscribe(error => {
       if (error) {
         this.errorMessage = error.message;
