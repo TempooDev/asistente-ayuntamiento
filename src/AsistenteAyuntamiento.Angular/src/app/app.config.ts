@@ -28,6 +28,7 @@ function auth0ConfigFactory(handler: HttpBackend, config: AuthClientConfig) {
         },
         cacheLocation: 'localstorage',
         useRefreshTokens: true,
+        errorPath: '/error',
         httpInterceptor: {
           allowedList: [
             '/api/*',

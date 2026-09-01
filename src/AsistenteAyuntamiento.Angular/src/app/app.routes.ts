@@ -4,10 +4,12 @@ import { DocumentosComponent } from './pages/documentos/documentos';
 import { ConfiguracionComponent } from './pages/configuracion/configuracion';
 import { CallbackComponent } from './pages/callback/callback';
 import { PerfilComponent } from './pages/perfil/perfil';
+import { ErrorComponent } from './pages/error/error';
 import { authGuardFn } from '@auth0/auth0-angular';
 
 export const routes: Routes = [
     { path: 'callback', component: CallbackComponent },
+    { path: 'error', component: ErrorComponent },
     { path: 'chat', component: ChatPanelComponent, canActivate: [authGuardFn] },
     { path: 'documentos', component: DocumentosComponent, canActivate: [authGuardFn] },
     { path: 'configuracion', component: ConfiguracionComponent, canActivate: [authGuardFn] },
