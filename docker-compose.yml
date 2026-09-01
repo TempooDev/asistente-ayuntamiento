@@ -17,10 +17,14 @@ services:
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_HTTP_PORTS=${API_PORT:-8080}
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Kestrel__Endpoints__Http__Url=http://+:${API_PORT:-8080}
+      - Kestrel__Endpoints__Http__Protocols=Http1AndHttp2
+      - Kestrel__Endpoints__Grpc__Url=http://+:50051
+      - Kestrel__Endpoints__Grpc__Protocols=Http2
+      - Kestrel__Endpoints__Grpc__Protocols=Http2
       - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
       - Ai__Chat__ApiKey=${GEMINI_API_KEY}
       - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
@@ -79,7 +83,7 @@ services:
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
-      - DOTNET_API_GRPC_URL=http://apiservice:${API_PORT:-8080}
+      - DOTNET_API_GRPC_URL=http://apiservice:50051
     depends_on:
       - rabbitmq
       - apiservice
