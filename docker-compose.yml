@@ -13,6 +13,7 @@ services:
 
   apiservice:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-apiservice:latest
+    pull_policy: always
     container_name: asistente-api
     restart: always
     environment:
@@ -48,6 +49,7 @@ services:
 
   worker:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
+    pull_policy: always
     container_name: asistente-worker
     restart: always
     environment:
@@ -74,6 +76,7 @@ services:
 
   go-scraper:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
+    pull_policy: always
     container_name: asistente-scraper
     restart: always
     environment:
@@ -93,6 +96,7 @@ services:
 
   gateway:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-gateway:latest
+    pull_policy: always
     container_name: asistente-gateway
     restart: always
     ports:
