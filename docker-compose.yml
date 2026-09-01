@@ -20,6 +20,10 @@ services:
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Auth0__Domain=${AUTH0_DOMAIN}
+      - Auth0__ClientId=${AUTH0_CLIENT_ID}
+      - Auth0__Audience=${AUTH0_AUDIENCE}
+      - Auth0__ClientSecret=${AUTH0_CLIENT_SECRET}
       - Kestrel__Endpoints__Http__Url=http://+:${API_PORT:-8080}
       - Kestrel__Endpoints__Http__Protocols=Http1AndHttp2
       - Kestrel__Endpoints__Grpc__Url=http://+:50051
@@ -114,13 +118,6 @@ services:
     restart: always
     environment:
       - PORT=${WEB_PORT:-8082}
-      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
-      - AUTH0_CLIENT_ID=${AUTH0_CLIENT_ID}
-      - AUTH0_AUDIENCE=${AUTH0_AUDIENCE}
-      - Auth0__Domain=${AUTH0_DOMAIN}
-      - Auth0__ClientId=${AUTH0_CLIENT_ID}
-      - Auth0__ClientSecret=${AUTH0_CLIENT_SECRET}
-      - Auth0__Audience=${AUTH0_AUDIENCE}
       - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}

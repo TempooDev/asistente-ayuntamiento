@@ -230,6 +230,7 @@ app.MapGrpcService<AsistenteAyuntamiento.ApiService.Features.Scraper.FilterConfi
 
 UserEndpoints.MapUserEndpoints(app);
 AiConfigEndpoints.MapAiConfigEndpoints(app);
+AsistenteAyuntamiento.ApiService.Features.Config.ConfigEndpoints.MapConfigEndpoints(app);
 IngestionEndpoints.MapIngestionEndpoints(app);
 AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
 app.MapAiMetricsEndpoints();

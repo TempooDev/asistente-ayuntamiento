@@ -9,6 +9,6 @@ COPY . .
 RUN npm run build -- --configuration production
 
 FROM nginx:alpine
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/AsistenteAyuntamiento.Angular/browser /usr/share/nginx/html
 EXPOSE 80
