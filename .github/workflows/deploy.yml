@@ -45,6 +45,7 @@ jobs:
             -c Release \
             -p:ContainerRepository=tempoodev/asistente-ayuntamiento-${{ matrix.project }} \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
+            -p:ContainerImageTag=latest \
             -t:PublishContainer
 
   build-go:

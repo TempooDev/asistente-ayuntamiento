@@ -105,7 +105,7 @@ services:
       - dokploy-network
 
   webfrontend:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento.web:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-web:latest
     container_name: asistente-web
     restart: always
     environment:
