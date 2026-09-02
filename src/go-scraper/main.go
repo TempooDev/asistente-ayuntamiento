@@ -90,7 +90,7 @@ func main() {
 	}
 
 	// Start command server
-	go commandserver.StartGrpcServer(func(providerName, startDateStr, endDateStr string) (int, error) {
+	go commandserver.StartGrpcServer(func(providerName, startDateStr, endDateStr string, sections []string) (int, error) {
 		var p scraper.BoletinProvider
 		for _, prv := range providers {
 			if prv.Name() == providerName {
@@ -117,9 +117,9 @@ func main() {
 			}
 		}
 		
-		log.Printf("ForceScrape triggered for %s from %s to %s", providerName, targetStart.Format("2006-01-02"), targetEnd.Format("2006-01-02"))
+		log.Printf("ForceScrape triggered for %s from %s to %s, sections: %v", providerName, targetStart.Format("2006-01-02"), targetEnd.Format("2006-01-02"), sections)
 		
-		itemsExtracted := scrapeProviderDateRange(context.Background(), p, targetStart, targetEnd, filterClient)
+		itemsExtracted := scrapeProviderDateRange(context.Background(), p, targetStart, targetEnd, filterClient, sections)
 		return itemsExtracted, nil
 	})
 
@@ -273,8 +273,14 @@ func forceScrapeProvider(ctx context.Context, provider scraper.BoletinProvider, 
 	return processDocumentsWithFilter(ctx, provider, ids, filterClient)
 }
 
-func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvider, startDate, endDate time.Time, filterClient *filterclient.Client) int {
+func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvider, startDate, endDate time.Time, filterClient *filterclient.Client, sections []string) int {
 	configureProviderFromRules(ctx, provider, filterClient)
+	
+	// Si el provider es BOE y se especificaron secciones, las aplicamos
+	if boeProv, ok := provider.(*boe.Provider); ok && len(sections) > 0 {
+		boeProv.SetSections(sections)
+	}
+
 	log.Printf("=== Iniciando scraping para la fuente: %s desde %s hasta %s ===", provider.Name(), startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
 	totalItems := 0

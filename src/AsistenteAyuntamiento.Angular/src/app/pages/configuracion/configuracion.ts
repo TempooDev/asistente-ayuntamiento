@@ -211,6 +211,28 @@ export class ConfiguracionComponent implements OnInit, OnDestroy {
     }
   }
 
+  readonly BOE_SECTIONS = [
+    { value: '1', label: 'Sección I (Disposiciones Generales)' },
+    { value: '2B', label: 'Sección II.B (Autoridades y Personal)' },
+    { value: '3', label: 'Sección III (Otras Disposiciones)' },
+    { value: '5A', label: 'Sección V.A (Anuncios)' },
+    { value: '5B', label: 'Sección V.B (Otros Anuncios)' }
+  ];
+
+  boeSections = signal<string[]>(['1', '2B', '3', '5A']);
+
+  toggleBoeSection(value: string, event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    this.boeSections.update(sections => {
+      if (isChecked && !sections.includes(value)) {
+        return [...sections, value];
+      } else if (!isChecked && sections.includes(value)) {
+        return sections.filter(s => s !== value);
+      }
+      return sections;
+    });
+  }
+
   scrapeResultMessage = signal<{ type: 'success' | 'error', text: string } | null>(null);
 
   forzarScrape(provider: DocumentSource) {
@@ -222,6 +244,10 @@ export class ConfiguracionComponent implements OnInit, OnDestroy {
     const payload: any = { provider };
     if (this.scrapeStartDate()) payload.startDate = this.scrapeStartDate();
     if (this.scrapeEndDate()) payload.endDate = this.scrapeEndDate();
+    
+    if (provider === DocumentSource.BOE && this.boeSections().length > 0) {
+      payload.sections = this.boeSections();
+    }
 
     this.scraperClient.triggerScrape(payload).subscribe({
       next: () => {

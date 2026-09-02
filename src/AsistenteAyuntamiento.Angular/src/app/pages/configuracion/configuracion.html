@@ -197,6 +197,16 @@
                 </div>
             </div>
 
+            <div class="mb-4">
+                <label class="block font-label-sm mb-2 text-on-surface">Secciones del BOE (opcional)</label>
+                <div class="flex flex-wrap gap-4">
+                    <label *ngFor="let sec of BOE_SECTIONS" class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" [checked]="boeSections().includes(sec.value)" (change)="toggleBoeSection(sec.value, $event)" class="w-4 h-4 text-primary rounded border-outline focus:ring-primary">
+                        <span class="text-on-surface-variant">{{ sec.label }}</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="flex gap-4">
                 <button (click)="forzarScrape(DocumentSource.BOE)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer BOE</button>
                 <button (click)="forzarScrape(DocumentSource.BOJA)" [disabled]="isTriggeringScrape()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer BOJA</button>

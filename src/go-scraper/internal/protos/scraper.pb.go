@@ -174,6 +174,7 @@ type ForceScrapeRequest struct {
 	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                    // "BOE", "BOJA", "BOPMA"
 	StartDate     string                 `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // YYYY-MM-DD
 	EndDate       string                 `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`       // YYYY-MM-DD
+	Sections      []string               `protobuf:"bytes,4,rep,name=sections,proto3" json:"sections,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -227,6 +228,13 @@ func (x *ForceScrapeRequest) GetEndDate() string {
 		return x.EndDate
 	}
 	return ""
+}
+
+func (x *ForceScrapeRequest) GetSections() []string {
+	if x != nil {
+		return x.Sections
+	}
+	return nil
 }
 
 type ForceScrapeResponse struct {
@@ -303,12 +311,13 @@ const file_scraper_proto_rawDesc = "" +
 	"filterType\x12\x14\n" +
 	"\x05value\x18\x04 \x01(\tR\x05value\"@\n" +
 	"\x13FilterRulesResponse\x12)\n" +
-	"\x05rules\x18\x01 \x03(\v2\x13.scraper.FilterRuleR\x05rules\"j\n" +
+	"\x05rules\x18\x01 \x03(\v2\x13.scraper.FilterRuleR\x05rules\"\x86\x01\n" +
 	"\x12ForceScrapeRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x1d\n" +
 	"\n" +
 	"start_date\x18\x02 \x01(\tR\tstartDate\x12\x19\n" +
-	"\bend_date\x18\x03 \x01(\tR\aendDate\"r\n" +
+	"\bend_date\x18\x03 \x01(\tR\aendDate\x12\x1a\n" +
+	"\bsections\x18\x04 \x03(\tR\bsections\"r\n" +
 	"\x13ForceScrapeResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12'\n" +

@@ -26,6 +26,7 @@ const (
 type Provider struct {
 	httpClient  *http.Client
 	rateLimiter *rate.Limiter
+	sections    []string
 }
 
 // NewProvider crea una nueva instancia del proveedor BOE con Rate Limiting.
@@ -38,7 +39,12 @@ func NewProvider() *Provider {
 			Timeout:   30 * time.Second,
 		},
 		rateLimiter: limiter,
+		sections:    []string{"1", "2B", "3", "5A"}, // Default sections
 	}
+}
+
+func (p *Provider) SetSections(sections []string) {
+	p.sections = sections
 }
 
 func (p *Provider) Name() string {
@@ -72,11 +78,12 @@ func (p *Provider) FetchSummary(ctx context.Context, date time.Time) ([]string, 
 		case map[string]interface{}:
 			// Si el nodo es una sección, revisamos su código
 			if cod, ok := node["codigo"].(string); ok && node["departamento"] != nil {
-				// 1 (Sección I), 2B (Sección II.B), 3 (Sección III), 5A (Sección V.A)
-				if cod == "1" || cod == "2B" || cod == "3" || cod == "5A" {
-					active = true
-				} else {
-					active = false
+				active = false
+				for _, allowed := range p.sections {
+					if cod == allowed {
+						active = true
+						break
+					}
 				}
 			}
 

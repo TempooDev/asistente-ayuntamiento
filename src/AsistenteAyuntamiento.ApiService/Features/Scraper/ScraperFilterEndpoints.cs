@@ -92,6 +92,11 @@ public static class ScraperFilterEndpoints
                 EndDate = dto.EndDate ?? ""
             };
 
+            if (dto.Sections != null && dto.Sections.Any())
+            {
+                req.Sections.AddRange(dto.Sections);
+            }
+
             stateService.IsScraping = true;
             stateService.ScrapeMessage = $"Extrayendo {dto.Provider}...";
             

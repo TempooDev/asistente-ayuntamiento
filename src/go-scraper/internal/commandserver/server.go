@@ -13,19 +13,19 @@ import (
 
 type Server struct {
 	pb.UnimplementedScraperCommandServiceServer
-	onForceScrape func(provider, startDate, endDate string) (int, error)
+	onForceScrape func(provider, startDate, endDate string, sections []string) (int, error)
 }
 
-func NewServer(onForceScrape func(provider, startDate, endDate string) (int, error)) *Server {
+func NewServer(onForceScrape func(provider, startDate, endDate string, sections []string) (int, error)) *Server {
 	return &Server{
 		onForceScrape: onForceScrape,
 	}
 }
 
 func (s *Server) ForceScrape(ctx context.Context, req *pb.ForceScrapeRequest) (*pb.ForceScrapeResponse, error) {
-	log.Printf("Received ForceScrape command for provider: %s, start: %s, end: %s", req.Provider, req.StartDate, req.EndDate)
+	log.Printf("Received ForceScrape command for provider: %s, start: %s, end: %s, sections: %v", req.Provider, req.StartDate, req.EndDate, req.Sections)
 	
-	items, err := s.onForceScrape(req.Provider, req.StartDate, req.EndDate)
+	items, err := s.onForceScrape(req.Provider, req.StartDate, req.EndDate, req.Sections)
 	if err != nil {
 		return &pb.ForceScrapeResponse{
 			Success: false,
@@ -41,7 +41,7 @@ func (s *Server) ForceScrape(ctx context.Context, req *pb.ForceScrapeRequest) (*
 	}, nil
 }
 
-func StartGrpcServer(onForceScrape func(provider, startDate, endDate string) (int, error)) {
+func StartGrpcServer(onForceScrape func(provider, startDate, endDate string, sections []string) (int, error)) {
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
 		port = "50051"
