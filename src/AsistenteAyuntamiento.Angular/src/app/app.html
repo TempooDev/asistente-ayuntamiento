@@ -42,14 +42,16 @@
                     <span class="material-symbols-outlined">chat</span>
                     <span>Chat</span>
                 </a>
-                <a routerLink="/documentos" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                    <span class="material-symbols-outlined">description</span>
-                    <span>Documentos</span>
-                </a>
-                <a routerLink="/configuracion" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                    <span class="material-symbols-outlined">settings_input_component</span>
-                    <span>Configuración IA</span>
-                </a>
+                @if (isAdmin()) {
+                    <a routerLink="/documentos" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                        <span class="material-symbols-outlined">description</span>
+                        <span>Documentos</span>
+                    </a>
+                    <a routerLink="/configuracion" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                        <span class="material-symbols-outlined">settings_input_component</span>
+                        <span>Configuración IA</span>
+                    </a>
+                }
                 <a routerLink="/perfil" routerLinkActive="bg-primary-container text-on-primary-container" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                     <span class="material-symbols-outlined">account_circle</span>
                     <span class="truncate">Perfil</span>

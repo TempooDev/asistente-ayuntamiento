@@ -18,6 +18,14 @@ export class App {
   isAuthenticated = toSignal(this.auth.isAuthenticated$, { initialValue: false });
   user = toSignal(this.auth.user$);
 
+  isAdmin = () => {
+    const userData = this.user();
+    if (!userData) return false;
+    const rolesClaim = userData['https://asistente.antoniobermudez.dev/roles'] || [];
+    const roles = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
+    return roles.includes('administrador');
+  };
+
   login() {
     const lastOrgId = localStorage.getItem('last_org_id');
     this.auth.loginWithRedirect({
