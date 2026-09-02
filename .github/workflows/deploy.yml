@@ -6,7 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'docker-compose.yml'
-      - '.github/workflows/**'
+  workflow_dispatch: # Permite lanzar la pipeline manualmente desde la interfaz de GitHub
 
 env:
   REGISTRY: ghcr.io
@@ -92,6 +92,7 @@ jobs:
   trigger-deployment:
     needs: [build-dotnet, build-go]
     runs-on: ubuntu-latest
+    environment: dokploy-production # Requiere configuración de entorno en GitHub para aprobación manual
     steps:
       - name: Trigger Dokploy Deployment
         run: |
