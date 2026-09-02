@@ -39,7 +39,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<DocumentChunk>()
             .Property(c => c.Embedding)
-            .HasColumnType("vector(768)");
+            .HasColumnType("vector");
 
         modelBuilder.Entity<UserProfile>()
             .HasIndex(u => u.Auth0UserId)

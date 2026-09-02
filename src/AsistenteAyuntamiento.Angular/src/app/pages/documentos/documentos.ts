@@ -120,6 +120,32 @@ export class DocumentosComponent implements OnInit {
     }
   }
 
+  async resetBlob(blobName: string) {
+    try {
+      this.statusMessage.set(`Reiniciando estado de ${blobName}...`);
+      
+      const parts = blobName.split('/');
+      const docId = parts.length > 0 ? parts[parts.length - 1].replace('.json', '') : '';
+      
+      const result = await this.ingestionService.resetBlobStatus(docId);
+      this.statusMessage.set(result);
+      await this.loadBlobs();
+    } catch (ex: any) {
+      this.statusMessage.set(`Error al reiniciar: ${ex.message || ex}`);
+    }
+  }
+
+  async resetStuckProcessing() {
+    try {
+      this.statusMessage.set('Reiniciando todos los documentos colgados...');
+      const result = await this.ingestionService.resetStuckProcessing();
+      this.statusMessage.set(result);
+      await this.loadBlobs();
+    } catch (ex: any) {
+      this.statusMessage.set(`Error al reiniciar documentos colgados: ${ex.message || ex}`);
+    }
+  }
+
   changePage(newPage: number) {
     if (newPage >= 1 && newPage <= this.totalPages()) {
       this.currentPage.set(newPage);

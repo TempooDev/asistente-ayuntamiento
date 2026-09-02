@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs;
+using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
@@ -98,6 +99,66 @@ public static class IngestionEndpoints
             return Results.Ok(blobs);
         })
         .WithName("ListBlobs");
+
+        group.MapPost("/reset-status/{documentId}", async (
+            string documentId,
+            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
+            try
+            {
+                logger.LogInformation($"Restableciendo estado del documento {documentId} a Pending...");
+                
+                var jobState = await dbContext.DocumentJobStates.FindAsync(documentId);
+                if (jobState != null)
+                {
+                    jobState.Status = "Pending";
+                    jobState.LastUpdatedAt = DateTime.UtcNow;
+                    await dbContext.SaveChangesAsync();
+                    return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
+                }
+                
+                return Results.NotFound(new { message = $"Documento {documentId} no encontrado." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Error al reiniciar el estado del documento {documentId}");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("ResetDocumentStatus");
+
+        group.MapPost("/reset-stuck-processing", async (
+            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
+            try
+            {
+                logger.LogInformation("Restableciendo todos los documentos atascados en 'Processing' a 'Pending'...");
+                
+                var stuckJobs = await dbContext.DocumentJobStates
+                    .Where(j => j.Status == "Processing")
+                    .ToListAsync();
+                    
+                foreach (var job in stuckJobs)
+                {
+                    job.Status = "Pending";
+                    job.LastUpdatedAt = DateTime.UtcNow;
+                }
+                
+                await dbContext.SaveChangesAsync();
+                
+                return Results.Ok(new { message = $"Se han reiniciado {stuckJobs.Count} documentos atascados a 'Pending'." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error al reiniciar documentos atascados");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("ResetStuckProcessingDocuments");
 
         group.MapPost("/reset", async (
             [FromServices] Infrastructure.Data.AppDbContext dbContext,

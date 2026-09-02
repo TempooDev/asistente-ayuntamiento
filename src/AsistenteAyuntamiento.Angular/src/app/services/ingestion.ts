@@ -42,4 +42,18 @@ export class IngestionService {
     );
     return result?.message ?? "Procesado correctamente.";
   }
+
+  async resetBlobStatus(documentId: string): Promise<string> {
+    const result = await firstValueFrom(
+      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-status/${documentId}`, {})
+    );
+    return result?.message ?? "Estado reiniciado correctamente.";
+  }
+
+  async resetStuckProcessing(): Promise<string> {
+    const result = await firstValueFrom(
+      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-stuck-processing`, {})
+    );
+    return result?.message ?? "Documentos colgados reiniciados correctamente.";
+  }
 }
