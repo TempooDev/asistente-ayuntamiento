@@ -33,7 +33,11 @@ services:
       - Ai__Chat__ApiKey=${GEMINI_API_KEY}
       - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
       - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
-      - Ai__Embeddings__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
+      - Ai__Embeddings__EndpointUrl=${AI_EMBEDDINGS_ENDPOINT_URL:-}
+      - Ai__Embeddings__ChunkMaxTokens=${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}
+      - Ai__Embeddings__ChunkOverlapTokens=${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}
+      - Ai__Embeddings__ChunkMaxLines=${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}
       - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
@@ -61,7 +65,11 @@ services:
       - Ai__Chat__ApiKey=${GEMINI_API_KEY}
       - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
       - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
-      - Ai__Embeddings__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
+      - Ai__Embeddings__EndpointUrl=${AI_EMBEDDINGS_ENDPOINT_URL:-}
+      - Ai__Embeddings__ChunkMaxTokens=${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}
+      - Ai__Embeddings__ChunkOverlapTokens=${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}
+      - Ai__Embeddings__ChunkMaxLines=${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}
       - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}

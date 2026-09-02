@@ -16,11 +16,13 @@ public class DocumentIngestionService
     private readonly string _bucketName;
     private readonly AppDbContext _dbContext;
     private readonly Kernel _kernel;
+    private readonly IConfiguration _config;
     private readonly ILogger<DocumentIngestionService> _logger;
 
     public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger)
     {
         _s3Client = s3Client;
+        _config = config;
         _bucketName = config["Blob:BucketName"] ?? "boletines";
         _dbContext = dbContext;
         _kernel = kernel;
@@ -96,10 +98,14 @@ public class DocumentIngestionService
         else
         {
 #pragma warning disable SKEXP0050
+            var maxLines = _config.GetValue<int>("Ai:Embeddings:ChunkMaxLines", 200);
+            var maxTokens = _config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
+            var overlapTokens = _config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
+
             paragraphs = TextChunker.SplitPlainTextParagraphs(
-                TextChunker.SplitPlainTextLines(document.Content, 200),
-                400,
-                50 // overlap
+                TextChunker.SplitPlainTextLines(document.Content, maxLines),
+                maxTokens,
+                overlapTokens
             );
 #pragma warning restore SKEXP0050
         }
