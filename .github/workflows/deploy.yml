@@ -3,6 +3,10 @@ name: Build and Push Docker Images
 on:
   push:
     branches: [ "main" ] # Se dispara al mergear en main
+    paths:
+      - 'src/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/**'
 
 env:
   REGISTRY: ghcr.io
