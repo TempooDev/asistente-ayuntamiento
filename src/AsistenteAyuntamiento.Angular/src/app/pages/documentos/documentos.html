@@ -22,6 +22,10 @@
                 <div class="text-sm opacity-70">Pendientes</div>
                 <div class="text-2xl font-bold">{{ pendingCount() }}</div>
             </div>
+            <div class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm cursor-pointer hover:bg-surface-variant transition-colors" (click)="filterStatus.set('Encolados'); onFilterChange()">
+                <div class="text-sm opacity-70">Encolados</div>
+                <div class="text-2xl font-bold text-orange-500">{{ queuedCount() }}</div>
+            </div>
             <div class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm">
                 <div class="text-sm opacity-70">En proceso</div>
                 <div class="text-2xl font-bold text-blue-500">{{ processingCount() }}</div>
@@ -31,7 +35,7 @@
                 <div class="text-2xl font-bold text-green-500">{{ completedCount() }}</div>
             </div>
             <div class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm cursor-pointer hover:bg-surface-variant transition-colors" (click)="filterStatus.set('Todos'); onFilterChange()">
-                <div class="text-sm opacity-70">Total</div>
+                <div class="text-sm opacity-70">Total Docs</div>
                 <div class="text-2xl font-bold">{{ totalCount() }}</div>
             </div>
         </div>
@@ -47,6 +51,7 @@
                     [ngModel]="filterStatus()" (ngModelChange)="filterStatus.set($event); onFilterChange()">
                 <option value="Todos">Todos los estados</option>
                 <option value="Procesados">Solo Procesados</option>
+                <option value="Encolados">Solo Encolados</option>
                 <option value="Pendientes">Solo Pendientes</option>
             </select>
             
@@ -146,6 +151,10 @@
                                 } @else if (blob.status === IngestionStatus.Processing) {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
                                         Procesando...
+                                    </span>
+                                } @else if (blob.status === IngestionStatus.Queued) {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 animate-pulse">
+                                        Encolado
                                     </span>
                                 } @else if (blob.status === IngestionStatus.Failed) {
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">

@@ -1,8 +1,10 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, effect, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { IngestionService, BlobInfo, IngestionStatus, PaginatedBlobsResponse } from '../../services/ingestion/ingestion.service';
 import { DocumentSource } from '../../services/config/scraper-filter.service';
+import { NotificationService } from '../../services/core/notification.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-documentos',
@@ -11,8 +13,9 @@ import { DocumentSource } from '../../services/config/scraper-filter.service';
   templateUrl: './documentos.html',
   styleUrl: './documentos.scss'
 })
-export class DocumentosComponent implements OnInit {
+export class DocumentosComponent implements OnInit, OnDestroy {
   private ingestionService = inject(IngestionService);
+  private notificationService = inject(NotificationService);
 
   blobs = signal<BlobInfo[]>([]);
   stats = signal<PaginatedBlobsResponse['stats'] | null>(null);
@@ -36,14 +39,66 @@ export class DocumentosComponent implements OnInit {
 
   // Stats
   pendingCount = computed(() => this.stats()?.pending || 0);
+  queuedCount = computed(() => this.stats()?.queued || 0);
   processingCount = computed(() => this.stats()?.processing || 0);
   completedCount = computed(() => this.stats()?.completed || 0);
   totalCount = computed(() => this.stats()?.total || 0);
 
   totalPages = computed(() => Math.ceil(this.totalFilteredCount() / this.pageSize()) || 1);
 
+  private _sub?: Subscription;
+
+  constructor() {
+    // Load saved filters
+    const saved = localStorage.getItem('docFilters');
+    if (saved) {
+      try {
+        const filters = JSON.parse(saved);
+        if (filters.searchTerm !== undefined) this.searchTerm.set(filters.searchTerm);
+        if (filters.filterStatus !== undefined) this.filterStatus.set(filters.filterStatus);
+        if (filters.pageSize !== undefined) this.pageSize.set(filters.pageSize);
+      } catch (e) {
+        console.error('Error parsing filters from localStorage', e);
+      }
+    }
+
+    // Persist filters automatically
+    effect(() => {
+      const filters = {
+        searchTerm: this.searchTerm(),
+        filterStatus: this.filterStatus(),
+        pageSize: this.pageSize()
+      };
+      localStorage.setItem('docFilters', JSON.stringify(filters));
+    });
+  }
+
   async ngOnInit() {
+    await this.notificationService.connect();
+    
+    this._sub = this.notificationService.documentStatusChanged$.subscribe(data => {
+      this.updateLocalBlobStatusByDocId(data.documentId, data.status as IngestionStatus);
+      
+      // Update stats optimistically (simple approximation)
+      this.stats.update(s => {
+        if (!s) return s;
+        const copy = { ...s };
+        if (data.status === 'Processing' && copy.queued > 0) {
+            copy.queued--;
+            copy.processing++;
+        } else if (data.status === 'Completed' && copy.processing > 0) {
+            copy.processing--;
+            copy.completed++;
+        }
+        return copy;
+      });
+    });
+
     await this.loadBlobs();
+  }
+
+  ngOnDestroy() {
+    this._sub?.unsubscribe();
   }
 
   async onFilterChange() {
@@ -115,7 +170,18 @@ export class DocumentosComponent implements OnInit {
   }
 
   updateLocalBlobStatus(blobName: string, status: IngestionStatus) {
-    this.blobs.update(bs => bs.map(b => b.name === blobName ? { ...b, status } : b));
+    this.blobs.update(bs => bs.map(b => b.name === blobName ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b));
+  }
+
+  updateLocalBlobStatusByDocId(docId: string, status: IngestionStatus) {
+    this.blobs.update(bs => bs.map(b => {
+      const parts = b.name.split('/');
+      const d = parts.length > 0 ? parts[parts.length - 1].replace('.json', '') : '';
+      if (d === docId) {
+        return { ...b, status, isProcessed: status === IngestionStatus.Completed };
+      }
+      return b;
+    }));
   }
 
   async processBlob(blobName: string) {
@@ -149,7 +215,20 @@ export class DocumentosComponent implements OnInit {
     try {
         const result = await this.ingestionService.enqueueBulk(requests);
         this.statusMessage.set(result);
-        this.blobs.update(bs => bs.map(b => selected.includes(b.name) ? { ...b, status: IngestionStatus.Pending } : b));
+        
+        // Mark locally as Queued
+        this.blobs.update(bs => bs.map(b => selected.includes(b.name) ? { ...b, status: IngestionStatus.Queued } : b));
+        
+        // Optimistically update stats
+        this.stats.update(s => {
+          if (!s) return s;
+          return {
+            ...s,
+            pending: Math.max(0, s.pending - selected.length),
+            queued: s.queued + selected.length
+          };
+        });
+        
         this.selectedBlobs.set(new Set());
     } catch (ex: any) {
         this.statusMessage.set(`Error al encolar: ${ex.message || ex}`);

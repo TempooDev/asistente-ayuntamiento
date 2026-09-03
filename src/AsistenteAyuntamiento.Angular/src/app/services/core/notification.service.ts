@@ -14,6 +14,9 @@ export class NotificationService {
   private scraperStateChangedSource = new Subject<{ isScraping: boolean, message: string }>();
   public scraperStateChanged$ = this.scraperStateChangedSource.asObservable();
 
+  private documentStatusChangedSource = new Subject<{ documentId: string, status: string, errorMessage?: string }>();
+  public documentStatusChanged$ = this.documentStatusChangedSource.asObservable();
+
   public get isConnected(): boolean {
     return this.hubConnection?.state === signalR.HubConnectionState.Connected;
   }
@@ -33,6 +36,10 @@ export class NotificationService {
 
     this.hubConnection.on('ScraperStateChanged', (data: { isScraping: boolean, message: string }) => {
       this.scraperStateChangedSource.next(data);
+    });
+
+    this.hubConnection.on('DocumentStatusChanged', (data: { documentId: string, status: string, errorMessage?: string }) => {
+      this.documentStatusChangedSource.next(data);
     });
 
     try {

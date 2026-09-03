@@ -123,7 +123,9 @@ public static class IngestionEndpoints
                 if (status == "Procesados")
                     filteredBlobs = filteredBlobs.Where(b => b.Status == "Completed");
                 else if (status == "Pendientes")
-                    filteredBlobs = filteredBlobs.Where(b => b.Status == "Pending" || b.Status == "Failed" || b.Status == "Processing");
+                    filteredBlobs = filteredBlobs.Where(b => b.Status == "Pending" || b.Status == "Failed");
+                else if (status == "Encolados")
+                    filteredBlobs = filteredBlobs.Where(b => b.Status == "Queued" || b.Status == "Processing");
             }
 
             if (dateFrom.HasValue)
@@ -140,34 +142,38 @@ public static class IngestionEndpoints
 
             if (minSizeKb.HasValue)
             {
-                filteredBlobs = filteredBlobs.Where(b => (b.Size / 1024) >= minSizeKb.Value);
+                var minBytes = minSizeKb.Value * 1024L;
+                filteredBlobs = filteredBlobs.Where(b => b.Size >= minBytes);
             }
 
             if (maxSizeKb.HasValue)
             {
-                filteredBlobs = filteredBlobs.Where(b => (b.Size / 1024) <= maxSizeKb.Value);
+                var maxBytes = maxSizeKb.Value * 1024L;
+                filteredBlobs = filteredBlobs.Where(b => b.Size <= maxBytes);
             }
 
-            var finalBlobs = filteredBlobs.OrderByDescending(b => b.LastModified).ToList();
-            
-            int p = page ?? 1;
-            int ps = pageSize ?? 20;
+            var totalItems = filteredBlobs.Count();
 
-            var paged = finalBlobs
-                .Skip((p - 1) * ps)
-                .Take(ps)
-                .ToList();
+            // Paginación
+            var skip = ((page ?? 1) - 1) * (pageSize ?? 100);
+            var pagedBlobs = filteredBlobs.Skip(skip).Take(pageSize ?? 100).ToList();
 
-            return Results.Ok(new {
-                Items = paged,
-                TotalCount = finalBlobs.Count,
-                Stats = new {
-                    Total = totalCount,
-                    Pending = pendingCount,
-                    Processing = processingCount,
-                    Completed = completedCount
+            var result = new
+            {
+                Total = totalItems,
+                Page = page ?? 1,
+                PageSize = pageSize ?? 100,
+                Items = pagedBlobs,
+                Stats = new
+                {
+                    Total = allBlobs.Count,
+                    Pending = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed"),
+                    Queued = allBlobs.Count(b => b.Status == "Queued"),
+                    Completed = allBlobs.Count(b => b.Status == "Completed"),
+                    Processing = allBlobs.Count(b => b.Status == "Processing")
                 }
-            });
+            };
+            return Results.Ok(result);
         })
         .WithName("ListBlobs");
 
@@ -277,7 +283,8 @@ public static class IngestionEndpoints
             [FromBody] List<AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
             [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
             [FromServices] Infrastructure.Data.AppDbContext dbContext,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory,
+            [FromServices] Microsoft.AspNetCore.SignalR.IHubContext<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub> hubContext) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
@@ -314,7 +321,7 @@ public static class IngestionEndpoints
                     var jobState = await dbContext.DocumentJobStates.FindAsync(docId);
                     if (jobState != null)
                     {
-                        jobState.Status = "Pending";
+                        jobState.Status = "Queued";
                         jobState.LastUpdatedAt = DateTime.UtcNow;
                     }
                     else
@@ -322,12 +329,13 @@ public static class IngestionEndpoints
                         dbContext.DocumentJobStates.Add(new DocumentJobState
                         {
                             DocumentId = docId,
-                            Status = "Pending",
+                            Status = "Queued",
                             CreatedAt = DateTime.UtcNow,
                             LastUpdatedAt = DateTime.UtcNow
                         });
                     }
 
+                    await hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = docId, status = "Queued" });
                     count++;
                 }
 

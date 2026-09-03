@@ -6,6 +6,8 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
 using System.Text.Json;
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+using Microsoft.AspNetCore.SignalR;
+using AsistenteAyuntamiento.ApiService.Features.Notifications;
 #pragma warning disable SKEXP0001
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
@@ -18,8 +20,9 @@ public class DocumentIngestionService
     private readonly Kernel _kernel;
     private readonly IConfiguration _config;
     private readonly ILogger<DocumentIngestionService> _logger;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
-    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger)
+    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, IHubContext<NotificationHub> hubContext)
     {
         _s3Client = s3Client;
         _config = config;
@@ -27,6 +30,7 @@ public class DocumentIngestionService
         _dbContext = dbContext;
         _kernel = kernel;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
@@ -55,6 +59,7 @@ public class DocumentIngestionService
             });
         }
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = docIdFromPath, status = "Processing" }, cancellationToken);
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
@@ -179,6 +184,8 @@ public class DocumentIngestionService
 
                 await transaction.CommitAsync(cancellationToken);
                 
+                await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = document.DocumentId, status = "Completed" }, cancellationToken);
+                
                 _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
             }
             catch (Exception ex)
@@ -208,6 +215,8 @@ public class DocumentIngestionService
                         });
                         await _dbContext.SaveChangesAsync(cancellationToken);
                     }
+                    
+                    await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = fallbackDocId, status = "Failed", errorMessage = ex.Message }, cancellationToken);
                 } 
                 catch { /* Ignore inner failure */ }
                 

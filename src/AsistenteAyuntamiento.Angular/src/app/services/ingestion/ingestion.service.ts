@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 
 export enum IngestionStatus {
   Pending = 'Pending',
+  Queued = 'Queued',
   Processing = 'Processing',
   Completed = 'Completed',
   Failed = 'Failed',
@@ -29,6 +30,7 @@ export interface PaginatedBlobsResponse {
   stats: {
     total: number;
     pending: number;
+    queued: number;
     processing: number;
     completed: number;
   };
