@@ -47,9 +47,9 @@ jobs:
       - id: set-matrix
         run: |
           matrix="[]"
-          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.ApiService"]'); fi
-          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.Gateway"]'); fi
-          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.Worker"]'); fi
+          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.ApiService"]'); fi
+          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Gateway"]'); fi
+          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Worker"]'); fi
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
           if [ "$matrix" != "[]" ]; then echo "any=true" >> $GITHUB_OUTPUT; else echo "any=false" >> $GITHUB_OUTPUT; fi
 
