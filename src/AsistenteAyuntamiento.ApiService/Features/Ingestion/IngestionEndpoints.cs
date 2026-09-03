@@ -47,10 +47,6 @@ public static class IngestionEndpoints
         {
             var bucketName = config["Blob:BucketName"] ?? "boletines";
 
-            var processedDocIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                Queryable.Distinct(Queryable.Select(dbContext.DocumentChunks, c => c.DocumentId))
-            );
-
             var jobStates = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToDictionaryAsync(
                 dbContext.DocumentJobStates,
                 j => j.DocumentId,
@@ -86,10 +82,9 @@ public static class IngestionEndpoints
                             var parts = s3Obj.Key.Split('/');
                             var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
 
-                            var isProcessed = processedDocIds != null && processedDocIds.Contains(docId);
                             var objStatus = jobStates.TryGetValue(docId, out var jobStatus)
                                 ? jobStatus
-                                : (isProcessed ? "Completed" : "Pending");
+                                : "Pending";
 
                             allBlobs.Add(new
                             {

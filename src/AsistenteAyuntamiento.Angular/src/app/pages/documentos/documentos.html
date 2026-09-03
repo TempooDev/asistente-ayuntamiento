@@ -7,12 +7,8 @@
             Reiniciar colgados en 'Procesando'
         </button>
     </div>
-    @if (blobs() === null) {
-        <p><em>Cargando documentos...</em></p>
-    } @else if (totalCount() === 0) {
-        <p>No se encontraron documentos.</p>
-    } @else {
-        <!-- Stats Summary -->
+    <!-- Stats Summary (Always visible if stats exist) -->
+    @if (stats()) {
         <div class="flex flex-wrap gap-4 mb-md">
             <div class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm cursor-pointer hover:bg-surface-variant transition-colors" (click)="filterStatus.set('Pendientes'); onFilterChange()">
                 <div class="text-sm opacity-70">Pendientes</div>
@@ -31,59 +27,70 @@
                 <div class="text-2xl font-bold">{{ totalCount() }}</div>
             </div>
         </div>
+    }
 
-        <div class="mb-md flex flex-col gap-4">
-            <div class="flex gap-4 items-center flex-wrap">
-                <input type="text" class="px-3 py-2 border rounded bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..." 
-                       [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event); onFilterChange()" />
-                       
-                <select class="px-3 py-2 border rounded bg-transparent" 
-                        [ngModel]="filterStatus()" (ngModelChange)="filterStatus.set($event); onFilterChange()">
-                    <option value="Todos">Todos los estados</option>
-                    <option value="Procesados">Solo Procesados</option>
-                    <option value="Pendientes">Solo Pendientes</option>
-                </select>
-                
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">Desde:</label>
-                    <input type="date" class="px-2 py-1 border rounded bg-transparent" 
-                           [ngModel]="filterDateFrom()" (ngModelChange)="filterDateFrom.set($event); onFilterChange()" />
-                </div>
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">Hasta:</label>
-                    <input type="date" class="px-2 py-1 border rounded bg-transparent" 
-                           [ngModel]="filterDateTo()" (ngModelChange)="filterDateTo.set($event); onFilterChange()" />
-                </div>
-            </div>
+    <!-- Filters -->
+    <div class="mb-md flex flex-col gap-4">
+        <div class="flex gap-4 items-center flex-wrap">
+            <input type="text" class="px-3 py-2 border rounded bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..." 
+                   [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event); onFilterChange()" />
+                   
+            <select class="px-3 py-2 border rounded bg-transparent" 
+                    [ngModel]="filterStatus()" (ngModelChange)="filterStatus.set($event); onFilterChange()">
+                <option value="Todos">Todos los estados</option>
+                <option value="Procesados">Solo Procesados</option>
+                <option value="Pendientes">Solo Pendientes</option>
+            </select>
             
-            <div class="flex gap-4 items-center flex-wrap">
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">Tamaño Min (KB):</label>
-                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Min" 
-                           [ngModel]="filterMinSize()" (ngModelChange)="filterMinSize.set($event); onFilterChange()" />
-                </div>
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">Tamaño Max (KB):</label>
-                    <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Max" 
-                           [ngModel]="filterMaxSize()" (ngModelChange)="filterMaxSize.set($event); onFilterChange()" />
-                </div>
-                
-                <div class="flex items-center gap-2 ml-auto">
-                    <label class="text-sm font-medium">Por página:</label>
-                    <select class="px-2 py-1 border rounded bg-transparent" 
-                            [ngModel]="pageSize()" (ngModelChange)="pageSize.set($event); onFilterChange()">
-                        <option [ngValue]="10">10</option>
-                        <option [ngValue]="20">20</option>
-                        <option [ngValue]="50">50</option>
-                        <option [ngValue]="100">100</option>
-                    </select>
-                </div>
-                
-                <div class="text-sm opacity-70">
-                    Mostrando {{ totalFilteredCount() }} de {{ totalCount() }}
-                </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Desde:</label>
+                <input type="date" class="px-2 py-1 border rounded bg-transparent" 
+                       [ngModel]="filterDateFrom()" (ngModelChange)="filterDateFrom.set($event); onFilterChange()" />
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Hasta:</label>
+                <input type="date" class="px-2 py-1 border rounded bg-transparent" 
+                       [ngModel]="filterDateTo()" (ngModelChange)="filterDateTo.set($event); onFilterChange()" />
             </div>
         </div>
+        
+        <div class="flex gap-4 items-center flex-wrap">
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Tamaño Min (KB):</label>
+                <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Min" 
+                       [ngModel]="filterMinSize()" (ngModelChange)="filterMinSize.set($event); onFilterChange()" />
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Tamaño Max (KB):</label>
+                <input type="number" class="px-2 py-1 border rounded bg-transparent w-24" placeholder="Max" 
+                       [ngModel]="filterMaxSize()" (ngModelChange)="filterMaxSize.set($event); onFilterChange()" />
+            </div>
+            
+            <div class="flex items-center gap-2 ml-auto">
+                <label class="text-sm font-medium">Por página:</label>
+                <select class="px-2 py-1 border rounded bg-transparent" 
+                        [ngModel]="pageSize()" (ngModelChange)="pageSize.set($event); onFilterChange()">
+                    <option [ngValue]="10">10</option>
+                    <option [ngValue]="20">20</option>
+                    <option [ngValue]="50">50</option>
+                    <option [ngValue]="100">100</option>
+                </select>
+            </div>
+            
+            <div class="text-sm opacity-70">
+                Mostrando {{ totalFilteredCount() }} de {{ totalCount() }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading and List -->
+    @if (isLoading()) {
+        <div class="p-4 flex justify-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+    } @else if (totalFilteredCount() === 0) {
+        <p>No se encontraron documentos.</p>
+    } @else {
 
         <div class="table-container overflow-x-auto">
             <table class="table-auto w-full text-left border-collapse">

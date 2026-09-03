@@ -14,10 +14,11 @@ import { DocumentSource } from '../../services/config/scraper-filter.service';
 export class DocumentosComponent implements OnInit {
   private ingestionService = inject(IngestionService);
 
-  blobs = signal<BlobInfo[] | null>(null);
+  blobs = signal<BlobInfo[]>([]);
   stats = signal<PaginatedBlobsResponse['stats'] | null>(null);
   totalFilteredCount = signal(0);
   statusMessage = signal('');
+  isLoading = signal(false);
   
   // Filters
   searchTerm = signal('');
@@ -59,7 +60,7 @@ export class DocumentosComponent implements OnInit {
 
   async loadBlobs() {
     try {
-      this.blobs.set(null); // Show loading
+      this.isLoading.set(true); // Show loading only for the list
       const data = await this.ingestionService.getBlobs({
           page: this.currentPage(),
           pageSize: this.pageSize(),
@@ -75,6 +76,8 @@ export class DocumentosComponent implements OnInit {
       this.totalFilteredCount.set(data.totalCount);
     } catch (ex: any) {
       this.statusMessage.set(`Error al cargar: ${ex.message || ex}`);
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
