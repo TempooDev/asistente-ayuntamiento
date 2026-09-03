@@ -3,6 +3,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 

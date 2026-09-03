@@ -139,7 +139,11 @@ public sealed class AiChatService
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
                 var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-                var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+                
+                var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
+                var searchQuery = string.Join("\n", searchTexts);
+                
+                var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 // Find top 20 closest chunks
@@ -368,7 +372,11 @@ public sealed class AiChatService
             try
             {
                 var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-                var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+                
+                var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
+                var searchQuery = string.Join("\n", searchTexts);
+                
+                var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 var closestChunks = await _dbContext.DocumentChunks
@@ -629,7 +637,11 @@ public sealed class AiChatService
         if (string.IsNullOrWhiteSpace(lastUserMessage?.Content)) return null;
 
         var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-        var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
+        
+        var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
+        var searchQuery = string.Join("\n", searchTexts);
+        
+        var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
         var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
         // 1. Get Top 3 using HNSW Index
