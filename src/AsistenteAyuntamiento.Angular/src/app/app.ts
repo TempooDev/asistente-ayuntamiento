@@ -1,3 +1,5 @@
+import { environment } from "../environments/environment";
+
 import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
@@ -21,7 +23,7 @@ export class App {
   isAdmin = () => {
     const userData = this.user();
     if (!userData) return false;
-    const rolesClaim = userData['https://asistente.antoniobermudez.dev/roles'] || [];
+    const rolesClaim = userData[`${environment.auth0.customClaimsNamespace}/roles`] || [];
     const roles = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
     return roles.includes('administrador');
   };

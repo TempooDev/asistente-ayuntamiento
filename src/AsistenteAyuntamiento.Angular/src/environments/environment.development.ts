@@ -3,7 +3,8 @@ export const environment = {
   auth0: {
     domain: '',
     clientId: '',
-    audience: ''
+    audience: '',
+    customClaimsNamespace: 'https://asistente.antoniobermudez.dev'
   },
   apiBaseUrl: ''
 };

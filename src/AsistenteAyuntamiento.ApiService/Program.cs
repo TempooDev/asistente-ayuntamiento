@@ -44,7 +44,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.Audience = auth0Audience;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
-            RoleClaimType = "https://asistente.antoniobermudez.dev/roles"
+            RoleClaimType = $"{builder.Configuration["Auth0:CustomClaimsNamespace"]}/roles"
         };
 
         // SignalR sends the access token in the query string for WebSockets

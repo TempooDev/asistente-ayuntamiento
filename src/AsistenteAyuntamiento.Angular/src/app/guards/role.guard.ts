@@ -1,3 +1,5 @@
+import { environment } from "../../environments/environment";
+
 import { inject } from '@angular/core';
 import { Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
@@ -19,7 +21,7 @@ export const roleGuardFn = (route: ActivatedRouteSnapshot, state: RouterStateSna
         return false;
       }
 
-      const rolesClaim = user['https://asistente.antoniobermudez.dev/roles'] || [];
+      const rolesClaim = user[`${environment.auth0.customClaimsNamespace}/roles`] || [];
       const userRoles: string[] = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
 
       // If no specific roles required, allow

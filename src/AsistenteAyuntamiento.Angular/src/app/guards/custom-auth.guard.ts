@@ -1,3 +1,5 @@
+import { environment } from "../../environments/environment";
+
 import { inject } from '@angular/core';
 import { Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
@@ -32,7 +34,7 @@ export const customAuthGuardFn = (route: ActivatedRouteSnapshot, state: RouterSt
           }
 
           // Si NO tiene org_id, buscamos el claim personalizado que inyectaremos con la Action de Auth0
-          const orgsClaim = claims['https://asistente.antoniobermudez.dev/orgs'];
+          const orgsClaim = claims[`${environment.auth0.customClaimsNamespace}/orgs`];
           
           if (orgsClaim && Array.isArray(orgsClaim) && orgsClaim.length > 0) {
             // Si pertenece a 1 o más organizaciones, hacemos re-login automático a la primera

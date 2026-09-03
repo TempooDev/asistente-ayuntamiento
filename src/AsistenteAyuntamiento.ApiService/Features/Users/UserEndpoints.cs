@@ -13,12 +13,12 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/users").RequireAuthorization();
 
         // Get current user profile
-        group.MapGet("/me", async (AppDbContext db, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService) =>
+        group.MapGet("/me", async (AppDbContext db, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
 
-            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService);
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService, config);
 
             return Results.Ok(new UserProfileDto
             {
@@ -32,12 +32,12 @@ public static class UserEndpoints
         });
 
         // Update current user profile
-        group.MapPut("/me", async (AppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto, Tenants.CurrentTenantService tenantService) =>
+        group.MapPut("/me", async (AppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
 
-            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService);
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService, config);
 
             profile.FullName = dto.FullName;
             profile.Department = dto.Department;
@@ -51,7 +51,7 @@ public static class UserEndpoints
         });
     }
 
-    private static async Task<UserProfile> GetOrCreateProfileAsync(AppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService)
+    private static async Task<UserProfile> GetOrCreateProfileAsync(AppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config)
     {
         try
         {
@@ -60,9 +60,10 @@ public static class UserEndpoints
             if (profile == null)
             {
                 // Try to get name from standard claims or custom namespaced claims
+                var namespacePrefix = config["Auth0:CustomClaimsNamespace"];
                 var nameClaim = user.FindFirst("name")?.Value 
                              ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
-                             ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
+                             ?? user.FindFirst($"{namespacePrefix}/name")?.Value;
 
                 // Create empty profile on first access
                 profile = new UserProfile
