@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { IngestionService, BlobInfo, IngestionStatus } from '../../services/ingestion/ingestion.service';
+import { IngestionService, BlobInfo, IngestionStatus, PaginatedBlobsResponse } from '../../services/ingestion/ingestion.service';
 import { DocumentSource } from '../../services/config/scraper-filter.service';
 
 @Component({
@@ -15,11 +15,13 @@ export class DocumentosComponent implements OnInit {
   private ingestionService = inject(IngestionService);
 
   blobs = signal<BlobInfo[] | null>(null);
+  stats = signal<PaginatedBlobsResponse['stats'] | null>(null);
+  totalFilteredCount = signal(0);
   statusMessage = signal('');
   
   // Filters
   searchTerm = signal('');
-  filterStatus = signal('Todos');
+  filterStatus = signal('Pendientes');
   pageSize = signal(20);
   filterDateFrom = signal<string | null>(null);
   filterDateTo = signal<string | null>(null);
@@ -31,75 +33,46 @@ export class DocumentosComponent implements OnInit {
   // Expose enum to template
   IngestionStatus = IngestionStatus;
 
-  // Computed state for pagination and filtering
-  filteredBlobs = computed(() => {
-    const currentBlobs = this.blobs();
-    if (!currentBlobs) return [];
-    
-    const search = this.searchTerm().toLowerCase();
-    const status = this.filterStatus();
-    const dFrom = this.filterDateFrom() ? new Date(this.filterDateFrom()!) : null;
-    const dTo = this.filterDateTo() ? new Date(this.filterDateTo()!) : null;
-    const minSize = this.filterMinSize();
-    const maxSize = this.filterMaxSize();
+  // Stats
+  pendingCount = computed(() => this.stats()?.pending || 0);
+  processingCount = computed(() => this.stats()?.processing || 0);
+  completedCount = computed(() => this.stats()?.completed || 0);
+  totalCount = computed(() => this.stats()?.total || 0);
 
-    return currentBlobs.filter(b => {
-      // Name match
-      if (search && !b.name.toLowerCase().includes(search)) return false;
-      
-      // Status match
-      if (status !== 'Todos') {
-        if (status === 'Procesados' && b.status !== IngestionStatus.Completed) return false;
-        if (status === 'Pendientes' && ![IngestionStatus.Pending, IngestionStatus.Failed, IngestionStatus.Processing].includes(b.status)) return false;
-      }
-      
-      // Date match
-      if (b.lastModified) {
-        const dDate = new Date(b.lastModified);
-        dDate.setHours(0,0,0,0);
-        if (dFrom) {
-          const fromDate = new Date(dFrom);
-          fromDate.setHours(0,0,0,0);
-          if (dDate < fromDate) return false;
-        }
-        if (dTo) {
-          const toDate = new Date(dTo);
-          toDate.setHours(0,0,0,0);
-          if (dDate > toDate) return false;
-        }
-      } else if (dFrom || dTo) {
-        return false;
-      }
-
-      // Size match
-      const sizeKB = Math.round(b.size / 1024);
-      if (minSize !== null && sizeKB < minSize) return false;
-      if (maxSize !== null && sizeKB > maxSize) return false;
-
-      return true;
-    });
-  });
-
-  totalPages = computed(() => Math.ceil(this.filteredBlobs().length / this.pageSize()));
-
-  pagedBlobs = computed(() => {
-    const start = (this.currentPage() - 1) * this.pageSize();
-    return this.filteredBlobs().slice(start, start + this.pageSize());
-  });
+  totalPages = computed(() => Math.ceil(this.totalFilteredCount() / this.pageSize()) || 1);
 
   async ngOnInit() {
     await this.loadBlobs();
   }
 
-  // Effect-like behavior: when a filter changes, reset to page 1
-  onFilterChange() {
+  async onFilterChange() {
     this.currentPage.set(1);
+    await this.loadBlobs();
+  }
+
+  async changePage(newPage: number) {
+    if (newPage >= 1 && newPage <= this.totalPages()) {
+      this.currentPage.set(newPage);
+      await this.loadBlobs();
+    }
   }
 
   async loadBlobs() {
     try {
-      const data = await this.ingestionService.getBlobs();
-      this.blobs.set(data);
+      this.blobs.set(null); // Show loading
+      const data = await this.ingestionService.getBlobs({
+          page: this.currentPage(),
+          pageSize: this.pageSize(),
+          status: this.filterStatus(),
+          search: this.searchTerm(),
+          dateFrom: this.filterDateFrom(),
+          dateTo: this.filterDateTo(),
+          minSizeKb: this.filterMinSize(),
+          maxSizeKb: this.filterMaxSize()
+      });
+      this.blobs.set(data.items);
+      this.stats.set(data.stats);
+      this.totalFilteredCount.set(data.totalCount);
     } catch (ex: any) {
       this.statusMessage.set(`Error al cargar: ${ex.message || ex}`);
     }
@@ -146,12 +119,6 @@ export class DocumentosComponent implements OnInit {
     }
   }
 
-  changePage(newPage: number) {
-    if (newPage >= 1 && newPage <= this.totalPages()) {
-      this.currentPage.set(newPage);
-    }
-  }
-  
   // Helpers for template
   getDocUrl(blobName: string): string | null {
     const parts = blobName.split('/');

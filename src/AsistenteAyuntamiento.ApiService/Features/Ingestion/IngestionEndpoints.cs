@@ -32,7 +32,15 @@ public static class IngestionEndpoints
             }
         })
         .WithName("ProcessBlobManually");
-        group.MapGet("/blobs", async (
+                        group.MapGet("/blobs", async (
+            [FromQuery] int? page,
+            [FromQuery] int? pageSize,
+            [FromQuery] string? status,
+            [FromQuery] string? search,
+            [FromQuery] DateTime? dateFrom,
+            [FromQuery] DateTime? dateTo,
+            [FromQuery] int? minSizeKb,
+            [FromQuery] int? maxSizeKb,
             [FromServices] Amazon.S3.IAmazonS3 s3Client,
             [FromServices] IConfiguration config,
             [FromServices] Infrastructure.Data.AppDbContext dbContext) =>
@@ -49,7 +57,7 @@ public static class IngestionEndpoints
                 j => j.Status
             );
 
-            var blobs = new List<object>();
+            var allBlobs = new List<dynamic>();
 
             try
             {
@@ -64,39 +72,107 @@ public static class IngestionEndpoints
                     Prefix = "json/"
                 };
 
-                var response = await s3Client.ListObjectsV2Async(request);
-
-                if (response?.S3Objects != null)
+                Amazon.S3.Model.ListObjectsV2Response response;
+                do
                 {
-                    foreach (var s3Obj in response.S3Objects)
+                    response = await s3Client.ListObjectsV2Async(request);
+
+                    if (response?.S3Objects != null)
                     {
-                        if (s3Obj?.Key == null) continue;
-
-                        var parts = s3Obj.Key.Split('/');
-                        var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-
-                        var isProcessed = processedDocIds != null && processedDocIds.Contains(docId);
-                        var status = jobStates.TryGetValue(docId, out var jobStatus)
-                            ? jobStatus
-                            : (isProcessed ? "Completed" : "Pending");
-
-                        blobs.Add(new
+                        foreach (var s3Obj in response.S3Objects)
                         {
-                            Name = s3Obj.Key,
-                            Size = s3Obj.Size,
-                            LastModified = s3Obj.LastModified,
-                            IsProcessed = status == "Completed",
-                            Status = status
-                        });
+                            if (s3Obj?.Key == null) continue;
+
+                            var parts = s3Obj.Key.Split('/');
+                            var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
+
+                            var isProcessed = processedDocIds != null && processedDocIds.Contains(docId);
+                            var objStatus = jobStates.TryGetValue(docId, out var jobStatus)
+                                ? jobStatus
+                                : (isProcessed ? "Completed" : "Pending");
+
+                            allBlobs.Add(new
+                            {
+                                Name = s3Obj.Key,
+                                Size = s3Obj.Size,
+                                LastModified = s3Obj.LastModified,
+                                IsProcessed = objStatus == "Completed",
+                                Status = objStatus
+                            });
+                        }
                     }
-                }
+                    
+                    request.ContinuationToken = response.NextContinuationToken;
+                } while (response.IsTruncated);
             }
             catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
             {
                 // Bucket not created yet
             }
 
-            return Results.Ok(blobs);
+            int pendingCount = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed");
+            int processingCount = allBlobs.Count(b => b.Status == "Processing");
+            int completedCount = allBlobs.Count(b => b.Status == "Completed");
+            int totalCount = allBlobs.Count;
+
+            var filteredBlobs = allBlobs.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(search))
+            {
+                var lowerSearch = search.ToLower();
+                filteredBlobs = filteredBlobs.Where(b => ((string)b.Name).ToLower().Contains(lowerSearch));
+            }
+
+            if (!string.IsNullOrEmpty(status) && status != "Todos")
+            {
+                if (status == "Procesados")
+                    filteredBlobs = filteredBlobs.Where(b => b.Status == "Completed");
+                else if (status == "Pendientes")
+                    filteredBlobs = filteredBlobs.Where(b => b.Status == "Pending" || b.Status == "Failed" || b.Status == "Processing");
+            }
+
+            if (dateFrom.HasValue)
+            {
+                var df = dateFrom.Value.Date;
+                filteredBlobs = filteredBlobs.Where(b => b.LastModified != null && ((DateTime)b.LastModified).Date >= df);
+            }
+
+            if (dateTo.HasValue)
+            {
+                var dt = dateTo.Value.Date;
+                filteredBlobs = filteredBlobs.Where(b => b.LastModified != null && ((DateTime)b.LastModified).Date <= dt);
+            }
+
+            if (minSizeKb.HasValue)
+            {
+                filteredBlobs = filteredBlobs.Where(b => (b.Size / 1024) >= minSizeKb.Value);
+            }
+
+            if (maxSizeKb.HasValue)
+            {
+                filteredBlobs = filteredBlobs.Where(b => (b.Size / 1024) <= maxSizeKb.Value);
+            }
+
+            var finalBlobs = filteredBlobs.OrderByDescending(b => b.LastModified).ToList();
+            
+            int p = page ?? 1;
+            int ps = pageSize ?? 20;
+
+            var paged = finalBlobs
+                .Skip((p - 1) * ps)
+                .Take(ps)
+                .ToList();
+
+            return Results.Ok(new {
+                Items = paged,
+                TotalCount = finalBlobs.Count,
+                Stats = new {
+                    Total = totalCount,
+                    Pending = pendingCount,
+                    Processing = processingCount,
+                    Completed = completedCount
+                }
+            });
         })
         .WithName("ListBlobs");
 

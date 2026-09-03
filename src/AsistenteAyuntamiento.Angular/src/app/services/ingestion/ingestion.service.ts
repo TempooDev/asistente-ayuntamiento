@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -23,17 +23,35 @@ export interface ProcessResponse {
   message: string;
 }
 
+export interface PaginatedBlobsResponse {
+  items: BlobInfo[];
+  totalCount: number;
+  stats: {
+    total: number;
+    pending: number;
+    processing: number;
+    completed: number;
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class IngestionService {
   private http = inject(HttpClient);
 
-  async getBlobs(): Promise<BlobInfo[]> {
-    const blobs = await firstValueFrom(
-      this.http.get<BlobInfo[]>(`${environment.apiBaseUrl}/api/ingestion/blobs`)
+  async getBlobs(paramsObj: any = {}): Promise<PaginatedBlobsResponse> {
+    let params = new HttpParams();
+    Object.keys(paramsObj).forEach(key => {
+        if (paramsObj[key] !== null && paramsObj[key] !== undefined && paramsObj[key] !== '') {
+            params = params.set(key, paramsObj[key]);
+        }
+    });
+
+    const result = await firstValueFrom(
+      this.http.get<PaginatedBlobsResponse>(`${environment.apiBaseUrl}/api/ingestion/blobs`, { params })
     );
-    return blobs || [];
+    return result || { items: [], totalCount: 0, stats: { total: 0, pending: 0, processing: 0, completed: 0 } };
   }
 
   async processBlob(blobPath: string, source: string): Promise<string> {
