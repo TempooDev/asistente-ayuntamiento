@@ -1,3 +1,5 @@
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 public static class AiMetricsEndpoints
@@ -59,13 +61,13 @@ public static class AiMetricsEndpoints
 
         // GET /api/ai/metrics/history — Fetch paginated historical call logs from the database
         group.MapGet("/metrics/history", async (
-            AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext dbContext,
+            IAppDbContext dbContext,
             System.Security.Claims.ClaimsPrincipal user,
             int page = 1, 
             int pageSize = 50) =>
         {
             // Note: Since this is an admin panel or for user history, you'd typically filter by TenantId
-            // which is handled via AppDbContext QueryFilters automatically, but we can also filter by UserId if needed.
+            // which is handled via IAppDbContext QueryFilters automatically, but we can also filter by UserId if needed.
             if (page < 1) page = 1;
             if (pageSize < 1 || pageSize > 100) pageSize = 50;
 

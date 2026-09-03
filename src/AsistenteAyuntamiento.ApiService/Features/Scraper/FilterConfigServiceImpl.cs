@@ -1,15 +1,15 @@
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Protos;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
 public class FilterConfigServiceImpl : FilterConfigService.FilterConfigServiceBase
 {
-    private readonly AppDbContext _db;
+    private readonly IAppDbContext _db;
 
-    public FilterConfigServiceImpl(AppDbContext db)
+    public FilterConfigServiceImpl(IAppDbContext db)
     {
         _db = db;
     }

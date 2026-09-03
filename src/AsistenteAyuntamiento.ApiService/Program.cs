@@ -1,3 +1,11 @@
+using AsistenteAyuntamiento.Infrastructure;
+
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Infrastructure.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.AiConfig;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
@@ -28,7 +36,7 @@ builder.Services.AddHostedService<ChatPersistenceWorker>();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<AiConfigurationService>();
 
-builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>(
+builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
     configureDbContextOptions: options => options
         .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector())
@@ -65,6 +73,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.ApiService.Features.Notifications.SignalRNotificationService>();
+builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Notifications.RabbitMqNotificationConsumer>();
 builder.Services.AddGrpc();
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
@@ -78,90 +88,10 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
     options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(60);
 });
 
-// Register Semantic Kernel with configurable provider
-#pragma warning disable SKEXP0070 // Experimental connectors warning
-var ollamaConnString = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
-    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
-    : ollamaConnString;
-
-var chatProvider = builder.Configuration["Ai:Chat:Provider"] ?? "ollama";
-var chatModel = builder.Configuration["Ai:Chat:Model"] ?? "llama3.2";
-var chatApiKey = builder.Configuration["Ai:Chat:ApiKey"] ?? "";
-
-var kernelBuilder = builder.Services.AddKernel();
-
-if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
-{
-    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
-    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
-    kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
-}
-else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
-{
-    var chatEndpointUrl = builder.Configuration["Ai:Chat:EndpointUrl"];
-    if (!string.IsNullOrEmpty(chatEndpointUrl))
-    {
-        var httpClient = new HttpClient { BaseAddress = new Uri(chatEndpointUrl) };
-        kernelBuilder.AddOpenAIChatCompletion(chatModel, chatApiKey, httpClient: httpClient);
-    }
-    else
-    {
-        kernelBuilder.AddOpenAIChatCompletion(chatModel, chatApiKey);
-    }
-}
-else
-{
-    var ollamaUriStr = ollamaEndpoint.TrimEnd('/');
-    kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaUriStr));
-}
-
-var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
-var embProvider = aiEmbeddingsConfig["Provider"] ?? "ollama";
-var embModel = aiEmbeddingsConfig["Model"] ?? "nomic-embed-text";
-var embEndpoint = aiEmbeddingsConfig["EndpointUrl"] ?? ollamaEndpoint;
-var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
-
-if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
-{
-    var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck } };
-    if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
-    kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
-}
-else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
-{
-#pragma warning disable SKEXP0010
-    if (!string.IsNullOrEmpty(embEndpoint))
-    {
-        var httpClient = new HttpClient { BaseAddress = new Uri(embEndpoint) };
-        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey, httpClient: httpClient);
-    }
-    else
-    {
-        kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey);
-    }
-#pragma warning restore SKEXP0010
-}
-else
-{
-    var embUriStr = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
-    embUriStr = embUriStr.TrimEnd('/');
-#pragma warning disable SKEXP0001
-    kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUriStr));
-#pragma warning restore SKEXP0001
-}
-#pragma warning restore SKEXP0070
-
+// Register Semantic Kernel and S3 using the Infrastructure extension
+builder.AddInfrastructureServices();
 builder.AddRabbitMQClient("messaging");
-var blobEndpoint = builder.Configuration["Blob:Endpoint"];
-if (!string.IsNullOrEmpty(blobEndpoint))
-{
-    var accessKeyId = builder.Configuration["Blob:AccessKeyId"] ?? "admin";
-    var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"] ?? "password123";
-    var s3Config = new Amazon.S3.AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
-    var credentials = new Amazon.Runtime.BasicAWSCredentials(accessKeyId, secretAccessKey);
-    builder.Services.AddSingleton<Amazon.S3.IAmazonS3>(new Amazon.S3.AmazonS3Client(credentials, s3Config));
-}
+
 // Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
 // pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
 builder.Services.AddScoped<DocumentIngestionService>();
@@ -193,7 +123,7 @@ if (app.Environment.IsDevelopment())
 // Apply database migrations and ensure S3 bucket on startup
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
     dbContext.Database.Migrate();
 
     var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();

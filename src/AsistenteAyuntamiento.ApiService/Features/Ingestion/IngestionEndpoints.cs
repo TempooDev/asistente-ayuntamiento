@@ -1,9 +1,9 @@
+using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.SignalR;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
@@ -44,7 +44,7 @@ public static class IngestionEndpoints
             [FromQuery] int? maxSizeKb,
             [FromServices] Amazon.S3.IAmazonS3 s3Client,
             [FromServices] IConfiguration config,
-            [FromServices] Infrastructure.Data.AppDbContext dbContext) =>
+            [FromServices] IAppDbContext dbContext) =>
         {
             var bucketName = config["Blob:BucketName"] ?? "boletines";
 
@@ -180,7 +180,7 @@ public static class IngestionEndpoints
 
         group.MapPost("/reset-status/{documentId}", async (
             string documentId,
-            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] IAppDbContext dbContext,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
@@ -208,7 +208,7 @@ public static class IngestionEndpoints
         .WithName("ResetDocumentStatus");
 
         group.MapPost("/reset-stuck-processing", async (
-            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] IAppDbContext dbContext,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
@@ -256,7 +256,7 @@ public static class IngestionEndpoints
         .WithName("ResetStuckProcessingDocuments");
 
         group.MapPost("/reset", async (
-            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] IAppDbContext dbContext,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
@@ -281,11 +281,11 @@ public static class IngestionEndpoints
 
 
         group.MapPost("/enqueue-bulk", async (
-            [FromBody] List<AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
+            [FromBody] List<AsistenteAyuntamiento.Application.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
             [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
-            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] IAppDbContext dbContext,
             [FromServices] ILoggerFactory loggerFactory,
-            [FromServices] Microsoft.AspNetCore.SignalR.IHubContext<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub> hubContext) =>
+            [FromServices] INotificationService notificationService) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
@@ -336,7 +336,7 @@ public static class IngestionEndpoints
                         });
                     }
 
-                    await hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = docId, status = "Queued" });
+                    await notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
                     count++;
                 }
 

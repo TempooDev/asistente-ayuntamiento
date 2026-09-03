@@ -1,4 +1,5 @@
-using AsistenteAyuntamiento.ApiService.Features.AiConfig.DTOs;
+using AsistenteAyuntamiento.Application.Features.AiConfig;
+using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 namespace AsistenteAyuntamiento.ApiService.Features.AiConfig;
 
 public static class AiConfigEndpoints

@@ -1,4 +1,5 @@
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Shared.Features.Users;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,7 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/users").RequireAuthorization();
 
         // Get current user profile
-        group.MapGet("/me", async (AppDbContext db, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
+        group.MapGet("/me", async (IAppDbContext db, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
@@ -32,7 +33,7 @@ public static class UserEndpoints
         });
 
         // Update current user profile
-        group.MapPut("/me", async (AppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
+        group.MapPut("/me", async (IAppDbContext db, ClaimsPrincipal user, [FromBody] UserProfileDto dto, Tenants.CurrentTenantService tenantService, IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
@@ -51,7 +52,7 @@ public static class UserEndpoints
         });
     }
 
-    private static async Task<UserProfile> GetOrCreateProfileAsync(AppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config)
+    private static async Task<UserProfile> GetOrCreateProfileAsync(IAppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService, IConfiguration config)
     {
         try
         {

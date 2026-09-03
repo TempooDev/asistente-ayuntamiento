@@ -1,9 +1,9 @@
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+using AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
+using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.SignalR;
-using AsistenteAyuntamiento.ApiService.Features.Scraper.DTOs;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
@@ -14,7 +14,7 @@ public static class ScraperFilterEndpoints
         var group = app.MapGroup("/api/scraper/filters").RequireAuthorization();
 
         // 1. Get all active rules
-        group.MapGet("/", async (AppDbContext db) =>
+        group.MapGet("/", async (IAppDbContext db) =>
         {
             try 
             {
@@ -29,14 +29,14 @@ public static class ScraperFilterEndpoints
         });
 
         // 2. Get rule by id
-        group.MapGet("/{id:int}", async (int id, AppDbContext db) =>
+        group.MapGet("/{id:int}", async (int id, IAppDbContext db) =>
         {
             var rule = await db.ScraperFilterRules.FindAsync(id);
             return rule is not null ? Results.Ok(rule) : Results.NotFound();
         });
 
         // 3. Create rule
-        group.MapPost("/", async (AppDbContext db, [FromBody] CreateFilterRuleDto dto) =>
+        group.MapPost("/", async (IAppDbContext db, [FromBody] CreateFilterRuleDto dto) =>
         {
             var rule = new ScraperFilterRule
             {
@@ -54,7 +54,7 @@ public static class ScraperFilterEndpoints
         });
 
         // 4. Update rule
-        group.MapPut("/{id:int}", async (int id, AppDbContext db, [FromBody] UpdateFilterRuleDto dto) =>
+        group.MapPut("/{id:int}", async (int id, IAppDbContext db, [FromBody] UpdateFilterRuleDto dto) =>
         {
             var rule = await db.ScraperFilterRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -70,7 +70,7 @@ public static class ScraperFilterEndpoints
         });
 
         // 5. Delete rule
-        group.MapDelete("/{id:int}", async (int id, AppDbContext db) =>
+        group.MapDelete("/{id:int}", async (int id, IAppDbContext db) =>
         {
             var rule = await db.ScraperFilterRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
