@@ -7,6 +7,13 @@ on:
       - 'src/**'
       - 'docker-compose.yml'
       - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Forzar la compilación y despliegue de TODOS los servicios'
+        type: boolean
+        required: true
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -19,8 +26,8 @@ jobs:
     outputs:
       dotnet_matrix: ${{ steps.set-matrix.outputs.matrix }}
       any_dotnet: ${{ steps.set-matrix.outputs.any }}
-      goscraper: ${{ steps.filter.outputs.goscraper }}
-      compose: ${{ steps.filter.outputs.compose }}
+      goscraper: ${{ steps.filter.outputs.goscraper == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true') }}
+      compose: ${{ steps.filter.outputs.compose == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true') }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -47,9 +54,12 @@ jobs:
       - id: set-matrix
         run: |
           matrix="[]"
-          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.ApiService"]'); fi
-          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Gateway"]'); fi
-          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Worker"]'); fi
+          is_force="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true' }}"
+          
+          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.ApiService"]'); fi
+          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Gateway"]'); fi
+          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Worker"]'); fi
+          
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
           if [ "$matrix" != "[]" ]; then echo "any=true" >> $GITHUB_OUTPUT; else echo "any=false" >> $GITHUB_OUTPUT; fi
 
