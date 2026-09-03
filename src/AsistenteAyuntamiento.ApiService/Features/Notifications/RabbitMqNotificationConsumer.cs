@@ -15,7 +15,7 @@ public class RabbitMqNotificationConsumer : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<RabbitMqNotificationConsumer> _logger;
-    private const string ExchangeName = "document_notifications_exchange";
+    private const string ExchangeName = AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange;
     private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}"; // Cola temporal para cada instancia de la API
     private IConnection? _connection;
     private IChannel? _channel;

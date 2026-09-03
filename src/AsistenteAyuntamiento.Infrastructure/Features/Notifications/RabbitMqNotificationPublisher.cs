@@ -1,10 +1,12 @@
+using System;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Infrastructure.Common;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
-using System;
 
 namespace AsistenteAyuntamiento.Infrastructure.Features.Notifications;
 
@@ -12,9 +14,12 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
 {
     private readonly IConnectionFactory _connectionFactory;
     private readonly ILogger<RabbitMqNotificationPublisher> _logger;
-    private const string ExchangeName = "document_notifications_exchange";
     private IConnection? _connection;
     private IChannel? _channel;
+    
+    // Semaphores to ensure thread-safety for connection and channel usage
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
+    private readonly SemaphoreSlim _channelLock = new(1, 1);
 
     public RabbitMqNotificationPublisher(IConnectionFactory connectionFactory, ILogger<RabbitMqNotificationPublisher> logger)
     {
@@ -22,13 +27,28 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
         _logger = logger;
     }
 
-    private async Task EnsureConnectionAsync()
+    private async Task EnsureConnectionAsync(CancellationToken cancellationToken = default)
     {
-        if (_connection == null || !_connection.IsOpen)
+        if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen)
+            return;
+
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
         {
-            _connection = await _connectionFactory.CreateConnectionAsync();
-            _channel = await _connection.CreateChannelAsync();
-            await _channel.ExchangeDeclareAsync(exchange: ExchangeName, type: ExchangeType.Fanout, durable: true);
+            if (_connection == null || !_connection.IsOpen)
+            {
+                _connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+            }
+
+            if (_channel == null || !_channel.IsOpen)
+            {
+                _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(exchange: RabbitMqConstants.DocumentNotificationsExchange, type: ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
+            }
+        }
+        finally
+        {
+            _connectionLock.Release();
         }
     }
 
@@ -37,23 +57,32 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
         try
         {
             await EnsureConnectionAsync();
-            if (_channel != null)
+            
+            var message = new { DocumentId = documentId, NewStatus = newStatus };
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
+            var props = new BasicProperties { Persistent = true };
+            
+            // Channel operations must be thread-safe in RabbitMQ
+            await _channelLock.WaitAsync();
+            try
             {
-                var message = new { DocumentId = documentId, NewStatus = newStatus };
-                var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-                
-                var props = new BasicProperties { Persistent = true };
-                
-                await _channel.BasicPublishAsync(
-                    exchange: ExchangeName,
-                    routingKey: string.Empty,
-                    mandatory: false,
-                    basicProperties: props,
-                    body: body,
-                    cancellationToken: default);
-                    
-                _logger.LogInformation("Notificación publicada vía RabbitMQ para documento {DocumentId}: {Status}", documentId, newStatus);
+                if (_channel != null)
+                {
+                    await _channel.BasicPublishAsync(
+                        exchange: RabbitMqConstants.DocumentNotificationsExchange,
+                        routingKey: string.Empty,
+                        mandatory: false,
+                        basicProperties: props,
+                        body: body,
+                        cancellationToken: default);
+                }
             }
+            finally
+            {
+                _channelLock.Release();
+            }
+                
+            _logger.LogInformation("Notificación publicada vía RabbitMQ para documento {DocumentId}: {Status}", documentId, newStatus);
         }
         catch (Exception ex)
         {
@@ -63,7 +92,10 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
-        if (_channel != null) await _channel.CloseAsync();
-        if (_connection != null) await _connection.CloseAsync();
+        if (_channel != null && _channel.IsOpen) await _channel.CloseAsync();
+        if (_connection != null && _connection.IsOpen) await _connection.CloseAsync();
+        
+        _connectionLock.Dispose();
+        _channelLock.Dispose();
     }
 }

@@ -3,7 +3,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+namespace AsistenteAyuntamiento.Infrastructure.Data;
 
 public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {

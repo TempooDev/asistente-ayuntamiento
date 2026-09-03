@@ -23,6 +23,7 @@ public static class DependencyInjection
             builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(credentials, s3Config));
         }
 
+
         AddSemanticKernelServices(builder);
 
         return builder;
