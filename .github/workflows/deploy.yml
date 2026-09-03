@@ -14,17 +14,55 @@ env:
   IMAGE_PREFIX: ghcr.io/tempoodev/asistente-ayuntamiento
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dotnet_matrix: ${{ steps.set-matrix.outputs.matrix }}
+      any_dotnet: ${{ steps.set-matrix.outputs.any }}
+      goscraper: ${{ steps.filter.outputs.goscraper }}
+      compose: ${{ steps.filter.outputs.compose }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ApiService:
+              - 'src/AsistenteAyuntamiento.ApiService/**'
+              - 'src/AsistenteAyuntamiento.Shared/**'
+              - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
+            Gateway:
+              - 'src/AsistenteAyuntamiento.Gateway/**'
+              - 'src/AsistenteAyuntamiento.Angular/**'
+              - 'src/AsistenteAyuntamiento.Shared/**'
+              - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
+            Worker:
+              - 'src/AsistenteAyuntamiento.Worker/**'
+              - 'src/AsistenteAyuntamiento.Shared/**'
+              - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
+            goscraper:
+              - 'src/go-scraper/**'
+            compose:
+              - 'docker-compose.yml'
+      - id: set-matrix
+        run: |
+          matrix="[]"
+          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.ApiService"]'); fi
+          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.Gateway"]'); fi
+          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' ]]; then matrix=$(echo $matrix | jq '. += ["AsistenteAyuntamiento.Worker"]'); fi
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+          if [ "$matrix" != "[]" ]; then echo "any=true" >> $GITHUB_OUTPUT; else echo "any=false" >> $GITHUB_OUTPUT; fi
+
   build-dotnet:
+    needs: changes
+    if: needs.changes.outputs.any_dotnet == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       matrix:
-        project: 
-          - AsistenteAyuntamiento.ApiService
-          - AsistenteAyuntamiento.Gateway
-          - AsistenteAyuntamiento.Worker
+        project: ${{ fromJSON(needs.changes.outputs.dotnet_matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,6 +105,8 @@ jobs:
             -t:PublishContainer
 
   build-go:
+    needs: changes
+    if: needs.changes.outputs.goscraper == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,7 +130,15 @@ jobs:
           tags: ${{ env.IMAGE_PREFIX }}-go-scraper:latest
 
   trigger-deployment:
-    needs: [build-dotnet, build-go]
+    needs: [changes, build-dotnet, build-go]
+    environment: production
+    # Se ejecuta SIEMPRE que los jobs anteriores no hayan fallado (pueden haber sido 'skipped')
+    # Y solo si al menos algo ha cambiado (algún contenedor se ha compilado O cambió el compose)
+    if: |
+      always() && 
+      (needs.build-dotnet.result == 'success' || needs.build-dotnet.result == 'skipped') && 
+      (needs.build-go.result == 'success' || needs.build-go.result == 'skipped') &&
+      (needs.changes.outputs.any_dotnet == 'true' || needs.changes.outputs.goscraper == 'true' || needs.changes.outputs.compose == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Dokploy Deployment
