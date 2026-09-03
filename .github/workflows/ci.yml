@@ -44,7 +44,7 @@ jobs:
         cache-dependency-path: src/AsistenteAyuntamiento.Angular/package-lock.json
 
     - name: Install dependencies
-      run: npm ci
+      run: npm install --no-audit
 
     - name: Build Angular App
       run: npm run build -- --configuration production
