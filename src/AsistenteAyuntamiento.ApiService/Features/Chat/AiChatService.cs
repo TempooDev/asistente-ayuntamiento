@@ -131,11 +131,9 @@ public sealed class AiChatService
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
             
-            var systemPrompt = "Eres un asistente experto en analizar documentos oficiales (BOE, BOJA, BOPMA). Tu objetivo es proporcionar información precisa, útil y directa basándote en los documentos recuperados.\nInstrucciones:\n1. Revisa exhaustivamente todo el contexto proporcionado para encontrar la respuesta.\n2. Sé muy directo. Evita introducciones genéricas o disculpas innecesarias (no digas 'Como asistente municipal...', ve directo al grano).\n3. Si la respuesta está en los documentos, extrae todos los detalles relevantes y cítalos.\n4. Si los documentos no contienen la información exacta pero sí relacionada, ofrece la relacionada.\n5. Incluye siempre una sección de 'Fuentes consultadas' al final usando las URLs del contexto.";
-            
             if (!history.Any(m => m.Role == AuthorRole.System))
             {
-                history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
+                history.Insert(0, new ChatMessageContent(AuthorRole.System, Prompts.SystemPrompt));
             }
 
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
@@ -156,7 +154,7 @@ public sealed class AiChatService
                         $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
                     var originalMessage = lastUserMessage.Content;
-                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Responde a la pregunta del usuario basándote principalmente en este contexto. Si el contexto recuperado es completamente irrelevante para la pregunta, ignorálo y responde usando tu conocimiento.\n\nPregunta: {originalMessage}";
+                    var userPromptWithContext = string.Format(Prompts.UserPromptTemplate, contextText, originalMessage);
 
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
