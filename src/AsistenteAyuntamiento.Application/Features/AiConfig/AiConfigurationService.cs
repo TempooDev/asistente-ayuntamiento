@@ -2,7 +2,6 @@ using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.DataProtection;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 

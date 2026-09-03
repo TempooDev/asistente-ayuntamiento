@@ -3,8 +3,6 @@ using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -28,7 +26,7 @@ builder.AddInfrastructureServices();
 // Register background services for ingestion
 builder.Services.AddScoped<DocumentIngestionService>();
 builder.Services.AddHostedService<RabbitMqConsumerService>();
-builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Worker.Features.Notifications.DummyNotificationService>();
+builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();
 
 var host = builder.Build();
 host.Run();

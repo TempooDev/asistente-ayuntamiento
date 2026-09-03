@@ -1,6 +1,4 @@
 using AsistenteAyuntamiento.Domain.Features.Chat;
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Interfaces;

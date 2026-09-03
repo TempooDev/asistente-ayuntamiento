@@ -1,16 +1,8 @@
-using AsistenteAyuntamiento.Infrastructure;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Infrastructure.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
-using AsistenteAyuntamiento.Application.Features.Chat;
-using AsistenteAyuntamiento.Domain.Features.Scraper;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using AsistenteAyuntamiento.Domain.Features.AiConfig;
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
-using AsistenteAyuntamiento.Domain.Features.Chat;
-using AsistenteAyuntamiento.Domain.Features.Users;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
@@ -80,6 +72,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.ApiService.Features.Notifications.SignalRNotificationService>();
+builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Notifications.RabbitMqNotificationConsumer>();
 builder.Services.AddGrpc();
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {

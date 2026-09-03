@@ -1,17 +1,9 @@
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
-using AsistenteAyuntamiento.Domain.Features.Scraper;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using AsistenteAyuntamiento.Domain.Features.AiConfig;
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
-using AsistenteAyuntamiento.Domain.Features.Chat;
-using AsistenteAyuntamiento.Domain.Features.Users;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.SignalR;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 

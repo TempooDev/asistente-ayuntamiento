@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Amazon.S3;
 using Amazon.Runtime;
-using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AsistenteAyuntamiento.Infrastructure;
