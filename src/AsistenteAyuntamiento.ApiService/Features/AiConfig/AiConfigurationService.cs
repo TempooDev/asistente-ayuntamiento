@@ -23,13 +23,37 @@ public class AiConfigurationService
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {
-        var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
-        
-        var defaultConfig = _configuration; // IConfiguration injected
-
-        if (config == null)
+        try
         {
+            var tenantId = _tenantService.TenantId;
+            var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+            
+            var defaultConfig = _configuration; // IConfiguration injected
+
+            if (config == null)
+            {
+                return new AiConfigurationDto
+                {
+                    Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
+                    Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                    Temperature = 0.3,
+                    HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
+                    EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+                };
+            }
+
+            return new AiConfigurationDto
+            {
+                Provider = config.Provider,
+                Model = config.Model,
+                Temperature = config.Temperature,
+                HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey),
+                EndpointUrl = config.EndpointUrl
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching AI config: {ex.Message}");
             return new AiConfigurationDto
             {
                 Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
@@ -39,15 +63,6 @@ public class AiConfigurationService
                 EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
             };
         }
-
-        return new AiConfigurationDto
-        {
-            Provider = config.Provider,
-            Model = config.Model,
-            Temperature = config.Temperature,
-            HasApiKey = !string.IsNullOrEmpty(config.EncryptedApiKey),
-            EndpointUrl = config.EndpointUrl
-        };
     }
 
     public async Task<string?> GetDecryptedApiKeyAsync()

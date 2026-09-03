@@ -1,8 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { IngestionService, BlobInfo, IngestionStatus } from '../../services/ingestion';
-import { DocumentSource } from '../../services/scraper-filter';
+import { IngestionService, BlobInfo, IngestionStatus } from '../../services/ingestion/ingestion.service';
+import { DocumentSource } from '../../services/config/scraper-filter.service';
 
 @Component({
   selector: 'app-documentos',

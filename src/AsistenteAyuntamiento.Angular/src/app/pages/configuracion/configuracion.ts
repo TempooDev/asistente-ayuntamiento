@@ -2,9 +2,9 @@ import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { AiConfigService, SaveAiConfigurationDto } from '../../services/ai-config';
-import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto, DocumentSource, FilterType } from '../../services/scraper-filter';
-import { NotificationService } from '../../services/notification.service';
+import { AiConfigService, SaveAiConfigurationDto } from '../../services/config/ai-config.service';
+import { ScraperFilterService, ScraperFilterRuleDto, CreateFilterRuleDto, DocumentSource, FilterType } from '../../services/config/scraper-filter.service';
+import { NotificationService } from '../../services/core/notification.service';
 
 @Component({
   selector: 'app-configuracion',

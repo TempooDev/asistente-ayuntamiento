@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 export interface UserProfileDto {
   fullName: string;
@@ -8,6 +8,11 @@ export interface UserProfileDto {
   position: string;
   phoneNumber: string;
 }
+
+export const ROLES = {
+  ADMIN: 'Administrador',
+  FUNCIONARIO: 'Funcionario',
+};
 
 @Injectable({
   providedIn: 'root'

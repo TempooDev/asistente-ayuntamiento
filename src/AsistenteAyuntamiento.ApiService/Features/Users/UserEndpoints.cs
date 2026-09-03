@@ -53,26 +53,39 @@ public static class UserEndpoints
 
     private static async Task<UserProfile> GetOrCreateProfileAsync(AppDbContext db, string auth0Id, ClaimsPrincipal user, Tenants.CurrentTenantService tenantService)
     {
-        var profile = await db.UserProfiles.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
-
-        if (profile == null)
+        try
         {
-            // Try to get name from standard claims or custom namespaced claims
-            var nameClaim = user.FindFirst("name")?.Value 
-                         ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
-                         ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
+            var profile = await db.UserProfiles.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
 
-            // Create empty profile on first access
-            profile = new UserProfile
+            if (profile == null)
+            {
+                // Try to get name from standard claims or custom namespaced claims
+                var nameClaim = user.FindFirst("name")?.Value 
+                             ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
+                             ?? user.FindFirst("https://asistente.ayuntamiento/name")?.Value;
+
+                // Create empty profile on first access
+                profile = new UserProfile
+                {
+                    Auth0UserId = auth0Id,
+                    TenantId = tenantService.TenantId,
+                    FullName = nameClaim ?? string.Empty
+                };
+                db.UserProfiles.Add(profile);
+                await db.SaveChangesAsync();
+            }
+
+            return profile;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting/creating user profile: {ex.Message}");
+            return new UserProfile
             {
                 Auth0UserId = auth0Id,
                 TenantId = tenantService.TenantId,
-                FullName = nameClaim ?? string.Empty
+                FullName = string.Empty
             };
-            db.UserProfiles.Add(profile);
-            await db.SaveChangesAsync();
         }
-
-        return profile;
     }
 }

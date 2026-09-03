@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild, ElementRef, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ChatService, ChatSessionSummaryDto } from '../../services/chat';
+import { ChatService, ChatSessionSummaryDto } from '../../services/chat/chat.service';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 

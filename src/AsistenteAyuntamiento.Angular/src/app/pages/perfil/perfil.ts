@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '@auth0/auth0-angular';
 import { CommonModule } from '@angular/common';
-import { UserService, UserProfileDto } from '../../services/user';
+import { UserService, UserProfileDto } from '../../services/auth/user.service';
 import { finalize } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 

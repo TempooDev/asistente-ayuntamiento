@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { Subject, firstValueFrom } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '@auth0/auth0-angular';
 
 @Injectable({

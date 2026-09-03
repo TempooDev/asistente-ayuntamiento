@@ -16,8 +16,16 @@ public static class ScraperFilterEndpoints
         // 1. Get all active rules
         group.MapGet("/", async (AppDbContext db) =>
         {
-            var rules = await db.ScraperFilterRules.ToListAsync();
-            return Results.Ok(rules);
+            try 
+            {
+                var rules = await db.ScraperFilterRules.ToListAsync();
+                return Results.Ok(rules);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching filter rules: {ex.Message}");
+                return Results.Ok(new List<ScraperFilterRule>());
+            }
         });
 
         // 2. Get rule by id

@@ -16,23 +16,31 @@ public class FilterConfigServiceImpl : FilterConfigService.FilterConfigServiceBa
 
     public override async Task<FilterRulesResponse> GetActiveFilters(EmptyRequest request, ServerCallContext context)
     {
-        var activeRules = await _db.ScraperFilterRules
-            .Where(r => r.IsActive)
-            .ToListAsync(context.CancellationToken);
-
-        var response = new FilterRulesResponse();
-        
-        foreach (var rule in activeRules)
+        try
         {
-            response.Rules.Add(new FilterRule
-            {
-                Id = rule.Id,
-                Provider = rule.Provider,
-                FilterType = rule.FilterType,
-                Value = rule.Value
-            });
-        }
+            var activeRules = await _db.ScraperFilterRules
+                .Where(r => r.IsActive)
+                .ToListAsync(context.CancellationToken);
 
-        return response;
+            var response = new FilterRulesResponse();
+            
+            foreach (var rule in activeRules)
+            {
+                response.Rules.Add(new FilterRule
+                {
+                    Id = rule.Id,
+                    Provider = rule.Provider,
+                    FilterType = rule.FilterType,
+                    Value = rule.Value
+                });
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching active filters for gRPC: {ex.Message}");
+            return new FilterRulesResponse();
+        }
     }
 }

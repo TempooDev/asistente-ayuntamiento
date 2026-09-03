@@ -8,6 +8,7 @@ import { ErrorComponent } from './pages/error/error';
 import { LoginComponent } from './pages/login/login';
 import { customAuthGuardFn } from './guards/custom-auth.guard';
 import { roleGuardFn } from './guards/role.guard';
+import { ROLES } from './services/auth/user.service';
 
 export const routes: Routes = [
     { path: 'login', component: LoginComponent },
@@ -18,13 +19,13 @@ export const routes: Routes = [
         path: 'documentos', 
         component: DocumentosComponent, 
         canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: ['administrador'] }
+        data: { roles: [ROLES.ADMIN] }
     },
     { 
         path: 'configuracion', 
         component: ConfiguracionComponent, 
         canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: ['administrador'] }
+        data: { roles: [ROLES.ADMIN] }
     },
     { path: 'perfil', component: PerfilComponent, canActivate: [customAuthGuardFn] },
     { path: '', redirectTo: '/chat', pathMatch: 'full' }

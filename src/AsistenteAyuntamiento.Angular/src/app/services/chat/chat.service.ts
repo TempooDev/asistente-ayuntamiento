@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { AuthService } from '@auth0/auth0-angular';
 import * as signalR from '@microsoft/signalr';
 import { Subject, Observable, firstValueFrom } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 export interface ChatSessionSummaryDto {
   id: string;
