@@ -131,7 +131,7 @@ public sealed class AiChatService
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
             
-            var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA) para Ayuntamientos.\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nResponde siempre en español de forma clara, directa y precisa. NO te disculpes ni des respuestas genéricas de atención al ciudadano.\nSi el usuario te pregunta por algo y no hay contexto disponible en los boletines recuperados, dile claramente que no tienes esa información en los boletines recientes, pero intenta responder de forma útil si es conocimiento general aplicable a administración pública.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
+            var systemPrompt = "Eres un asistente experto en analizar documentos oficiales (BOE, BOJA, BOPMA). Tu objetivo es proporcionar información precisa, útil y directa basándote en los documentos recuperados.\nInstrucciones:\n1. Revisa exhaustivamente todo el contexto proporcionado para encontrar la respuesta.\n2. Sé muy directo. Evita introducciones genéricas o disculpas innecesarias (no digas 'Como asistente municipal...', ve directo al grano).\n3. Si la respuesta está en los documentos, extrae todos los detalles relevantes y cítalos.\n4. Si los documentos no contienen la información exacta pero sí relacionada, ofrece la relacionada.\n5. Incluye siempre una sección de 'Fuentes consultadas' al final usando las URLs del contexto.";
             
             if (!history.Any(m => m.Role == AuthorRole.System))
             {
@@ -144,10 +144,10 @@ public sealed class AiChatService
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                // Find top 5 closest chunks
+                // Find top 20 closest chunks
                 var closestChunks = await _dbContext.DocumentChunks
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
-                    .Take(5)
+                    .Take(20)
                     .ToListAsync(cancellationToken);
 
                 if (closestChunks.Any())
