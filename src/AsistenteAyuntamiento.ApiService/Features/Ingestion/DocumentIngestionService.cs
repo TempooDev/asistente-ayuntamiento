@@ -20,9 +20,9 @@ public class DocumentIngestionService
     private readonly Kernel _kernel;
     private readonly IConfiguration _config;
     private readonly ILogger<DocumentIngestionService> _logger;
-    private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly IHubContext<NotificationHub>? _hubContext;
 
-    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, IHubContext<NotificationHub> hubContext)
+    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, AppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, IServiceProvider serviceProvider)
     {
         _s3Client = s3Client;
         _config = config;
@@ -30,7 +30,7 @@ public class DocumentIngestionService
         _dbContext = dbContext;
         _kernel = kernel;
         _logger = logger;
-        _hubContext = hubContext;
+        _hubContext = serviceProvider.GetService<IHubContext<NotificationHub>>();
     }
 
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
@@ -59,7 +59,7 @@ public class DocumentIngestionService
             });
         }
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = docIdFromPath, status = "Processing" }, cancellationToken);
+        await _hubContext?.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = docIdFromPath, status = "Processing" }, cancellationToken);
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
@@ -184,7 +184,7 @@ public class DocumentIngestionService
 
                 await transaction.CommitAsync(cancellationToken);
                 
-                await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = document.DocumentId, status = "Completed" }, cancellationToken);
+                await _hubContext?.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = document.DocumentId, status = "Completed" }, cancellationToken);
                 
                 _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
             }
@@ -216,7 +216,7 @@ public class DocumentIngestionService
                         await _dbContext.SaveChangesAsync(cancellationToken);
                     }
                     
-                    await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = fallbackDocId, status = "Failed", errorMessage = ex.Message }, cancellationToken);
+                    await _hubContext?.Clients.All.SendAsync("DocumentStatusChanged", new { documentId = fallbackDocId, status = "Failed", errorMessage = ex.Message }, cancellationToken);
                 } 
                 catch { /* Ignore inner failure */ }
                 
