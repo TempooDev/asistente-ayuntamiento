@@ -154,7 +154,12 @@ public sealed class AiChatService
                         $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
                     var originalMessage = lastUserMessage.Content;
-                    var userPromptWithContext = string.Format(Prompts.UserPromptTemplate, contextText, originalMessage);
+                    var userPromptWithContext = string.Format(
+                        Prompts.UserPromptTemplate, 
+                        contextText, 
+                        originalMessage, 
+                        DateTime.UtcNow.ToString("dd/MM/yyyy")
+                    );
 
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
