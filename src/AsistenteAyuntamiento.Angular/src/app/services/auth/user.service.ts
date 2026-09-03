@@ -10,7 +10,7 @@ export interface UserProfileDto {
 }
 
 export const ROLES = {
-  ADMIN: 'Administrador',
+  ADMIN: 'administrador',
   FUNCIONARIO: 'Funcionario',
 };
 

@@ -22,7 +22,7 @@ export const roleGuardFn = (route: ActivatedRouteSnapshot, state: RouterStateSna
       }
 
       const rolesClaim = user[`${environment.auth0.customClaimsNamespace}/roles`] || [];
-      const userRoles: string[] = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
+      const userRoles: string[] = Array.isArray(rolesClaim) ? rolesClaim.map(r => r.toLowerCase()) : [rolesClaim.toLowerCase()];
 
       // If no specific roles required, allow
       if (expectedRoles.length === 0) {
@@ -30,7 +30,7 @@ export const roleGuardFn = (route: ActivatedRouteSnapshot, state: RouterStateSna
       }
 
       // Check if user has any of the expected roles
-      const hasRole = expectedRoles.some(role => userRoles.includes(role));
+      const hasRole = expectedRoles.some(role => userRoles.includes(role.toLowerCase()));
       
       if (hasRole) {
         return true;

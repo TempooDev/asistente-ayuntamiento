@@ -1,4 +1,6 @@
 import { environment } from "../environments/environment";
+import { ROLES } from "./services/auth/user.service";
+
 
 import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
@@ -24,8 +26,8 @@ export class App {
     const userData = this.user();
     if (!userData) return false;
     const rolesClaim = userData[`${environment.auth0.customClaimsNamespace}/roles`] || [];
-    const roles = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
-    return roles.includes('administrador');
+    const roles = Array.isArray(rolesClaim) ? rolesClaim.map(r => r.toLowerCase()) : [rolesClaim.toLowerCase()];
+    return roles.includes(ROLES.ADMIN.toLowerCase());
   };
 
   login() {
