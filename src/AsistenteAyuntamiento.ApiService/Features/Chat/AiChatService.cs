@@ -130,17 +130,25 @@ public sealed class AiChatService
 
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
+            
+            var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA) para Ayuntamientos.\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nResponde siempre en español de forma clara, directa y precisa. NO te disculpes ni des respuestas genéricas de atención al ciudadano.\nSi el usuario te pregunta por algo y no hay contexto disponible en los boletines recuperados, dile claramente que no tienes esa información en los boletines recientes, pero intenta responder de forma útil si es conocimiento general aplicable a administración pública.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
+            
+            if (!history.Any(m => m.Role == AuthorRole.System))
+            {
+                history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
+            }
+
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
                 var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { lastUserMessage.Content }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                // Find top 3 closest chunks using CosineDistance and filter out low relevance ones
+                // Find top 5 closest chunks
                 var closestChunks = await _dbContext.DocumentChunks
-                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
+                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.60)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
-                    .Take(3)
+                    .Take(5)
                     .ToListAsync(cancellationToken);
 
                 if (closestChunks.Any())
@@ -148,18 +156,11 @@ public sealed class AiChatService
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
-
                     var originalMessage = lastUserMessage.Content;
-                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario.\n\nPregunta: {originalMessage}";
+                    var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Responde a la pregunta del usuario basándote principalmente en este contexto. Si el contexto recuperado es completamente irrelevante para la pregunta, ignorálo y responde usando tu conocimiento.\n\nPregunta: {originalMessage}";
 
                     var lastMsgIndex = history.Count - 1;
                     history[lastMsgIndex] = new ChatMessageContent(AuthorRole.User, userPromptWithContext);
-
-                    if (!history.Any(m => m.Role == AuthorRole.System))
-                    {
-                        history.Insert(0, new ChatMessageContent(AuthorRole.System, systemPrompt));
-                    }
                 }
             }
             // -------------------------
