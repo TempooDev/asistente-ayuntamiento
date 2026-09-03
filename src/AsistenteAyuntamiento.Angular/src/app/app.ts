@@ -21,7 +21,7 @@ export class App {
   isAdmin = () => {
     const userData = this.user();
     if (!userData) return false;
-    const rolesClaim = userData['https://asistente.antoniobermudez.dev/roles'] || [];
+    const rolesClaim = userData['https://asistente.ayuntamiento.com/roles'] || [];
     const roles = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
     return roles.includes('administrador');
   };
