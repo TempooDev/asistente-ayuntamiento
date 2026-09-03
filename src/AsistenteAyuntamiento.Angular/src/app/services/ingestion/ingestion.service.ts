@@ -61,6 +61,13 @@ export class IngestionService {
     return result?.message ?? "Procesado correctamente.";
   }
 
+  async enqueueBulk(blobs: { blobPath: string, source: string }[]): Promise<string> {
+    const result = await firstValueFrom(
+      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/enqueue-bulk`, blobs)
+    );
+    return result?.message ?? "Documentos encolados correctamente.";
+  }
+
   async resetBlobStatus(documentId: string): Promise<string> {
     const result = await firstValueFrom(
       this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-status/${documentId}`, {})

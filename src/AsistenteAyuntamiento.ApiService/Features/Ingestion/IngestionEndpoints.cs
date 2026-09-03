@@ -272,6 +272,77 @@ public static class IngestionEndpoints
         })
         .WithName("ResetIngestion");
 
+
+        group.MapPost("/enqueue-bulk", async (
+            [FromBody] List<AsistenteAyuntamiento.ApiService.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
+            [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
+            [FromServices] Infrastructure.Data.AppDbContext dbContext,
+            [FromServices] ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
+            try
+            {
+                logger.LogInformation($"Encolando {requests.Count} documentos...");
+
+                using var connection = await connectionFactory.CreateConnectionAsync();
+                using var channel = await connection.CreateChannelAsync();
+                await channel.QueueDeclareAsync("documents_to_process", durable: true, exclusive: false, autoDelete: false, arguments: null);
+
+                int count = 0;
+                foreach (var req in requests)
+                {
+                    var docId = req.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                    
+                    var message = new
+                    {
+                        source = req.Source ?? "S3",
+                        document_id = docId,
+                        blob_path = req.BlobPath
+                    };
+
+                    var json = System.Text.Json.JsonSerializer.Serialize(message);
+                    var body = System.Text.Encoding.UTF8.GetBytes(json);
+
+                    await channel.BasicPublishAsync(
+                        exchange: string.Empty,
+                        routingKey: "documents_to_process",
+                        mandatory: false,
+                        basicProperties: new RabbitMQ.Client.BasicProperties(),
+                        body: body);
+                    
+                    // Update job state
+                    var jobState = await dbContext.DocumentJobStates.FindAsync(docId);
+                    if (jobState != null)
+                    {
+                        jobState.Status = "Pending";
+                        jobState.LastUpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        dbContext.DocumentJobStates.Add(new DocumentJobState
+                        {
+                            DocumentId = docId,
+                            Status = "Pending",
+                            CreatedAt = DateTime.UtcNow,
+                            LastUpdatedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    count++;
+                }
+
+                await dbContext.SaveChangesAsync();
+
+                return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error al encolar documentos");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("EnqueueBulkBlobs");
+
         group.MapPost("/reprocess-all", async (
             [FromServices] Amazon.S3.IAmazonS3 s3Client,
             [FromServices] IConfiguration config,

@@ -81,18 +81,78 @@ export class DocumentosComponent implements OnInit {
     }
   }
 
+
+  selectedBlobs = signal<Set<string>>(new Set());
+
+  toggleSelection(blobName: string) {
+    this.selectedBlobs.update(set => {
+      const newSet = new Set(set);
+      if (newSet.has(blobName)) newSet.delete(blobName);
+      else newSet.add(blobName);
+      return newSet;
+    });
+  }
+
+  toggleAllCurrentPage(event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    const currentBlobs = this.blobs();
+    this.selectedBlobs.update(set => {
+      const newSet = new Set(set);
+      if (isChecked) {
+        currentBlobs.forEach(b => newSet.add(b.name));
+      } else {
+        currentBlobs.forEach(b => newSet.delete(b.name));
+      }
+      return newSet;
+    });
+  }
+
+  isAllCurrentPageSelected(): boolean {
+    const currentBlobs = this.blobs();
+    if (currentBlobs.length === 0) return false;
+    const set = this.selectedBlobs();
+    return currentBlobs.every(b => set.has(b.name));
+  }
+
+  updateLocalBlobStatus(blobName: string, status: IngestionStatus) {
+    this.blobs.update(bs => bs.map(b => b.name === blobName ? { ...b, status } : b));
+  }
+
   async processBlob(blobName: string) {
     try {
       this.statusMessage.set(`Procesando ${blobName}... (esto puede tardar unos minutos)`);
+      this.updateLocalBlobStatus(blobName, IngestionStatus.Processing);
       
       const parts = blobName.split('/');
       const source = parts.length > 1 ? parts[1] : 'Unknown';
       
       const result = await this.ingestionService.processBlob(blobName, source);
       this.statusMessage.set(result);
-      await this.loadBlobs();
+      this.updateLocalBlobStatus(blobName, IngestionStatus.Completed);
     } catch (ex: any) {
       this.statusMessage.set(`Error: ${ex.message || ex}`);
+      this.updateLocalBlobStatus(blobName, IngestionStatus.Failed);
+    }
+  }
+
+  async enqueueSelected() {
+    const selected = Array.from(this.selectedBlobs());
+    if (selected.length === 0) return;
+    
+    this.statusMessage.set(`Encolando ${selected.length} documentos...`);
+    
+    const requests = selected.map(blobName => {
+        const parts = blobName.split('/');
+        return { blobPath: blobName, source: parts.length > 1 ? parts[1] : 'Unknown' };
+    });
+    
+    try {
+        const result = await this.ingestionService.enqueueBulk(requests);
+        this.statusMessage.set(result);
+        this.blobs.update(bs => bs.map(b => selected.includes(b.name) ? { ...b, status: IngestionStatus.Pending } : b));
+        this.selectedBlobs.set(new Set());
+    } catch (ex: any) {
+        this.statusMessage.set(`Error al encolar: ${ex.message || ex}`);
     }
   }
 
@@ -105,7 +165,7 @@ export class DocumentosComponent implements OnInit {
       
       const result = await this.ingestionService.resetBlobStatus(docId);
       this.statusMessage.set(result);
-      await this.loadBlobs();
+      this.updateLocalBlobStatus(blobName, IngestionStatus.Pending);
     } catch (ex: any) {
       this.statusMessage.set(`Error al reiniciar: ${ex.message || ex}`);
     }
@@ -116,6 +176,7 @@ export class DocumentosComponent implements OnInit {
       this.statusMessage.set('Reiniciando todos los documentos colgados...');
       const result = await this.ingestionService.resetStuckProcessing();
       this.statusMessage.set(result);
+      // For this one, we do a full reload because we don't know which ones changed
       await this.loadBlobs();
     } catch (ex: any) {
       this.statusMessage.set(`Error al reiniciar documentos colgados: ${ex.message || ex}`);

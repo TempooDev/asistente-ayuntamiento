@@ -1,11 +1,19 @@
 <div class="p-margin-desktop text-on-surface">
     <h2 class="font-headline-lg mb-sm">Documentos en Almacenamiento</h2>
     <div class="flex justify-between items-center mb-md">
-        <p class="m-0">Aquí puedes ver los documentos alojados en el sistema y si han sido procesados por el motor de búsqueda.</p>
-        <button class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
-                (click)="resetStuckProcessing()">
-            Reiniciar colgados en 'Procesando'
-        </button>
+                <p class="m-0">Aquí puedes ver los documentos alojados en el sistema y si han sido procesados por el motor de búsqueda.</p>
+        <div class="flex gap-2">
+            @if (selectedBlobs().size > 0) {
+                <button class="btn btn-sm btn-primary rounded px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                        (click)="enqueueSelected()">
+                    Encolar seleccionados ({{ selectedBlobs().size }})
+                </button>
+            }
+            <button class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
+                    (click)="resetStuckProcessing()">
+                Reiniciar colgados en 'Procesando'
+            </button>
+        </div>
     </div>
     <!-- Stats Summary (Always visible if stats exist) -->
     @if (stats()) {
@@ -96,6 +104,11 @@
             <table class="table-auto w-full text-left border-collapse">
                 <thead>
                     <tr class="border-b border-outline">
+                        <th class="p-sm font-label-lg w-8 text-center">
+                            <input type="checkbox" class="w-4 h-4 cursor-pointer"
+                                   [checked]="isAllCurrentPageSelected()"
+                                   (change)="toggleAllCurrentPage($event)" />
+                        </th>
                         <th class="p-sm font-label-lg whitespace-nowrap">Nombre del archivo</th>
                         <th class="p-sm font-label-lg whitespace-nowrap">Tamaño</th>
                         <th class="p-sm font-label-lg whitespace-nowrap">Última modificación</th>
@@ -106,6 +119,11 @@
                 <tbody>
                     @for (blob of blobs(); track blob.name) {
                         <tr class="border-b border-surface-variant hover:bg-surface-variant/30 transition-colors">
+                            <td class="p-sm text-center">
+                                <input type="checkbox" class="w-4 h-4 cursor-pointer"
+                                       [checked]="selectedBlobs().has(blob.name)"
+                                       (change)="toggleSelection(blob.name)" />
+                            </td>
                             <td class="p-sm font-body-md font-medium text-primary">
                                 @if (getDocUrl(blob.name)) {
                                     <a [href]="getDocUrl(blob.name)" target="_blank" class="hover:underline text-blue-600 flex items-center gap-1">
