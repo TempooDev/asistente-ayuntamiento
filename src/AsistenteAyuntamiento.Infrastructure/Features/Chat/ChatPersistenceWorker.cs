@@ -5,13 +5,14 @@ using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Users;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-namespace AsistenteAyuntamiento.ApiService.Features.Chat;
+namespace AsistenteAyuntamiento.Infrastructure.Features.Chat;
 
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+
 using Microsoft.Extensions.DependencyInjection;
+using AsistenteAyuntamiento.Application.Features.Chat;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

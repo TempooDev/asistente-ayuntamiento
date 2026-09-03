@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 
 /// <summary>
 /// SignalR hub for real-time chat. Thin entry point that delegates

@@ -1,4 +1,6 @@
 using AsistenteAyuntamiento.Infrastructure;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Infrastructure.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Application.Features.Ingestion;

@@ -5,10 +5,10 @@ using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Users;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
+
 using Microsoft.EntityFrameworkCore;
 
-namespace AsistenteAyuntamiento.ApiService.Features.Chat;
+namespace AsistenteAyuntamiento.Application.Features.Chat;
 
 /// <summary>
 /// Service encapsulating database operations for chat sessions and chat messages.
