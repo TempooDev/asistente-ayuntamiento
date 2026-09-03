@@ -19,7 +19,7 @@ export const roleGuardFn = (route: ActivatedRouteSnapshot, state: RouterStateSna
         return false;
       }
 
-      const rolesClaim = user['https://asistente.ayuntamiento.com/roles'] || [];
+      const rolesClaim = user['https://asistente.antoniobermudez.dev/roles'] || [];
       const userRoles: string[] = Array.isArray(rolesClaim) ? rolesClaim : [rolesClaim];
 
       // If no specific roles required, allow
