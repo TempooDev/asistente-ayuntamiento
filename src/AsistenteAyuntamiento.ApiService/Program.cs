@@ -1,3 +1,15 @@
+using AsistenteAyuntamiento.Infrastructure;
+using AsistenteAyuntamiento.Application.Features.AiConfig;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Features.AiConfig;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
@@ -28,7 +40,7 @@ builder.Services.AddHostedService<ChatPersistenceWorker>();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<AiConfigurationService>();
 
-builder.AddNpgsqlDbContext<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>(
+builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
     configureDbContextOptions: options => options
         .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector())
@@ -65,6 +77,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.ApiService.Features.Notifications.SignalRNotificationService>();
 builder.Services.AddGrpc();
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
@@ -193,7 +206,7 @@ if (app.Environment.IsDevelopment())
 // Apply database migrations and ensure S3 bucket on startup
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.ApiService.Infrastructure.Data.AppDbContext>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
     dbContext.Database.Migrate();
 
     var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();

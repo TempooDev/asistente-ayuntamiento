@@ -9,18 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.5.3" />
+    <PackageReference Include="Aspire.RabbitMQ.Client" Version="13.5.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
-    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.78.0-alpha" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.Shared\AsistenteAyuntamiento.Shared.csproj" />
     <ProjectReference Include="..\AsistenteAyuntamiento.ServiceDefaults\AsistenteAyuntamiento.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\AsistenteAyuntamiento.ApiService\AsistenteAyuntamiento.ApiService.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Infrastructure\AsistenteAyuntamiento.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

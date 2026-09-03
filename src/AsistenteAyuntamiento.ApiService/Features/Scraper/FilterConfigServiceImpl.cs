@@ -1,3 +1,10 @@
+using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Features.AiConfig;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Protos;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
@@ -7,9 +14,9 @@ namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
 public class FilterConfigServiceImpl : FilterConfigService.FilterConfigServiceBase
 {
-    private readonly AppDbContext _db;
+    private readonly IAppDbContext _db;
 
-    public FilterConfigServiceImpl(AppDbContext db)
+    public FilterConfigServiceImpl(IAppDbContext db)
     {
         _db = db;
     }

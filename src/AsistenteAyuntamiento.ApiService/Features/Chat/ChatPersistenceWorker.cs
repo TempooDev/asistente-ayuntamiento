@@ -1,4 +1,10 @@
-using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Features.AiConfig;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 using System;
@@ -60,7 +66,7 @@ public class ChatPersistenceWorker : BackgroundService
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
             // Create clean entity instances to guarantee EF Core doesn't pull in 
             // the parent ChatSession via any lingering navigation properties or tracking

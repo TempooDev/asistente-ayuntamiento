@@ -2,9 +2,18 @@
   <Folder Name="/src/">
     <Project Path="src/AsistenteAyuntamiento.ApiService/AsistenteAyuntamiento.ApiService.csproj" />
     <Project Path="src/AsistenteAyuntamiento.AppHost/AsistenteAyuntamiento.AppHost.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Application/AsistenteAyuntamiento.Application.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Domain/AsistenteAyuntamiento.Domain.csproj" />
     <Project Path="src/AsistenteAyuntamiento.Gateway/AsistenteAyuntamiento.Gateway.csproj" />
+    <Project Path="src/AsistenteAyuntamiento.Infrastructure/AsistenteAyuntamiento.Infrastructure.csproj" />
     <Project Path="src/AsistenteAyuntamiento.ServiceDefaults/AsistenteAyuntamiento.ServiceDefaults.csproj" />
     <Project Path="src/AsistenteAyuntamiento.Shared/AsistenteAyuntamiento.Shared.csproj" />
     <Project Path="src/AsistenteAyuntamiento.Worker/AsistenteAyuntamiento.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AsistenteAyuntamiento.ApiService.Tests/AsistenteAyuntamiento.ApiService.Tests.csproj" />
+    <Project Path="tests/AsistenteAyuntamiento.Application.Tests/AsistenteAyuntamiento.Application.Tests.csproj" />
+    <Project Path="tests/AsistenteAyuntamiento.Domain.Tests/AsistenteAyuntamiento.Domain.Tests.csproj" />
+    <Project Path="tests/AsistenteAyuntamiento.Infrastructure.Tests/AsistenteAyuntamiento.Infrastructure.Tests.csproj" />
   </Folder>
 </Solution>

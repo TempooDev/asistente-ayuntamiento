@@ -1,4 +1,10 @@
-using AsistenteAyuntamiento.ApiService.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Features.AiConfig;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +15,7 @@ namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 /// </summary>
 public class ChatSessionService
 {
-    private readonly AppDbContext _dbContext;
+    private readonly IAppDbContext _dbContext;
     private readonly ChatMessageBuffer _buffer;
 
     /// <summary>
@@ -17,7 +23,7 @@ public class ChatSessionService
     /// </summary>
     /// <param name="dbContext">The database context.</param>
     /// <param name="buffer">The chat message buffer for async persistence.</param>
-    public ChatSessionService(AppDbContext dbContext, ChatMessageBuffer buffer)
+    public ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffer)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));

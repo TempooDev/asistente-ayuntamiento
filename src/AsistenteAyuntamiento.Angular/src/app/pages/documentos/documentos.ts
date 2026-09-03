@@ -57,6 +57,10 @@ export class DocumentosComponent implements OnInit, OnDestroy {
         if (filters.searchTerm !== undefined) this.searchTerm.set(filters.searchTerm);
         if (filters.filterStatus !== undefined) this.filterStatus.set(filters.filterStatus);
         if (filters.pageSize !== undefined) this.pageSize.set(filters.pageSize);
+        if (filters.filterDateFrom !== undefined) this.filterDateFrom.set(filters.filterDateFrom);
+        if (filters.filterDateTo !== undefined) this.filterDateTo.set(filters.filterDateTo);
+        if (filters.filterMinSize !== undefined) this.filterMinSize.set(filters.filterMinSize);
+        if (filters.filterMaxSize !== undefined) this.filterMaxSize.set(filters.filterMaxSize);
       } catch (e) {
         console.error('Error parsing filters from localStorage', e);
       }
@@ -67,7 +71,11 @@ export class DocumentosComponent implements OnInit, OnDestroy {
       const filters = {
         searchTerm: this.searchTerm(),
         filterStatus: this.filterStatus(),
-        pageSize: this.pageSize()
+        pageSize: this.pageSize(),
+        filterDateFrom: this.filterDateFrom(),
+        filterDateTo: this.filterDateTo(),
+        filterMinSize: this.filterMinSize(),
+        filterMaxSize: this.filterMaxSize()
       };
       localStorage.setItem('docFilters', JSON.stringify(filters));
     });
