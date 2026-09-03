@@ -146,7 +146,6 @@ public sealed class AiChatService
 
                 // Find top 5 closest chunks
                 var closestChunks = await _dbContext.DocumentChunks
-                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.60)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(5)
                     .ToListAsync(cancellationToken);
