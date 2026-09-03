@@ -43,6 +43,14 @@ The current retrieval pipeline performs flat vector search over ~6,000 token chu
    - *Why:* To produce the comparative cost analysis table for the TFG, we need to track: (a) number of tokens embedded per strategy, (b) number of LLM calls for enrichment/expansion, (c) wall-clock time per document. A dedicated `IngestionMetrics` entity provides queryable persistence; `Stopwatch` provides sub-millisecond timing. OpenTelemetry custom meters complement this for the Aspire dashboard.
    - *Alternative considered:* Rely solely on OpenTelemetry. Rejected because we need structured, queryable data for the thesis statistical analysis, not just time-series dashboards.
 
+7. **Dual Worker Instances over Single Worker with Inline Branching:**
+   - *Why:* To obtain fair, comparable telemetry data for the TFG, both pipelines must process the same 6-month document backlog under identical conditions (same hardware resources, same time window, no contention). Deploying two separate Worker containers from the same image — differentiated only by an environment variable `WORKER_PIPELINE_MODE` — ensures each pipeline runs independently on its own dedicated RabbitMQ queue without interfering with the other's throughput or latency measurements.
+   - *Alternative considered:* A single Worker that processes each document twice (once per pipeline) sequentially. Rejected because sequential processing doubles wall-clock time and introduces ordering bias in latency measurements (the second pipeline benefits from OS-level caches warmed by the first).
+
+8. **Admin Reprocessing UI with Pipeline Selector over CLI-Only Reprocessing:**
+   - *Why:* The 6-month backlog contains thousands of documents. The admin needs to (a) choose which pipeline to target (baseline, hierarchical, or both), (b) select specific documents or select all, and (c) monitor enqueuing progress — all without SSH access to the server. A UI panel in the existing admin section provides this with minimal effort.
+   - *Alternative considered:* CLI scripts or direct API calls via curl. Rejected because it requires server access and offers no visibility into which documents were already processed.
+
 ## Component Design
 
 ### Database Schema
@@ -167,6 +175,58 @@ POST /api/arena/vote { session_id, winner, motivo_claridad, motivo_precision, co
   → Persist to arena_battles with de-randomized sistema_izq/sistema_der
 ```
 
+### Dual Worker Deployment Architecture
+
+Both workers share the same Docker image (`asistente-ayuntamiento-worker`). The pipeline mode is selected at container startup via environment variable:
+
+```
+docker-compose.yml (production additions):
+
+  worker-baseline:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-worker:latest
+    container_name: asistente-worker-baseline
+    environment:
+      - WORKER_PIPELINE_MODE=BASELINE
+      - ConnectionStrings__messaging=amqp://...@rabbitmq:5672
+      - WORKER_QUEUE_NAME=documents_to_process_baseline
+      # ... same DB, blob, AI config as main worker
+
+  worker-hierarchical:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-worker:latest
+    container_name: asistente-worker-hierarchical
+    environment:
+      - WORKER_PIPELINE_MODE=HIERARCHICAL
+      - ConnectionStrings__messaging=amqp://...@rabbitmq:5672
+      - WORKER_QUEUE_NAME=documents_to_process_hierarchical
+      # ... same DB, blob, AI config as main worker
+```
+
+The Worker's `Program.cs` reads `WORKER_PIPELINE_MODE` at startup and registers only the corresponding ingestion service:
+- `BASELINE` → registers `FlatChunkIngestionService` (existing logic, writes to `chunks_baseline_v1`)
+- `HIERARCHICAL` → registers `BoeIngestionService` + `BojaIngestionService` (new logic, writes to `documentos_padre` / `fragmentos_hijo`)
+
+Each worker consumes from its own dedicated RabbitMQ queue, ensuring no message contention.
+
+### Bulk Reprocessing Flow
+
+```
+Admin UI: /admin/reprocessing
+  ├─ Pipeline selector: [Baseline Only] [Hierarchical Only] [Both Pipelines]
+  ├─ Document selector: 
+  │   ├─ [Select All] checkbox
+  │   ├─ Filter by gazette (BOE / BOJA), date range
+  │   └─ Multi-select table with document ID, title, date, processing status per pipeline
+  └─ [Start Reprocessing] button
+
+POST /api/admin/reprocess { pipeline_mode: "BOTH"|"BASELINE"|"HIERARCHICAL", document_ids: [...] | "ALL" }
+  ├─ List matching S3 blobs (or use provided document_ids)
+  ├─ If pipeline_mode == "BOTH" or "BASELINE":
+  │   └─ Publish DocumentMessage to queue "documents_to_process_baseline" for each document
+  ├─ If pipeline_mode == "BOTH" or "HIERARCHICAL":
+  │   └─ Publish DocumentMessage to queue "documents_to_process_hierarchical" for each document
+  └─ Return { enqueued_baseline: N, enqueued_hierarchical: M }
+```
+
 ## Risks / Trade-offs
 
 - **Risk:** LLM calls for Query Expansion and synthetic question generation add latency and cost.
@@ -177,3 +237,7 @@ POST /api/arena/vote { session_id, winner, motivo_claridad, motivo_precision, co
   - *Mitigation:* BOE articles and BOJA convocatoria sections are typically 1,000–3,000 tokens. If a parent exceeds 4,000 tokens, truncate to the relevant section surrounding the matched children.
 - **Risk:** Low participation in the Question Arena may limit statistical significance.
   - *Mitigation:* Use a binomial test (`scipy`-equivalent in C#) which works with small samples. Target a minimum of 50 battles for a meaningful p-value.
+- **Risk:** Running two Worker instances doubles resource consumption (CPU, RAM, API calls) during the 6-month backlog reprocessing.
+  - *Mitigation:* Reprocessing is a one-time batch operation. Schedule it during off-peak hours. Workers can be scaled down to 0 replicas once reprocessing completes. The `ingestion_metrics` table tracks progress so reprocessing can be resumed if interrupted.
+- **Risk:** RabbitMQ message ordering may differ between queues, leading to different processing order per pipeline.
+  - *Mitigation:* Processing order does not affect the final dataset quality — every document is processed exactly once per pipeline. The `ingestion_metrics` table records timestamps for post-hoc ordering analysis if needed.

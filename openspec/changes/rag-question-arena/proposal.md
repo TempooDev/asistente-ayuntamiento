@@ -10,6 +10,8 @@ The current RAG pipeline uses a flat chunking strategy where documents are split
 - Build a **Generation Service** with a system prompt optimized for clear, jargon-free citizen communication.
 - Deploy a **Question Arena** blind A/B testing system that runs both the baseline and new pipelines concurrently and collects structured human votes.
 - Integrate **ingestion and retrieval telemetry** (token costs, embedding costs, latency) with an **Admin Dashboard** for monitoring.
+- Add a **Bulk Reprocessing UI** in the admin panel to select which pipeline (baseline flat-chunk or hierarchical parent-child) and which documents (or all) to reprocess, covering the 6-month historical backlog.
+- Deploy **two dedicated Worker instances** (one for baseline chunking, one for hierarchical ingestion) so both pipelines process the same documents under identical conditions, producing consistent and comparable telemetry data.
 
 ## Capabilities
 
@@ -18,6 +20,7 @@ The current RAG pipeline uses a flat chunking strategy where documents are split
 - `question-arena`: Blind A/B testing system that runs baseline vs. new pipeline concurrently, randomizes presentation, and collects structured human votes with per-criterion breakdowns.
 - `ingestion-telemetry`: Token consumption tracking, embedding cost calculation, and latency measurement for both ingestion pipelines, exposed via Admin Dashboard or .NET Aspire OpenTelemetry.
 - `admin-metrics-dashboard`: Secured admin view to visualize win rates, IFSZ readability scores, cost comparisons, and latency charts.
+- `bulk-reprocessing-pipeline`: Admin UI for selecting pipeline mode and documents to reprocess, dual RabbitMQ queue routing, and dual Worker deployment for parallel baseline/hierarchical ingestion of the 6-month historical backlog.
 
 ### Modified Capabilities
 - `chunking-embeddings`: The existing `DocumentChunks` table is preserved as `chunks_baseline_v1` for ablation studies. New ingestion writes to `documentos_padre` / `fragmentos_hijo`.
@@ -26,9 +29,9 @@ The current RAG pipeline uses a flat chunking strategy where documents are split
 ## Impact
 
 - **Database (PostgreSQL)**: New tables (`documentos_padre`, `fragmentos_hijo`, `arena_battles`, `ingestion_metrics`), new HNSW and GIN indexes, tsvector trigger for Spanish full-text search.
-- **Backend (.NET)**: New services (`BoeIngestionService`, `BojaIngestionService`, `RetrievalService`, `GenerationService`, `IngestionMetricsService`), new Arena API endpoints, new Admin API endpoints.
-- **Frontend (Angular)**: New Question Arena UI component and Admin Dashboard view with charts.
-- **Infrastructure**: No new external dependencies — leverages existing PostgreSQL + pgvector + .NET Aspire + Semantic Kernel stack.
+- **Backend (.NET)**: New services (`BoeIngestionService`, `BojaIngestionService`, `RetrievalService`, `GenerationService`, `IngestionMetricsService`), new Arena API endpoints, new Admin API endpoints, new bulk reprocessing endpoint with pipeline mode selector.
+- **Frontend (Angular)**: New Question Arena UI component, Admin Dashboard view with charts, and Admin Reprocessing panel with pipeline selector and document multi-select/select-all.
+- **Infrastructure (Docker Compose / Aspire)**: Two Worker container instances deployed — `worker-baseline` consuming from `documents_to_process_baseline` queue and `worker-hierarchical` consuming from `documents_to_process_hierarchical` queue. Both share the same image but are configured via environment variable `WORKER_PIPELINE_MODE` (`BASELINE` or `HIERARCHICAL`).
 
 ## Non-goals
 

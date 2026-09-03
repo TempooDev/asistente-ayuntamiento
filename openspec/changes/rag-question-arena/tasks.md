@@ -71,3 +71,19 @@
   - Files: `AsistenteAyuntamiento.Angular/src/app/features/admin/metrics/`
 - [ ] 8.3 Configure custom OpenTelemetry Meters in the ingestion and retrieval services for real-time visibility in the .NET Aspire Dashboard (tokens_embedded counter, query_latency histogram, arena_votes counter).
   - Files: `AsistenteAyuntamiento.Worker/Services/`, `AsistenteAyuntamiento.Application/Services/`
+
+## 9. Dual Worker Deployment and Bulk Reprocessing
+
+- [ ] 9.1 Add `WORKER_PIPELINE_MODE` environment variable support to the Worker's `Program.cs`. When set to `BASELINE`, register only the existing flat-chunk ingestion service consuming from `documents_to_process_baseline` queue. When set to `HIERARCHICAL`, register only the new hierarchical ingestion services consuming from `documents_to_process_hierarchical` queue. Default (unset) preserves current behavior for backward compatibility.
+  - Files: `AsistenteAyuntamiento.Worker/Program.cs`, `AsistenteAyuntamiento.Worker/appsettings.json`
+- [ ] 9.2 Add `worker-baseline` and `worker-hierarchical` service definitions to `docker-compose.yml` (same image, different `WORKER_PIPELINE_MODE` and `WORKER_QUEUE_NAME` env vars). Add corresponding resource definitions in .NET Aspire `AppHost/Program.cs` for local development.
+  - Files: `docker-compose.yml`, `AsistenteAyuntamiento.AppHost/Program.cs`
+- [ ] 9.3 Declare the two new RabbitMQ queues (`documents_to_process_baseline`, `documents_to_process_hierarchical`) in the Worker startup and ensure idempotent `QueueDeclare` on both workers.
+  - Files: `AsistenteAyuntamiento.Worker/Program.cs`
+- [ ] 9.4 Implement `POST /api/admin/reprocess` endpoint (Admin-authorized). Accept `pipeline_mode` (`BASELINE`, `HIERARCHICAL`, `BOTH`), `document_ids` (array or `"ALL"`), and optional gazette/date filters. List matching S3 blobs and publish `DocumentMessage` to the appropriate RabbitMQ queue(s). Return enqueued counts.
+  - Files: `AsistenteAyuntamiento.ApiService/Endpoints/AdminReprocessingEndpoints.cs`
+- [ ] 9.5 Create the Angular Admin Reprocessing page (`/admin/reprocessing`, route-guarded). Include: pipeline mode selector (radio: Baseline / Hierarchical / Both), document table with multi-select and "Select All" checkbox, gazette and date-range filters, "Start Reprocessing" button with confirmation dialog and progress feedback (enqueued count).
+  - Files: `AsistenteAyuntamiento.Angular/src/app/features/admin/reprocessing/`
+- [ ] 9.6 Add a `GET /api/admin/reprocessing/status` endpoint to report per-pipeline processing progress (documents enqueued vs. documents with `IngestionMetrics` records) so the admin UI can show a progress bar.
+  - Files: `AsistenteAyuntamiento.ApiService/Endpoints/AdminReprocessingEndpoints.cs`
+
