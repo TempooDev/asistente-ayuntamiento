@@ -30,6 +30,12 @@ public class RabbitMqConsumerService : BackgroundService
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
+            if (connectionFactory is ConnectionFactory cf)
+            {
+                // Habilitamos despacho concurrente en el consumidor para procesar en paralelo
+                cf.ConsumerDispatchConcurrency = 5;
+            }
+            
             var connected = false;
             var retryCount = 0;
             while (!connected && retryCount < 10 && !cancellationToken.IsCancellationRequested)
@@ -39,7 +45,10 @@ public class RabbitMqConsumerService : BackgroundService
                     _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
                     _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
                     await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
-                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
+                    
+                    // Aumentamos prefetchCount a 5 para procesar múltiples documentos en paralelo
+                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 5, global: false, cancellationToken: cancellationToken);
+                    
                     connected = true;
                     _logger.LogInformation("Conectado a RabbitMQ exitosamente.");
                 }
