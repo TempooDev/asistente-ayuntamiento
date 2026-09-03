@@ -102,8 +102,8 @@ public static class IngestionEndpoints
                         }
                     }
                     
-                    request.ContinuationToken = response.NextContinuationToken;
-                } while (response.IsTruncated);
+                    request.ContinuationToken = response?.NextContinuationToken;
+                } while (response?.IsTruncated == true);
             }
             catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
             {
