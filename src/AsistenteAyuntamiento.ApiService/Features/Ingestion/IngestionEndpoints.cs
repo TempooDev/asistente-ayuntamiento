@@ -136,21 +136,38 @@ public static class IngestionEndpoints
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
-                logger.LogInformation("Restableciendo todos los documentos atascados en 'Processing' a 'Pending'...");
+                logger.LogInformation("Corrigiendo documentos atascados en 'Processing'...");
                 
+                var processedDocIds = await dbContext.DocumentChunks
+                    .Select(c => c.DocumentId)
+                    .Distinct()
+                    .ToListAsync();
+                    
                 var stuckJobs = await dbContext.DocumentJobStates
                     .Where(j => j.Status == "Processing")
                     .ToListAsync();
                     
+                int completedCount = 0;
+                int pendingCount = 0;
+                    
                 foreach (var job in stuckJobs)
                 {
-                    job.Status = "Pending";
+                    if (processedDocIds.Contains(job.DocumentId))
+                    {
+                        job.Status = "Completed";
+                        completedCount++;
+                    }
+                    else
+                    {
+                        job.Status = "Pending";
+                        pendingCount++;
+                    }
                     job.LastUpdatedAt = DateTime.UtcNow;
                 }
                 
                 await dbContext.SaveChangesAsync();
                 
-                return Results.Ok(new { message = $"Se han reiniciado {stuckJobs.Count} documentos atascados a 'Pending'." });
+                return Results.Ok(new { message = $"Se han marcado {completedCount} documentos como 'Completed' (ya vectorizados) y reiniciado {pendingCount} a 'Pending'." });
             }
             catch (Exception ex)
             {

@@ -157,23 +157,25 @@ public class DocumentIngestionService
                 await _dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
                 await _dbContext.SaveChangesAsync(cancellationToken);
                 
-                // Update state to Completed
-                var jobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == document.DocumentId, cancellationToken);
-                if (jobState != null)
-                {
-                    jobState.Status = "Completed";
-                    jobState.LastUpdatedAt = DateTime.UtcNow;
-                    jobState.ErrorMessage = null;
-                }
-                else
+                // Update state to Completed using ExecuteUpdateAsync to ensure it bypasses change tracker issues
+                var updatedRows = await _dbContext.DocumentJobStates
+                    .Where(j => j.DocumentId == document.DocumentId)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(p => p.Status, "Completed")
+                        .SetProperty(p => p.LastUpdatedAt, DateTime.UtcNow)
+                        .SetProperty(p => p.ErrorMessage, (string?)null), 
+                        cancellationToken);
+
+                if (updatedRows == 0)
                 {
                     _dbContext.DocumentJobStates.Add(new DocumentJobState 
                     { 
                         DocumentId = document.DocumentId, 
-                        Status = "Completed" 
+                        Status = "Completed",
+                        LastUpdatedAt = DateTime.UtcNow
                     });
+                    await _dbContext.SaveChangesAsync(cancellationToken);
                 }
-                await _dbContext.SaveChangesAsync(cancellationToken);
 
                 await transaction.CommitAsync(cancellationToken);
                 
@@ -187,23 +189,25 @@ public class DocumentIngestionService
                 try 
                 {
                     var fallbackDocId = document?.DocumentId ?? blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
-                    var jobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == fallbackDocId, cancellationToken);
-                    if (jobState != null)
-                    {
-                        jobState.Status = "Failed";
-                        jobState.LastUpdatedAt = DateTime.UtcNow;
-                        jobState.ErrorMessage = ex.Message;
-                    }
-                    else
+                    var updatedRows = await _dbContext.DocumentJobStates
+                        .Where(j => j.DocumentId == fallbackDocId)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(p => p.Status, "Failed")
+                            .SetProperty(p => p.LastUpdatedAt, DateTime.UtcNow)
+                            .SetProperty(p => p.ErrorMessage, ex.Message), 
+                            cancellationToken);
+
+                    if (updatedRows == 0)
                     {
                         _dbContext.DocumentJobStates.Add(new DocumentJobState 
                         { 
                             DocumentId = fallbackDocId, 
                             Status = "Failed",
+                            LastUpdatedAt = DateTime.UtcNow,
                             ErrorMessage = ex.Message
                         });
+                        await _dbContext.SaveChangesAsync(cancellationToken);
                     }
-                    await _dbContext.SaveChangesAsync(cancellationToken);
                 } 
                 catch { /* Ignore inner failure */ }
                 
