@@ -1,23 +1,23 @@
-using Microsoft.Extensions.DependencyInjection;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
-namespace AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
+namespace AsistenteAyuntamiento.Worker.Services;
 
-public class RabbitMqConsumerService : BackgroundService
+public class HierarchicalRabbitMqConsumerService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<RabbitMqConsumerService> _logger;
-    private readonly string _queueName = "documents_to_process_baseline";
+    private readonly ILogger<HierarchicalRabbitMqConsumerService> _logger;
+    private readonly string _queueName = "documents_to_process_hierarchical";
     private IConnection? _connection;
     private IChannel? _channel;
 
-    public RabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<RabbitMqConsumerService> logger)
+    public HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<HierarchicalRabbitMqConsumerService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -25,15 +25,13 @@ public class RabbitMqConsumerService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Iniciando RabbitMqConsumerService");
+        _logger.LogInformation("Iniciando HierarchicalRabbitMqConsumerService");
         
-        // Aspire registers IConnection via DI when Aspire.RabbitMQ.Client is used
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
             if (connectionFactory is ConnectionFactory cf)
             {
-                // Habilitamos despacho concurrente en el consumidor para procesar en paralelo
                 cf.ConsumerDispatchConcurrency = 5;
             }
             
@@ -46,12 +44,10 @@ public class RabbitMqConsumerService : BackgroundService
                     _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
                     _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
                     await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
-                    
-                    // Aumentamos prefetchCount a 5 para procesar múltiples documentos en paralelo
                     await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 5, global: false, cancellationToken: cancellationToken);
                     
                     connected = true;
-                    _logger.LogInformation("Conectado a RabbitMQ exitosamente.");
+                    _logger.LogInformation("Conectado a RabbitMQ (Hierarchical) exitosamente.");
                 }
                 catch (Exception ex)
                 {
@@ -63,7 +59,7 @@ public class RabbitMqConsumerService : BackgroundService
         }
         else
         {
-            _logger.LogWarning("IConnectionFactory no está registrado. Asegúrate de tener builder.AddRabbitMQClient() en Program.cs");
+            _logger.LogWarning("IConnectionFactory no está registrado.");
         }
 
         await base.StartAsync(cancellationToken);
@@ -78,35 +74,45 @@ public class RabbitMqConsumerService : BackgroundService
         {
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
-            _logger.LogInformation($"Mensaje recibido de RabbitMQ: {message}");
+            _logger.LogInformation($"Mensaje jerárquico recibido de RabbitMQ: {message}");
 
             try
             {
                 var docMsg = JsonSerializer.Deserialize<DocumentMessage>(message, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (docMsg != null && !string.IsNullOrEmpty(docMsg.BlobPath))
                 {
-                    await ProcessDocumentAsync(docMsg, stoppingToken);
+                    using var scope = _serviceProvider.CreateScope();
+                    IHierarchicalIngestionProcessor processor = null;
+
+                    if (docMsg.Source.Equals("BOE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        processor = scope.ServiceProvider.GetRequiredService<BoeIngestionService>();
+                    }
+                    else if (docMsg.Source.Equals("BOJA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        processor = scope.ServiceProvider.GetRequiredService<BojaIngestionService>();
+                    }
+
+                    if (processor != null)
+                    {
+                        await processor.ProcessDocumentAsync(docMsg.BlobPath, docMsg.DocumentId, stoppingToken);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No processor found for source {Source}", docMsg.Source);
+                    }
                 }
                 
-                // Procesado exitosamente o parseo fallido de forma irrecuperable
                 await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error crítico procesando el documento. Descartando mensaje (NACK sin requeue) para evitar bucles infinitos.");
-                // NACK sin requeue para que se envíe a DLQ o se descarte, evitando bloquear la cola
+                _logger.LogError(ex, "Error crítico procesando el documento jerárquico.");
                 await _channel.BasicNackAsync(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: stoppingToken);
             }
         };
 
         await _channel.BasicConsumeAsync(queue: _queueName, autoAck: false, consumer: consumer, cancellationToken: stoppingToken);
-    }
-
-    private async Task ProcessDocumentAsync(DocumentMessage docMsg, CancellationToken cancellationToken)
-    {
-        using var scope = _serviceProvider.CreateScope();
-        var ingestionService = scope.ServiceProvider.GetRequiredService<IDocumentIngestionService>();
-        await ingestionService.ProcessBlobAsync(docMsg.BlobPath, docMsg.Source, cancellationToken);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
