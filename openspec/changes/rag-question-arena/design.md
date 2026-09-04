@@ -56,59 +56,59 @@ The current retrieval pipeline performs flat vector search over ~6,000 token chu
 ### Database Schema
 
 ```
-documentos_padre
-├── id (BIGSERIAL PK)
-├── boletin (VARCHAR: 'BOE', 'BOJA')
-├── doc_id (VARCHAR: e.g., 'BOE-A-2024-1234')
-├── rango_normativo (VARCHAR: 'Ley', 'Real Decreto', 'Orden')
-├── organo_emisor (TEXT)
-├── titulo_norma (TEXT)
-├── seccion_norma (VARCHAR: 'Artículo 12', 'Disposición Adicional 1')
-├── municipio (VARCHAR, nullable)
-├── texto_completo (TEXT: full article text)
-├── fecha_publicacion (DATE)
-├── vigente (BOOLEAN)
-├── metadata (JSONB)
-└── created_at (TIMESTAMPTZ)
+ParentDocuments (schema: "ingestion")
+├── Id (BIGSERIAL PK)
+├── Bulletin (VARCHAR: 'BOE', 'BOJA')
+├── DocumentId (VARCHAR: e.g., 'BOE-A-2024-1234')
+├── NormativeRank (VARCHAR: 'Ley', 'Real Decreto', 'Orden')
+├── IssuingBody (TEXT)
+├── NormTitle (TEXT)
+├── NormSection (VARCHAR: 'Artículo 12', 'Disposición Adicional 1')
+├── Municipality (VARCHAR, nullable)
+├── FullText (TEXT: full article text)
+├── PublicationDate (DATE)
+├── IsActive (BOOLEAN)
+├── Metadata (JSONB)
+└── CreatedAt (TIMESTAMPTZ)
 
-fragmentos_hijo
-├── id (BIGSERIAL PK)
-├── parent_id (BIGINT FK → documentos_padre.id, CASCADE)
-├── boletin (VARCHAR)
-├── municipio (VARCHAR, nullable)
-├── subseccion (VARCHAR: 'Apartado 1', 'Párrafo 2')
-├── texto_chunk (TEXT: breadcrumb + synthetic questions + body)
-├── tsv_content (TSVECTOR: auto-populated by trigger, Spanish config)
-└── embedding (VECTOR(1536): HNSW index, cosine ops)
+ChildFragments (schema: "ingestion")
+├── Id (BIGSERIAL PK)
+├── ParentId (BIGINT FK → ParentDocuments.Id, CASCADE)
+├── Bulletin (VARCHAR)
+├── Municipality (VARCHAR, nullable)
+├── SubSection (VARCHAR: 'Apartado 1', 'Párrafo 2')
+├── ChunkText (TEXT: breadcrumb + synthetic questions + body)
+├── TsvContent (TSVECTOR: auto-populated by trigger, Spanish config)
+└── Embedding (VECTOR(1536): HNSW index, cosine ops)
 
-arena_battles
-├── id (BIGSERIAL PK)
-├── session_id (UUID)
-├── query_usuario (TEXT)
-├── sistema_izq / sistema_der (VARCHAR: 'BASELINE_6000' or 'NUEVO_HIBRIDO')
-├── resp_izq / resp_der (TEXT)
-├── latencia_izq_ms / latencia_der_ms (INTEGER)
-├── vencedor (VARCHAR: 'IZQ', 'DER', 'EMPATE', 'AMBAS_MALAS')
-├── motivo_claridad / motivo_precision (VARCHAR)
-├── comentario_opcional (TEXT)
-└── created_at (TIMESTAMPTZ)
+ArenaBattles (schema: "arena")
+├── Id (BIGSERIAL PK)
+├── SessionId (UUID)
+├── UserQuery (TEXT)
+├── LeftSystem / RightSystem (VARCHAR: 'BASELINE_6000' or 'NUEVO_HIBRIDO')
+├── LeftResponse / RightResponse (TEXT)
+├── LeftLatencyMs / RightLatencyMs (INTEGER)
+├── Winner (VARCHAR: 'LEFT', 'RIGHT', 'TIE', 'BOTH_BAD')
+├── ClarityReason / PrecisionReason (VARCHAR)
+├── OptionalComment (TEXT)
+└── CreatedAt (TIMESTAMPTZ)
 
-ingestion_metrics
-├── id (BIGSERIAL PK)
-├── pipeline (VARCHAR: 'BASELINE_FLAT' or 'HIERARCHICAL')
-├── boletin (VARCHAR)
-├── doc_id (VARCHAR)
-├── total_tokens_embedded (INTEGER)
-├── total_llm_calls (INTEGER: enrichment calls)
-├── total_llm_tokens (INTEGER: enrichment token usage)
-├── processing_duration_ms (BIGINT)
-├── chunks_generated (INTEGER)
-└── created_at (TIMESTAMPTZ)
+IngestionMetrics (schema: "ingestion")
+├── Id (BIGSERIAL PK)
+├── Pipeline (VARCHAR: 'BASELINE_FLAT' or 'HIERARCHICAL')
+├── Bulletin (VARCHAR)
+├── DocumentId (VARCHAR)
+├── TotalTokensEmbedded (INTEGER)
+├── TotalLlmCalls (INTEGER: enrichment calls)
+├── TotalLlmTokens (INTEGER: enrichment token usage)
+├── ProcessingDurationMs (BIGINT)
+├── ChunksGenerated (INTEGER)
+└── CreatedAt (TIMESTAMPTZ)
 ```
 
 ### Child Fragment Text Structure
 
-Each `texto_chunk` in `fragmentos_hijo` follows a standardized enriched format:
+Each `ChunkText` in `ChildFragments` follows a standardized enriched format:
 
 ```
 [BOLETÍN: {boletin} | ORGANISMO: {organo_emisor} | NORMA: {titulo_norma} | ARTÍCULO: {seccion_norma} - {subseccion}]
@@ -125,26 +125,26 @@ WITH params AS (
            $3::varchar AS q_mun
 ),
 dense_ranking AS (
-    SELECT id, parent_id,
-           ROW_NUMBER() OVER (ORDER BY embedding <=> (SELECT q_vec FROM params)) AS r_dense
-    FROM fragmentos_hijo
-    WHERE ((SELECT q_mun FROM params) IS NULL OR municipio = (SELECT q_mun FROM params) OR municipio IS NULL)
+    SELECT "Id", "ParentId",
+           ROW_NUMBER() OVER (ORDER BY "Embedding" <=> (SELECT q_vec FROM params)) AS r_dense
+    FROM ingestion."ChildFragments"
+    WHERE ((SELECT q_mun FROM params) IS NULL OR "Municipality" = (SELECT q_mun FROM params) OR "Municipality" IS NULL)
     LIMIT 20
 ),
 sparse_ranking AS (
-    SELECT id, parent_id,
-           ROW_NUMBER() OVER (ORDER BY ts_rank(tsv_content, (SELECT q_txt FROM params)) DESC) AS r_sparse
-    FROM fragmentos_hijo
-    WHERE tsv_content @@ (SELECT q_txt FROM params)
-      AND ((SELECT q_mun FROM params) IS NULL OR municipio = (SELECT q_mun FROM params) OR municipio IS NULL)
+    SELECT "Id", "ParentId",
+           ROW_NUMBER() OVER (ORDER BY ts_rank("TsvContent", (SELECT q_txt FROM params)) DESC) AS r_sparse
+    FROM ingestion."ChildFragments"
+    WHERE "TsvContent" @@ (SELECT q_txt FROM params)
+      AND ((SELECT q_mun FROM params) IS NULL OR "Municipality" = (SELECT q_mun FROM params) OR "Municipality" IS NULL)
     LIMIT 20
 )
-SELECT COALESCE(d.id, s.id) AS child_id,
-       COALESCE(d.parent_id, s.parent_id) AS parent_id,
-       (COALESCE(1.0/(60 + d.r_dense), 0) + COALESCE(1.0/(60 + s.r_sparse), 0)) AS score_rrf
+SELECT COALESCE(d."Id", s."Id") AS "ChildId",
+       COALESCE(d."ParentId", s."ParentId") AS "ParentId",
+       (COALESCE(1.0/(60 + d.r_dense), 0) + COALESCE(1.0/(60 + s.r_sparse), 0)) AS "ScoreRrf"
 FROM dense_ranking d
-FULL OUTER JOIN sparse_ranking s ON d.id = s.id
-ORDER BY score_rrf DESC
+FULL OUTER JOIN sparse_ranking s ON d."Id" = s."Id"
+ORDER BY "ScoreRrf" DESC
 LIMIT 5;
 ```
 
@@ -171,8 +171,8 @@ POST /api/arena/compare { query }
        → Randomize left/right assignment (50/50)
        → Return { session_id, option_alfa, option_beta, latency_alfa_ms, latency_beta_ms }
 
-POST /api/arena/vote { session_id, winner, motivo_claridad, motivo_precision, comentario }
-  → Persist to arena_battles with de-randomized sistema_izq/sistema_der
+POST /api/arena/vote { sessionId, winner, clarityReason, precisionReason, comment }
+  → Persist to ArenaBattles with de-randomized LeftSystem/RightSystem
 ```
 
 ### Dual Worker Deployment Architecture
@@ -203,7 +203,7 @@ docker-compose.yml (production additions):
 
 The Worker's `Program.cs` reads `WORKER_PIPELINE_MODE` at startup and registers only the corresponding ingestion service:
 - `BASELINE` → registers `FlatChunkIngestionService` (existing logic, writes to `chunks_baseline_v1`)
-- `HIERARCHICAL` → registers `BoeIngestionService` + `BojaIngestionService` (new logic, writes to `documentos_padre` / `fragmentos_hijo`)
+- `HIERARCHICAL` → registers `BoeIngestionService` + `BojaIngestionService` (new logic, writes to `ParentDocuments` / `ChildFragments`)
 
 Each worker consumes from its own dedicated RabbitMQ queue, ensuring no message contention.
 
@@ -230,7 +230,7 @@ POST /api/admin/reprocess { pipeline_mode: "BOTH"|"BASELINE"|"HIERARCHICAL", doc
 ## Risks / Trade-offs
 
 - **Risk:** LLM calls for Query Expansion and synthetic question generation add latency and cost.
-  - *Mitigation:* Use a fast, cheap model (e.g., Llama 3 8B via Ollama or a lightweight API). Cache expansion results for repeated/similar queries. Track costs in `ingestion_metrics` to quantify the overhead for the TFG.
+  - *Mitigation:* Use a fast, cheap model (e.g., Llama 3 8B via Ollama or a lightweight API). Cache expansion results for repeated/similar queries. Track costs in `IngestionMetrics` to quantify the overhead for the TFG.
 - **Risk:** The tsvector Spanish configuration may not cover all administrative vocabulary.
   - *Mitigation:* The hybrid approach means that even if sparse search misses a term, dense search can still find semantically similar fragments. We can add custom dictionaries later if needed.
 - **Risk:** Parent documents may be very long, exceeding LLM context windows.
@@ -238,6 +238,6 @@ POST /api/admin/reprocess { pipeline_mode: "BOTH"|"BASELINE"|"HIERARCHICAL", doc
 - **Risk:** Low participation in the Question Arena may limit statistical significance.
   - *Mitigation:* Use a binomial test (`scipy`-equivalent in C#) which works with small samples. Target a minimum of 50 battles for a meaningful p-value.
 - **Risk:** Running two Worker instances doubles resource consumption (CPU, RAM, API calls) during the 6-month backlog reprocessing.
-  - *Mitigation:* Reprocessing is a one-time batch operation. Schedule it during off-peak hours. Workers can be scaled down to 0 replicas once reprocessing completes. The `ingestion_metrics` table tracks progress so reprocessing can be resumed if interrupted.
+  - *Mitigation:* Reprocessing is a one-time batch operation. Schedule it during off-peak hours. Workers can be scaled down to 0 replicas once reprocessing completes. The `IngestionMetrics` table tracks progress so reprocessing can be resumed if interrupted.
 - **Risk:** RabbitMQ message ordering may differ between queues, leading to different processing order per pipeline.
-  - *Mitigation:* Processing order does not affect the final dataset quality — every document is processed exactly once per pipeline. The `ingestion_metrics` table records timestamps for post-hoc ordering analysis if needed.
+  - *Mitigation:* Processing order does not affect the final dataset quality — every document is processed exactly once per pipeline. The `IngestionMetrics` table records timestamps for post-hoc ordering analysis if needed.

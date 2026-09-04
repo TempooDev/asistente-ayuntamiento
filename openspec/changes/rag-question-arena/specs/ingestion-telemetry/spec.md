@@ -30,7 +30,7 @@ The system SHALL compute win rates from arena battles and test for statistical s
 
 #### Scenario: Computing win rates
 - **WHEN** the metrics export is triggered
-- **THEN** the system SHALL query `arena_battles` and compute the percentage of battles won by each system (excluding ties and "both deficient" votes).
+- **THEN** the system SHALL query `ArenaBattles` and compute the percentage of battles won by each system (excluding ties and "both deficient" votes).
 
 #### Scenario: Testing statistical significance
 - **WHEN** win rates are computed

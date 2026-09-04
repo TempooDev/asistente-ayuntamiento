@@ -18,7 +18,7 @@ The Worker service SHALL support a configurable pipeline mode that determines wh
 - **WHEN** the Worker starts with environment variable `WORKER_PIPELINE_MODE=HIERARCHICAL`
 - **THEN** it SHALL register only the hierarchical ingestion services (BOE + BOJA parsers)
 - **AND** consume messages exclusively from the `documents_to_process_hierarchical` RabbitMQ queue
-- **AND** write results to the `documentos_padre` and `fragmentos_hijo` tables.
+- **AND** write results to the `ParentDocuments` and `ChildFragments` tables.
 
 #### Scenario: Backward-compatible default mode
 - **WHEN** the Worker starts without `WORKER_PIPELINE_MODE` set (or set to an unknown value)

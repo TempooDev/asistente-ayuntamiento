@@ -23,7 +23,7 @@ The system SHALL enrich each child fragment with a contextual breadcrumb and syn
 
 #### Scenario: Generating enriched fragment text
 - **WHEN** a child fragment is created during ingestion
-- **THEN** its `texto_chunk` SHALL contain: (1) a breadcrumb line with gazette, issuing body, regulation name, article, and sub-section, (2) two LLM-generated citizen questions that the fragment would answer, and (3) the body text of the legal clause.
+- **THEN** its `ChunkText` SHALL contain: (1) a breadcrumb line with gazette, issuing body, regulation name, article, and sub-section, (2) two LLM-generated citizen questions that the fragment would answer, and (3) the body text of the legal clause.
 
 ### Requirement: Query Expansion
 The system SHALL translate citizen plain-language queries into administrative terminology before retrieval.
@@ -49,7 +49,7 @@ The system SHALL resolve matched child fragments to their parent documents and p
 
 #### Scenario: Resolving parent context
 - **WHEN** the top 5 child fragments are retrieved
-- **THEN** the system SHALL fetch the distinct `documentos_padre.texto_completo` records referenced by those children
+- **THEN** the system SHALL fetch the distinct `ParentDocuments.FullText` records referenced by those children
 - **AND** pass them as context to the generation service.
 
 ### Requirement: Clear-Language Generation
@@ -97,10 +97,10 @@ The existing system embeds documents as flat blocks of up to ~6,000 tokens (leve
 - **Precision over cost:** The marginal increase in embedding tokens and LLM enrichment calls is negligible compared to the quality improvement. At ~$0.01/1M tokens, even doubling the chunk count adds cents, not dollars.
 - **Hybrid search is strictly better:** Adding sparse search can only improve recall — it never harms dense search results since RRF combines both signals without requiring learned weights.
 - **Parent resolution preserves coherence:** Unlike flat chunks that may cut across articles, parent resolution guarantees the LLM receives a complete, coherent legal unit as context.
-- **Measurable improvement:** The Question Arena will provide empirical human evaluation data, and the `ingestion_metrics` table will quantify the exact cost trade-off for the TFG thesis.
+- **Measurable improvement:** The Question Arena will provide empirical human evaluation data, and the `IngestionMetrics` table will quantify the exact cost trade-off for the TFG thesis.
 
 **Consequences:**
 - The `chunks_baseline_v1` table is preserved unchanged for the ablation study.
 - Both pipelines run concurrently in the Question Arena, allowing direct comparison under identical conditions.
-- The `ingestion_metrics` table records the cost differential (tokens embedded, LLM calls, processing time) between both strategies.
+- The `IngestionMetrics` table records the cost differential (tokens embedded, LLM calls, processing time) between both strategies.
 - Future phases can add re-ranking or cross-encoder stages on top of the hybrid results without architectural changes.

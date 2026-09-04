@@ -23,12 +23,12 @@ The current RAG pipeline uses a flat chunking strategy where documents are split
 - `bulk-reprocessing-pipeline`: Admin UI for selecting pipeline mode and documents to reprocess, dual RabbitMQ queue routing, and dual Worker deployment for parallel baseline/hierarchical ingestion of the 6-month historical backlog.
 
 ### Modified Capabilities
-- `chunking-embeddings`: The existing `DocumentChunks` table is preserved as `chunks_baseline_v1` for ablation studies. New ingestion writes to `documentos_padre` / `fragmentos_hijo`.
+- `chunking-embeddings`: The existing `DocumentChunks` table is preserved as `chunks_baseline_v1` for ablation studies. New ingestion writes to `ParentDocuments` / `ChildFragments`.
 - `query-api-semantic-kernel`: The retrieval path is extended to support hybrid search and query expansion alongside the existing pure vector search.
 
 ## Impact
 
-- **Database (PostgreSQL)**: New tables (`documentos_padre`, `fragmentos_hijo`, `arena_battles`, `ingestion_metrics`), new HNSW and GIN indexes, tsvector trigger for Spanish full-text search.
+- **Database (PostgreSQL)**: New tables (`ParentDocuments`, `ChildFragments`, `ArenaBattles`, `IngestionMetrics`), new HNSW and GIN indexes, tsvector trigger for Spanish full-text search.
 - **Backend (.NET)**: New services (`BoeIngestionService`, `BojaIngestionService`, `RetrievalService`, `GenerationService`, `IngestionMetricsService`), new Arena API endpoints, new Admin API endpoints, new bulk reprocessing endpoint with pipeline mode selector.
 - **Frontend (Angular)**: New Question Arena UI component, Admin Dashboard view with charts, and Admin Reprocessing panel with pipeline selector and document multi-select/select-all.
 - **Infrastructure (Docker Compose / Aspire)**: Two Worker container instances deployed — `worker-baseline` consuming from `documents_to_process_baseline` queue and `worker-hierarchical` consuming from `documents_to_process_hierarchical` queue. Both share the same image but are configured via environment variable `WORKER_PIPELINE_MODE` (`BASELINE` or `HIERARCHICAL`).

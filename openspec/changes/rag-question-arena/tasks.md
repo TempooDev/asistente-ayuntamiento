@@ -2,14 +2,14 @@
 
 - [ ] 1.1 Rename the existing `DocumentChunks` table to `chunks_baseline_v1` via EF Core migration (or raw SQL script) to preserve the baseline dataset for ablation studies.
   - Files: `AsistenteAyuntamiento.Infrastructure/Migrations/`, `AsistenteAyuntamiento.Infrastructure/Data/AppDbContext.cs`
-- [ ] 1.2 Create EF Core entity `DocumentoPadre` with all fields (boletin, doc_id, rango_normativo, organo_emisor, titulo_norma, seccion_norma, municipio, texto_completo, fecha_publicacion, vigente, metadata JSONB, created_at).
-  - Files: `AsistenteAyuntamiento.Domain/Entities/DocumentoPadre.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/DocumentoPadreConfiguration.cs`
-- [ ] 1.3 Create EF Core entity `FragmentoHijo` with pgvector `VECTOR(1536)` column, `TSVECTOR` column, and FK to `DocumentoPadre`. Configure HNSW index on embedding and GIN index on tsv_content. Add the Spanish tsvector trigger via raw SQL in the migration.
-  - Files: `AsistenteAyuntamiento.Domain/Entities/FragmentoHijo.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/FragmentoHijoConfiguration.cs`
-- [ ] 1.4 Create EF Core entity `ArenaBattle` with all arena fields (session_id, query_usuario, sistema_izq/der, resp_izq/der, latencia_izq/der_ms, vencedor, motivo_claridad, motivo_precision, comentario_opcional).
-  - Files: `AsistenteAyuntamiento.Domain/Entities/ArenaBattle.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ArenaBattleConfiguration.cs`
-- [ ] 1.5 Create EF Core entity `IngestionMetrics` with fields (pipeline, boletin, doc_id, total_tokens_embedded, total_llm_calls, total_llm_tokens, processing_duration_ms, chunks_generated).
-  - Files: `AsistenteAyuntamiento.Domain/Entities/IngestionMetrics.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/IngestionMetricsConfiguration.cs`
+- [ ] 1.2 Create EF Core entity `ParentDocument` with all fields (Bulletin, DocumentId, NormativeRank, IssuingBody, NormTitle, NormSection, Municipality, FullText, PublicationDate, IsActive, Metadata JSONB, CreatedAt). Table: `ParentDocuments` in schema `ingestion`.
+  - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/ParentDocument.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ParentDocumentConfiguration.cs`
+- [ ] 1.3 Create EF Core entity `ChildFragment` with pgvector `VECTOR(1536)` column, `TSVECTOR` column, and FK to `ParentDocument`. Configure HNSW index on Embedding and GIN index on TsvContent. Add the Spanish tsvector trigger via raw SQL in the migration. Table: `ChildFragments` in schema `ingestion`.
+  - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/ChildFragment.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ChildFragmentConfiguration.cs`
+- [ ] 1.4 Create EF Core entity `ArenaBattle` with all arena fields (SessionId, UserQuery, LeftSystem/RightSystem, LeftResponse/RightResponse, LeftLatencyMs/RightLatencyMs, Winner, ClarityReason, PrecisionReason, OptionalComment). Table: `ArenaBattles` in schema `arena`.
+  - Files: `AsistenteAyuntamiento.Domain/Features/Arena/ArenaBattle.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ArenaBattleConfiguration.cs`
+- [ ] 1.5 Create EF Core entity `IngestionMetric` with fields (Pipeline, Bulletin, DocumentId, TotalTokensEmbedded, TotalLlmCalls, TotalLlmTokens, ProcessingDurationMs, ChunksGenerated). Table: `IngestionMetrics` in schema `ingestion`.
+  - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/IngestionMetric.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/IngestionMetricConfiguration.cs`
 - [ ] 1.6 Register all new entities in `AppDbContext`, generate and apply the EF Core migration.
   - Files: `AsistenteAyuntamiento.Infrastructure/Data/AppDbContext.cs`, `AsistenteAyuntamiento.Infrastructure/Migrations/`
 
@@ -19,9 +19,9 @@
   - Files: `AsistenteAyuntamiento.Worker/Services/BoeIngestionService.cs`
 - [ ] 2.2 Develop `BojaIngestionService.cs` as a .NET Background Service. Consume the Junta de Andalucía Open Data JSON API using `HttpClient` + `System.Text.Json`. Decompose convocatorias and regulatory bases into parent (per article/requirement) and child fragments.
   - Files: `AsistenteAyuntamiento.Worker/Services/BojaIngestionService.cs`
-- [ ] 2.3 Implement the child fragment enrichment step: prepend the contextual breadcrumb (`[BOLETÍN: ... | ORGANISMO: ... | NORMA: ... | ARTÍCULO: ...]`) and generate two synthetic citizen questions per fragment via a fast LLM call through Semantic Kernel. Concatenate breadcrumb + questions + body text into `texto_chunk`.
+- [ ] 2.3 Implement the child fragment enrichment step: prepend the contextual breadcrumb (`[BOLETÍN: ... | ORGANISMO: ... | NORMA: ... | ARTÍCULO: ...]`) and generate two synthetic citizen questions per fragment via a fast LLM call through Semantic Kernel. Concatenate breadcrumb + questions + body text into `ChunkText`.
   - Files: `AsistenteAyuntamiento.Worker/Services/FragmentEnrichmentService.cs`
-- [ ] 2.4 Integrate `IngestionMetricsService.cs` into both ingestion services. Wrap each document processing run with `Stopwatch`, count tokens embedded and LLM calls made, and persist an `IngestionMetrics` record upon completion.
+- [ ] 2.4 Integrate `IngestionMetricsService.cs` into both ingestion services. Wrap each document processing run with `Stopwatch`, count tokens embedded and LLM calls made, and persist an `IngestionMetric` record upon completion.
   - Files: `AsistenteAyuntamiento.Worker/Services/IngestionMetricsService.cs`
 
 ## 3. Hybrid Retrieval Service
@@ -30,7 +30,7 @@
   - Files: `AsistenteAyuntamiento.Application/Services/QueryExpansionService.cs`
 - [ ] 3.2 Implement `HybridRetrievalService.cs`. Execute the RRF SQL query (dense HNSW + sparse GIN) using `SqlQueryRaw<T>()` or Dapper. Accept the expanded queries and municipality filter as parameters. Return the top 5 child IDs with their parent IDs and RRF scores.
   - Files: `AsistenteAyuntamiento.Application/Services/HybridRetrievalService.cs`
-- [ ] 3.3 Implement parent resolution logic within `HybridRetrievalService`. Given the distinct `parent_id` values from the RRF results, fetch the corresponding `documentos_padre.texto_completo` records. Pass the full parent texts to the generation service.
+- [ ] 3.3 Implement parent resolution logic within `HybridRetrievalService`. Given the distinct `ParentId` values from the RRF results, fetch the corresponding `ParentDocuments.FullText` records. Pass the full parent texts to the generation service.
   - Files: `AsistenteAyuntamiento.Application/Services/HybridRetrievalService.cs`
 
 ## 4. Clear-Language Generation Service
@@ -42,7 +42,7 @@
 
 - [ ] 5.1 Implement `ArenaCompareEndpoint` (`POST /api/arena/compare`). Accept the user query. Execute both pipelines concurrently using `Task.WhenAll`: (A) baseline vector search on `chunks_baseline_v1` + direct prompt, (B) query expansion + hybrid RRF + parent resolution + clear-language generation. Randomize left/right assignment (50/50). Return session_id, option_alfa, option_beta, and latencies.
   - Files: `AsistenteAyuntamiento.ApiService/Endpoints/ArenaEndpoints.cs`, `AsistenteAyuntamiento.Application/Services/ArenaService.cs`
-- [ ] 5.2 Implement `ArenaVoteEndpoint` (`POST /api/arena/vote`). Accept session_id, vencedor, motivo_claridad, motivo_precision, and comentario_opcional. De-randomize the left/right mapping and persist the `ArenaBattle` record.
+- [ ] 5.2 Implement `ArenaVoteEndpoint` (`POST /api/arena/vote`). Accept SessionId, Winner, ClarityReason, PrecisionReason, and OptionalComment. De-randomize the left/right mapping and persist the `ArenaBattle` record.
   - Files: `AsistenteAyuntamiento.ApiService/Endpoints/ArenaEndpoints.cs`
 
 ## 6. Question Arena Frontend
@@ -58,7 +58,7 @@
 
 - [ ] 7.1 Implement Flesch-Szigriszt Index (IFSZ) calculation in C# (`ReadabilityService.cs`). Count syllables (Spanish rules), words, and sentences. Apply the IFSZ formula: `206.835 - 62.3 * (syllables/words) - (words/sentences)`. Compare raw gazette text vs. generated responses from both pipelines.
   - Files: `AsistenteAyuntamiento.Application/Services/ReadabilityService.cs`
-- [ ] 7.2 Implement win-rate aggregation and statistical significance testing. Query `arena_battles` for win counts per system. Implement a binomial test (equivalent to `scipy.stats.binomtest`) to determine if the new system's win rate is statistically significant (p < 0.05). Build a criteria matrix correlating overall winner with clarity and precision sub-votes.
+- [ ] 7.2 Implement win-rate aggregation and statistical significance testing. Query `ArenaBattles` for win counts per system. Implement a binomial test (equivalent to `scipy.stats.binomtest`) to determine if the new system's win rate is statistically significant (p < 0.05). Build a criteria matrix correlating overall winner with clarity and precision sub-votes.
   - Files: `AsistenteAyuntamiento.Application/Services/ArenaAnalyticsService.cs`
 - [ ] 7.3 Implement `MetricsExportService.cs` to generate CSV/JSON reports with: win rates, p-values, IFSZ scores (per pipeline), cost comparison (tokens embedded, LLM calls, latency), suitable for direct inclusion in the TFG thesis.
   - Files: `AsistenteAyuntamiento.Application/Services/MetricsExportService.cs`
