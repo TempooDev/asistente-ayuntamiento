@@ -24,9 +24,9 @@ public class ArenaService : IArenaService
     private readonly IChatCompletionService _chatCompletionService;
     private readonly ILogger<ArenaService> _logger;
 
-#pragma warning disable SKEXP0001
+#pragma warning disable CS0618, SKEXP0001
     private readonly ITextEmbeddingGenerationService _embeddingService;
-#pragma warning restore SKEXP0001
+#pragma warning restore CS0618, SKEXP0001
 
     public ArenaService(
         IAppDbContext dbContext,
@@ -42,9 +42,9 @@ public class ArenaService : IArenaService
         _generationService = generationService;
         _logger = logger;
         _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-#pragma warning disable SKEXP0001
+#pragma warning disable CS0618, SKEXP0001
         _embeddingService = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore SKEXP0001
+#pragma warning restore CS0618, SKEXP0001
     }
 
     public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default)
@@ -91,7 +91,7 @@ public class ArenaService : IArenaService
 
     public async Task VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
     {
-        var db = _dbContext as DbContext;
+        var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
         var battle = await db.Set<ArenaBattle>().FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
         if (battle == null)
             throw new Exception("Battle session not found");
@@ -109,14 +109,14 @@ public class ArenaService : IArenaService
         var sw = Stopwatch.StartNew();
         try
         {
-#pragma warning disable SKEXP0001
+#pragma warning disable CS0618, SKEXP0001
             var embeddings = await _embeddingService.GenerateEmbeddingsAsync(new List<string> { query }, cancellationToken: cancellationToken);
             var queryVector = new Pgvector.Vector(embeddings.First().ToArray());
-#pragma warning restore SKEXP0001
+#pragma warning restore CS0618, SKEXP0001
 
-            var db = _dbContext as DbContext;
+            var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
             var topChunks = await db.Set<DocumentChunk>()
-                .OrderBy(x => x.Embedding.CosineDistance(queryVector))
+                .OrderBy(x => x.Embedding!.CosineDistance(queryVector))
                 .Take(5)
                 .ToListAsync(cancellationToken);
 

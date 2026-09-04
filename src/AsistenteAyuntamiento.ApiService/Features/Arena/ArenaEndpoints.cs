@@ -14,15 +14,13 @@ public static class ArenaEndpoints
             var response = await arenaService.CompareAsync(request, ct);
             return Results.Ok(response);
         })
-        .WithName("CompareArena")
-        .WithOpenApi();
+        .WithName("CompareArena");
 
         group.MapPost("/vote", async (ArenaVoteRequest request, IArenaService arenaService, CancellationToken ct) =>
         {
             await arenaService.VoteAsync(request, ct);
             return Results.Ok();
         })
-        .WithName("VoteArena")
-        .WithOpenApi();
+        .WithName("VoteArena");
     }
 }
