@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
@@ -13,35 +14,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Embeddings;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;
-
-public class ArenaCompareRequest
-{
-    public string Query { get; set; } = string.Empty;
-}
-
-public class ArenaCompareResponse
-{
-    public Guid SessionId { get; set; }
-    public string OptionAlfa { get; set; } = string.Empty;
-    public string OptionBeta { get; set; } = string.Empty;
-    public long LatencyAlfaMs { get; set; }
-    public long LatencyBetaMs { get; set; }
-}
-
-public class ArenaVoteRequest
-{
-    public Guid SessionId { get; set; }
-    public string Winner { get; set; } = string.Empty; // "ALFA", "BETA", or "TIE"
-    public string? ClarityReason { get; set; }
-    public string? PrecisionReason { get; set; }
-    public string? OptionalComment { get; set; }
-}
-
-public interface IArenaService
-{
-    Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default);
-    Task VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default);
-}
 
 public class ArenaService : IArenaService
 {

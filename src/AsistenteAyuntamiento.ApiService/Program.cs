@@ -170,7 +170,7 @@ AiConfigEndpoints.MapAiConfigEndpoints(app);
 AsistenteAyuntamiento.ApiService.Features.Config.ConfigEndpoints.MapConfigEndpoints(app);
 IngestionEndpoints.MapIngestionEndpoints(app);
 AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
-AsistenteAyuntamiento.ApiService.Endpoints.ArenaEndpoints.MapArenaEndpoints(app);
+AsistenteAyuntamiento.ApiService.Features.Arena.ArenaEndpoints.MapArenaEndpoints(app);
 app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();

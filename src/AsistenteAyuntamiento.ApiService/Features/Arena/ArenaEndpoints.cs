@@ -1,6 +1,7 @@
 using AsistenteAyuntamiento.Application.Features.Arena;
+using AsistenteAyuntamiento.Application.Features.Arena.Models;
 
-namespace AsistenteAyuntamiento.ApiService.Endpoints;
+namespace AsistenteAyuntamiento.ApiService.Features.Arena;
 
 public static class ArenaEndpoints
 {

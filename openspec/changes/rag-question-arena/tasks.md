@@ -40,9 +40,9 @@
 
 ## 5. Question Arena Backend
 
-- [ ] 5.1 Implement `ArenaCompareEndpoint` (`POST /api/arena/compare`). Accept the user query. Execute both pipelines concurrently using `Task.WhenAll`: (A) baseline vector search on `chunks_baseline_v1` + direct prompt, (B) query expansion + hybrid RRF + parent resolution + clear-language generation. Randomize left/right assignment (50/50). Return session_id, option_alfa, option_beta, and latencies.
+- [x] 5.1 Implement `ArenaCompareEndpoint` (`POST /api/arena/compare`). Accept the user query. Execute both pipelines concurrently using `Task.WhenAll`: (A) baseline vector search on `chunks_baseline_v1` + direct prompt, (B) query expansion + hybrid RRF + parent resolution + clear-language generation. Randomize left/right assignment (50/50). Return session_id, option_alfa, option_beta, and latencies.
   - Files: `AsistenteAyuntamiento.ApiService/Endpoints/ArenaEndpoints.cs`, `AsistenteAyuntamiento.Application/Services/ArenaService.cs`
-- [ ] 5.2 Implement `ArenaVoteEndpoint` (`POST /api/arena/vote`). Accept SessionId, Winner, ClarityReason, PrecisionReason, and OptionalComment. De-randomize the left/right mapping and persist the `ArenaBattle` record.
+- [x] 5.2 Implement `ArenaVoteEndpoint` (`POST /api/arena/vote`). Accept SessionId, Winner, ClarityReason, PrecisionReason, and OptionalComment. De-randomize the left/right mapping and persist the `ArenaBattle` record.
   - Files: `AsistenteAyuntamiento.ApiService/Endpoints/ArenaEndpoints.cs`
 
 ## 6. Question Arena Frontend

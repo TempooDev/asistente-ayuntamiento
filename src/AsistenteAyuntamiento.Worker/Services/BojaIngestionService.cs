@@ -17,8 +17,8 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
     private readonly IAmazonS3 _s3Client;
     private readonly string _bucketName = "boletines";
     private readonly AppDbContext _dbContext;
-    private readonly FragmentEnrichmentService _enrichmentService;
-    private readonly IngestionMetricsService _metricsService;
+    private readonly IFragmentEnrichmentService _enrichmentService;
+    private readonly IIngestionMetricsService _metricsService;
     private readonly ILogger<BojaIngestionService> _logger;
 
 #pragma warning disable SKEXP0001
@@ -28,8 +28,8 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
     public BojaIngestionService(
         IAmazonS3 s3Client, 
         AppDbContext dbContext, 
-        FragmentEnrichmentService enrichmentService, 
-        IngestionMetricsService metricsService, 
+        IFragmentEnrichmentService enrichmentService, 
+        IIngestionMetricsService metricsService, 
         ILogger<BojaIngestionService> logger, 
         Kernel kernel)
     {

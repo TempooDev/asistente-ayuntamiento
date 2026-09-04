@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class FragmentEnrichmentService
+public class FragmentEnrichmentService : IFragmentEnrichmentService
 {
     private readonly Kernel _kernel;
     private readonly ILogger<FragmentEnrichmentService> _logger;

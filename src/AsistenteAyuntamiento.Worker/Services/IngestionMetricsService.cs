@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class IngestionMetricsService
+public class IngestionMetricsService : IIngestionMetricsService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IngestionMetricsService> _logger;

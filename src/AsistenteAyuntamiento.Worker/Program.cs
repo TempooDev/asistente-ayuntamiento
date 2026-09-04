@@ -31,8 +31,8 @@ var pipelineMode = builder.Configuration["WORKER_PIPELINE_MODE"] ?? PipelineMode
 if (pipelineMode.Equals(PipelineModes.HIERARCHICAL, StringComparison.OrdinalIgnoreCase))
 {
     // New Hierarchical Pipeline (Phase 2)
-    builder.Services.AddScoped<FragmentEnrichmentService>();
-    builder.Services.AddScoped<IngestionMetricsService>();
+    builder.Services.AddScoped<IFragmentEnrichmentService, FragmentEnrichmentService>();
+    builder.Services.AddScoped<IIngestionMetricsService, IngestionMetricsService>();
     builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(DocumentSources.BOE);
     builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(DocumentSources.BOJA);
 
