@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/common';
+import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -30,7 +30,7 @@ export interface ArenaAnalyticsResponse {
 })
 export class ArenaService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/api/arena`;
+  private apiUrl = `${environment.apiBaseUrl}/api/arena`;
 
   getAnalytics(filters?: ArenaAnalyticsRequest): Observable<ArenaAnalyticsResponse> {
     let params = new HttpParams();
@@ -40,3 +40,4 @@ export class ArenaService {
     return this.http.get<ArenaAnalyticsResponse>(`${this.apiUrl}/analytics`, { params });
   }
 }
+

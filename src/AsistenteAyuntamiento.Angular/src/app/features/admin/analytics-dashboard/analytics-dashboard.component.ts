@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/common';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ArenaService, ArenaAnalyticsRequest } from '../../../core/services/arena.service';
@@ -45,13 +45,14 @@ export class AnalyticsDashboardComponent {
       return data.metrics;
     }
     
-    return data.metrics.filter(m => m.pipeline === this.selectedPipeline());
+    return data.metrics.filter((m: any) => m.pipeline === this.selectedPipeline());
   });
 
   // Available pipelines for the dropdown
   availablePipelines = computed(() => {
     const data = this.analytics();
     if (!data) return [];
-    return data.metrics.map(m => m.pipeline);
+    return data.metrics.map((m: any) => m.pipeline);
   });
 }
+
