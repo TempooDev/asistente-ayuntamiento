@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.Application\AsistenteAyuntamiento.Application.csproj" />
@@ -16,5 +16,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Infrastructure\Data\Migrations\Scripts\**\*.sql" />
+  </ItemGroup>
 
 </Project>

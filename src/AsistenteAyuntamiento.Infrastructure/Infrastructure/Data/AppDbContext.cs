@@ -99,7 +99,11 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
         {
             entity.ToTable("ChildFragments", "ingestion");
             entity.Property(e => e.Embedding).HasColumnType("vector(1536)");
+            entity.Property(e => e.TsvContent).HasColumnType("tsvector");
+            
             entity.HasIndex(e => e.ParentId);
+            entity.HasIndex(e => e.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops");
+            entity.HasIndex(e => e.TsvContent).HasMethod("gin");
         });
 
         modelBuilder.Entity<ArenaBattle>(entity =>

@@ -24,7 +24,7 @@ public class ChildFragment
     public string ChunkText { get; set; } = string.Empty; // breadcrumb + questions + body
 
     // TsvContent is managed by a DB trigger, not set from C#
-    public string? TsvContent { get; set; }
+    public NpgsqlTypes.NpgsqlTsVector? TsvContent { get; set; }
 
     public Vector? Embedding { get; set; }
 

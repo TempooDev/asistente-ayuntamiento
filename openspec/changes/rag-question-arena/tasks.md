@@ -1,16 +1,16 @@
 ## 1. Database Schema and Baseline Preservation
 
-- [ ] 1.1 Rename the existing `DocumentChunks` table to `chunks_baseline_v1` via EF Core migration (or raw SQL script) to preserve the baseline dataset for ablation studies.
+- [x] 1.1 Rename the existing `DocumentChunks` table to `chunks_baseline_v1` via EF Core migration (or raw SQL script) to preserve the baseline dataset for ablation studies. *(Note: Cancelled per user request, table remains DocumentChunks)*
   - Files: `AsistenteAyuntamiento.Infrastructure/Migrations/`, `AsistenteAyuntamiento.Infrastructure/Data/AppDbContext.cs`
-- [ ] 1.2 Create EF Core entity `ParentDocument` with all fields (Bulletin, DocumentId, NormativeRank, IssuingBody, NormTitle, NormSection, Municipality, FullText, PublicationDate, IsActive, Metadata JSONB, CreatedAt). Table: `ParentDocuments` in schema `ingestion`.
+- [x] 1.2 Create EF Core entity `ParentDocument` with all fields (Bulletin, DocumentId, NormativeRank, IssuingBody, NormTitle, NormSection, Municipality, FullText, PublicationDate, IsActive, Metadata JSONB, CreatedAt). Table: `ParentDocuments` in schema `ingestion`.
   - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/ParentDocument.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ParentDocumentConfiguration.cs`
-- [ ] 1.3 Create EF Core entity `ChildFragment` with pgvector `VECTOR(1536)` column, `TSVECTOR` column, and FK to `ParentDocument`. Configure HNSW index on Embedding and GIN index on TsvContent. Add the Spanish tsvector trigger via raw SQL in the migration. Table: `ChildFragments` in schema `ingestion`.
+- [x] 1.3 Create EF Core entity `ChildFragment` with pgvector `VECTOR(1536)` column, `TSVECTOR` column, and FK to `ParentDocument`. Configure HNSW index on Embedding and GIN index on TsvContent. Add the Spanish tsvector trigger via raw SQL in the migration. Table: `ChildFragments` in schema `ingestion`.
   - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/ChildFragment.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ChildFragmentConfiguration.cs`
-- [ ] 1.4 Create EF Core entity `ArenaBattle` with all arena fields (SessionId, UserQuery, LeftSystem/RightSystem, LeftResponse/RightResponse, LeftLatencyMs/RightLatencyMs, Winner, ClarityReason, PrecisionReason, OptionalComment). Table: `ArenaBattles` in schema `arena`.
+- [x] 1.4 Create EF Core entity `ArenaBattle` with all arena fields (SessionId, UserQuery, LeftSystem/RightSystem, LeftResponse/RightResponse, LeftLatencyMs/RightLatencyMs, Winner, ClarityReason, PrecisionReason, OptionalComment). Table: `ArenaBattles` in schema `arena`.
   - Files: `AsistenteAyuntamiento.Domain/Features/Arena/ArenaBattle.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/ArenaBattleConfiguration.cs`
-- [ ] 1.5 Create EF Core entity `IngestionMetric` with fields (Pipeline, Bulletin, DocumentId, TotalTokensEmbedded, TotalLlmCalls, TotalLlmTokens, ProcessingDurationMs, ChunksGenerated). Table: `IngestionMetrics` in schema `ingestion`.
+- [x] 1.5 Create EF Core entity `IngestionMetric` with fields (Pipeline, Bulletin, DocumentId, TotalTokensEmbedded, TotalLlmCalls, TotalLlmTokens, ProcessingDurationMs, ChunksGenerated). Table: `IngestionMetrics` in schema `ingestion`.
   - Files: `AsistenteAyuntamiento.Domain/Features/Ingestion/IngestionMetric.cs`, `AsistenteAyuntamiento.Infrastructure/Data/Configurations/IngestionMetricConfiguration.cs`
-- [ ] 1.6 Register all new entities in `AppDbContext`, generate and apply the EF Core migration.
+- [x] 1.6 Register all new entities in `AppDbContext`, generate and apply the EF Core migration.
   - Files: `AsistenteAyuntamiento.Infrastructure/Data/AppDbContext.cs`, `AsistenteAyuntamiento.Infrastructure/Migrations/`
 
 ## 2. Hierarchical Ingestion Pipeline
