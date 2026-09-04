@@ -97,6 +97,12 @@ builder.AddRabbitMQClient("messaging");
 // pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
 builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 
+// Arena Services
+builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.IQueryExpansionService, AsistenteAyuntamiento.Application.Features.Retrieval.QueryExpansionService>();
+builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService, AsistenteAyuntamiento.Application.Features.Retrieval.HybridRetrievalService>();
+builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService, AsistenteAyuntamiento.Application.Features.Generation.ClearLanguageGenerationService>();
+builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Arena.IArenaService, AsistenteAyuntamiento.Application.Features.Arena.ArenaService>();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -164,6 +170,7 @@ AiConfigEndpoints.MapAiConfigEndpoints(app);
 AsistenteAyuntamiento.ApiService.Features.Config.ConfigEndpoints.MapConfigEndpoints(app);
 IngestionEndpoints.MapIngestionEndpoints(app);
 AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
+AsistenteAyuntamiento.ApiService.Endpoints.ArenaEndpoints.MapArenaEndpoints(app);
 app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();

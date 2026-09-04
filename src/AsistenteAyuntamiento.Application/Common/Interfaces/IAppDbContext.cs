@@ -19,6 +19,10 @@ public interface IAppDbContext
     DbSet<DocumentChunk> DocumentChunks { get; set; }
     DbSet<DocumentJobState> DocumentJobStates { get; set; }
     DbSet<ScraperFilterRule> ScraperFilterRules { get; set; }
+    DbSet<AsistenteAyuntamiento.Domain.Features.Arena.ArenaBattle> ArenaBattles { get; set; }
+    DbSet<ParentDocument> ParentDocuments { get; set; }
+    DbSet<ChildFragment> ChildFragments { get; set; }
+    DbSet<IngestionMetric> IngestionMetrics { get; set; }
     
     DatabaseFacade Database { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
