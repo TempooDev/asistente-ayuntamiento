@@ -1,0 +1,53 @@
+<div class="p-6 max-w-7xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">Panel de Analíticas del Arena</h1>
+
+  @if (analytics(); as data) {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Batallas Totales</h3>
+        <p class="text-3xl font-bold text-gray-900 mt-2">{{ data.totalBattles }}</p>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Completadas</h3>
+        <p class="text-3xl font-bold text-green-600 mt-2">{{ data.completedBattles }}</p>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Pendientes (Shadow)</h3>
+        <p class="text-3xl font-bold text-amber-600 mt-2">{{ data.pendingBattles }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Victorias</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Derrotas</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empates</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Win Rate</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latencia Media</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens Medios</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          @for (metric of data.metrics; track metric.pipeline) {
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ metric.pipeline }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-green-600">{{ metric.winCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-red-600">{{ metric.lossCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.tieCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap font-bold text-indigo-600">{{ metric.winRate | percent:'1.0-1' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageLatencyMs | number:'1.0-0' }} ms</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageTokens | number:'1.0-0' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="flex justify-center items-center h-64 text-gray-500">
+      Cargando analíticas...
+    </div>
+  }
+</div>

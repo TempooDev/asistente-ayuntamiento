@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { AnalyticsDashboardComponent } from './features/admin/analytics-dashboard/analytics-dashboard.component';
 import { ChatPanelComponent } from './pages/chat-panel/chat-panel';
 import { DocumentosComponent } from './pages/documentos/documentos';
 import { ConfiguracionComponent } from './pages/configuracion/configuracion';
@@ -29,6 +30,12 @@ export const routes: Routes = [
         data: { roles: [ROLES.ADMIN] }
     },
     { path: 'arena', component: Arena, canActivate: [customAuthGuardFn] },
+    { 
+        path: 'admin/analytics', 
+        component: AnalyticsDashboardComponent, 
+        canActivate: [customAuthGuardFn, roleGuardFn],
+        data: { roles: [ROLES.ADMIN] }
+    },
     { path: 'perfil', component: PerfilComponent, canActivate: [customAuthGuardFn] },
     { path: '', redirectTo: '/chat', pathMatch: 'full' }
 ];
