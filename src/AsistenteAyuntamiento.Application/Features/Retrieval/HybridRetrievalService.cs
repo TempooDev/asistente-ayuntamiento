@@ -8,24 +8,22 @@ using Microsoft.SemanticKernel.Embeddings;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
-public record RetrievalResult(long FragmentId, string ChunkText, long ParentId, string ParentFullText, double RrfScore);
-
-public interface IHybridRetrievalService
-{
-    Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default);
-}
-
-public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel) : IHybridRetrievalService
+public class HybridRetrievalService(
+    IAppDbContext dbContext,
+    Kernel kernel,
+    ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {
-        var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
+        try
+        {
+            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
         var embeddingVector = embeddings[0].Vector.ToArray();
 
-        
+
 
         // C# 11 Raw String Literals make this highly readable and maintainable
         var sql = """
@@ -98,6 +96,12 @@ public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel) : IH
         }
 
         return results.OrderByDescending(r => r.RrfScore).ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error executing Hybrid RRF Retrieval for query: {Query}", queryInfo.QuerySemantica);
+            throw;
+        }
     }
 
     // Internal struct to map the RAW SQL result
@@ -107,6 +111,10 @@ public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel) : IH
         public double RrfScore { get; set; }
     }
 }
+
+
+
+
 
 
 
