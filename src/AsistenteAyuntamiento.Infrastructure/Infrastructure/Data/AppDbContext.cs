@@ -38,6 +38,8 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<DocumentChunk>().ToTable("chunks_baseline_v1", "ingestion");
+
         // Habilitar pgvector
         modelBuilder.HasPostgresExtension("vector");
 
@@ -117,3 +119,4 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
         });
     }
 }
+

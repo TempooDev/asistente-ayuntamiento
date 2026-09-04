@@ -24,16 +24,9 @@ public interface IQueryExpansionService
     Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, CancellationToken cancellationToken = default);
 }
 
-public class QueryExpansionService : IQueryExpansionService
-{
-    private readonly IChatCompletionService _chatCompletionService;
-    private readonly ILogger<QueryExpansionService> _logger;
-
-    public QueryExpansionService(Kernel kernel, ILogger<QueryExpansionService> logger)
+public class QueryExpansionService(Kernel kernel, ILogger<QueryExpansionService> logger) : IQueryExpansionService
     {
-        _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-        _logger = logger;
-    }
+        private readonly IChatCompletionService chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
     public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, CancellationToken cancellationToken = default)
     {
@@ -41,7 +34,7 @@ public class QueryExpansionService : IQueryExpansionService
         {
             var prompt = string.Format(SystemPrompts.QueryExpansion, userQuery);
 
-            var result = await _chatCompletionService.GetChatMessageContentAsync(
+            var result = await chatCompletionService.GetChatMessageContentAsync(
                 prompt,
                 cancellationToken: cancellationToken);
 
@@ -62,13 +55,13 @@ public class QueryExpansionService : IQueryExpansionService
 
             return expanded ?? new ExpandedQueryInfo
             {
-                QueryLexica = userQuery.Replace(" ", " & "),
+                QueryLexica = userQuery,
                 QuerySemantica = userQuery
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
+            logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
             return new ExpandedQueryInfo
             {
                 QueryLexica = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
@@ -77,3 +70,6 @@ public class QueryExpansionService : IQueryExpansionService
         }
     }
 }
+
+
+

@@ -40,8 +40,7 @@ export class Arena {
     this.precisionReason.set('');
     this.optionalComment.set('');
 
-    try {
-      this.arenaApi.compare({ query: this.query() }).subscribe({
+    this.arenaApi.compare({ query: this.query() }).subscribe({
         next: (res) => {
           this.compareData.set(res);
           this.loading.set(false);
@@ -52,10 +51,6 @@ export class Arena {
           console.error(err);
         }
       });
-    } catch (e) {
-      this.error.set('Excepción inesperada.');
-      this.loading.set(false);
-    }
   }
 
   onVote() {
@@ -91,3 +86,4 @@ export class Arena {
     this.selectedWinner.set(winner);
   }
 }
+

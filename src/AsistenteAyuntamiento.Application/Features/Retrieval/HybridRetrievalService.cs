@@ -43,11 +43,11 @@ public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, IL
             ),
             keyword_search AS (
                 SELECT "Id",
-                       RANK() OVER (ORDER BY ts_rank_cd("TsvContent", to_tsquery('spanish', @tsquery)) DESC) as rank_ts
+                       RANK() OVER (ORDER BY ts_rank_cd("TsvContent", websearch_to_tsquery('spanish', @tsquery)) DESC) as rank_ts
                 FROM ingestion."ChildFragments"
-                WHERE "TsvContent" @@ to_tsquery('spanish', @tsquery)
+                WHERE "TsvContent" @@ websearch_to_tsquery('spanish', @tsquery)
                   AND (@municipio IS NULL OR "Municipality" ILIKE '%' || @municipio || '%')
-                ORDER BY ts_rank_cd("TsvContent", to_tsquery('spanish', @tsquery)) DESC
+                ORDER BY ts_rank_cd("TsvContent", websearch_to_tsquery('spanish', @tsquery)) DESC
                 LIMIT @limit
             )
             SELECT 
@@ -111,3 +111,4 @@ public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, IL
         public double RrfScore { get; set; }
     }
 }
+
