@@ -22,5 +22,13 @@ public static class ArenaEndpoints
             return Results.Ok(response);
         })
         .WithName("VoteArena");
+
+        group.MapGet("/analytics", async (IArenaAnalyticsService analyticsService, CancellationToken ct) =>
+        {
+            var response = await analyticsService.GetAnalyticsAsync(ct);
+            return Results.Ok(response);
+        })
+        .WithName("GetArenaAnalytics");
     }
 }
+

@@ -102,6 +102,7 @@ builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.
 builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService, AsistenteAyuntamiento.Application.Features.Retrieval.HybridRetrievalService>();
 builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService, AsistenteAyuntamiento.Application.Features.Generation.ClearLanguageGenerationService>();
 builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Arena.IArenaService, AsistenteAyuntamiento.Application.Features.Arena.ArenaService>();
+builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Arena.IArenaAnalyticsService, AsistenteAyuntamiento.Application.Features.Arena.ArenaAnalyticsService>();
 builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Metrics.IReadabilityService, AsistenteAyuntamiento.Application.Features.Metrics.ReadabilityService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
