@@ -3,14 +3,7 @@ import { Component, OnInit } from '@angular/core';
 @Component({
   selector: 'app-callback',
   standalone: true,
-  template: `
-    <div class="flex h-screen w-full items-center justify-center">
-      <div class="text-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p class="text-lg font-medium text-gray-600">Verificando sesión...</p>
-      </div>
-    </div>
-  `
+  templateUrl: './callback.html'
 })
 export class CallbackComponent implements OnInit {
   ngOnInit() {}

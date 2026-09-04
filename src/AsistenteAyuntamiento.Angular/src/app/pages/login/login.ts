@@ -5,14 +5,7 @@ import { AuthService } from '@auth0/auth0-angular';
 @Component({
   selector: 'app-login',
   standalone: true,
-  template: `
-    <div class="flex h-screen w-full items-center justify-center">
-      <div class="text-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p class="text-lg font-medium text-gray-600">Procesando invitación...</p>
-      </div>
-    </div>
-  `
+  templateUrl: './login.html'
 })
 export class LoginComponent implements OnInit {
   private route = inject(ActivatedRoute);
