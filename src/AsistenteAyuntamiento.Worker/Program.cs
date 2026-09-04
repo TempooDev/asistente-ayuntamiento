@@ -4,6 +4,7 @@ using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.Worker.Services;
+using AsistenteAyuntamiento.Application.Common;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -25,15 +26,15 @@ builder.AddRabbitMQClient("messaging");
 // Configure S3 & Semantic Kernel (Infrastructure)
 builder.AddInfrastructureServices();
 
-var pipelineMode = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
+var pipelineMode = builder.Configuration["WORKER_PIPELINE_MODE"] ?? PipelineModes.BASELINE;
 
-if (pipelineMode.Equals("HIERARCHICAL", StringComparison.OrdinalIgnoreCase))
+if (pipelineMode.Equals(PipelineModes.HIERARCHICAL, StringComparison.OrdinalIgnoreCase))
 {
     // New Hierarchical Pipeline (Phase 2)
     builder.Services.AddScoped<FragmentEnrichmentService>();
     builder.Services.AddScoped<IngestionMetricsService>();
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>("BOE");
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>("BOJA");
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(DocumentSources.BOE);
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(DocumentSources.BOJA);
 
     // Register the hierarchical consumer
     builder.Services.AddHostedService<HierarchicalRabbitMqConsumerService>();

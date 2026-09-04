@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Xml.Linq;
 using Amazon.S3;
 using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using Microsoft.Extensions.Logging;
@@ -64,7 +65,7 @@ public class BoeIngestionService : IHierarchicalIngestionProcessor
             // 2. Parse Parent Document (Stub logic - would map actual BOE XML fields)
             var parentDoc = new ParentDocument
             {
-                Bulletin = "BOE",
+                Bulletin = DocumentSources.BOE,
                 DocumentId = documentId,
                 NormTitle = xDoc.Root?.Element("titulo")?.Value ?? documentId,
                 IssuingBody = xDoc.Root?.Element("departamento")?.Value,
@@ -93,7 +94,7 @@ public class BoeIngestionService : IHierarchicalIngestionProcessor
 
                 // 4. Enrich fragment
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
-                    "BOE", 
+                    DocumentSources.BOE, 
                     parentDoc.IssuingBody ?? "Estado", 
                     parentDoc.NormTitle, 
                     normSection, 
@@ -114,7 +115,7 @@ public class BoeIngestionService : IHierarchicalIngestionProcessor
                 var childFragment = new ChildFragment
                 {
                     ParentId = parentDoc.Id,
-                    Bulletin = "BOE",
+                    Bulletin = DocumentSources.BOE,
                     SubSection = normSection,
                     ChunkText = enrichmentResult.EnrichedText,
                     Embedding = embeddingVector
@@ -128,7 +129,7 @@ public class BoeIngestionService : IHierarchicalIngestionProcessor
 
             // 6. Record Metrics
             sw.Stop();
-            await _metricsService.TrackIngestionAsync("HIERARCHICAL", "BOE", documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
+            await _metricsService.TrackIngestionAsync(PipelineModes.HIERARCHICAL, DocumentSources.BOE, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
         }
         catch (Exception ex)
         {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Amazon.S3;
 using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using Microsoft.Extensions.Logging;
@@ -62,7 +63,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             // 2. Parse Parent Document (Stub logic - would map actual BOJA JSON fields)
             var parentDoc = new ParentDocument
             {
-                Bulletin = "BOJA",
+                Bulletin = DocumentSources.BOJA,
                 DocumentId = documentId,
                 NormTitle = root.TryGetProperty("titulo", out var t) ? t.GetString() ?? documentId : documentId,
                 IssuingBody = root.TryGetProperty("organismo", out var o) ? o.GetString() : "Junta de Andalucía",
@@ -85,7 +86,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
                 var normSection = $"Sección {i/chunkSize + 1}";
 
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
-                    "BOJA", 
+                    DocumentSources.BOJA, 
                     parentDoc.IssuingBody ?? "Junta", 
                     parentDoc.NormTitle, 
                     normSection, 
@@ -105,7 +106,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
                 var childFragment = new ChildFragment
                 {
                     ParentId = parentDoc.Id,
-                    Bulletin = "BOJA",
+                    Bulletin = DocumentSources.BOJA,
                     SubSection = normSection,
                     ChunkText = enrichmentResult.EnrichedText,
                     Embedding = embeddingVector
@@ -118,7 +119,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             sw.Stop();
-            await _metricsService.TrackIngestionAsync("HIERARCHICAL", "BOJA", documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
+            await _metricsService.TrackIngestionAsync(PipelineModes.HIERARCHICAL, DocumentSources.BOJA, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
         }
         catch (Exception ex)
         {
