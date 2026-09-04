@@ -26,11 +26,11 @@
 
 ## 3. Hybrid Retrieval Service
 
-- [ ] 3.1 Implement `QueryExpansionService.cs`. Accept the citizen's plain-language query. Call the LLM (via Semantic Kernel) with a prompt that returns a structured object containing `query_lexica` (tsquery-compatible terms), `query_semantica` (formal expanded phrase), and `filtro_municipio` (detected municipality or null).
+- [x] 3.1 Implement `QueryExpansionService.cs`. Accept the citizen's plain-language query. Call the LLM (via Semantic Kernel) with a prompt that returns a structured object containing `query_lexica` (tsquery-compatible terms), `query_semantica` (formal expanded phrase), and `filtro_municipio` (detected municipality or null).
   - Files: `AsistenteAyuntamiento.Application/Services/QueryExpansionService.cs`
-- [ ] 3.2 Implement `HybridRetrievalService.cs`. Execute the RRF SQL query (dense HNSW + sparse GIN) using `SqlQueryRaw<T>()` or Dapper. Accept the expanded queries and municipality filter as parameters. Return the top 5 child IDs with their parent IDs and RRF scores.
+- [x] 3.2 Implement `HybridRetrievalService.cs`. Execute the RRF SQL query (dense HNSW + sparse GIN) using `SqlQueryRaw<T>()` or Dapper. Accept the expanded queries and municipality filter as parameters. Return the top 5 child IDs with their parent IDs and RRF scores.
   - Files: `AsistenteAyuntamiento.Application/Services/HybridRetrievalService.cs`
-- [ ] 3.3 Implement parent resolution logic within `HybridRetrievalService`. Given the distinct `ParentId` values from the RRF results, fetch the corresponding `ParentDocuments.FullText` records. Pass the full parent texts to the generation service.
+- [x] 3.3 Implement parent resolution logic within `HybridRetrievalService`. Given the distinct `ParentId` values from the RRF results, fetch the corresponding `ParentDocuments.FullText` records. Pass the full parent texts to the generation service.
   - Files: `AsistenteAyuntamiento.Application/Services/HybridRetrievalService.cs`
 
 ## 4. Clear-Language Generation Service
