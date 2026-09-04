@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/common';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -11,6 +11,11 @@ export interface PipelineMetrics {
   winRate: number;
   averageLatencyMs: number;
   averageTokens: number;
+}
+
+export interface ArenaAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface ArenaAnalyticsResponse {
@@ -27,7 +32,11 @@ export class ArenaService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiUrl}/api/arena`;
 
-  getAnalytics(): Observable<ArenaAnalyticsResponse> {
-    return this.http.get<ArenaAnalyticsResponse>(`${this.apiUrl}/analytics`);
+  getAnalytics(filters?: ArenaAnalyticsRequest): Observable<ArenaAnalyticsResponse> {
+    let params = new HttpParams();
+    if (filters?.startDate) params = params.set('startDate', filters.startDate);
+    if (filters?.endDate) params = params.set('endDate', filters.endDate);
+
+    return this.http.get<ArenaAnalyticsResponse>(`${this.apiUrl}/analytics`, { params });
   }
 }

@@ -4,5 +4,5 @@ namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public interface IArenaAnalyticsService
 {
-    Task<ArenaAnalyticsResponse> GetAnalyticsAsync(CancellationToken cancellationToken = default);
+    Task<ArenaAnalyticsResponse> GetAnalyticsAsync(ArenaAnalyticsRequest? request = null, CancellationToken cancellationToken = default);
 }

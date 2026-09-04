@@ -8,11 +8,26 @@ namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaAnalyticsService(IAppDbContext _dbContext) : IArenaAnalyticsService
 {
-    public async Task<ArenaAnalyticsResponse> GetAnalyticsAsync(CancellationToken cancellationToken = default)
+    public async Task<ArenaAnalyticsResponse> GetAnalyticsAsync(ArenaAnalyticsRequest? request = null, CancellationToken cancellationToken = default)
     {
         var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
 
-        var battles = await db.Set<ArenaBattle>().ToListAsync(cancellationToken);
+        var query = db.Set<ArenaBattle>().AsQueryable();
+
+        if (request != null)
+        {
+            if (request.StartDate.HasValue)
+            {
+                query = query.Where(b => b.CreatedAt >= request.StartDate.Value.ToUniversalTime());
+            }
+
+            if (request.EndDate.HasValue)
+            {
+                query = query.Where(b => b.CreatedAt <= request.EndDate.Value.ToUniversalTime());
+            }
+        }
+
+        var battles = await query.ToListAsync(cancellationToken);
 
         var total = battles.Count;
         var pending = battles.Count(b => b.Winner == BattleWinner.Pending);
@@ -37,7 +52,6 @@ public class ArenaAnalyticsService(IAppDbContext _dbContext) : IArenaAnalyticsSe
 
             if (totalAsSystem > 0)
             {
-                // Only count completed battles for win rate
                 var completedAsSystem = asLeft.Count(b => b.Winner != BattleWinner.Pending) + asRight.Count(b => b.Winner != BattleWinner.Pending);
                 if (completedAsSystem > 0)
                 {
