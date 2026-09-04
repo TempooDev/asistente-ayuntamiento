@@ -46,7 +46,7 @@ public static class IngestionEndpoints
             [FromServices] IConfiguration config,
             [FromServices] IAppDbContext dbContext) =>
         {
-            var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
+            var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
             var jobStates = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToDictionaryAsync(
                 dbContext.DocumentJobStates,
@@ -359,7 +359,7 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
+            var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
             try
             {

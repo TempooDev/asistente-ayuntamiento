@@ -25,7 +25,7 @@ var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: t
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
-var blobBucketName = builder.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
+var blobBucketName = builder.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
 // Configure MinIO container
 // Persistent MinIO Object Storage

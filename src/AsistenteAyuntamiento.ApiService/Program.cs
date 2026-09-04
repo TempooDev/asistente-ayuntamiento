@@ -139,7 +139,7 @@ using (var scope = app.Services.CreateScope())
     {
         try
         {
-            var bucketName = app.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
+            var bucketName = app.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
             s3Client.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest
             {
                 BucketName = bucketName,

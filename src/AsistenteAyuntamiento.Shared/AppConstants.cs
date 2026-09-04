@@ -1,4 +1,4 @@
-namespace AsistenteAyuntamiento.Domain.Common;
+namespace AsistenteAyuntamiento.Shared;
 
 public static class AppConstants
 {

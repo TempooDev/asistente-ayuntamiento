@@ -19,7 +19,7 @@ public class BoeIngestionService(
     Kernel kernel) : IHierarchicalIngestionProcessor
 {
     private readonly IAmazonS3 _s3Client = s3Client;
-    private readonly string _bucketName = AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
+    private readonly string _bucketName = AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
     private readonly AppDbContext _dbContext = dbContext;
     private readonly IFragmentEnrichmentService _enrichmentService = enrichmentService;
     private readonly IIngestionMetricsService _metricsService = metricsService;
