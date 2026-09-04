@@ -47,11 +47,11 @@
 
 ## 6. Question Arena Frontend
 
-- [ ] 6.1 Create the Angular Arena page component with a query input box and "Compare Responses" button. Display two response columns labeled "Assistant Alfa" and "Assistant Beta" with loading spinners during concurrent execution.
+- [x] 6.1 Create the Angular Arena page component with a query input box and "Compare Responses" button. Display two response columns labeled "Assistant Alfa" and "Assistant Beta" with loading spinners during concurrent execution.
   - Files: `AsistenteAyuntamiento.Angular/src/app/features/arena/`
-- [ ] 6.2 Add voting UI: preference buttons (Prefer Alfa / Prefer Beta / Technical Tie / Both Deficient), single-click sub-questions (clarity and precision), and an optional free-text comment field.
+- [x] 6.2 Add voting UI: preference buttons (Prefer Alfa / Prefer Beta / Technical Tie / Both Deficient), single-click sub-questions (clarity and precision), and an optional free-text comment field.
   - Files: `AsistenteAyuntamiento.Angular/src/app/features/arena/`
-- [ ] 6.3 After vote submission, reveal which architecture powered each assistant. Show a collapsible panel with the actual source articles used by each pipeline.
+- [x] 6.3 After vote submission, reveal which architecture powered each assistant. Show a collapsible panel with the actual source articles used by each pipeline.
   - Files: `AsistenteAyuntamiento.Angular/src/app/features/arena/`
 
 ## 7. Metrics, Analysis, and Export
