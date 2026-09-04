@@ -11,6 +11,7 @@ builder.AddServiceDefaults();
 
 // Required by AppDbContext even if it's always null in a worker
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService, AsistenteAyuntamiento.Worker.WorkerTenantService>();
 
 // Configure Database
 builder.AddNpgsqlDbContext<AppDbContext>(
@@ -24,7 +25,7 @@ builder.AddRabbitMQClient("messaging");
 builder.AddInfrastructureServices();
 
 // Register background services for ingestion
-builder.Services.AddScoped<DocumentIngestionService>();
+builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 builder.Services.AddHostedService<RabbitMqConsumerService>();
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();
 

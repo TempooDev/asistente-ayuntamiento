@@ -12,7 +12,7 @@ using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService
+public class DocumentIngestionService : IDocumentIngestionService
 {
     private readonly IAmazonS3 _s3Client;
     private readonly string _bucketName;

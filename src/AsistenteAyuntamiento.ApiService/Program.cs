@@ -25,16 +25,17 @@ builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddScoped<CurrentTenantService>();
-builder.Services.AddSingleton<AiMetricsService>();
-builder.Services.AddScoped<ChatSessionService>();
-builder.Services.AddScoped<AiChatService>();
+builder.Services.AddSingleton<CurrentTenantService>();
+builder.Services.AddSingleton<ICurrentTenantService>(sp => sp.GetRequiredService<CurrentTenantService>());
+builder.Services.AddSingleton<IAiMetricsService, AiMetricsService>();
+builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
+builder.Services.AddScoped<IAiChatService, AiChatService>();
 builder.Services.AddSingleton<ChatMessageBuffer>();
 builder.Services.AddSingleton<AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperStateService>();
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.Services.AddDataProtection();
-builder.Services.AddScoped<AiConfigurationService>();
+builder.Services.AddScoped<IAiConfigurationService, AiConfigurationService>();
 
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
@@ -81,7 +82,7 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
     var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
     o.Address = new Uri(goScraperUrl);
 })
-.AddStandardResilienceHandler(options => 
+.AddStandardResilienceHandler(options =>
 {
     options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(30);
     options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
@@ -94,7 +95,7 @@ builder.AddRabbitMQClient("messaging");
 
 // Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
 // pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
-builder.Services.AddScoped<DocumentIngestionService>();
+builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -168,8 +169,3 @@ app.MapAiMetricsEndpoints();
 app.MapDefaultEndpoints();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

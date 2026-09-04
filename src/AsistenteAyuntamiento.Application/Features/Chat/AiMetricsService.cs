@@ -8,7 +8,7 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// Tracks AI model invocation metrics using OpenTelemetry instruments
 /// and an in-memory store for the REST endpoint.
 /// </summary>
-public sealed class AiMetricsService
+public sealed class AiMetricsService : IAiMetricsService
 {
     // ── OpenTelemetry instruments ────────────────────────────────────────
     public static readonly string MeterName = "AsistenteAyuntamiento.Ai";

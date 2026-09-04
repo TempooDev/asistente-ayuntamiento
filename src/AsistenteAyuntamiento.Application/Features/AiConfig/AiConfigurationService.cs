@@ -7,7 +7,7 @@ using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 
 namespace AsistenteAyuntamiento.Application.Features.AiConfig;
 
-public class AiConfigurationService
+public class AiConfigurationService : IAiConfigurationService
 {
     private readonly IConfiguration _configuration;
     private readonly IAppDbContext _dbContext;

@@ -9,7 +9,7 @@ public static class AiMetricsEndpoints
         var group = app.MapGroup("/api/ai");
 
         // GET /api/ai/metrics — Full metrics snapshot (aggregates + recent calls)
-        group.MapGet("/metrics", (AiMetricsService metricsService) =>
+        group.MapGet("/metrics", (IAiMetricsService metricsService) =>
         {
             var snapshot = metricsService.GetSnapshot();
             return Results.Ok(snapshot);
@@ -18,7 +18,7 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns AI model invocation metrics and recent call history");
 
         // GET /api/ai/metrics/summary — Lightweight summary (no recent calls list)
-        group.MapGet("/metrics/summary", (AiMetricsService metricsService) =>
+        group.MapGet("/metrics/summary", (IAiMetricsService metricsService) =>
         {
             var snapshot = metricsService.GetSnapshot();
             return Results.Ok(new
@@ -39,7 +39,7 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns a lightweight AI metrics summary without recent call details");
 
         // GET /api/ai/health — Quick health check: is the AI model reachable?
-        group.MapGet("/health", (AiMetricsService metricsService) =>
+        group.MapGet("/health", (IAiMetricsService metricsService) =>
         {
             var snapshot = metricsService.GetSnapshot();
 

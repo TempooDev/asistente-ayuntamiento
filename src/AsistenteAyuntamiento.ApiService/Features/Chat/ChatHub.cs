@@ -17,14 +17,14 @@ using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 public class ChatHub : Hub
 {
     private readonly CurrentTenantService _tenantService;
-    private readonly ChatSessionService _sessionService;
-    private readonly AiChatService _aiChatService;
+    private readonly IChatSessionService _sessionService;
+    private readonly IAiChatService _aiChatService;
     private readonly ILogger<ChatHub> _logger;
 
     public ChatHub(
         CurrentTenantService tenantService,
-        ChatSessionService sessionService,
-        AiChatService aiChatService,
+        IChatSessionService sessionService,
+        IAiChatService aiChatService,
         ILogger<ChatHub> logger)
     {
         _tenantService = tenantService;

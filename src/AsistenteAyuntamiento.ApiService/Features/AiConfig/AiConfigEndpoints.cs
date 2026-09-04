@@ -9,13 +9,13 @@ public static class AiConfigEndpoints
         var group = app.MapGroup("/api/settings")
             .RequireAuthorization();
 
-        group.MapGet("/ai", async (AiConfigurationService service) =>
+        group.MapGet("/ai", async (IAiConfigurationService service) =>
         {
             var config = await service.GetConfigurationAsync();
             return Results.Ok(config);
         });
 
-        group.MapPut("/ai", async (SaveAiConfigurationDto dto, AiConfigurationService service) =>
+        group.MapPut("/ai", async (SaveAiConfigurationDto dto, IAiConfigurationService service) =>
         {
             await service.SaveConfigurationAsync(dto);
             return Results.Ok();

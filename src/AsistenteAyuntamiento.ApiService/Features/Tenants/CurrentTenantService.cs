@@ -14,13 +14,13 @@ public class CurrentTenantService : AsistenteAyuntamiento.Application.Common.Int
     /// Returns "default" if not present (useful for local development or system admins).
     /// </summary>
     
-    private string? _tenantIdOverride;
+    private readonly AsyncLocal<string?> _tenantIdOverride = new();
 
-    public string TenantId => _tenantIdOverride ?? _httpContextAccessor.HttpContext?.User.FindFirst("org_id")?.Value ?? "default";
+    public string TenantId => _tenantIdOverride.Value ?? _httpContextAccessor.HttpContext?.User.FindFirst("org_id")?.Value ?? "default";
 
     public void SetTenant(string tenantId)
     {
-        _tenantIdOverride = tenantId;
+        _tenantIdOverride.Value = tenantId;
     }
 
 }

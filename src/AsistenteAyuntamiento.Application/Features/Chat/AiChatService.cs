@@ -42,19 +42,19 @@ public sealed record TokenUsageInfo(int InputTokens, int OutputTokens, int Total
 /// Wraps <see cref="IChatCompletionService"/> and integrates metrics and
 /// distributed-tracing internally so callers don't need to manage observability.
 /// </summary>
-public sealed class AiChatService
+public sealed class AiChatService : IAiChatService
 {
-    private readonly AiConfigurationService _aiConfigurationService;
+    private readonly IAiConfigurationService _aiConfigurationService;
     private readonly IConfiguration _configuration;
-    private readonly AiMetricsService _metricsService;
+    private readonly IAiMetricsService _metricsService;
     private readonly ILogger<AiChatService> _logger;
     private readonly IAppDbContext _dbContext;
     private readonly Kernel _kernel;
 
     public AiChatService(
-        AiConfigurationService aiConfigurationService,
+        IAiConfigurationService aiConfigurationService,
         IConfiguration configuration,
-        AiMetricsService metricsService,
+        IAiMetricsService metricsService,
         ILogger<AiChatService> logger,
         IAppDbContext dbContext,
         Kernel kernel)

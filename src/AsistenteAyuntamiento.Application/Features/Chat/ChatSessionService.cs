@@ -8,7 +8,7 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// <summary>
 /// Service encapsulating database operations for chat sessions and chat messages.
 /// </summary>
-public class ChatSessionService
+public class ChatSessionService : IChatSessionService
 {
     private readonly IAppDbContext _dbContext;
     private readonly ChatMessageBuffer _buffer;

@@ -16,7 +16,7 @@ public static class IngestionEndpoints
 
         group.MapPost("/process-blob", async (
             [FromBody] ProcessBlobRequest request,
-            [FromServices] DocumentIngestionService ingestionService,
+            [FromServices] IDocumentIngestionService ingestionService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");

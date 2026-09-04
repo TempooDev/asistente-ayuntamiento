@@ -105,7 +105,7 @@ public class RabbitMqConsumerService : BackgroundService
     private async Task ProcessDocumentAsync(DocumentMessage docMsg, CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
-        var ingestionService = scope.ServiceProvider.GetRequiredService<DocumentIngestionService>();
+        var ingestionService = scope.ServiceProvider.GetRequiredService<IDocumentIngestionService>();
         await ingestionService.ProcessBlobAsync(docMsg.BlobPath, docMsg.Source, cancellationToken);
     }
 
