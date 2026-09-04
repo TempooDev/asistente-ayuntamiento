@@ -1,4 +1,4 @@
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+﻿using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using System.Security.Claims;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authorization;
@@ -52,7 +52,7 @@ public class ChatHub : Hub
             var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
             if (session == null)
             {
-                await Clients.Caller.SendAsync("ReceiveMessage", "Error: Sesión no encontrada o no autorizada.");
+                await Clients.Caller.SendAsync("ReceiveMessage", "Error: Session not found or unauthorized.");
                 return;
             }
             _sessionService.EnqueueUserMessage(session, message);
@@ -110,7 +110,7 @@ public class ChatHub : Hub
                 session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
                 if (session == null)
                 {
-                    errorMessage = "Error: Sesión no encontrada o no autorizada.";
+                    errorMessage = "Error: Session not found or unauthorized.";
                 }
                 else 
                 {
@@ -126,7 +126,7 @@ public class ChatHub : Hub
 
         if (errorMessage != null || session == null)
         {
-            yield return errorMessage ?? "Error inesperado.";
+            yield return errorMessage ?? "Unexpected error.";
             yield break;
         }
 
@@ -146,7 +146,7 @@ public class ChatHub : Hub
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in stream generation");
-            yield return "\n\n[Error: La generaci�n de texto se interrumpi�.]";
+            yield return "\n\n[Error: Stream generation interrupted.]";
         }
 
         _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
@@ -158,7 +158,7 @@ public class ChatHub : Hub
     private static ChatHistory BuildChatHistory(List<ChatMessage> messages)
     {
         var history = new ChatHistory(
-            "Eres un asistente virtual del ayuntamiento. Responde de forma clara y concisa en español.");
+            "You are a virtual assistant for the city council. Respond clearly and concisely in Spanish.");
 
         foreach (var msg in messages)
         {
@@ -222,4 +222,7 @@ public class ChatHub : Hub
         await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }
+
+
+
 
