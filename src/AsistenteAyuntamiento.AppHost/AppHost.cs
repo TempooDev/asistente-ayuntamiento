@@ -42,7 +42,7 @@ var minioEndpoint = minio.GetEndpoint("api");
 // Init container to create bucket
 var minioInit = builder.AddContainer("minio-init", "minio/mc")
     .WithEntrypoint("sh")
-    .WithArgs("-c", $"sleep 5; mc alias set myminio `$MINIO_ENDPOINT admin password123; mc mb myminio/{blobBucketName} || true; mc anonymous set public myminio/{blobBucketName} || true")
+    .WithArgs("-c", $"sleep 5; mc alias set myminio $MINIO_ENDPOINT admin password123; mc mb myminio/{blobBucketName} || true; mc anonymous set public myminio/{blobBucketName} || true")
     .WithEnvironment("MINIO_ENDPOINT", minioEndpoint)
     .WaitFor(minio);
 
@@ -179,3 +179,4 @@ apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 //       .WithEnvironment("Blob__BucketName", blobBucketName);
 
 builder.Build().Run();
+
