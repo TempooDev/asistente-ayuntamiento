@@ -13,16 +13,11 @@ public interface IClearLanguageGenerationService
     IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default);
 }
 
-public class ClearLanguageGenerationService : IClearLanguageGenerationService
+public class ClearLanguageGenerationService(Kernel _kernel, ILogger<ClearLanguageGenerationService> _logger) : IClearLanguageGenerationService
 {
-    private readonly IChatCompletionService _chatCompletionService;
-    private readonly ILogger<ClearLanguageGenerationService> _logger;
+    private readonly IChatCompletionService _chatCompletionService = _kernel.GetRequiredService<IChatCompletionService>();
+    
 
-    public ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguageGenerationService> logger)
-    {
-        _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-        _logger = logger;
-    }
 
     public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default)
     {
@@ -102,3 +97,4 @@ public class ClearLanguageGenerationService : IClearLanguageGenerationService
         return chatHistory;
     }
 }
+

@@ -1,6 +1,8 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Retrieval;
+using AsistenteAyuntamiento.Application.Features.Generation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
@@ -50,23 +52,15 @@ public sealed record TokenUsageInfo(
 /// distributed-tracing internally so callers don't need to manage observability.
 /// </summary>
 public sealed class AiChatService(
-    IAiConfigurationService aiConfigurationService,
-    IConfiguration configuration,
-    IAiMetricsService metricsService,
-    ILogger<AiChatService> logger,
-    IAppDbContext dbContext,
-    Kernel kernel,
-    AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService hybridRetrievalService,
-    AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService generationService) : IAiChatService
+    IAiConfigurationService _aiConfigurationService,
+    IConfiguration _configuration,
+    IAiMetricsService _metricsService,
+    ILogger<AiChatService> _logger,
+    IAppDbContext _dbContext,
+    Kernel _kernel,
+    IHybridRetrievalService _hybridRetrievalService,
+    IClearLanguageGenerationService _generationService) : IAiChatService
 {
-    private readonly IAiConfigurationService _aiConfigurationService = aiConfigurationService;
-    private readonly IConfiguration _configuration = configuration;
-    private readonly IAiMetricsService _metricsService = metricsService;
-    private readonly ILogger<AiChatService> _logger = logger;
-    private readonly IAppDbContext _dbContext = dbContext;
-    private readonly Kernel _kernel = kernel;
-    private readonly AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService _hybridRetrievalService = hybridRetrievalService;
-    private readonly AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService _generationService = generationService;
 
     /// <summary>
     /// Sends the <paramref name="history"/> to the AI model and returns a completion result.
@@ -438,7 +432,7 @@ public sealed class AiChatService(
 
     private async IAsyncEnumerable<string> RunHierarchicalStreamingAsync(ChatHistory history, string tenantId, string userId, string userQuery, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var expandedQuery = await _kernel.GetRequiredService<AsistenteAyuntamiento.Application.Features.Retrieval.IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
+        var expandedQuery = await _kernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
         var retrievalResults = await _hybridRetrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
 
         await foreach (var chunk in _generationService.GenerateStreamingResponseAsync(userQuery, retrievalResults, cancellationToken))

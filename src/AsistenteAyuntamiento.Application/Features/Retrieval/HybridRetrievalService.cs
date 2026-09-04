@@ -15,12 +15,10 @@ public interface IHybridRetrievalService
     Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default);
 }
 
-public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel, ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
+public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, ILogger<HybridRetrievalService> _logger) : IHybridRetrievalService
 {
-    private readonly IAppDbContext _dbContext = dbContext;
-    private readonly ILogger<HybridRetrievalService> _logger = logger;
 
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {

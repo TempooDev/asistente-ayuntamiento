@@ -18,21 +18,16 @@ using Microsoft.Extensions.AI;
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaService(
-    IAppDbContext dbContext,
-    IQueryExpansionService expansionService,
-    IHybridRetrievalService retrievalService,
-    IClearLanguageGenerationService generationService,
-    Kernel kernel,
-    ILogger<ArenaService> logger) : IArenaService
+    IAppDbContext _dbContext,
+    IQueryExpansionService _expansionService,
+    IHybridRetrievalService _retrievalService,
+    IClearLanguageGenerationService _generationService,
+    Kernel _kernel,
+    ILogger<ArenaService> _logger) : IArenaService
 {
-    private readonly IAppDbContext _dbContext = dbContext;
-    private readonly IQueryExpansionService _expansionService = expansionService;
-    private readonly IHybridRetrievalService _retrievalService = retrievalService;
-    private readonly IClearLanguageGenerationService _generationService = generationService;
-    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    private readonly ILogger<ArenaService> _logger = logger;
+    private readonly IChatCompletionService _chatCompletionService = _kernel.GetRequiredService<IChatCompletionService>();
 
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default)
     {
