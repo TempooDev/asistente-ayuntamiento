@@ -4,34 +4,26 @@ using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.SemanticKernel.ChatCompletion;
-
-namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
+
+namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 /// <summary>
 /// SignalR hub for real-time chat. Thin entry point that delegates
 /// persistence to <see cref="ChatSessionService"/> and AI calls to <see cref="AiChatService"/>.
 /// </summary>
 [Authorize]
-public class ChatHub : Hub
+public class ChatHub(
+    CurrentTenantService tenantService,
+    IChatSessionService sessionService,
+    IAiChatService aiChatService,
+    ILogger<ChatHub> logger) : Hub
 {
-    private readonly CurrentTenantService _tenantService;
-    private readonly IChatSessionService _sessionService;
-    private readonly IAiChatService _aiChatService;
-    private readonly ILogger<ChatHub> _logger;
-
-    public ChatHub(
-        CurrentTenantService tenantService,
-        IChatSessionService sessionService,
-        IAiChatService aiChatService,
-        ILogger<ChatHub> logger)
-    {
-        _tenantService = tenantService;
-        _sessionService = sessionService;
-        _aiChatService = aiChatService;
-        _logger = logger;
-    }
+    private readonly CurrentTenantService _tenantService = tenantService;
+    private readonly IChatSessionService _sessionService = sessionService;
+    private readonly IAiChatService _aiChatService = aiChatService;
+    private readonly ILogger<ChatHub> _logger = logger;
 
     public async Task SendMessage(Guid sessionId, string message)
     {
@@ -81,8 +73,8 @@ public class ChatHub : Hub
     }
 
     public async IAsyncEnumerable<string> StreamMessage(
-        string sessionIdStr, 
-        string message, 
+        string sessionIdStr,
+        string message,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -112,7 +104,7 @@ public class ChatHub : Hub
                 {
                     errorMessage = "Error: Session not found or unauthorized.";
                 }
-                else 
+                else
                 {
                     _sessionService.EnqueueUserMessage(session, message);
                 }
@@ -135,34 +127,10 @@ public class ChatHub : Hub
 
         var fullResponseBuilder = new System.Text.StringBuilder();
 
-        bool errorOccurred = false;
-        IAsyncEnumerator<string> enumerator = _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken).GetAsyncEnumerator(cancellationToken);
-        try
+        await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
         {
-            while (true)
-            {
-                try
-                {
-                    if (!await enumerator.MoveNextAsync()) break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in stream generation");
-                    errorOccurred = true;
-                    break;
-                }
-                fullResponseBuilder.Append(enumerator.Current);
-                yield return enumerator.Current;
-            }
-        }
-        finally
-        {
-            await enumerator.DisposeAsync();
-        }
-
-        if (errorOccurred)
-        {
-            yield return "\n\n[Error: Stream generation interrupted.]";
+            fullResponseBuilder.Append(chunk);
+            yield return chunk;
         }
 
         _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
@@ -196,7 +164,8 @@ public class ChatHub : Hub
             return new List<ChatSessionSummaryDto>();
 
         var sessions = await _sessionService.GetUserSessionsAsync(userId, tenantId);
-        return sessions.Select(s => {
+        return sessions.Select(s =>
+        {
             var firstUserMsg = s.Messages.OrderBy(m => m.CreatedAt).FirstOrDefault(m => m.Role == "user")?.Content ?? "";
             var preview = firstUserMsg.Length > 80 ? firstUserMsg.Substring(0, 80) + "..." : firstUserMsg;
             return new ChatSessionSummaryDto(s.Id, s.CreatedAt, preview, s.Messages.Count);
@@ -238,6 +207,7 @@ public class ChatHub : Hub
         await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }
+
 
 
 

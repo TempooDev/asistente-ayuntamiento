@@ -14,22 +14,15 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Background worker that periodically flushes chat messages to the database.
 /// </summary>
-public class ChatPersistenceWorker : BackgroundService
+public class ChatPersistenceWorker(
+    ChatMessageBuffer buffer,
+    IServiceProvider serviceProvider,
+    ILogger<ChatPersistenceWorker> logger) : BackgroundService
 {
-    private readonly ChatMessageBuffer _buffer;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<ChatPersistenceWorker> _logger;
+    private readonly ChatMessageBuffer _buffer = buffer;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly ILogger<ChatPersistenceWorker> _logger = logger;
     private readonly Dictionary<Guid, int> _retryCounts = new();
-
-    public ChatPersistenceWorker(
-        ChatMessageBuffer buffer,
-        IServiceProvider serviceProvider,
-        ILogger<ChatPersistenceWorker> logger)
-    {
-        _buffer = buffer;
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -79,7 +72,7 @@ public class ChatPersistenceWorker : BackgroundService
             await dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Flushed {Count} messages to database", messages.Count);
-            
+
             foreach (var msg in messages)
             {
                 _retryCounts.Remove(msg.Id);
@@ -88,7 +81,7 @@ public class ChatPersistenceWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to flush {Count} messages. Checking retry limits: {Error}", messages.Count, ex.Message);
-            
+
             foreach (var msg in messages)
             {
                 var retries = _retryCounts.GetValueOrDefault(msg.Id, 0) + 1;

@@ -11,26 +11,15 @@ using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService : IDocumentIngestionService
+public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null) : IDocumentIngestionService
 {
-    private readonly IAmazonS3 _s3Client;
-    private readonly string _bucketName;
-    private readonly IAppDbContext _dbContext;
-    private readonly Kernel _kernel;
-    private readonly IConfiguration _config;
-    private readonly ILogger<DocumentIngestionService> _logger;
-    private readonly INotificationService? _notificationService;
-
-    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null)
-    {
-        _s3Client = s3Client;
-        _config = config;
-        _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-        _dbContext = dbContext;
-        _kernel = kernel;
-        _logger = logger;
-        _notificationService = notificationService;
-    }
+    private readonly IAmazonS3 _s3Client = s3Client;
+    private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
+    private readonly IAppDbContext _dbContext = dbContext;
+    private readonly Kernel _kernel = kernel;
+    private readonly IConfiguration _config = config;
+    private readonly ILogger<DocumentIngestionService> _logger = logger;
+    private readonly INotificationService? _notificationService = notificationService;
 
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {

@@ -10,14 +10,9 @@ using AsistenteAyuntamiento.Domain.Features.Arena;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data;
 
-public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : DbContext(options), AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext
 {
-    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService;
-
-    public AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : base(options)
-    {
-        _tenantService = tenantService;
-    }
+    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService = tenantService;
 
     public string CurrentTenantId => _tenantService.TenantId;
 
@@ -102,7 +97,7 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
             entity.ToTable("ChildFragments", "ingestion");
             entity.Property(e => e.Embedding).HasColumnType("vector(1536)");
             entity.Property(e => e.TsvContent).HasColumnType("tsvector");
-            
+
             entity.HasIndex(e => e.ParentId);
             entity.HasIndex(e => e.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops");
             entity.HasIndex(e => e.TsvContent).HasMethod("gin");

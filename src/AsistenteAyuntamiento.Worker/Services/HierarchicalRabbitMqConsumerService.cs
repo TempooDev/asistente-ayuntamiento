@@ -9,24 +9,18 @@ using RabbitMQ.Client.Events;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class HierarchicalRabbitMqConsumerService : BackgroundService
+public class HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<HierarchicalRabbitMqConsumerService> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<HierarchicalRabbitMqConsumerService> _logger;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly ILogger<HierarchicalRabbitMqConsumerService> _logger = logger;
     private readonly string _queueName = "documents_to_process_hierarchical";
     private IConnection? _connection;
     private IChannel? _channel;
 
-    public HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<HierarchicalRabbitMqConsumerService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
-
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Iniciando HierarchicalRabbitMqConsumerService");
-        
+
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
@@ -34,7 +28,7 @@ public class HierarchicalRabbitMqConsumerService : BackgroundService
             {
                 cf.ConsumerDispatchConcurrency = 5;
             }
-            
+
             var connected = false;
             var retryCount = 0;
             while (!connected && retryCount < 10 && !cancellationToken.IsCancellationRequested)
@@ -45,7 +39,7 @@ public class HierarchicalRabbitMqConsumerService : BackgroundService
                     _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
                     await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
                     await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 5, global: false, cancellationToken: cancellationToken);
-                    
+
                     connected = true;
                     _logger.LogInformation("Conectado a RabbitMQ (Hierarchical) exitosamente.");
                 }
@@ -94,7 +88,7 @@ public class HierarchicalRabbitMqConsumerService : BackgroundService
                         _logger.LogWarning("No processor found for source {Source}", docMsg.Source);
                     }
                 }
-                
+
                 await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
             }
             catch (Exception ex)

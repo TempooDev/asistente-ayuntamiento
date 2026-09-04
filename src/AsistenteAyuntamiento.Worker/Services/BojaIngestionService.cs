@@ -13,32 +13,22 @@ using Microsoft.SemanticKernel.Embeddings;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class BojaIngestionService : IHierarchicalIngestionProcessor
+public class BojaIngestionService(
+    IAmazonS3 s3Client,
+    AppDbContext dbContext,
+    IFragmentEnrichmentService enrichmentService,
+    IIngestionMetricsService metricsService,
+    ILogger<BojaIngestionService> logger,
+    Kernel kernel) : IHierarchicalIngestionProcessor
 {
-    private readonly IAmazonS3 _s3Client;
+    private readonly IAmazonS3 _s3Client = s3Client;
     private readonly string _bucketName = AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-    private readonly AppDbContext _dbContext;
-    private readonly IFragmentEnrichmentService _enrichmentService;
-    private readonly IIngestionMetricsService _metricsService;
-    private readonly ILogger<BojaIngestionService> _logger;
+    private readonly AppDbContext _dbContext = dbContext;
+    private readonly IFragmentEnrichmentService _enrichmentService = enrichmentService;
+    private readonly IIngestionMetricsService _metricsService = metricsService;
+    private readonly ILogger<BojaIngestionService> _logger = logger;
 
-    private readonly Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>> _embeddingService;
-
-    public BojaIngestionService(
-        IAmazonS3 s3Client, 
-        AppDbContext dbContext, 
-        IFragmentEnrichmentService enrichmentService, 
-        IIngestionMetricsService metricsService, 
-        ILogger<BojaIngestionService> logger, 
-        Kernel kernel)
-    {
-        _s3Client = s3Client;
-        _dbContext = dbContext;
-        _enrichmentService = enrichmentService;
-        _metricsService = metricsService;
-        _logger = logger;
-        _embeddingService = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-    }
+    private readonly Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>> _embeddingService = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
     public async Task ProcessDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken)
     {
@@ -53,7 +43,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = blobPath }, cancellationToken);
             using var reader = new StreamReader(response.ResponseStream);
             var jsonString = await reader.ReadToEndAsync(cancellationToken);
-            
+
             using var doc = JsonDocument.Parse(jsonString);
             var root = doc.RootElement;
 
@@ -80,15 +70,15 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             for (int i = 0; i < rawText.Length; i += chunkSize)
             {
                 var originalText = rawText.Substring(i, Math.Min(chunkSize, rawText.Length - i));
-                var normSection = $"Sección {i/chunkSize + 1}";
+                var normSection = $"Sección {i / chunkSize + 1}";
 
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
-                    BulletinType.BOJA, 
-                    parentDoc.IssuingBody ?? "Junta", 
-                    parentDoc.NormTitle, 
-                    normSection, 
-                    "Párrafo", 
-                    originalText, 
+                    BulletinType.BOJA,
+                    parentDoc.IssuingBody ?? "Junta",
+                    parentDoc.NormTitle,
+                    normSection,
+                    "Párrafo",
+                    originalText,
                     cancellationToken);
 
                 totalLlmCalls += enrichmentResult.LlmCalls;
