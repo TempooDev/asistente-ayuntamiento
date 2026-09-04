@@ -155,7 +155,7 @@ Documentos:
         {
             var expandedQuery = await _expansionService.ExpandQueryAsync(query, cancellationToken);
             var retrievalResults = await _retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
-            var sources = retrievalResults.Select(r => r.Text).ToArray();
+            var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
             var response = await _generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
             return (response, sw.ElapsedMilliseconds, sources);
