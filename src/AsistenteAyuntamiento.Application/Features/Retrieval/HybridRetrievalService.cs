@@ -15,21 +15,17 @@ public interface IHybridRetrievalService
     Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default);
 }
 
-public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, ILogger<HybridRetrievalService> _logger) : IHybridRetrievalService
+public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel, ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
 
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {
         var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
         var embeddingVector = embeddings[0].Vector.ToArray();
 
-        var db = _dbContext as DbContext;
-        if (db == null)
-        {
-            throw new InvalidOperationException("IAppDbContext no es un DbContext de EF Core.");
-        }
+        
 
         // C# 11 Raw String Literals make this highly readable and maintainable
         var sql = """
@@ -71,7 +67,7 @@ public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, IL
             new Npgsql.NpgsqlParameter("@limit", limit)
         };
 
-        var fragmentScores = await db.Database.SqlQueryRaw<RrfRow>(sql, parameters)
+        var fragmentScores = await dbContext.Database.SqlQueryRaw<RrfRow>(sql, parameters)
             .ToListAsync(cancellationToken);
 
         if (!fragmentScores.Any())
@@ -111,4 +107,8 @@ public class HybridRetrievalService(IAppDbContext _dbContext, Kernel _kernel, IL
         public double RrfScore { get; set; }
     }
 }
+
+
+
+
 

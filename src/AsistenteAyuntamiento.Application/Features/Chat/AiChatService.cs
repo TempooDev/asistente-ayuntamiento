@@ -56,10 +56,10 @@ public sealed class AiChatService(
     IConfiguration _configuration,
     IAiMetricsService _metricsService,
     ILogger<AiChatService> _logger,
-    IAppDbContext _dbContext,
-    Kernel _kernel,
+    IAppDbContext dbContext,
+    Kernel kernel,
     IHybridRetrievalService _hybridRetrievalService,
-    IClearLanguageGenerationService _generationService) : IAiChatService
+    IClearLanguageGenerationService generationService) : IAiChatService
 {
 
     /// <summary>
@@ -131,7 +131,7 @@ public sealed class AiChatService(
 
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
-                var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+                var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
                 var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
                 var searchQuery = string.Join("\n", searchTexts);
@@ -140,9 +140,9 @@ public sealed class AiChatService(
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 // Find top 20 closest chunks
-                var closestChunks = await _dbContext.DocumentChunks
+                var closestChunks = await dbContext.DocumentChunks
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
-                    .Take(20)
+                    .Take(5)
                     .ToListAsync(cancellationToken);
 
                 if (closestChunks.Any())
@@ -198,8 +198,8 @@ public sealed class AiChatService(
                 OutputTokens = tokenUsage.OutputTokens,
                 TotalTokens = tokenUsage.TotalTokens
             };
-            _dbContext.AiCallLogs.Add(callLog);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.AiCallLogs.Add(callLog);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             _metricsService.RecordCall(new AiCallRecord
             {
@@ -242,8 +242,8 @@ public sealed class AiChatService(
                 DurationMs = stopwatch.Elapsed.TotalMilliseconds,
                 ErrorMessage = ex.Message
             };
-            _dbContext.AiCallLogs.Add(callLog);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.AiCallLogs.Add(callLog);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             _metricsService.RecordCall(new AiCallRecord
             {
@@ -285,7 +285,7 @@ public sealed class AiChatService(
 
     private async Task<PipelineType> DetermineWinningPipelineAsync(CancellationToken cancellationToken)
     {
-        var battles = await _dbContext.ArenaBattles
+        var battles = await dbContext.ArenaBattles
             .Where(b => b.Winner == BattleWinner.Alfa || b.Winner == BattleWinner.Beta)
             .Select(b => new { b.Winner, b.LeftSystem, b.RightSystem })
             .ToListAsync(cancellationToken);
@@ -398,7 +398,7 @@ public sealed class AiChatService(
                     var loserResult = await loserTask;
                     var winnerResult = winnerBuilder.ToString();
 
-                    using var scope = _dbContext.Database.GetDbConnection().CreateCommand();
+                    using var scope = dbContext.Database.GetDbConnection().CreateCommand();
 
                     var alfaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult);
                     var betaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult);
@@ -432,10 +432,10 @@ public sealed class AiChatService(
 
     private async IAsyncEnumerable<string> RunHierarchicalStreamingAsync(ChatHistory history, string tenantId, string userId, string userQuery, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var expandedQuery = await _kernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
+        var expandedQuery = await kernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
         var retrievalResults = await _hybridRetrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
 
-        await foreach (var chunk in _generationService.GenerateStreamingResponseAsync(userQuery, retrievalResults, cancellationToken))
+        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(userQuery, retrievalResults, cancellationToken))
         {
             if (chunk.Content != null)
                 yield return chunk.Content;
@@ -515,7 +515,7 @@ public sealed class AiChatService(
         {
             try
             {
-                var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+                var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
                 var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
                 var searchQuery = string.Join("\n", searchTexts);
@@ -523,7 +523,7 @@ public sealed class AiChatService(
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                var closestChunks = await _dbContext.DocumentChunks
+                var closestChunks = await dbContext.DocumentChunks
                     .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(3)
@@ -642,8 +642,8 @@ public sealed class AiChatService(
                 OutputTokens = totalOutputTokens,
                 TotalTokens = totalInputTokens + totalOutputTokens
             };
-            _dbContext.AiCallLogs.Add(callLog);
-            await _dbContext.SaveChangesAsync();
+            dbContext.AiCallLogs.Add(callLog);
+            await dbContext.SaveChangesAsync();
 
             _metricsService.RecordCall(new AiCallRecord
             {
@@ -782,7 +782,7 @@ public sealed class AiChatService(
         var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
         if (string.IsNullOrWhiteSpace(lastUserMessage?.Content)) return null;
 
-        var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+        var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
         var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
         var searchQuery = string.Join("\n", searchTexts);
@@ -791,7 +791,7 @@ public sealed class AiChatService(
         var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
         // 1. Get Top 3 using HNSW Index
-        var topChunks = await _dbContext.DocumentChunks
+        var topChunks = await dbContext.DocumentChunks
             .Select(c => new { Chunk = c, Distance = c.Embedding!.CosineDistance(queryVector) })
             .OrderBy(x => x.Distance)
             .Take(3)
@@ -828,3 +828,5 @@ public sealed class AiChatService(
             GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
     }
 }
+
+

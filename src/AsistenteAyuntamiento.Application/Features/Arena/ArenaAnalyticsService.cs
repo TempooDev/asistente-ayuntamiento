@@ -10,9 +10,9 @@ public class ArenaAnalyticsService(IAppDbContext _dbContext) : IArenaAnalyticsSe
 {
     public async Task<ArenaAnalyticsResponse> GetAnalyticsAsync(ArenaAnalyticsRequest? request = null, CancellationToken cancellationToken = default)
     {
-        var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
+        
 
-        var query = db.Set<ArenaBattle>().AsQueryable();
+        var query = _dbContext.ArenaBattles.AsQueryable();
 
         if (request != null)
         {
@@ -86,3 +86,4 @@ public class ArenaAnalyticsService(IAppDbContext _dbContext) : IArenaAnalyticsSe
         };
     }
 }
+

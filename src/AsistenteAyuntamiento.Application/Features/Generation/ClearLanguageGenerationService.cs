@@ -13,9 +13,9 @@ public interface IClearLanguageGenerationService
     IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default);
 }
 
-public class ClearLanguageGenerationService(Kernel _kernel, ILogger<ClearLanguageGenerationService> _logger) : IClearLanguageGenerationService
+public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
 {
-    private readonly IChatCompletionService _chatCompletionService = _kernel.GetRequiredService<IChatCompletionService>();
+    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
     
 
 
@@ -32,7 +32,7 @@ public class ClearLanguageGenerationService(Kernel _kernel, ILogger<ClearLanguag
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al generar la respuesta en lenguaje claro para la consulta: {Query}", userQuery);
+            logger.LogError(ex, "Error al generar la respuesta en lenguaje claro para la consulta: {Query}", userQuery);
             return "Lo siento, ha ocurrido un error interno al intentar procesar la respuesta. Por favor, inténtalo de nuevo más tarde.";
         }
     }
@@ -53,7 +53,7 @@ public class ClearLanguageGenerationService(Kernel _kernel, ILogger<ClearLanguag
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al iniciar el stream de respuesta para la consulta: {Query}", userQuery);
+            logger.LogError(ex, "Error al iniciar el stream de respuesta para la consulta: {Query}", userQuery);
             stream = null;
         }
 
@@ -97,4 +97,5 @@ public class ClearLanguageGenerationService(Kernel _kernel, ILogger<ClearLanguag
         return chatHistory;
     }
 }
+
 

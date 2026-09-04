@@ -135,10 +135,18 @@ public class ChatHub : Hub
 
         var fullResponseBuilder = new System.Text.StringBuilder();
 
-        await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        try
         {
-            fullResponseBuilder.Append(chunk);
-            yield return chunk;
+            await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+            {
+                fullResponseBuilder.Append(chunk);
+                yield return chunk;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in stream generation");
+            yield return "\n\n[Error: La generación de texto se interrumpió.]";
         }
 
         _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
@@ -214,3 +222,4 @@ public class ChatHub : Hub
         await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }
+

@@ -18,16 +18,16 @@ using Microsoft.Extensions.AI;
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaService(
-    IAppDbContext _dbContext,
-    IQueryExpansionService _expansionService,
-    IHybridRetrievalService _retrievalService,
-    IClearLanguageGenerationService _generationService,
-    Kernel _kernel,
+    IAppDbContext dbContext,
+    IQueryExpansionService expansionService,
+    IHybridRetrievalService retrievalService,
+    IClearLanguageGenerationService generationService,
+    Kernel kernel,
     ILogger<ArenaService> _logger) : IArenaService
 {
-    private readonly IChatCompletionService _chatCompletionService = _kernel.GetRequiredService<IChatCompletionService>();
+    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = _kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default)
     {
@@ -58,8 +58,8 @@ public class ArenaService(
             Winner = BattleWinner.Pending
         };
 
-        _dbContext.ArenaBattles.Add(battle);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.ArenaBattles.Add(battle);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new ArenaCompareResponse
         {
@@ -75,8 +75,8 @@ public class ArenaService(
 
     public async Task<ArenaVoteResponse> VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
     {
-        var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
-        var battle = await db.Set<ArenaBattle>().FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
+        
+        var battle = await dbContext.ArenaBattles.FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
         if (battle == null)
             throw new Exception("Battle session not found");
 
@@ -85,7 +85,7 @@ public class ArenaService(
         if (Enum.TryParse<EvaluationPreference>(request.PrecisionReason, true, out var p)) battle.PrecisionReason = p;
         battle.OptionalComment = request.OptionalComment;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new ArenaVoteResponse
         {
@@ -102,8 +102,8 @@ public class ArenaService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
             var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-            var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
-            var topChunks = await db.Set<DocumentChunk>()
+            
+            var topChunks = await dbContext.DocumentChunks
                 .OrderBy(x => x.Embedding!.CosineDistance(queryVector))
                 .Take(5)
                 .ToListAsync(cancellationToken);
@@ -133,10 +133,10 @@ Documentos:
         var sw = Stopwatch.StartNew();
         try
         {
-            var expandedQuery = await _expansionService.ExpandQueryAsync(query, cancellationToken);
-            var retrievalResults = await _retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+            var expandedQuery = await expansionService.ExpandQueryAsync(query, cancellationToken);
+            var retrievalResults = await retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
-            var response = await _generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
+            var response = await generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
             return (response, sw.ElapsedMilliseconds, sources);
         }
@@ -148,3 +148,5 @@ Documentos:
         }
     }
 }
+
+
