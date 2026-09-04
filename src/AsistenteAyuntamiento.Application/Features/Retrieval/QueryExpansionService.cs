@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -10,10 +11,10 @@ public class ExpandedQueryInfo
 {
     [JsonPropertyName("query_lexica")]
     public string QueryLexica { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("query_semantica")]
     public string QuerySemantica { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("filtro_municipio")]
     public string? FiltroMunicipio { get; set; }
 }
@@ -38,24 +39,14 @@ public class QueryExpansionService : IQueryExpansionService
     {
         try
         {
-            var prompt = $@"
-Eres un asistente legal experto para ciudadanos. Tu tarea es analizar la consulta del usuario y expandirla para un sistema de búsqueda.
-Genera un objeto JSON con los siguientes campos:
-- ""query_lexica"": Palabras clave formales para búsqueda por texto completo (tsquery), usa el formato de PostgreSQL tsquery (ej: ""subvencion & vivienda & joven"").
-- ""query_semantica"": Una frase formal y completa que traduzca la intención del ciudadano a terminología legal para búsqueda vectorial.
-- ""filtro_municipio"": Si la consulta menciona un municipio o ayuntamiento específico, ponlo aquí. Si no, null.
-
-Consulta del usuario: ""{userQuery}""
-
-Devuelve ÚNICAMENTE un objeto JSON válido, sin bloques de código ni texto adicional.
-";
+            var prompt = string.Format(SystemPrompts.QueryExpansion, userQuery);
 
             var result = await _chatCompletionService.GetChatMessageContentAsync(
-                prompt, 
+                prompt,
                 cancellationToken: cancellationToken);
 
             var content = result.Content?.Trim() ?? "";
-            
+
             // Clean up possible markdown code blocks
             if (content.StartsWith("```json"))
             {
@@ -68,20 +59,20 @@ Devuelve ÚNICAMENTE un objeto JSON válido, sin bloques de código ni texto adi
             content = content.Trim();
 
             var expanded = JsonSerializer.Deserialize<ExpandedQueryInfo>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            
-            return expanded ?? new ExpandedQueryInfo 
-            { 
-                QueryLexica = userQuery.Replace(" ", " & "), 
-                QuerySemantica = userQuery 
+
+            return expanded ?? new ExpandedQueryInfo
+            {
+                QueryLexica = userQuery.Replace(" ", " & "),
+                QuerySemantica = userQuery
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
-            return new ExpandedQueryInfo 
-            { 
-                QueryLexica = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)), 
-                QuerySemantica = userQuery 
+            return new ExpandedQueryInfo
+            {
+                QueryLexica = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+                QuerySemantica = userQuery
             };
         }
     }

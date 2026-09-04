@@ -3,6 +3,7 @@ using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using AsistenteAyuntamiento.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -29,13 +30,13 @@ var pipelineMode = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
 if (pipelineMode.Equals("HIERARCHICAL", StringComparison.OrdinalIgnoreCase))
 {
     // New Hierarchical Pipeline (Phase 2)
-    builder.Services.AddScoped<AsistenteAyuntamiento.Worker.Services.FragmentEnrichmentService>();
-    builder.Services.AddScoped<AsistenteAyuntamiento.Worker.Services.IngestionMetricsService>();
-    builder.Services.AddScoped<AsistenteAyuntamiento.Worker.Services.BoeIngestionService>();
-    builder.Services.AddScoped<AsistenteAyuntamiento.Worker.Services.BojaIngestionService>();
-    
+    builder.Services.AddScoped<FragmentEnrichmentService>();
+    builder.Services.AddScoped<IngestionMetricsService>();
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>("BOE");
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>("BOJA");
+
     // Register the hierarchical consumer
-    builder.Services.AddHostedService<AsistenteAyuntamiento.Worker.Services.HierarchicalRabbitMqConsumerService>();
+    builder.Services.AddHostedService<HierarchicalRabbitMqConsumerService>();
 }
 else
 {

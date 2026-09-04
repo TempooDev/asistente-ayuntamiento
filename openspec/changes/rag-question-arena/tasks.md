@@ -35,7 +35,7 @@
 
 ## 4. Clear-Language Generation Service
 
-- [ ] 4.1 Implement `ClearLanguageGenerationService.cs`. Construct the system prompt (citizen-friendly, structured headings, jargon explanation, source citation). Inject the resolved parent texts as context. Call the LLM via Semantic Kernel and return the structured response.
+- [x] 4.1 Implement `ClearLanguageGenerationService.cs`. Construct the system prompt (citizen-friendly, structured headings, jargon explanation, source citation). Inject the resolved parent texts as context. Call the LLM via Semantic Kernel and return the structured response.
   - Files: `AsistenteAyuntamiento.Application/Services/ClearLanguageGenerationService.cs`
 
 ## 5. Question Arena Backend

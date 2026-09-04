@@ -82,16 +82,8 @@ public class HierarchicalRabbitMqConsumerService : BackgroundService
                 if (docMsg != null && !string.IsNullOrEmpty(docMsg.BlobPath))
                 {
                     using var scope = _serviceProvider.CreateScope();
-                    IHierarchicalIngestionProcessor processor = null;
-
-                    if (docMsg.Source.Equals("BOE", StringComparison.OrdinalIgnoreCase))
-                    {
-                        processor = scope.ServiceProvider.GetRequiredService<BoeIngestionService>();
-                    }
-                    else if (docMsg.Source.Equals("BOJA", StringComparison.OrdinalIgnoreCase))
-                    {
-                        processor = scope.ServiceProvider.GetRequiredService<BojaIngestionService>();
-                    }
+                    var sourceKey = docMsg.Source.ToUpperInvariant();
+                    var processor = scope.ServiceProvider.GetKeyedService<IHierarchicalIngestionProcessor>(sourceKey);
 
                     if (processor != null)
                     {

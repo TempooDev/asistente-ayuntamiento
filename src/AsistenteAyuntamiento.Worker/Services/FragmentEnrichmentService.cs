@@ -35,14 +35,7 @@ public class FragmentEnrichmentService
 
         try
         {
-            var prompt = $@"
-Eres un experto en simplificación legal.
-Dado el siguiente fragmento de una norma, genera exactamente DOS preguntas frecuentes y breves que un ciudadano haría y que se responden con este texto.
-Devuelve solo las dos preguntas, una por línea, sin enumeraciones ni texto introductorio.
-
-Fragmento:
-{originalText}
-";
+            var prompt = string.Format(AsistenteAyuntamiento.Application.Common.Prompts.SystemPrompts.FragmentEnrichment, originalText);
             
             var result = await _chatCompletionService.GetChatMessageContentAsync(
                 prompt, 
