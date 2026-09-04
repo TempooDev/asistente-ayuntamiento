@@ -96,7 +96,7 @@ apiService.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
           .WithEnvironment("Blob__BucketName", blobBucketName);
 
 var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
-    .WithHttpEndpoint(port: 4200, env: "PORT")
+    .WithHttpEndpoint(port: 4200, targetPort: 4201, env: "PORT")
     .WithExternalHttpEndpoints()
     .WithReference(apiService)
     .WithReference(db)
