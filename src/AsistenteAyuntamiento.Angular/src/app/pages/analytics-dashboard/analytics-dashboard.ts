@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ArenaService, ArenaAnalyticsRequest } from '../../core/services/arena.service';
+import { ArenaService, ArenaAnalyticsRequest } from '../../services/arena/arena.service';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { switchMap } from 'rxjs/operators';
 

@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ArenaApi, ArenaCompareResponse, ArenaVoteRequest, ArenaVoteResponse } from './arena-api';
+import { ArenaService, ArenaCompareResponse, ArenaVoteRequest, ArenaVoteResponse } from '../../services/arena/arena.service';
 
 @Component({
   selector: 'app-arena',
@@ -10,7 +10,7 @@ import { ArenaApi, ArenaCompareResponse, ArenaVoteRequest, ArenaVoteResponse } f
   styleUrl: './arena.scss',
 })
 export class Arena {
-  private arenaApi = inject(ArenaApi);
+  private arenaApi = inject(ArenaService);
 
   query = signal('');
   
