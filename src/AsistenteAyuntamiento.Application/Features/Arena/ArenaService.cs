@@ -85,11 +85,13 @@ public class ArenaService : IArenaService
             OptionAlfa = alfaResult.Response,
             OptionBeta = betaResult.Response,
             LatencyAlfaMs = alfaResult.Latency,
-            LatencyBetaMs = betaResult.Latency
+            LatencyBetaMs = betaResult.Latency,
+            SourcesAlfa = alfaResult.Sources,
+            SourcesBeta = betaResult.Sources
         };
     }
 
-    public async Task VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
+    public async Task<ArenaVoteResponse> VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
     {
         var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
         var battle = await db.Set<ArenaBattle>().FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
@@ -102,9 +104,15 @@ public class ArenaService : IArenaService
         battle.OptionalComment = request.OptionalComment;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ArenaVoteResponse
+        {
+            AlfaSystem = battle.LeftSystem,
+            BetaSystem = battle.RightSystem
+        };
     }
 
-    private async Task<(string Response, long Latency)> RunBaselinePipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources)> RunBaselinePipelineAsync(string query, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -120,7 +128,8 @@ public class ArenaService : IArenaService
                 .Take(5)
                 .ToListAsync(cancellationToken);
 
-            var contextText = string.Join("\n\n", topChunks.Select(c => c.Content));
+            var sources = topChunks.Select(c => c.Content).ToArray();
+            var contextText = string.Join("\n\n", sources);
             var prompt = $@"Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
 Consulta: {query}
 Documentos:
@@ -129,32 +138,33 @@ Documentos:
             var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
             sw.Stop();
             
-            return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds);
+            return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds, sources);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Baseline pipeline");
             sw.Stop();
-            return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds);
+            return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, []);
         }
     }
 
-    private async Task<(string Response, long Latency)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
         {
             var expandedQuery = await _expansionService.ExpandQueryAsync(query, cancellationToken);
             var retrievalResults = await _retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+            var sources = retrievalResults.Select(r => r.Text).ToArray();
             var response = await _generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
-            return (response, sw.ElapsedMilliseconds);
+            return (response, sw.ElapsedMilliseconds, sources);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Hierarchical pipeline");
             sw.Stop();
-            return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds);
+            return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, []);
         }
     }
 }

@@ -4,6 +4,7 @@ import { DocumentosComponent } from './pages/documentos/documentos';
 import { ConfiguracionComponent } from './pages/configuracion/configuracion';
 import { CallbackComponent } from './pages/callback/callback';
 import { PerfilComponent } from './pages/perfil/perfil';
+import { Arena } from './pages/arena/arena';
 import { ErrorComponent } from './pages/error/error';
 import { LoginComponent } from './pages/login/login';
 import { customAuthGuardFn } from './guards/custom-auth.guard';
@@ -27,6 +28,7 @@ export const routes: Routes = [
         canActivate: [customAuthGuardFn, roleGuardFn],
         data: { roles: [ROLES.ADMIN] }
     },
+    { path: 'arena', component: Arena, canActivate: [customAuthGuardFn] },
     { path: 'perfil', component: PerfilComponent, canActivate: [customAuthGuardFn] },
     { path: '', redirectTo: '/chat', pathMatch: 'full' }
 ];

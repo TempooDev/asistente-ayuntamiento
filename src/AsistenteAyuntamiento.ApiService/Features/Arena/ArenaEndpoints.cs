@@ -18,8 +18,8 @@ public static class ArenaEndpoints
 
         group.MapPost("/vote", async (ArenaVoteRequest request, IArenaService arenaService, CancellationToken ct) =>
         {
-            await arenaService.VoteAsync(request, ct);
-            return Results.Ok();
+            var response = await arenaService.VoteAsync(request, ct);
+            return Results.Ok(response);
         })
         .WithName("VoteArena");
     }
