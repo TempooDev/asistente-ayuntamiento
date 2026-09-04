@@ -12,6 +12,8 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 )
 
+const DefaultBucketName = "boletines"
+
 // DocumentStorage define la interfaz agnóstica para almacenar los resultados del scraper.
 type DocumentStorage interface {
 	SaveDocument(ctx context.Context, doc *scraper.Document) error
@@ -33,7 +35,7 @@ func NewDocumentStorage(ctx context.Context) (DocumentStorage, error) {
 	if endpoint != "" {
 		bucketName := os.Getenv("Blob__BucketName")
 		if bucketName == "" {
-			bucketName = "boletines" // fallback por defecto
+			bucketName = DefaultBucketName // fallback por defecto
 		}
 
 		// S3 driver de gocloud espera que las credenciales estén en el entorno de AWS
@@ -89,3 +91,4 @@ func (s *CloudStorage) SaveRawXML(ctx context.Context, source string, id string,
 func (s *CloudStorage) Close() error {
 	return s.bucket.Close()
 }
+

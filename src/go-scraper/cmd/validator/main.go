@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"gocloud.dev/blob"
+	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	_ "gocloud.dev/blob/azureblob"
 )
 
@@ -25,7 +26,7 @@ func main() {
 	// Inyectamos la cadena de conexión de Azurite (desarrollo)
 	os.Setenv("AZURE_STORAGE_CONNECTION_STRING", connStr)
 	
-	bucket, err := blob.OpenBucket(ctx, "azblob://boletines")
+	bucket, err := blob.OpenBucket(ctx, fmt.Sprintf("azblob://%s", storage.DefaultBucketName))
 	if err != nil {
 		log.Fatalf("Error conectando a Azurite: %v\n(Asegúrate de que Azurite/Aspire está corriendo)", err)
 	}

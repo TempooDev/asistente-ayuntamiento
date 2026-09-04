@@ -16,7 +16,7 @@ namespace AsistenteAyuntamiento.Worker.Services;
 public class BojaIngestionService : IHierarchicalIngestionProcessor
 {
     private readonly IAmazonS3 _s3Client;
-    private readonly string _bucketName = "boletines";
+    private readonly string _bucketName = AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
     private readonly AppDbContext _dbContext;
     private readonly IFragmentEnrichmentService _enrichmentService;
     private readonly IIngestionMetricsService _metricsService;

@@ -25,7 +25,7 @@ public class DocumentIngestionService : IDocumentIngestionService
     {
         _s3Client = s3Client;
         _config = config;
-        _bucketName = config["Blob:BucketName"] ?? "boletines";
+        _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
         _dbContext = dbContext;
         _kernel = kernel;
         _logger = logger;

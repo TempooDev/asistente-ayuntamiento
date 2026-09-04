@@ -25,7 +25,7 @@ var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: t
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
-var blobBucketName = builder.Configuration["Blob:BucketName"] ?? "boletines";
+var blobBucketName = builder.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Domain.Common.AppConstants.BlobStorage.DefaultBucketName;
 
 // Configure MinIO container
 // Persistent MinIO Object Storage
@@ -42,7 +42,7 @@ var minioEndpoint = minio.GetEndpoint("api");
 // Init container to create bucket
 var minioInit = builder.AddContainer("minio-init", "minio/mc")
     .WithEntrypoint("sh")
-    .WithArgs("-c", "sleep 5; mc alias set myminio $MINIO_ENDPOINT admin password123; mc mb myminio/boletines || true; mc anonymous set public myminio/boletines || true")
+    .WithArgs("-c", $"sleep 5; mc alias set myminio `$MINIO_ENDPOINT admin password123; mc mb myminio/{blobBucketName} || true; mc anonymous set public myminio/{blobBucketName} || true")
     .WithEnvironment("MINIO_ENDPOINT", minioEndpoint)
     .WaitFor(minio);
 
