@@ -1,8 +1,11 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using AsistenteAyuntamiento.Worker.Services;
+using AsistenteAyuntamiento.Application.Common;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -24,9 +27,27 @@ builder.AddRabbitMQClient("messaging");
 // Configure S3 & Semantic Kernel (Infrastructure)
 builder.AddInfrastructureServices();
 
-// Register background services for ingestion
-builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
-builder.Services.AddHostedService<RabbitMqConsumerService>();
+var pipelineModeStr = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
+var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p) ? p : PipelineType.Baseline;
+
+if (pipelineMode == PipelineType.Hierarchical)
+{
+    // New Hierarchical Pipeline (Phase 2)
+    builder.Services.AddScoped<IFragmentEnrichmentService, FragmentEnrichmentService>();
+    builder.Services.AddScoped<IIngestionMetricsService, IngestionMetricsService>();
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(BulletinType.BOE.ToString());
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(BulletinType.BOJA.ToString());
+
+    // Register the hierarchical consumer
+    builder.Services.AddHostedService<HierarchicalRabbitMqConsumerService>();
+}
+else
+{
+    // Default Baseline Pipeline
+    builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
+    builder.Services.AddHostedService<RabbitMqConsumerService>();
+}
+
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();
 
 var host = builder.Build();

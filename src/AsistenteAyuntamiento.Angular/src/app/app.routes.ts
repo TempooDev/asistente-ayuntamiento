@@ -1,9 +1,11 @@
 import { Routes } from '@angular/router';
+import { AnalyticsDashboardComponent } from './pages/analytics-dashboard/analytics-dashboard';
 import { ChatPanelComponent } from './pages/chat-panel/chat-panel';
 import { DocumentosComponent } from './pages/documentos/documentos';
 import { ConfiguracionComponent } from './pages/configuracion/configuracion';
 import { CallbackComponent } from './pages/callback/callback';
 import { PerfilComponent } from './pages/perfil/perfil';
+import { Arena } from './pages/arena/arena';
 import { ErrorComponent } from './pages/error/error';
 import { LoginComponent } from './pages/login/login';
 import { customAuthGuardFn } from './guards/custom-auth.guard';
@@ -24,6 +26,13 @@ export const routes: Routes = [
     { 
         path: 'configuracion', 
         component: ConfiguracionComponent, 
+        canActivate: [customAuthGuardFn, roleGuardFn],
+        data: { roles: [ROLES.ADMIN] }
+    },
+    { path: 'arena', component: Arena, canActivate: [customAuthGuardFn] },
+    { 
+        path: 'admin/analytics', 
+        component: AnalyticsDashboardComponent, 
         canActivate: [customAuthGuardFn, roleGuardFn],
         data: { roles: [ROLES.ADMIN] }
     },

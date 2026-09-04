@@ -35,10 +35,9 @@ public static class DependencyInjection
 
     private static void AddSemanticKernelServices(IHostApplicationBuilder builder)
     {
-#pragma warning disable SKEXP0070 // Ollama connector is experimental
         var ollamaConnString = builder.Configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-        var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=") 
-            ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) 
+        var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
+            ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
             : ollamaConnString;
 
         var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
@@ -85,7 +84,6 @@ public static class DependencyInjection
         }
         else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
         {
-#pragma warning disable SKEXP0010
             if (!string.IsNullOrEmpty(aiEmbeddingsConfig["EndpointUrl"]))
             {
                 var httpClient = new HttpClient { BaseAddress = new Uri(aiEmbeddingsConfig["EndpointUrl"]!) };
@@ -95,15 +93,11 @@ public static class DependencyInjection
             {
                 kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey);
             }
-#pragma warning restore SKEXP0010
         }
         else
         {
             var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
-#pragma warning disable SKEXP0001
             kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUri));
-#pragma warning restore SKEXP0001
         }
-#pragma warning restore SKEXP0070
     }
 }

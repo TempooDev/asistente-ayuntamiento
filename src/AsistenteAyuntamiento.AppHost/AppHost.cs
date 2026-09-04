@@ -25,7 +25,7 @@ var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: t
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
-var blobBucketName = builder.Configuration["Blob:BucketName"] ?? "boletines";
+var blobBucketName = builder.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
 // Configure MinIO container
 // Persistent MinIO Object Storage
@@ -42,7 +42,7 @@ var minioEndpoint = minio.GetEndpoint("api");
 // Init container to create bucket
 var minioInit = builder.AddContainer("minio-init", "minio/mc")
     .WithEntrypoint("sh")
-    .WithArgs("-c", "sleep 5; mc alias set myminio $MINIO_ENDPOINT admin password123; mc mb myminio/boletines || true; mc anonymous set public myminio/boletines || true")
+    .WithArgs("-c", $"sleep 5; mc alias set myminio $MINIO_ENDPOINT admin password123; mc mb myminio/{blobBucketName} || true; mc anonymous set public myminio/{blobBucketName} || true")
     .WithEnvironment("MINIO_ENDPOINT", minioEndpoint)
     .WaitFor(minio);
 
@@ -96,7 +96,7 @@ apiService.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
           .WithEnvironment("Blob__BucketName", blobBucketName);
 
 var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
-    .WithHttpEndpoint(port: 4200, env: "PORT")
+    .WithHttpEndpoint(port: 4200, targetPort: 4201, env: "PORT")
     .WithExternalHttpEndpoints()
     .WithReference(apiService)
     .WithReference(db)
@@ -151,31 +151,32 @@ goScraper.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
 
 apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
-var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
-    .WithReference(db)
-    .WithReference(rabbitmq)
-    .WithReference(ollama)
-    .WaitFor(db)
-    .WaitFor(rabbitmq)
-    .WaitFor(ollama)
-    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
-    .WithEnvironment("Ai__Chat__Model", aiChatModel)
-    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
-    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
-    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
-    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+// var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
+//     .WithReference(db)
+//     .WithReference(rabbitmq)
+//     .WithReference(ollama)
+//     .WaitFor(db)
+//     .WaitFor(rabbitmq)
+//     .WaitFor(ollama)
+//     .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
+//     .WithEnvironment("Ai__Chat__Model", aiChatModel)
+//     .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
+//     .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
+//     .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
+//     .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
 
-if (!string.IsNullOrEmpty(blobEndpoint))
-{
-    worker.WithEnvironment("Blob__Endpoint", blobEndpoint);
-}
-else
-{
-    worker.WithEnvironment("Blob__Endpoint", minioEndpoint);
-}
+// if (!string.IsNullOrEmpty(blobEndpoint))
+// {
+//     worker.WithEnvironment("Blob__Endpoint", blobEndpoint);
+// }
+// else
+// {
+//     worker.WithEnvironment("Blob__Endpoint", minioEndpoint);
+// }
 
-worker.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
-      .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
-      .WithEnvironment("Blob__BucketName", blobBucketName);
+// worker.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+//       .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+//       .WithEnvironment("Blob__BucketName", blobBucketName);
 
 builder.Build().Run();
+

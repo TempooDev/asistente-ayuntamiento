@@ -5,14 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
-public class FilterConfigServiceImpl : FilterConfigService.FilterConfigServiceBase
+public class FilterConfigServiceImpl(IAppDbContext db) : FilterConfigService.FilterConfigServiceBase
 {
-    private readonly IAppDbContext _db;
-
-    public FilterConfigServiceImpl(IAppDbContext db)
-    {
-        _db = db;
-    }
+    private readonly IAppDbContext _db = db;
 
     public override async Task<FilterRulesResponse> GetActiveFilters(EmptyRequest request, ServerCallContext context)
     {
@@ -23,7 +18,7 @@ public class FilterConfigServiceImpl : FilterConfigService.FilterConfigServiceBa
                 .ToListAsync(context.CancellationToken);
 
             var response = new FilterRulesResponse();
-            
+
             foreach (var rule in activeRules)
             {
                 response.Rules.Add(new FilterRule

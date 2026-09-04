@@ -8,21 +8,15 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// <summary>
 /// Service encapsulating database operations for chat sessions and chat messages.
 /// </summary>
-public class ChatSessionService : IChatSessionService
+/// <remarks>
+/// Initializes a new instance of the <see cref="ChatSessionService"/> class.
+/// </remarks>
+/// <param name="dbContext">The database context.</param>
+/// <param name="buffer">The chat message buffer for async persistence.</param>
+public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffer) : IChatSessionService
 {
-    private readonly IAppDbContext _dbContext;
-    private readonly ChatMessageBuffer _buffer;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ChatSessionService"/> class.
-    /// </summary>
-    /// <param name="dbContext">The database context.</param>
-    /// <param name="buffer">The chat message buffer for async persistence.</param>
-    public ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffer)
-    {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
-    }
+    private readonly IAppDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+    private readonly ChatMessageBuffer _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
 
 
     /// <summary>
@@ -41,7 +35,7 @@ public class ChatSessionService : IChatSessionService
 
         _dbContext.ChatSessions.Add(session);
         await _dbContext.SaveChangesAsync();
-        
+
         return session;
     }
 

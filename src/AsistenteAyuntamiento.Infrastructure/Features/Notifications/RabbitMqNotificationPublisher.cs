@@ -10,22 +10,16 @@ using RabbitMQ.Client;
 
 namespace AsistenteAyuntamiento.Infrastructure.Features.Notifications;
 
-public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposable
+public class RabbitMqNotificationPublisher(IConnectionFactory connectionFactory, ILogger<RabbitMqNotificationPublisher> logger) : INotificationService, IAsyncDisposable
 {
-    private readonly IConnectionFactory _connectionFactory;
-    private readonly ILogger<RabbitMqNotificationPublisher> _logger;
+    private readonly IConnectionFactory _connectionFactory = connectionFactory;
+    private readonly ILogger<RabbitMqNotificationPublisher> _logger = logger;
     private IConnection? _connection;
     private IChannel? _channel;
-    
+
     // Semaphores to ensure thread-safety for connection and channel usage
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _channelLock = new(1, 1);
-
-    public RabbitMqNotificationPublisher(IConnectionFactory connectionFactory, ILogger<RabbitMqNotificationPublisher> logger)
-    {
-        _connectionFactory = connectionFactory;
-        _logger = logger;
-    }
 
     private async Task EnsureConnectionAsync(CancellationToken cancellationToken = default)
     {
@@ -57,11 +51,11 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
         try
         {
             await EnsureConnectionAsync();
-            
+
             var message = new { DocumentId = documentId, NewStatus = newStatus };
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
             var props = new BasicProperties { Persistent = true };
-            
+
             // Channel operations must be thread-safe in RabbitMQ
             await _channelLock.WaitAsync();
             try
@@ -81,7 +75,7 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
             {
                 _channelLock.Release();
             }
-                
+
             _logger.LogInformation("Notificación publicada vía RabbitMQ para documento {DocumentId}: {Status}", documentId, newStatus);
         }
         catch (Exception ex)
@@ -94,7 +88,7 @@ public class RabbitMqNotificationPublisher : INotificationService, IAsyncDisposa
     {
         if (_channel != null && _channel.IsOpen) await _channel.CloseAsync();
         if (_connection != null && _connection.IsOpen) await _connection.CloseAsync();
-        
+
         _connectionLock.Dispose();
         _channelLock.Dispose();
     }

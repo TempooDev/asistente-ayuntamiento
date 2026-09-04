@@ -9,24 +9,18 @@ using AsistenteAyuntamiento.Application.Features.Ingestion;
 
 namespace AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 
-public class RabbitMqConsumerService : BackgroundService
+public class RabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<RabbitMqConsumerService> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<RabbitMqConsumerService> _logger;
-    private readonly string _queueName = "documents_to_process";
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly ILogger<RabbitMqConsumerService> _logger = logger;
+    private readonly string _queueName = "documents_to_process_baseline";
     private IConnection? _connection;
     private IChannel? _channel;
-
-    public RabbitMqConsumerService(IServiceProvider serviceProvider, ILogger<RabbitMqConsumerService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Iniciando RabbitMqConsumerService");
-        
+
         // Aspire registers IConnection via DI when Aspire.RabbitMQ.Client is used
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
@@ -36,7 +30,7 @@ public class RabbitMqConsumerService : BackgroundService
                 // Habilitamos despacho concurrente en el consumidor para procesar en paralelo
                 cf.ConsumerDispatchConcurrency = 5;
             }
-            
+
             var connected = false;
             var retryCount = 0;
             while (!connected && retryCount < 10 && !cancellationToken.IsCancellationRequested)
@@ -46,10 +40,10 @@ public class RabbitMqConsumerService : BackgroundService
                     _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
                     _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
                     await _channel.QueueDeclareAsync(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken);
-                    
+
                     // Aumentamos prefetchCount a 5 para procesar múltiples documentos en paralelo
                     await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 5, global: false, cancellationToken: cancellationToken);
-                    
+
                     connected = true;
                     _logger.LogInformation("Conectado a RabbitMQ exitosamente.");
                 }
@@ -87,7 +81,7 @@ public class RabbitMqConsumerService : BackgroundService
                 {
                     await ProcessDocumentAsync(docMsg, stoppingToken);
                 }
-                
+
                 // Procesado exitosamente o parseo fallido de forma irrecuperable
                 await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
             }

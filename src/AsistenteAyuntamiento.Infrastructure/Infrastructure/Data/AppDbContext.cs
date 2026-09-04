@@ -6,17 +6,13 @@ using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Arena;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data;
 
-public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : DbContext(options), AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext
 {
-    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService;
-
-    public AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : base(options)
-    {
-        _tenantService = tenantService;
-    }
+    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService = tenantService;
 
     public string CurrentTenantId => _tenantService.TenantId;
 
@@ -28,10 +24,16 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentJobState> DocumentJobStates { get; set; }
     public DbSet<ScraperFilterRule> ScraperFilterRules { get; set; }
+    public DbSet<ParentDocument> ParentDocuments { get; set; }
+    public DbSet<ChildFragment> ChildFragments { get; set; }
+    public DbSet<ArenaBattle> ArenaBattles { get; set; }
+    public DbSet<IngestionMetric> IngestionMetrics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<DocumentChunk>().ToTable("chunks_baseline_v1", "ingestion");
 
         // Habilitar pgvector
         modelBuilder.HasPostgresExtension("vector");
@@ -80,5 +82,36 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
             entity.ToTable("ScraperFilterRules", "scraper");
             // Not adding tenant filter because scraping is global, according to domain rules
         });
+
+        // === RAG Question Arena entities ===
+
+        modelBuilder.Entity<ParentDocument>(entity =>
+        {
+            entity.ToTable("ParentDocuments", "ingestion");
+            entity.Property(e => e.Metadata).HasColumnType("jsonb");
+            entity.HasMany(e => e.Children).WithOne(e => e.Parent).HasForeignKey(e => e.ParentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChildFragment>(entity =>
+        {
+            entity.ToTable("ChildFragments", "ingestion");
+            entity.Property(e => e.Embedding).HasColumnType("vector(1536)");
+            entity.Property(e => e.TsvContent).HasColumnType("tsvector");
+
+            entity.HasIndex(e => e.ParentId);
+            entity.HasIndex(e => e.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops");
+            entity.HasIndex(e => e.TsvContent).HasMethod("gin");
+        });
+
+        modelBuilder.Entity<ArenaBattle>(entity =>
+        {
+            entity.ToTable("ArenaBattles", "arena");
+        });
+
+        modelBuilder.Entity<IngestionMetric>(entity =>
+        {
+            entity.ToTable("IngestionMetrics", "ingestion");
+        });
     }
 }
+

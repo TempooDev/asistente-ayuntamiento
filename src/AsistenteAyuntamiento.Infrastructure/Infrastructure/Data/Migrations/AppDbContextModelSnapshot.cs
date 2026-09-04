@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 using Pgvector;
 
 #nullable disable
@@ -25,7 +26,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.AiConfig.AiConfiguration", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.AiConfig.AiConfiguration", b =>
                 {
                     b.Property<string>("TenantId")
                         .HasColumnType("text");
@@ -52,7 +53,68 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("AiConfigurations", "identity");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.AiCallLog", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Arena.ArenaBattle", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<byte?>("ClarityReason")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LeftLatencyMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LeftResponse")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<byte>("LeftSystem")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("LeftTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OptionalComment")
+                        .HasColumnType("text");
+
+                    b.Property<byte?>("PrecisionReason")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("RightLatencyMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RightResponse")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<byte>("RightSystem")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("RightTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserQuery")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<byte>("Winner")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ArenaBattles", "arena");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.AiCallLog", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -99,7 +161,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("AiCallLogs", "chat");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.Entities.ChatMessage", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -126,7 +188,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("ChatMessages", "chat");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.Entities.ChatSession", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -148,7 +210,55 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("ChatSessions", "chat");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentChunk", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ChildFragment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<byte>("Bulletin")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("ChunkText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Vector>("Embedding")
+                        .HasColumnType("vector(1536)");
+
+                    b.Property<string>("Municipality")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("ParentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SubSection")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<NpgsqlTsVector>("TsvContent")
+                        .HasColumnType("tsvector");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Embedding");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("TsvContent");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TsvContent"), "gin");
+
+                    b.ToTable("ChildFragments", "ingestion");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.DocumentChunk", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -190,7 +300,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("DocumentChunks", "identity");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Ingestion.DocumentJobState", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.DocumentJobState", b =>
                 {
                     b.Property<string>("DocumentId")
                         .HasColumnType("text");
@@ -213,7 +323,106 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("DocumentJobStates", "public");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterRule", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.IngestionMetric", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<byte>("Bulletin")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ChunksGenerated")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<byte>("Pipeline")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("ProcessingDurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("TotalLlmCalls")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalLlmTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalTokensEmbedded")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("IngestionMetrics", "ingestion");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ParentDocument", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<byte>("Bulletin")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("FullText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("IssuingBody")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Metadata")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Municipality")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NormSection")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("NormTitle")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NormativeRank")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("PublicationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ParentDocuments", "ingestion");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Scraper.ScraperFilterRule", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -244,7 +453,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("ScraperFilterRules", "scraper");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Users.UserProfile", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Users.UserProfile", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -290,9 +499,9 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("UserProfiles", "identity");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.Entities.ChatMessage", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatMessage", b =>
                 {
-                    b.HasOne("AsistenteAyuntamiento.ApiService.Features.Chat.Entities.ChatSession", "Session")
+                    b.HasOne("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatSession", "Session")
                         .WithMany("Messages")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -301,9 +510,25 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("AsistenteAyuntamiento.ApiService.Features.Chat.Entities.ChatSession", b =>
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ChildFragment", b =>
+                {
+                    b.HasOne("AsistenteAyuntamiento.Domain.Features.Ingestion.ParentDocument", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatSession", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ParentDocument", b =>
+                {
+                    b.Navigation("Children");
                 });
 #pragma warning restore 612, 618
         }

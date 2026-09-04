@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AsistenteAyuntamiento.Domain\AsistenteAyuntamiento.Domain.csproj" />
+    <ProjectReference Include="..\AsistenteAyuntamiento.Shared\AsistenteAyuntamiento.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

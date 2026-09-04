@@ -7,20 +7,12 @@ using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 
 namespace AsistenteAyuntamiento.Application.Features.AiConfig;
 
-public class AiConfigurationService : IAiConfigurationService
+public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration) : IAiConfigurationService
 {
-    private readonly IConfiguration _configuration;
-    private readonly IAppDbContext _dbContext;
-    private readonly ICurrentTenantService _tenantService;
-    private readonly IDataProtector _dataProtector;
-
-    public AiConfigurationService(IAppDbContext dbContext, ICurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration)
-    {
-        _dbContext = dbContext;
-        _tenantService = tenantService;
-        _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
-        _configuration = configuration;
-    }
+    private readonly IConfiguration _configuration = configuration;
+    private readonly IAppDbContext _dbContext = dbContext;
+    private readonly ICurrentTenantService _tenantService = tenantService;
+    private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {
@@ -28,7 +20,7 @@ public class AiConfigurationService : IAiConfigurationService
         {
             var tenantId = _tenantService.TenantId;
             var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
-            
+
             var defaultConfig = _configuration; // IConfiguration injected
 
             if (config == null)
@@ -70,7 +62,7 @@ public class AiConfigurationService : IAiConfigurationService
     {
         var tenantId = _tenantService.TenantId;
         var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
-        
+
         if (config == null || string.IsNullOrEmpty(config.EncryptedApiKey))
         {
             return null;
@@ -90,7 +82,7 @@ public class AiConfigurationService : IAiConfigurationService
     {
         var tenantId = explicitTenantId ?? _tenantService.TenantId;
         var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
-        
+
         if (config == null)
         {
             var defaultConfig = new AiConfigurationDto
@@ -133,7 +125,7 @@ public class AiConfigurationService : IAiConfigurationService
     {
         var tenantId = _tenantService.TenantId;
         var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
-        
+
         if (config == null)
         {
             config = new AiConfiguration
@@ -143,8 +135,8 @@ public class AiConfigurationService : IAiConfigurationService
             _dbContext.AiConfigurations.Add(config);
         }
 
-        config.Provider = dto.Provider;
-        config.Model = dto.Model;
+        config.Provider = dto.Provider ?? "";
+        config.Model = dto.Model ?? "";
         config.Temperature = dto.Temperature;
         config.EndpointUrl = dto.EndpointUrl;
 
@@ -157,5 +149,6 @@ public class AiConfigurationService : IAiConfigurationService
         await _dbContext.SaveChangesAsync();
     }
 }
+
 
 

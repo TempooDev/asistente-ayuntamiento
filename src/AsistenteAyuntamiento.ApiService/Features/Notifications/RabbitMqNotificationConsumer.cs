@@ -11,25 +11,19 @@ using RabbitMQ.Client.Events;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 
-public class RabbitMqNotificationConsumer : BackgroundService
+public class RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILogger<RabbitMqNotificationConsumer> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<RabbitMqNotificationConsumer> _logger;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly ILogger<RabbitMqNotificationConsumer> _logger = logger;
     private const string ExchangeName = AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange;
     private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}"; // Cola temporal para cada instancia de la API
     private IConnection? _connection;
     private IChannel? _channel;
 
-    public RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILogger<RabbitMqNotificationConsumer> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
-
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
-        
+
         var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
@@ -41,13 +35,13 @@ public class RabbitMqNotificationConsumer : BackgroundService
                 {
                     _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
                     _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
-                    
+
                     await _channel.ExchangeDeclareAsync(exchange: ExchangeName, type: ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
-                    
+
                     // Cola exclusiva para recibir los eventos
                     await _channel.QueueDeclareAsync(queue: _queueName, durable: false, exclusive: true, autoDelete: true, cancellationToken: cancellationToken);
                     await _channel.QueueBindAsync(queue: _queueName, exchange: ExchangeName, routingKey: string.Empty, cancellationToken: cancellationToken);
-                    
+
                     connected = true;
                     _logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
                 }
@@ -91,7 +85,7 @@ public class RabbitMqNotificationConsumer : BackgroundService
             {
                 _logger.LogError(ex, "Error procesando notificación entrante.");
             }
-            
+
             await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
         };
 

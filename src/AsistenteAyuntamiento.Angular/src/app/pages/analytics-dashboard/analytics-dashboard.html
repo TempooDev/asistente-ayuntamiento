@@ -1,0 +1,102 @@
+<div class="p-6 max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Panel de Analíticas del Arena</h1>
+    
+    <div class="flex space-x-4 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+      <div class="flex flex-col">
+        <label class="text-xs text-gray-500 font-medium mb-1">Fecha Inicio</label>
+        <input type="date" 
+               [ngModel]="startDate()" 
+               (ngModelChange)="startDate.set($event)"
+               class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+      </div>
+      <div class="flex flex-col">
+        <label class="text-xs text-gray-500 font-medium mb-1">Fecha Fin</label>
+        <input type="date" 
+               [ngModel]="endDate()" 
+               (ngModelChange)="endDate.set($event)"
+               class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+      </div>
+    </div>
+  </div>
+
+  @if (analytics(); as data) {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Batallas Totales</h3>
+        <p class="text-3xl font-bold text-gray-900 mt-2">{{ data.totalBattles }}</p>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Completadas</h3>
+        <p class="text-3xl font-bold text-green-600 mt-2">{{ data.completedBattles }}</p>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Pendientes (Shadow)</h3>
+        <p class="text-3xl font-bold text-amber-600 mt-2">{{ data.pendingBattles }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+        <h2 class="text-lg font-medium text-gray-900">Rendimiento por Pipeline</h2>
+        
+        <div class="flex items-center">
+          <label class="text-sm text-gray-600 mr-2">Segmentar por:</label>
+          <select [ngModel]="selectedPipeline()" 
+                  (ngModelChange)="selectedPipeline.set($event)"
+                  class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1.5">
+            <option value="ALL">Todos los Pipelines</option>
+            @for (pipe of availablePipelines(); track pipe) {
+              <option [value]="pipe">{{ pipe }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-white">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Victorias</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Derrotas</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empates</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Win Rate</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latencia Media</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens Medios</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          @for (metric of filteredMetrics(); track metric.pipeline) {
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ metric.pipeline }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-green-600">{{ metric.winCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-red-600">{{ metric.lossCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.tieCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap font-bold text-indigo-600">
+                <div class="flex items-center">
+                  <span class="mr-2">{{ metric.winRate | percent:'1.0-1' }}</span>
+                  <div class="w-16 bg-gray-200 rounded-full h-1.5">
+                    <div class="bg-indigo-600 h-1.5 rounded-full" [style.width.%]="metric.winRate * 100"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageLatencyMs | number:'1.0-0' }} ms</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageTokens | number:'1.0-0' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                No hay datos disponibles para los filtros seleccionados.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="flex flex-col justify-center items-center h-64 text-gray-500">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+      <p>Cargando analíticas...</p>
+    </div>
+  }
+</div>

@@ -3,14 +3,9 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 
-public class SignalRNotificationService : INotificationService
+public class SignalRNotificationService(IHubContext<NotificationHub> hubContext) : INotificationService
 {
-    private readonly IHubContext<NotificationHub> _hubContext;
-
-    public SignalRNotificationService(IHubContext<NotificationHub> hubContext)
-    {
-        _hubContext = hubContext;
-    }
+    private readonly IHubContext<NotificationHub> _hubContext = hubContext;
 
     public async Task NotifyDocumentStatusChangedAsync(string documentId, string newStatus)
     {
