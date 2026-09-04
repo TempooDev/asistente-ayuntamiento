@@ -6,6 +6,7 @@ using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
+using AsistenteAyuntamiento.Domain.Features.Arena;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data;
 
@@ -28,6 +29,10 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentJobState> DocumentJobStates { get; set; }
     public DbSet<ScraperFilterRule> ScraperFilterRules { get; set; }
+    public DbSet<ParentDocument> ParentDocuments { get; set; }
+    public DbSet<ChildFragment> ChildFragments { get; set; }
+    public DbSet<ArenaBattle> ArenaBattles { get; set; }
+    public DbSet<IngestionMetric> IngestionMetrics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,6 +84,32 @@ public class AppDbContext : DbContext, AsistenteAyuntamiento.Application.Common.
         {
             entity.ToTable("ScraperFilterRules", "scraper");
             // Not adding tenant filter because scraping is global, according to domain rules
+        });
+
+        // === RAG Question Arena entities ===
+
+        modelBuilder.Entity<ParentDocument>(entity =>
+        {
+            entity.ToTable("ParentDocuments", "ingestion");
+            entity.Property(e => e.Metadata).HasColumnType("jsonb");
+            entity.HasMany(e => e.Children).WithOne(e => e.Parent).HasForeignKey(e => e.ParentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChildFragment>(entity =>
+        {
+            entity.ToTable("ChildFragments", "ingestion");
+            entity.Property(e => e.Embedding).HasColumnType("vector(1536)");
+            entity.HasIndex(e => e.ParentId);
+        });
+
+        modelBuilder.Entity<ArenaBattle>(entity =>
+        {
+            entity.ToTable("ArenaBattles", "arena");
+        });
+
+        modelBuilder.Entity<IngestionMetric>(entity =>
+        {
+            entity.ToTable("IngestionMetrics", "ingestion");
         });
     }
 }
