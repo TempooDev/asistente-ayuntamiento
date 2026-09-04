@@ -5,6 +5,8 @@ using Microsoft.SemanticKernel;
 using Amazon.S3;
 using Amazon.Runtime;
 using System.Security.Cryptography.X509Certificates;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 
 namespace AsistenteAyuntamiento.Infrastructure;
 
@@ -12,6 +14,8 @@ public static class DependencyInjection
 {
     public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+
         // Blob Storage
         var blobEndpoint = builder.Configuration["Blob:Endpoint"];
         if (!string.IsNullOrEmpty(blobEndpoint))
