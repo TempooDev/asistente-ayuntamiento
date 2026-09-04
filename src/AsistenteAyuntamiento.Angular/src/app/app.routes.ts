@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { AnalyticsDashboardComponent } from './features/admin/analytics-dashboard/analytics-dashboard.component';
+import { AnalyticsDashboardComponent } from './pages/analytics-dashboard/analytics-dashboard';
 import { ChatPanelComponent } from './pages/chat-panel/chat-panel';
 import { DocumentosComponent } from './pages/documentos/documentos';
 import { ConfiguracionComponent } from './pages/configuracion/configuracion';
