@@ -15,13 +15,13 @@
 
 ## 2. Hierarchical Ingestion Pipeline
 
-- [ ] 2.1 Develop `BoeIngestionService.cs` as a .NET Background Service. Parse BOE XML (Legislación Consolidada API / XML summaries) using `XDocument`. Extract each `<articulo>` or disposition block as a parent document. Split numbered sub-sections (`1.`, `2.`, `a)`, `b)`) into child fragments of 250–400 tokens.
+- [x] 2.1 Develop `BoeIngestionService.cs` as a .NET Background Service. Parse BOE XML (Legislación Consolidada API / XML summaries) using `XDocument`. Extract each `<articulo>` or disposition block as a parent document. Split numbered sub-sections (`1.`, `2.`, `a)`, `b)`) into child fragments of 250–400 tokens.
   - Files: `AsistenteAyuntamiento.Worker/Services/BoeIngestionService.cs`
-- [ ] 2.2 Develop `BojaIngestionService.cs` as a .NET Background Service. Consume the Junta de Andalucía Open Data JSON API using `HttpClient` + `System.Text.Json`. Decompose convocatorias and regulatory bases into parent (per article/requirement) and child fragments.
+- [x] 2.2 Develop `BojaIngestionService.cs` as a .NET Background Service. Consume the Junta de Andalucía Open Data JSON API using `HttpClient` + `System.Text.Json`. Decompose convocatorias and regulatory bases into parent (per article/requirement) and child fragments.
   - Files: `AsistenteAyuntamiento.Worker/Services/BojaIngestionService.cs`
-- [ ] 2.3 Implement the child fragment enrichment step: prepend the contextual breadcrumb (`[BOLETÍN: ... | ORGANISMO: ... | NORMA: ... | ARTÍCULO: ...]`) and generate two synthetic citizen questions per fragment via a fast LLM call through Semantic Kernel. Concatenate breadcrumb + questions + body text into `ChunkText`.
+- [x] 2.3 Implement the child fragment enrichment step: prepend the contextual breadcrumb (`[BOLETÍN: ... | ORGANISMO: ... | NORMA: ... | ARTÍCULO: ...]`) and generate two synthetic citizen questions per fragment via a fast LLM call through Semantic Kernel. Concatenate breadcrumb + questions + body text into `ChunkText`.
   - Files: `AsistenteAyuntamiento.Worker/Services/FragmentEnrichmentService.cs`
-- [ ] 2.4 Integrate `IngestionMetricsService.cs` into both ingestion services. Wrap each document processing run with `Stopwatch`, count tokens embedded and LLM calls made, and persist an `IngestionMetric` record upon completion.
+- [x] 2.4 Integrate `IngestionMetricsService.cs` into both ingestion services. Wrap each document processing run with `Stopwatch`, count tokens embedded and LLM calls made, and persist an `IngestionMetric` record upon completion.
   - Files: `AsistenteAyuntamiento.Worker/Services/IngestionMetricsService.cs`
 
 ## 3. Hybrid Retrieval Service
@@ -74,7 +74,7 @@
 
 ## 9. Dual Worker Deployment and Bulk Reprocessing
 
-- [ ] 9.1 Add `WORKER_PIPELINE_MODE` environment variable support to the Worker's `Program.cs`. When set to `BASELINE`, register only the existing flat-chunk ingestion service consuming from `documents_to_process_baseline` queue. When set to `HIERARCHICAL`, register only the new hierarchical ingestion services consuming from `documents_to_process_hierarchical` queue. Default (unset) preserves current behavior for backward compatibility.
+- [x] 9.1 Add `WORKER_PIPELINE_MODE` environment variable support to the Worker's `Program.cs`. When set to `BASELINE`, register only the existing flat-chunk ingestion service consuming from `documents_to_process_baseline` queue. When set to `HIERARCHICAL`, register only the new hierarchical ingestion services consuming from `documents_to_process_hierarchical` queue. Default (unset) preserves current behavior for backward compatibility.
   - Files: `AsistenteAyuntamiento.Worker/Program.cs`, `AsistenteAyuntamiento.Worker/appsettings.json`
 - [ ] 9.2 Add `worker-baseline` and `worker-hierarchical` service definitions to `docker-compose.yml` (same image, different `WORKER_PIPELINE_MODE` and `WORKER_QUEUE_NAME` env vars). Add corresponding resource definitions in .NET Aspire `AppHost/Program.cs` for local development.
   - Files: `docker-compose.yml`, `AsistenteAyuntamiento.AppHost/Program.cs`
