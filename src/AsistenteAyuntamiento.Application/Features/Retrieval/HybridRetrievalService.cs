@@ -15,7 +15,7 @@ public interface IHybridRetrievalService
     Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default);
 }
 
-public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel, ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
+public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel) : IHybridRetrievalService
 {
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -76,7 +76,7 @@ public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel, ILog
         var fragmentIds = fragmentScores.Select(f => f.FragmentId).ToList();
 
         // Resolve fragments and parent documents via LINQ
-        var fragmentsWithParents = await db.Set<ChildFragment>()
+        var fragmentsWithParents = await dbContext.ChildFragments
             .Include(c => c.Parent)
             .Where(c => fragmentIds.Contains(c.Id))
             .ToListAsync(cancellationToken);
@@ -107,6 +107,8 @@ public class HybridRetrievalService(IAppDbContext dbContext, Kernel kernel, ILog
         public double RrfScore { get; set; }
     }
 }
+
+
 
 
 

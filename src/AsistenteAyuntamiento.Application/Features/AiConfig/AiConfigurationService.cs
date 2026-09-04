@@ -143,8 +143,8 @@ public class AiConfigurationService : IAiConfigurationService
             _dbContext.AiConfigurations.Add(config);
         }
 
-        config.Provider = dto.Provider;
-        config.Model = dto.Model;
+        config.Provider = dto.Provider ?? "";
+        config.Model = dto.Model ?? "";
         config.Temperature = dto.Temperature;
         config.EndpointUrl = dto.EndpointUrl;
 
@@ -157,5 +157,6 @@ public class AiConfigurationService : IAiConfigurationService
         await _dbContext.SaveChangesAsync();
     }
 }
+
 
 

@@ -21,7 +21,7 @@ public class DocumentIngestionService : IDocumentIngestionService
     private readonly ILogger<DocumentIngestionService> _logger;
     private readonly INotificationService? _notificationService;
 
-    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService notificationService = null)
+    public DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null)
     {
         _s3Client = s3Client;
         _config = config;
@@ -222,3 +222,5 @@ public class DocumentIngestionService : IDocumentIngestionService
         });
     }
 }
+
+

@@ -509,9 +509,7 @@ public sealed class AiChatService(
         }
 
         var documentSources = new List<DocumentSource>();
-        string? sourcesChunkToYield = null;
-
-        if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
+                if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
         {
             try
             {
@@ -828,5 +826,6 @@ public sealed class AiChatService(
             GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
     }
 }
+
 
 

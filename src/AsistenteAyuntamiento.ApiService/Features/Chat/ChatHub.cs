@@ -1,4 +1,4 @@
-﻿using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using System.Security.Claims;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authorization;
@@ -135,17 +135,33 @@ public class ChatHub : Hub
 
         var fullResponseBuilder = new System.Text.StringBuilder();
 
+        bool errorOccurred = false;
+        IAsyncEnumerator<string> enumerator = _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken).GetAsyncEnumerator(cancellationToken);
         try
         {
-            await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+            while (true)
             {
-                fullResponseBuilder.Append(chunk);
-                yield return chunk;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync()) break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in stream generation");
+                    errorOccurred = true;
+                    break;
+                }
+                fullResponseBuilder.Append(enumerator.Current);
+                yield return enumerator.Current;
             }
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogError(ex, "Error in stream generation");
+            await enumerator.DisposeAsync();
+        }
+
+        if (errorOccurred)
+        {
             yield return "\n\n[Error: Stream generation interrupted.]";
         }
 
@@ -222,6 +238,7 @@ public class ChatHub : Hub
         await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }
+
 
 
 

@@ -46,7 +46,7 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
             yield break;
         }
 
-        IAsyncEnumerable<StreamingChatMessageContent> stream;
+        IAsyncEnumerable<StreamingChatMessageContent>? stream;
         try
         {
             stream = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, cancellationToken: cancellationToken);
@@ -97,5 +97,6 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
         return chatHistory;
     }
 }
+
 
 
