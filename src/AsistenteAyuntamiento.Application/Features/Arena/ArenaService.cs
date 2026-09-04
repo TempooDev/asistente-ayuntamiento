@@ -11,41 +11,28 @@ using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.SemanticKernel.Embeddings;
+using Microsoft.Extensions.AI;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
-public class ArenaService : IArenaService
+public class ArenaService(
+    IAppDbContext dbContext,
+    IQueryExpansionService expansionService,
+    IHybridRetrievalService retrievalService,
+    IClearLanguageGenerationService generationService,
+    Kernel kernel,
+    ILogger<ArenaService> logger) : IArenaService
 {
-    private readonly IAppDbContext _dbContext;
-    private readonly IQueryExpansionService _expansionService;
-    private readonly IHybridRetrievalService _retrievalService;
-    private readonly IClearLanguageGenerationService _generationService;
-    private readonly IChatCompletionService _chatCompletionService;
-    private readonly ILogger<ArenaService> _logger;
+    private readonly IAppDbContext _dbContext = dbContext;
+    private readonly IQueryExpansionService _expansionService = expansionService;
+    private readonly IHybridRetrievalService _retrievalService = retrievalService;
+    private readonly IClearLanguageGenerationService _generationService = generationService;
+    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly ILogger<ArenaService> _logger = logger;
 
-#pragma warning disable CS0618, SKEXP0001
-    private readonly ITextEmbeddingGenerationService _embeddingService;
-#pragma warning restore CS0618, SKEXP0001
-
-    public ArenaService(
-        IAppDbContext dbContext,
-        IQueryExpansionService expansionService,
-        IHybridRetrievalService retrievalService,
-        IClearLanguageGenerationService generationService,
-        Kernel kernel,
-        ILogger<ArenaService> logger)
-    {
-        _dbContext = dbContext;
-        _expansionService = expansionService;
-        _retrievalService = retrievalService;
-        _generationService = generationService;
-        _logger = logger;
-        _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-#pragma warning disable CS0618, SKEXP0001
-        _embeddingService = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore CS0618, SKEXP0001
-    }
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
     public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default)
     {
@@ -67,13 +54,13 @@ public class ArenaService : IArenaService
             SessionId = sessionId,
             UserQuery = request.Query,
             CreatedAt = DateTime.UtcNow,
-            LeftSystem = isHierarchicalAlfa ? PipelineModes.HIERARCHICAL : PipelineModes.BASELINE,
-            RightSystem = isHierarchicalAlfa ? PipelineModes.BASELINE : PipelineModes.HIERARCHICAL,
+            LeftSystem = isHierarchicalAlfa ? PipelineType.Hierarchical : PipelineType.Baseline,
+            RightSystem = isHierarchicalAlfa ? PipelineType.Baseline : PipelineType.Hierarchical,
             LeftResponse = alfaResult.Response,
             RightResponse = betaResult.Response,
             LeftLatencyMs = (int)(isHierarchicalAlfa ? alfaResult.Latency : betaResult.Latency),
             RightLatencyMs = (int)(isHierarchicalAlfa ? betaResult.Latency : alfaResult.Latency),
-            Winner = "PENDING"
+            Winner = BattleWinner.Pending
         };
 
         _dbContext.ArenaBattles.Add(battle);
@@ -98,17 +85,17 @@ public class ArenaService : IArenaService
         if (battle == null)
             throw new Exception("Battle session not found");
 
-        battle.Winner = request.Winner;
-        battle.ClarityReason = request.ClarityReason;
-        battle.PrecisionReason = request.PrecisionReason;
+        if (Enum.TryParse<BattleWinner>(request.Winner, true, out var w)) battle.Winner = w;
+        if (Enum.TryParse<EvaluationPreference>(request.ClarityReason, true, out var c)) battle.ClarityReason = c;
+        if (Enum.TryParse<EvaluationPreference>(request.PrecisionReason, true, out var p)) battle.PrecisionReason = p;
         battle.OptionalComment = request.OptionalComment;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new ArenaVoteResponse
         {
-            AlfaSystem = battle.LeftSystem,
-            BetaSystem = battle.RightSystem
+            AlfaSystem = battle.LeftSystem.ToString(),
+            BetaSystem = battle.RightSystem.ToString()
         };
     }
 
@@ -117,10 +104,8 @@ public class ArenaService : IArenaService
         var sw = Stopwatch.StartNew();
         try
         {
-#pragma warning disable CS0618, SKEXP0001
-            var embeddings = await _embeddingService.GenerateEmbeddingsAsync(new List<string> { query }, cancellationToken: cancellationToken);
-            var queryVector = new Pgvector.Vector(embeddings.First().ToArray());
-#pragma warning restore CS0618, SKEXP0001
+            var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
+            var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
             var db = _dbContext as DbContext ?? throw new InvalidOperationException("DbContext is null");
             var topChunks = await db.Set<DocumentChunk>()
@@ -137,7 +122,7 @@ Documentos:
 
             var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
             sw.Stop();
-            
+
             return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds, sources);
         }
         catch (Exception ex)

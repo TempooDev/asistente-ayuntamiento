@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
 
@@ -7,9 +8,7 @@ public class ParentDocument
     [Key]
     public long Id { get; set; }
 
-    [Required]
-    [MaxLength(10)]
-    public string Bulletin { get; set; } = string.Empty; // 'BOE', 'BOJA'
+    public BulletinType Bulletin { get; set; }
 
     [Required]
     [MaxLength(50)]

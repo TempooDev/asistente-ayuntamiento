@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
@@ -26,15 +27,16 @@ builder.AddRabbitMQClient("messaging");
 // Configure S3 & Semantic Kernel (Infrastructure)
 builder.AddInfrastructureServices();
 
-var pipelineMode = builder.Configuration["WORKER_PIPELINE_MODE"] ?? PipelineModes.BASELINE;
+var pipelineModeStr = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
+var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p) ? p : PipelineType.Baseline;
 
-if (pipelineMode.Equals(PipelineModes.HIERARCHICAL, StringComparison.OrdinalIgnoreCase))
+if (pipelineMode == PipelineType.Hierarchical)
 {
     // New Hierarchical Pipeline (Phase 2)
     builder.Services.AddScoped<IFragmentEnrichmentService, FragmentEnrichmentService>();
     builder.Services.AddScoped<IIngestionMetricsService, IngestionMetricsService>();
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(DocumentSources.BOE);
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(DocumentSources.BOJA);
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(BulletinType.BOE.ToString());
+    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(BulletinType.BOJA.ToString());
 
     // Register the hierarchical consumer
     builder.Services.AddHostedService<HierarchicalRabbitMqConsumerService>();

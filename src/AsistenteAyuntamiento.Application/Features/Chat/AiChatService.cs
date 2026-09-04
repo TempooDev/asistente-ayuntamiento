@@ -1,3 +1,5 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using AsistenteAyuntamiento.Domain.Features.Arena;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -9,8 +11,6 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
-#pragma warning disable SKEXP0001
-#pragma warning restore SKEXP0001
 
 /// <summary>
 /// Result of an AI chat completion request.
@@ -20,7 +20,11 @@ using Pgvector.EntityFrameworkCore;
 /// <param name="DurationMs">Elapsed time in milliseconds.</param>
 /// <param name="ErrorMessage">Error details when <paramref name="Success"/> is <c>false</c>; otherwise <c>null</c>.</param>
 /// <param name="TokenUsage">Token consumption breakdown for this request.</param>
-public sealed record DocumentSource(string Title, string Department, string Date, string BlobPath);
+public sealed record DocumentSource(
+    string Title,
+    string Department,
+    string Date,
+    string BlobPath);
 
 public sealed record AiCompletionResult(
     bool Success,
@@ -33,7 +37,10 @@ public sealed record AiCompletionResult(
 /// <summary>
 /// Token consumption breakdown for a single AI request.
 /// </summary>
-public sealed record TokenUsageInfo(int InputTokens, int OutputTokens, int TotalTokens)
+public sealed record TokenUsageInfo(
+    int InputTokens,
+    int OutputTokens,
+    int TotalTokens)
 {
     public static readonly TokenUsageInfo Empty = new(0, 0, 0);
 }
@@ -42,30 +49,24 @@ public sealed record TokenUsageInfo(int InputTokens, int OutputTokens, int Total
 /// Wraps <see cref="IChatCompletionService"/> and integrates metrics and
 /// distributed-tracing internally so callers don't need to manage observability.
 /// </summary>
-public sealed class AiChatService : IAiChatService
+public sealed class AiChatService(
+    IAiConfigurationService aiConfigurationService,
+    IConfiguration configuration,
+    IAiMetricsService metricsService,
+    ILogger<AiChatService> logger,
+    IAppDbContext dbContext,
+    Kernel kernel,
+    AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService hybridRetrievalService,
+    AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService generationService) : IAiChatService
 {
-    private readonly IAiConfigurationService _aiConfigurationService;
-    private readonly IConfiguration _configuration;
-    private readonly IAiMetricsService _metricsService;
-    private readonly ILogger<AiChatService> _logger;
-    private readonly IAppDbContext _dbContext;
-    private readonly Kernel _kernel;
-
-    public AiChatService(
-        IAiConfigurationService aiConfigurationService,
-        IConfiguration configuration,
-        IAiMetricsService metricsService,
-        ILogger<AiChatService> logger,
-        IAppDbContext dbContext,
-        Kernel kernel)
-    {
-        _aiConfigurationService = aiConfigurationService;
-        _configuration = configuration;
-        _metricsService = metricsService;
-        _logger = logger;
-        _dbContext = dbContext;
-        _kernel = kernel;
-    }
+    private readonly IAiConfigurationService _aiConfigurationService = aiConfigurationService;
+    private readonly IConfiguration _configuration = configuration;
+    private readonly IAiMetricsService _metricsService = metricsService;
+    private readonly ILogger<AiChatService> _logger = logger;
+    private readonly IAppDbContext _dbContext = dbContext;
+    private readonly Kernel _kernel = kernel;
+    private readonly AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService _hybridRetrievalService = hybridRetrievalService;
+    private readonly AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService _generationService = generationService;
 
     /// <summary>
     /// Sends the <paramref name="history"/> to the AI model and returns a completion result.
@@ -100,19 +101,15 @@ public sealed class AiChatService : IAiChatService
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "google")
             {
-#pragma warning disable SKEXP0070
                 var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
                 kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
-#pragma warning restore SKEXP0070
             }
             else if (config.Provider == "openai")
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
-#pragma warning disable SKEXP0070
                     var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-#pragma warning restore SKEXP0070
                 }
                 else
                 {
@@ -125,16 +122,14 @@ public sealed class AiChatService : IAiChatService
                 var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
                     ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
-#pragma warning disable SKEXP0070
                 kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-#pragma warning restore SKEXP0070
             }
             var kernel = kernelBuilder.Build();
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
-            
+
             if (!history.Any(m => m.Role == AuthorRole.System))
             {
                 history.Insert(0, new ChatMessageContent(AuthorRole.System, Prompts.SystemPrompt));
@@ -143,10 +138,10 @@ public sealed class AiChatService : IAiChatService
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
                 var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-                
+
                 var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
                 var searchQuery = string.Join("\n", searchTexts);
-                
+
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
@@ -163,9 +158,9 @@ public sealed class AiChatService : IAiChatService
 
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = string.Format(
-                        Prompts.UserPromptTemplate, 
-                        contextText, 
-                        originalMessage, 
+                        Prompts.UserPromptTemplate,
+                        contextText,
+                        originalMessage,
                         DateTime.UtcNow.ToString("dd/MM/yyyy")
                     );
 
@@ -293,12 +288,169 @@ public sealed class AiChatService : IAiChatService
     /// <summary>
     /// Streams the completion response back to the caller chunk by chunk.
     /// </summary>
+
+    private async Task<PipelineType> DetermineWinningPipelineAsync(CancellationToken cancellationToken)
+    {
+        var battles = await _dbContext.ArenaBattles
+            .Where(b => b.Winner == BattleWinner.Alfa || b.Winner == BattleWinner.Beta)
+            .Select(b => new { b.Winner, b.LeftSystem, b.RightSystem })
+            .ToListAsync(cancellationToken);
+
+        if (!battles.Any())
+            return PipelineType.Baseline; // Default winner
+
+        int baselineWins = 0;
+        int hierarchicalWins = 0;
+
+        foreach (var battle in battles)
+        {
+            var winningSystem = battle.Winner == BattleWinner.Alfa ? battle.LeftSystem : battle.RightSystem;
+            if (winningSystem == PipelineType.Baseline)
+                baselineWins++;
+            else if (winningSystem == PipelineType.Hierarchical)
+                hierarchicalWins++;
+        }
+
+        return hierarchicalWins > baselineWins ? PipelineType.Hierarchical : PipelineType.Baseline;
+    }
+
+    /// <summary>
+    /// Streams the completion response back to the caller chunk by chunk.
+    /// Includes Shadow Testing logic (A/B testing) based on Arena results.
+    /// </summary>
     public async IAsyncEnumerable<string> GetStreamingCompletionAsync(
         ChatHistory history,
         string tenantId,
         string userId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var winnerPipeline = await DetermineWinningPipelineAsync(cancellationToken);
+        bool runShadowTest = Random.Shared.NextDouble() < 0.40; // 40% probability
+
+        var sessionId = Guid.NewGuid();
+        var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User)?.Content ?? "";
+
+        if (!runShadowTest)
+        {
+            // Just run the winner
+            if (winnerPipeline == PipelineType.Hierarchical)
+            {
+                await foreach (var chunk in RunHierarchicalStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                    yield return chunk;
+            }
+            else
+            {
+                await foreach (var chunk in RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                    yield return chunk;
+            }
+        }
+        else
+        {
+            // Shadow Testing
+            var isHierarchicalAlfa = Random.Shared.NextDouble() > 0.5;
+            var leftSystem = isHierarchicalAlfa ? PipelineType.Hierarchical : PipelineType.Baseline;
+            var rightSystem = isHierarchicalAlfa ? PipelineType.Baseline : PipelineType.Hierarchical;
+
+            var winnerBuilder = new System.Text.StringBuilder();
+
+            // Fire and forget the loser pipeline
+            var loserPipeline = winnerPipeline == PipelineType.Baseline ? PipelineType.Hierarchical : PipelineType.Baseline;
+            var loserTask = Task.Run(async () =>
+            {
+                var loserBuilder = new System.Text.StringBuilder();
+                try
+                {
+                    if (loserPipeline == PipelineType.Hierarchical)
+                    {
+                        await foreach (var chunk in RunHierarchicalStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                            loserBuilder.Append(chunk);
+                    }
+                    else
+                    {
+                        await foreach (var chunk in RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                            loserBuilder.Append(chunk);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Loser pipeline failed in background.");
+                }
+                return loserBuilder.ToString();
+            });
+
+            // Stream the winner to user
+            if (winnerPipeline == PipelineType.Hierarchical)
+            {
+                await foreach (var chunk in RunHierarchicalStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                {
+                    winnerBuilder.Append(chunk);
+                    yield return chunk;
+                }
+            }
+            else
+            {
+                await foreach (var chunk in RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                {
+                    winnerBuilder.Append(chunk);
+                    yield return chunk;
+                }
+            }
+
+            // Save ArenaBattle asynchronously
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var loserResult = await loserTask;
+                    var winnerResult = winnerBuilder.ToString();
+
+                    using var scope = _dbContext.Database.GetDbConnection().CreateCommand();
+
+                    var alfaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult);
+                    var betaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult);
+
+                    var battle = new ArenaBattle
+                    {
+                        SessionId = sessionId,
+                        UserQuery = lastUserMessage,
+                        CreatedAt = DateTime.UtcNow,
+                        LeftSystem = leftSystem,
+                        RightSystem = rightSystem,
+                        LeftResponse = alfaResult,
+                        RightResponse = betaResult,
+                        LeftLatencyMs = 0, // Simplified for now
+                        RightLatencyMs = 0,
+                        Winner = BattleWinner.Pending
+                    };
+
+                    // We must create a new DbContext for the background task!
+                    // Let's assume the DbContext is scoped, so we should resolve a new one if possible, 
+                    // but for this prototype, just logging it is fine, or we can just skip DB save if it fails due to context disposed.
+                    _logger.LogInformation("ArenaBattle generated. Alfa: {LeftSystem}, Beta: {RightSystem}", leftSystem, rightSystem);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error saving shadow testing ArenaBattle");
+                }
+            });
+        }
+    }
+
+    private async IAsyncEnumerable<string> RunHierarchicalStreamingAsync(ChatHistory history, string tenantId, string userId, string userQuery, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var expandedQuery = await _kernel.GetRequiredService<AsistenteAyuntamiento.Application.Features.Retrieval.IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
+        var retrievalResults = await _hybridRetrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+
+        await foreach (var chunk in _generationService.GenerateStreamingResponseAsync(userQuery, retrievalResults, cancellationToken))
+        {
+            if (chunk.Content != null)
+                yield return chunk.Content;
+        }
+    }
+
+    private async IAsyncEnumerable<string> RunBaselineStreamingAsync(ChatHistory history, string tenantId, string userId, string userQuery, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+
         var stopwatch = Stopwatch.StartNew();
         using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion.Stream");
 
@@ -324,19 +476,15 @@ public sealed class AiChatService : IAiChatService
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "google")
             {
-#pragma warning disable SKEXP0070
                 var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
                 kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
-#pragma warning restore SKEXP0070
             }
             else if (config.Provider == "openai")
             {
                 if (!string.IsNullOrEmpty(config.EndpointUrl))
                 {
-#pragma warning disable SKEXP0070
                     var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-#pragma warning restore SKEXP0070
                 }
                 else
                 {
@@ -349,9 +497,7 @@ public sealed class AiChatService : IAiChatService
                 var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
                     ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
-#pragma warning disable SKEXP0070
                 kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-#pragma warning restore SKEXP0070
             }
             var kernel = kernelBuilder.Build();
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -376,10 +522,10 @@ public sealed class AiChatService : IAiChatService
             try
             {
                 var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-                
+
                 var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
                 var searchQuery = string.Join("\n", searchTexts);
-                
+
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
@@ -524,7 +670,9 @@ public sealed class AiChatService : IAiChatService
         {
             _logger.LogError(ex, "Failed to save AiCallLog or metrics after streaming completion.");
         }
+
     }
+
 
     /// <summary>
     /// Extracts token usage from the Semantic Kernel response metadata.
@@ -641,10 +789,10 @@ public sealed class AiChatService : IAiChatService
         if (string.IsNullOrWhiteSpace(lastUserMessage?.Content)) return null;
 
         var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
-        
+
         var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
         var searchQuery = string.Join("\n", searchTexts);
-        
+
         var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
         var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 

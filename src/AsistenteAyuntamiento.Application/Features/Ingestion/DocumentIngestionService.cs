@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
 using System.Text.Json;
-#pragma warning disable SKEXP0001
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -37,7 +36,7 @@ public class DocumentIngestionService : IDocumentIngestionService
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
         var initialJobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
-        
+
         if (initialJobState != null && initialJobState.Status == "Processing")
         {
             _logger.LogWarning($"El documento {docIdFromPath} ya está en estado 'Processing'. Previniendo duplicidad.");
@@ -52,10 +51,10 @@ public class DocumentIngestionService : IDocumentIngestionService
         }
         else
         {
-            _dbContext.DocumentJobStates.Add(new DocumentJobState 
-            { 
-                DocumentId = docIdFromPath, 
-                Status = "Processing" 
+            _dbContext.DocumentJobStates.Add(new DocumentJobState
+            {
+                DocumentId = docIdFromPath,
+                Status = "Processing"
             });
         }
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -80,7 +79,7 @@ public class DocumentIngestionService : IDocumentIngestionService
         }
 
         _logger.LogInformation($"JSON descargado ({jsonContent.Length} caracteres). Deserializando...");
-        
+
         var document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         if (document == null)
@@ -88,7 +87,7 @@ public class DocumentIngestionService : IDocumentIngestionService
             _logger.LogWarning($"El blob {blobPath} no se pudo deserializar (document es null).");
             return;
         }
-        
+
         _logger.LogInformation($"DocumentId deserializado: '{document.DocumentId}', Longitud del texto: {document.Content?.Length ?? 0}");
 
         // 2. Chunking
@@ -102,7 +101,6 @@ public class DocumentIngestionService : IDocumentIngestionService
         }
         else
         {
-#pragma warning disable SKEXP0050
             var maxLines = _config.GetValue<int>("Ai:Embeddings:ChunkMaxLines", 200);
             var maxTokens = _config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
             var overlapTokens = _config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
@@ -112,7 +110,6 @@ public class DocumentIngestionService : IDocumentIngestionService
                 maxTokens,
                 overlapTokens
             );
-#pragma warning restore SKEXP0050
         }
 
         // 3. Obtener servicio de embeddings
@@ -132,7 +129,7 @@ public class DocumentIngestionService : IDocumentIngestionService
         {
             var p = paragraphs[i];
             var embedding = allEmbeddings[i].Vector;
-            
+
             var chunk = new DocumentChunk
             {
                 DocumentId = document.DocumentId,
@@ -161,21 +158,21 @@ public class DocumentIngestionService : IDocumentIngestionService
 
                 await _dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
                 await _dbContext.SaveChangesAsync(cancellationToken);
-                
+
                 // Update state to Completed using ExecuteUpdateAsync to ensure it bypasses change tracker issues
                 var updatedRows = await _dbContext.DocumentJobStates
                     .Where(j => j.DocumentId == document.DocumentId)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.Status, "Completed")
                         .SetProperty(p => p.LastUpdatedAt, DateTime.UtcNow)
-                        .SetProperty(p => p.ErrorMessage, (string?)null), 
+                        .SetProperty(p => p.ErrorMessage, (string?)null),
                         cancellationToken);
 
                 if (updatedRows == 0)
                 {
-                    _dbContext.DocumentJobStates.Add(new DocumentJobState 
-                    { 
-                        DocumentId = document.DocumentId, 
+                    _dbContext.DocumentJobStates.Add(new DocumentJobState
+                    {
+                        DocumentId = document.DocumentId,
                         Status = "Completed",
                         LastUpdatedAt = DateTime.UtcNow
                     });
@@ -183,17 +180,17 @@ public class DocumentIngestionService : IDocumentIngestionService
                 }
 
                 await transaction.CommitAsync(cancellationToken);
-                
+
                 await _notificationService?.NotifyDocumentStatusChangedAsync(document.DocumentId, "Completed");
-                
+
                 _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                
+
                 // Tratar de registrar el fallo si tenemos un DocumentId
-                try 
+                try
                 {
                     var fallbackDocId = document?.DocumentId ?? blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
                     var updatedRows = await _dbContext.DocumentJobStates
@@ -201,28 +198,27 @@ public class DocumentIngestionService : IDocumentIngestionService
                         .ExecuteUpdateAsync(s => s
                             .SetProperty(p => p.Status, "Failed")
                             .SetProperty(p => p.LastUpdatedAt, DateTime.UtcNow)
-                            .SetProperty(p => p.ErrorMessage, ex.Message), 
+                            .SetProperty(p => p.ErrorMessage, ex.Message),
                             cancellationToken);
 
                     if (updatedRows == 0)
                     {
-                        _dbContext.DocumentJobStates.Add(new DocumentJobState 
-                        { 
-                            DocumentId = fallbackDocId, 
+                        _dbContext.DocumentJobStates.Add(new DocumentJobState
+                        {
+                            DocumentId = fallbackDocId,
                             Status = "Failed",
                             LastUpdatedAt = DateTime.UtcNow,
                             ErrorMessage = ex.Message
                         });
                         await _dbContext.SaveChangesAsync(cancellationToken);
                     }
-                    
+
                     await _notificationService?.NotifyDocumentStatusChangedAsync(fallbackDocId, "Failed");
-                } 
+                }
                 catch { /* Ignore inner failure */ }
-                
+
                 throw;
             }
         });
     }
 }
-#pragma warning restore SKEXP0001

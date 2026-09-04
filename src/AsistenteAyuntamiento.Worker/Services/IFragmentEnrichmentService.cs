@@ -1,9 +1,11 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
+
 namespace AsistenteAyuntamiento.Worker.Services;
 
 public interface IFragmentEnrichmentService
 {
     Task<(string EnrichedText, int LlmCalls, int LlmTokens)> EnrichFragmentAsync(
-        string bulletin,
+        BulletinType bulletin,
         string issuingBody,
         string normTitle,
         string normSection,

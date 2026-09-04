@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,16 +18,7 @@ public class IngestionMetricsService : IIngestionMetricsService
         _logger = logger;
     }
 
-    public async Task TrackIngestionAsync(
-        string pipeline, 
-        string bulletin, 
-        string documentId, 
-        int tokensEmbedded, 
-        int llmCalls, 
-        int llmTokens, 
-        int chunksGenerated, 
-        long processingDurationMs, 
-        CancellationToken cancellationToken = default)
+    public async Task TrackIngestionAsync(PipelineType pipeline, BulletinType bulletin, string documentId, int tokensEmbedded, int llmCalls, int llmTokens, int chunksGenerated, long processingDurationMs, CancellationToken cancellationToken)
     {
         try
         {
@@ -49,7 +41,7 @@ public class IngestionMetricsService : IIngestionMetricsService
             dbContext.IngestionMetrics.Add(metric);
             await dbContext.SaveChangesAsync(cancellationToken);
             
-            _logger.LogInformation("Guardada métrica de ingesta para {DocumentId} en pipeline {Pipeline} ({Duration}ms).", documentId, pipeline, processingDurationMs);
+            _logger.LogInformation("Guardada métrica de ingesta para {DocumentId} en pipeline {Pipeline} ({Duration}ms).", documentId, pipeline, metric.ProcessingDurationMs);
         }
         catch (Exception ex)
         {

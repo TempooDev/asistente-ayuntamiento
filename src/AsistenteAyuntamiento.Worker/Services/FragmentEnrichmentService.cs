@@ -1,24 +1,18 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class FragmentEnrichmentService : IFragmentEnrichmentService
+public class FragmentEnrichmentService(Kernel kernel, ILogger<FragmentEnrichmentService> logger) : IFragmentEnrichmentService
 {
-    private readonly Kernel _kernel;
-    private readonly ILogger<FragmentEnrichmentService> _logger;
-    private readonly IChatCompletionService _chatCompletionService;
-
-    public FragmentEnrichmentService(Kernel kernel, ILogger<FragmentEnrichmentService> logger)
-    {
-        _kernel = kernel;
-        _logger = logger;
-        _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    }
+    private readonly Kernel _kernel = kernel;
+    private readonly ILogger<FragmentEnrichmentService> _logger = logger;
+    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
     public async Task<(string EnrichedText, int LlmCalls, int LlmTokens)> EnrichFragmentAsync(
-        string bulletin,
+        BulletinType bulletin,
         string issuingBody,
         string normTitle,
         string normSection,
@@ -36,16 +30,16 @@ public class FragmentEnrichmentService : IFragmentEnrichmentService
         try
         {
             var prompt = string.Format(AsistenteAyuntamiento.Application.Common.Prompts.SystemPrompts.FragmentEnrichment, originalText);
-            
+
             var result = await _chatCompletionService.GetChatMessageContentAsync(
-                prompt, 
+                prompt,
                 cancellationToken: cancellationToken);
 
             syntheticQuestions = result.Content?.Trim() ?? "";
             llmCalls = 1;
-            
+
             // Note: In a real scenario we'd parse usage metadata to get llmTokens, estimating here.
-            llmTokens = (prompt.Length + syntheticQuestions.Length) / 4; 
+            llmTokens = (prompt.Length + syntheticQuestions.Length) / 4;
         }
         catch (Exception ex)
         {

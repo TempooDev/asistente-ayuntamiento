@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using System.Diagnostics;
 using System.Text.Json;
 using Amazon.S3;
@@ -21,9 +22,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
     private readonly IIngestionMetricsService _metricsService;
     private readonly ILogger<BojaIngestionService> _logger;
 
-#pragma warning disable SKEXP0001
-    private readonly ITextEmbeddingGenerationService _embeddingService;
-#pragma warning restore SKEXP0001
+    private readonly Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>> _embeddingService;
 
     public BojaIngestionService(
         IAmazonS3 s3Client, 
@@ -38,9 +37,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
         _enrichmentService = enrichmentService;
         _metricsService = metricsService;
         _logger = logger;
-#pragma warning disable SKEXP0001
-        _embeddingService = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore SKEXP0001
+        _embeddingService = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
     }
 
     public async Task ProcessDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken)
@@ -63,7 +60,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             // 2. Parse Parent Document (Stub logic - would map actual BOJA JSON fields)
             var parentDoc = new ParentDocument
             {
-                Bulletin = DocumentSources.BOJA,
+                Bulletin = BulletinType.BOJA,
                 DocumentId = documentId,
                 NormTitle = root.TryGetProperty("titulo", out var t) ? t.GetString() ?? documentId : documentId,
                 IssuingBody = root.TryGetProperty("organismo", out var o) ? o.GetString() : "Junta de Andalucía",
@@ -86,7 +83,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
                 var normSection = $"Sección {i/chunkSize + 1}";
 
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
-                    DocumentSources.BOJA, 
+                    BulletinType.BOJA, 
                     parentDoc.IssuingBody ?? "Junta", 
                     parentDoc.NormTitle, 
                     normSection, 
@@ -97,16 +94,14 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
                 totalLlmCalls += enrichmentResult.LlmCalls;
                 totalLlmTokens += enrichmentResult.LlmTokens;
 
-#pragma warning disable SKEXP0001
-                var embeddings = await _embeddingService.GenerateEmbeddingsAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
-                var embeddingVector = new Pgvector.Vector(embeddings.First().ToArray());
+                var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
+                var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
                 totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
-#pragma warning restore SKEXP0001
 
                 var childFragment = new ChildFragment
                 {
                     ParentId = parentDoc.Id,
-                    Bulletin = DocumentSources.BOJA,
+                    Bulletin = BulletinType.BOJA,
                     SubSection = normSection,
                     ChunkText = enrichmentResult.EnrichedText,
                     Embedding = embeddingVector
@@ -119,7 +114,7 @@ public class BojaIngestionService : IHierarchicalIngestionProcessor
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             sw.Stop();
-            await _metricsService.TrackIngestionAsync(PipelineModes.HIERARCHICAL, DocumentSources.BOJA, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
+            await _metricsService.TrackIngestionAsync(PipelineType.Hierarchical, BulletinType.BOJA, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
         }
         catch (Exception ex)
         {

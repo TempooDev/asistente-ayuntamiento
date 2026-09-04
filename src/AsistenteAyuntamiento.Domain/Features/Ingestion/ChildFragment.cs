@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Pgvector;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
 
@@ -10,9 +11,7 @@ public class ChildFragment
 
     public long ParentId { get; set; }
 
-    [Required]
-    [MaxLength(10)]
-    public string Bulletin { get; set; } = string.Empty;
+    public BulletinType Bulletin { get; set; }
 
     [MaxLength(100)]
     public string? Municipality { get; set; }

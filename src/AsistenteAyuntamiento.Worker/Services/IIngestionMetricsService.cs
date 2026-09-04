@@ -1,10 +1,12 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
+
 namespace AsistenteAyuntamiento.Worker.Services;
 
 public interface IIngestionMetricsService
 {
     Task TrackIngestionAsync(
-        string pipeline, 
-        string bulletin, 
+        PipelineType pipeline, 
+        BulletinType bulletin, 
         string documentId, 
         int tokensEmbedded, 
         int llmCalls, 

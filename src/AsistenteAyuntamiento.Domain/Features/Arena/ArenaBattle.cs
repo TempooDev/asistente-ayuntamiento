@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Arena;
 
@@ -12,13 +13,9 @@ public class ArenaBattle
     [Required]
     public string UserQuery { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(30)]
-    public string LeftSystem { get; set; } = string.Empty; // 'BASELINE_6000' or 'NUEVO_HIBRIDO'
+    public PipelineType LeftSystem { get; set; }
 
-    [Required]
-    [MaxLength(30)]
-    public string RightSystem { get; set; } = string.Empty;
+    public PipelineType RightSystem { get; set; }
 
     [Required]
     public string LeftResponse { get; set; } = string.Empty;
@@ -30,15 +27,15 @@ public class ArenaBattle
 
     public int RightLatencyMs { get; set; }
 
-    [Required]
-    [MaxLength(20)]
-    public string Winner { get; set; } = string.Empty; // 'LEFT', 'RIGHT', 'TIE', 'BOTH_BAD'
+    public int LeftTokens { get; set; }
 
-    [MaxLength(20)]
-    public string? ClarityReason { get; set; } // 'LEFT', 'RIGHT', 'EQUAL'
+    public int RightTokens { get; set; }
 
-    [MaxLength(20)]
-    public string? PrecisionReason { get; set; } // 'LEFT', 'RIGHT', 'EQUAL'
+    public BattleWinner Winner { get; set; } = BattleWinner.Pending;
+
+    public EvaluationPreference? ClarityReason { get; set; }
+
+    public EvaluationPreference? PrecisionReason { get; set; }
 
     public string? OptionalComment { get; set; }
 

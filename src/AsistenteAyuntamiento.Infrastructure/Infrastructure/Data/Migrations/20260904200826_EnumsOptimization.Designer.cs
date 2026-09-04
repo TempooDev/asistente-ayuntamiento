@@ -3,6 +3,7 @@ using System;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using Pgvector;
 namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904200826_EnumsOptimization")]
+    partial class EnumsOptimization
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -77,9 +80,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Property<byte>("LeftSystem")
                         .HasColumnType("smallint");
 
-                    b.Property<int>("LeftTokens")
-                        .HasColumnType("integer");
-
                     b.Property<string>("OptionalComment")
                         .HasColumnType("text");
 
@@ -95,9 +95,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.Property<byte>("RightSystem")
                         .HasColumnType("smallint");
-
-                    b.Property<int>("RightTokens")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid");

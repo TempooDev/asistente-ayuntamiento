@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
 
@@ -7,13 +8,9 @@ public class IngestionMetric
     [Key]
     public long Id { get; set; }
 
-    [Required]
-    [MaxLength(30)]
-    public string Pipeline { get; set; } = string.Empty; // 'BASELINE_FLAT' or 'HIERARCHICAL'
+    public PipelineType Pipeline { get; set; }
 
-    [Required]
-    [MaxLength(10)]
-    public string Bulletin { get; set; } = string.Empty;
+    public BulletinType Bulletin { get; set; }
 
     [Required]
     [MaxLength(50)]
