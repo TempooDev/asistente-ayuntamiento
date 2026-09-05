@@ -28,10 +28,11 @@ export interface ChatMessage {
   betaHtml?: string;
   arenaResolved?: boolean;
   winner?: 'Alfa' | 'Beta' | 'Tie';
+  battleId?: string;
 }
 
 export interface ArenaStreamChunk {
-  option: 'Alfa' | 'Beta';
+  option: 'Alfa' | 'Beta' | 'SessionId';
   content: string;
 }
 
@@ -120,10 +121,9 @@ export class ChatService {
     return this.hubConnection!.stream('StreamArenaMessage', sessionId, message);
   }
 
-  public async voteArenaMessage(sessionId: string, messageIndex: number, vote: 'Alfa' | 'Beta' | 'Tie'): Promise<void> {
+  public async voteArenaMessage(chatSessionId: string, battleId: string, winner: 'Alfa' | 'Beta' | 'Tie'): Promise<void> {
     if (this.isConnected) {
-      // Usamos el index del mensaje, o un ID si la API lo requiriera, por simplificar usaremos índice
-      await this.hubConnection!.invoke('VoteArenaMessage', sessionId, messageIndex, vote).catch(err => console.warn('Vote mock/fallback', err));
+      await this.hubConnection!.invoke('VoteArenaMessage', { chatSessionId, battleId, winner }).catch(err => console.warn('Vote mock/fallback', err));
     }
   }
 

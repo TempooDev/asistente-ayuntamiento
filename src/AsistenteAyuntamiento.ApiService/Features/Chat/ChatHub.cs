@@ -18,11 +18,15 @@ public class ChatHub(
     CurrentTenantService tenantService,
     IChatSessionService sessionService,
     IAiChatService aiChatService,
+    AsistenteAyuntamiento.Application.Features.Arena.IArenaService arenaService,
+    AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext dbContext,
     ILogger<ChatHub> logger) : Hub
 {
     private readonly CurrentTenantService _tenantService = tenantService;
     private readonly IChatSessionService _sessionService = sessionService;
     private readonly IAiChatService _aiChatService = aiChatService;
+    private readonly AsistenteAyuntamiento.Application.Features.Arena.IArenaService _arenaService = arenaService;
+    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext _dbContext = dbContext;
     private readonly ILogger<ChatHub> _logger = logger;
 
     public async Task SendMessage(Guid sessionId, string message)
@@ -205,11 +209,7 @@ public class ChatHub(
 
         if (string.IsNullOrEmpty(userId)) return;
 
-        using var scope = Context.GetHttpContext()!.RequestServices.CreateScope();
-        var arenaService = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Application.Features.Arena.IArenaService>();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext>();
-        
-        var voteResult = await arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest 
+        var voteResult = await _arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest 
         { 
             SessionId = request.BattleId, 
             Winner = request.Winner 
@@ -219,7 +219,7 @@ public class ChatHub(
         if (session != null)
         {
             var battle = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-                dbContext.ArenaBattles, b => b.SessionId == request.BattleId);
+                _dbContext.ArenaBattles, b => b.SessionId == request.BattleId);
 
             if (battle != null)
             {

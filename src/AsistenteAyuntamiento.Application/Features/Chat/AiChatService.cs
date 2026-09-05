@@ -356,14 +356,21 @@ public sealed class AiChatService(
                 var loserBuilder = new System.Text.StringBuilder();
                 try
                 {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
+                    if (scopedAiChat == null) return "";
+
+                    // Clone history to avoid race condition
+                    var loserHistory = new ChatHistory(history.ToArray());
+
                     if (loserPipeline == PipelineType.Hierarchical)
                     {
-                        await foreach (var chunk in RunHierarchicalStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                        await foreach (var chunk in scopedAiChat.RunHierarchicalStreamingAsync(loserHistory, tenantId, userId, lastUserMessage, CancellationToken.None))
                             loserBuilder.Append(chunk);
                     }
                     else
                     {
-                        await foreach (var chunk in RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(loserHistory, tenantId, userId, lastUserMessage, CancellationToken.None))
                             loserBuilder.Append(chunk);
                     }
                 }
@@ -400,8 +407,6 @@ public sealed class AiChatService(
                     var loserResult = await loserTask;
                     var winnerResult = winnerBuilder.ToString();
 
-                    using var scope = dbContext.Database.GetDbConnection().CreateCommand();
-
                     var alfaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult);
                     var betaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult);
 
@@ -414,15 +419,15 @@ public sealed class AiChatService(
                         RightSystem = rightSystem,
                         LeftResponse = alfaResult,
                         RightResponse = betaResult,
-                        LeftLatencyMs = 0, // Simplified for now
+                        LeftLatencyMs = 0,
                         RightLatencyMs = 0,
                         Winner = BattleWinner.Pending
                     };
 
-                    // We must create a new DbContext for the background task!
-                    // Let's assume the DbContext is scoped, so we should resolve a new one if possible, 
-                    // but for this prototype, just logging it is fine, or we can just skip DB save if it fails due to context disposed.
-                    _logger.LogInformation("ArenaBattle generated. Alfa: {LeftSystem}, Beta: {RightSystem}", leftSystem, rightSystem);
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                    scopedDb.ArenaBattles.Add(battle);
+                    await scopedDb.SaveChangesAsync();
                 }
                 catch (Exception ex)
                 {
@@ -847,6 +852,9 @@ public sealed class AiChatService(
         var alfaChannel = System.Threading.Channels.Channel.CreateUnbounded<string>();
         var betaChannel = System.Threading.Channels.Channel.CreateUnbounded<string>();
 
+        var alfaHistory = new ChatHistory(history.ToArray());
+        var betaHistory = new ChatHistory(history.ToArray());
+
         var alfaTask = Task.Run(async () =>
         {
             try
@@ -868,11 +876,11 @@ public sealed class AiChatService(
                 }
                 else
                 {
-                    // For baseline, we need a scoped AiChatService or we can just instantiate a minimal scoped version of baseline logic
+                    // For baseline, we need a scoped AiChatService
                     var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
                     if (scopedAiChat != null)
                     {
-                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(alfaHistory, tenantId, userId, lastUserMessage, cancellationToken))
                             await alfaChannel.Writer.WriteAsync(chunk);
                     }
                 }
@@ -910,7 +918,7 @@ public sealed class AiChatService(
                     var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
                     if (scopedAiChat != null)
                     {
-                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, cancellationToken))
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(betaHistory, tenantId, userId, lastUserMessage, cancellationToken))
                             await betaChannel.Writer.WriteAsync(chunk);
                     }
                 }

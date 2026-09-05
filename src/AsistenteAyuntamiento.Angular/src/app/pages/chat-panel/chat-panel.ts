@@ -12,6 +12,8 @@ DOMPurify.addHook('afterSanitizeAttributes', function(node) {
   }
 });
 
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 @Component({
   selector: 'app-chat-panel',
   standalone: true,
@@ -42,10 +44,15 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
   @ViewChild('chatInput') private chatInput!: ElementRef<HTMLTextAreaElement>;
 
+  constructor() {
+    this.chatService.messageReceived$
+      .pipe(takeUntilDestroyed())
+      .subscribe((msg) => {
+        this.handleIncomingMessage(msg);
+      });
+  }
+
   async ngOnInit() {
-    this.chatService.messageReceived$.subscribe((msg) => {
-      this.handleIncomingMessage(msg);
-    });
 
     const hasSeenGuide = localStorage.getItem('has_seen_welcome_guide');
     if (!hasSeenGuide) {
@@ -260,7 +267,9 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
           }
           
           if (isArena) {
-            if (chunk.option === 'Alfa') {
+            if (chunk.option === 'SessionId') {
+              assistantMsg.battleId = chunk.content;
+            } else if (chunk.option === 'Alfa') {
               assistantMsg.alfaText += chunk.content;
               assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');
             } else if (chunk.option === 'Beta') {
@@ -339,9 +348,9 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async voteArena(msg: ChatMessage, msgIndex: number, vote: 'Alfa' | 'Beta' | 'Tie') {
-    if (!this.currentSessionId()) return;
+    if (!this.currentSessionId() || !msg.battleId) return;
     try {
-      await this.chatService.voteArenaMessage(this.currentSessionId(), msgIndex, vote);
+      await this.chatService.voteArenaMessage(this.currentSessionId(), msg.battleId, vote);
       msg.arenaResolved = true;
       msg.winner = vote;
       if (vote === 'Alfa') {
@@ -351,9 +360,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
         msg.text = msg.betaText || '';
         msg.html = msg.betaHtml || '';
       } else {
-        // Tie - just keep both or combine? Let's combine or just pick Alfa for simplicity if Tie?
-        // Wait, Arena mode usually just collapses. I'll set text to something or combine.
-        msg.text = `**Tie**\n\n**Alfa:**\n${msg.alfaText}\n\n**Beta:**\n${msg.betaText}`;
+        msg.text = `*(El usuario ha marcado un empate)*\n\n**Respuesta Alfa:**\n${msg.alfaText}\n\n**Respuesta Beta:**\n${msg.betaText}`;
         msg.html = this.renderMarkdown(msg.text);
       }
       this.messages.update(msgs => [...msgs]);
