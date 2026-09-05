@@ -36,6 +36,9 @@ jobs:
           filters: |
             ApiService:
               - 'src/AsistenteAyuntamiento.ApiService/**'
+              - 'src/AsistenteAyuntamiento.Application/**'
+              - 'src/AsistenteAyuntamiento.Infrastructure/**'
+              - 'src/AsistenteAyuntamiento.Domain/**'
               - 'src/AsistenteAyuntamiento.Shared/**'
               - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
             Gateway:
@@ -45,6 +48,9 @@ jobs:
               - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
             Worker:
               - 'src/AsistenteAyuntamiento.Worker/**'
+              - 'src/AsistenteAyuntamiento.Application/**'
+              - 'src/AsistenteAyuntamiento.Infrastructure/**'
+              - 'src/AsistenteAyuntamiento.Domain/**'
               - 'src/AsistenteAyuntamiento.Shared/**'
               - 'src/AsistenteAyuntamiento.ServiceDefaults/**'
             goscraper:
