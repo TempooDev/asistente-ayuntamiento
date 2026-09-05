@@ -33,16 +33,14 @@ public class ArenaService(
     {
         var sessionId = Guid.NewGuid();
 
-        // Start both pipelines concurrently
-        var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
-        var hierarchicalTask = RunHierarchicalPipelineAsync(request.Query, cancellationToken);
-
-        await Task.WhenAll(baselineTask, hierarchicalTask);
+        // Run pipelines sequentially to avoid DbContext concurrency issues
+        var baselineResult = await RunBaselinePipelineAsync(request.Query, cancellationToken);
+        var hierarchicalResult = await RunHierarchicalPipelineAsync(request.Query, cancellationToken);
 
         var isHierarchicalAlfa = new Random().Next(2) == 0;
 
-        var alfaResult = isHierarchicalAlfa ? hierarchicalTask.Result : baselineTask.Result;
-        var betaResult = isHierarchicalAlfa ? baselineTask.Result : hierarchicalTask.Result;
+        var alfaResult = isHierarchicalAlfa ? hierarchicalResult : baselineResult;
+        var betaResult = isHierarchicalAlfa ? baselineResult : hierarchicalResult;
 
         var battle = new ArenaBattle
         {
