@@ -281,7 +281,7 @@ public static class IngestionEndpoints
 
 
         group.MapPost("/enqueue-bulk", async (
-            [FromQuery] string pipelineMode,
+            [FromQuery] string? pipelineMode,
             [FromBody] List<AsistenteAyuntamiento.Application.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
             [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
             [FromServices] IAppDbContext dbContext,
@@ -372,10 +372,12 @@ public static class IngestionEndpoints
         .WithName("EnqueueBulkBlobs");
 
         group.MapPost("/reprocess-all", async (
-            [FromQuery] string pipelineMode,
+            [FromQuery] string? pipelineMode,
             [FromServices] Amazon.S3.IAmazonS3 s3Client,
             [FromServices] IConfiguration config,
             [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
+            [FromServices] IAppDbContext dbContext,
+            [FromServices] INotificationService notificationService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
@@ -386,18 +388,6 @@ public static class IngestionEndpoints
             {
                 logger.LogInformation($"Iniciando reprocesado masivo de todos los documentos en S3... (Mode: {mode})");
 
-                var request = new Amazon.S3.Model.ListObjectsV2Request
-                {
-                    BucketName = bucketName,
-                    Prefix = "json/"
-                };
-                var response = await s3Client.ListObjectsV2Async(request);
-
-                if (response?.S3Objects == null || response.S3Objects.Count == 0)
-                {
-                    return Results.Ok(new { message = "No se encontraron documentos en S3." });
-                }
-
                 using var connection = await connectionFactory.CreateConnectionAsync();
                 using var channel = await connection.CreateChannelAsync();
                 
@@ -407,43 +397,90 @@ public static class IngestionEndpoints
                     await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
 
                 int count = 0;
-                foreach (var s3Obj in response.S3Objects)
+                string? continuationToken = null;
+                
+                do
                 {
-                    if (string.IsNullOrEmpty(s3Obj.Key)) continue;
-
-                    var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-
-                    var message = new
+                    var request = new Amazon.S3.Model.ListObjectsV2Request
                     {
-                        source = "S3",
-                        document_id = docId,
-                        blob_path = s3Obj.Key
+                        BucketName = bucketName,
+                        Prefix = "json/",
+                        ContinuationToken = continuationToken
                     };
+                    
+                    var response = await s3Client.ListObjectsV2Async(request);
 
-                    var json = System.Text.Json.JsonSerializer.Serialize(message);
-                    var body = System.Text.Encoding.UTF8.GetBytes(json);
-
-                    if (mode == "BASELINE" || mode == "BOTH")
+                    if (response?.S3Objects != null)
                     {
-                        await channel.BasicPublishAsync(
-                            exchange: string.Empty,
-                            routingKey: "documents_to_process_baseline",
-                            mandatory: false,
-                            basicProperties: new RabbitMQ.Client.BasicProperties(),
-                            body: body);
-                    }
+                        foreach (var s3Obj in response.S3Objects)
+                        {
+                            if (string.IsNullOrEmpty(s3Obj.Key)) continue;
 
-                    if (mode == "HIERARCHICAL" || mode == "BOTH")
-                    {
-                        await channel.BasicPublishAsync(
-                            exchange: string.Empty,
-                            routingKey: "documents_to_process_hierarchical",
-                            mandatory: false,
-                            basicProperties: new RabbitMQ.Client.BasicProperties(),
-                            body: body);
-                    }
+                            var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
 
-                    count++;
+                            var message = new
+                            {
+                                source = "S3",
+                                document_id = docId,
+                                blob_path = s3Obj.Key
+                            };
+
+                            var json = System.Text.Json.JsonSerializer.Serialize(message);
+                            var body = System.Text.Encoding.UTF8.GetBytes(json);
+
+                            if (mode == "BASELINE" || mode == "BOTH")
+                            {
+                                await channel.BasicPublishAsync(
+                                    exchange: string.Empty,
+                                    routingKey: "documents_to_process_baseline",
+                                    mandatory: false,
+                                    basicProperties: new RabbitMQ.Client.BasicProperties(),
+                                    body: body);
+                            }
+
+                            if (mode == "HIERARCHICAL" || mode == "BOTH")
+                            {
+                                await channel.BasicPublishAsync(
+                                    exchange: string.Empty,
+                                    routingKey: "documents_to_process_hierarchical",
+                                    mandatory: false,
+                                    basicProperties: new RabbitMQ.Client.BasicProperties(),
+                                    body: body);
+                            }
+                            
+                            // Update job state
+                            var jobState = await dbContext.DocumentJobStates.FindAsync(docId);
+                            if (jobState != null)
+                            {
+                                jobState.Status = "Queued";
+                                jobState.LastUpdatedAt = DateTime.UtcNow;
+                            }
+                            else
+                            {
+                                dbContext.DocumentJobStates.Add(new DocumentJobState
+                                {
+                                    DocumentId = docId,
+                                    Status = "Queued",
+                                    CreatedAt = DateTime.UtcNow,
+                                    LastUpdatedAt = DateTime.UtcNow
+                                });
+                            }
+
+                            await notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
+
+                            count++;
+                        }
+                        
+                        await dbContext.SaveChangesAsync();
+                    }
+                    
+                    continuationToken = response?.NextContinuationToken;
+                    
+                } while (!string.IsNullOrEmpty(continuationToken));
+
+                if (count == 0)
+                {
+                    return Results.Ok(new { message = "No se encontraron documentos en S3." });
                 }
 
                 return Results.Ok(new { message = $"Se han encolado {count} documentos en las colas seleccionadas para reprocesado masivo." });
