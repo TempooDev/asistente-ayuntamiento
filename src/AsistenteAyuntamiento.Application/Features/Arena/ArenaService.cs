@@ -15,15 +15,15 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.AI;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaService(
     IAppDbContext dbContext,
-    IQueryExpansionService expansionService,
-    IHybridRetrievalService retrievalService,
-    IClearLanguageGenerationService generationService,
+    IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
-    ILogger<ArenaService> _logger) : IArenaService
+    ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
@@ -33,16 +33,28 @@ public class ArenaService(
     {
         var sessionId = Guid.NewGuid();
 
-        // Start both pipelines concurrently
+        // Start baseline pipeline in the current scope
         var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
-        var hierarchicalTask = RunHierarchicalPipelineAsync(request.Query, cancellationToken);
+
+        // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
+        var hierarchicalTask = Task.Run(async () =>
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var scopedExpansion = scope.ServiceProvider.GetRequiredService<IQueryExpansionService>();
+            var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
+            var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
+            
+            return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
+        }, cancellationToken);
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
+        var baselineResult = baselineTask.Result;
+        var hierarchicalResult = hierarchicalTask.Result;
 
-        var isHierarchicalAlfa = new Random().Next(2) == 0;
+        var isHierarchicalAlfa = Random.Shared.Next(2) == 0;
 
-        var alfaResult = isHierarchicalAlfa ? hierarchicalTask.Result : baselineTask.Result;
-        var betaResult = isHierarchicalAlfa ? baselineTask.Result : hierarchicalTask.Result;
+        var alfaResult = isHierarchicalAlfa ? hierarchicalResult : baselineResult;
+        var betaResult = isHierarchicalAlfa ? baselineResult : hierarchicalResult;
 
         var battle = new ArenaBattle
         {
@@ -82,7 +94,10 @@ public class ArenaService(
         if (battle == null)
             throw new Exception("Battle session not found");
 
-        if (Enum.TryParse<BattleWinner>(request.Winner, true, out var w)) battle.Winner = w;
+        if (!Enum.TryParse<BattleWinner>(request.Winner, true, out var w))
+            throw new ArgumentException("Invalid winner value provided.", nameof(request.Winner));
+
+        battle.Winner = w;
         if (Enum.TryParse<EvaluationPreference>(request.ClarityReason, true, out var c)) battle.ClarityReason = c;
         if (Enum.TryParse<EvaluationPreference>(request.PrecisionReason, true, out var p)) battle.PrecisionReason = p;
         battle.OptionalComment = request.OptionalComment;
@@ -106,6 +121,7 @@ public class ArenaService(
 
             
             var topChunks = await dbContext.DocumentChunks
+                .AsNoTracking()
                 .OrderBy(x => x.Embedding!.CosineDistance(queryVector))
                 .Take(5)
                 .ToListAsync(cancellationToken);
@@ -125,21 +141,26 @@ Documentos:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in Baseline pipeline");
+            logger.LogError(ex, "Error in Baseline pipeline");
             sw.Stop();
             return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, [], 0);
         }
     }
 
-    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineScopedAsync(
+        string query, 
+        IQueryExpansionService scopedExpansion,
+        IHybridRetrievalService scopedRetrieval,
+        IClearLanguageGenerationService scopedGeneration,
+        CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            var expandedQuery = await expansionService.ExpandQueryAsync(query, cancellationToken);
-            var retrievalResults = await retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+            var expandedQuery = await scopedExpansion.ExpandQueryAsync(query, cancellationToken);
+            var retrievalResults = await scopedRetrieval.RetrieveAsync(expandedQuery, 5, cancellationToken);
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
-            var response = await generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
+            var response = await scopedGeneration.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
             
             // Rough estimation for hierarchical (expanded query, retrieval, generation)
@@ -150,7 +171,7 @@ Documentos:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in Hierarchical pipeline");
+            logger.LogError(ex, "Error in Hierarchical pipeline");
             sw.Stop();
             return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, [], 0);
         }

@@ -60,9 +60,9 @@ public class HybridRetrievalService(
         var parameters = new[]
         {
             new Npgsql.NpgsqlParameter("@embedding", npgsqlVector),
-            new Npgsql.NpgsqlParameter("@tsquery", queryInfo.QueryLexica),
+            new Npgsql.NpgsqlParameter("@tsquery", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object)queryInfo.QueryLexica ?? DBNull.Value },
             new Npgsql.NpgsqlParameter("@municipio", NpgsqlTypes.NpgsqlDbType.Text) { Value = municipioParam },
-            new Npgsql.NpgsqlParameter("@limit", limit)
+            new Npgsql.NpgsqlParameter("@limit", NpgsqlTypes.NpgsqlDbType.Integer) { Value = limit }
         };
 
         var fragmentScores = await dbContext.Database.SqlQueryRaw<RrfRow>(sql, parameters)
