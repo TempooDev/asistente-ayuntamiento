@@ -33,7 +33,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<DocumentChunk>().ToTable("chunks_baseline_v1", "ingestion");
+        modelBuilder.Entity<DocumentChunk>().ToTable("DocumentChunks", "ingestion");
 
         // Habilitar pgvector
         modelBuilder.HasPostgresExtension("vector");
