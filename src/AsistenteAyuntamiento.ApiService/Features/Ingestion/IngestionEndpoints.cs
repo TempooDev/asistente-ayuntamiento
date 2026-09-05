@@ -490,7 +490,7 @@ public static class IngestionEndpoints
                         }
                         
                         await dbContext.SaveChangesAsync();
-                        dbContext.ChangeTracker.Clear();
+                        ((Microsoft.EntityFrameworkCore.DbContext)dbContext).ChangeTracker.Clear();
                     }
                     
                     continuationToken = response?.NextContinuationToken;
