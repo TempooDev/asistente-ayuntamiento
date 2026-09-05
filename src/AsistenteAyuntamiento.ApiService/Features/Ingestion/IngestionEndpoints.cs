@@ -302,10 +302,20 @@ public static class IngestionEndpoints
                 if (mode == "HIERARCHICAL" || mode == "BOTH")
                     await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
 
+                var docIds = requests
+                    .Select(r => r.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .ToList();
+                
+                var existingJobStates = await dbContext.DocumentJobStates
+                    .Where(j => docIds.Contains(j.DocumentId))
+                    .ToDictionaryAsync(j => j.DocumentId);
+
                 int count = 0;
                 foreach (var req in requests)
                 {
                     var docId = req.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                    if (string.IsNullOrEmpty(docId)) continue;
 
                     var message = new
                     {
@@ -338,8 +348,7 @@ public static class IngestionEndpoints
                     }
 
                     // Update job state
-                    var jobState = await dbContext.DocumentJobStates.FindAsync(docId);
-                    if (jobState != null)
+                    if (existingJobStates.TryGetValue(docId, out var jobState))
                     {
                         jobState.Status = "Queued";
                         jobState.LastUpdatedAt = DateTime.UtcNow;
@@ -410,13 +419,23 @@ public static class IngestionEndpoints
                     
                     var response = await s3Client.ListObjectsV2Async(request);
 
-                    if (response?.S3Objects != null)
+                    if (response?.S3Objects != null && response.S3Objects.Count > 0)
                     {
+                        var batchDocIds = response.S3Objects
+                            .Select(o => o.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
+                            .Where(id => !string.IsNullOrEmpty(id))
+                            .ToList();
+                            
+                        var existingJobStates = await dbContext.DocumentJobStates
+                            .Where(j => batchDocIds.Contains(j.DocumentId))
+                            .ToDictionaryAsync(j => j.DocumentId);
+
                         foreach (var s3Obj in response.S3Objects)
                         {
                             if (string.IsNullOrEmpty(s3Obj.Key)) continue;
 
                             var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                            if (string.IsNullOrEmpty(docId)) continue;
 
                             var message = new
                             {
@@ -449,8 +468,7 @@ public static class IngestionEndpoints
                             }
                             
                             // Update job state
-                            var jobState = await dbContext.DocumentJobStates.FindAsync(docId);
-                            if (jobState != null)
+                            if (existingJobStates.TryGetValue(docId, out var jobState))
                             {
                                 jobState.Status = "Queued";
                                 jobState.LastUpdatedAt = DateTime.UtcNow;
@@ -472,6 +490,7 @@ public static class IngestionEndpoints
                         }
                         
                         await dbContext.SaveChangesAsync();
+                        dbContext.ChangeTracker.Clear();
                     }
                     
                     continuationToken = response?.NextContinuationToken;
