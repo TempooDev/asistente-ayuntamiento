@@ -37,8 +37,9 @@ public class BoeIngestionService(
 
         try
         {
-            // 1. Download XML from S3
-            using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = blobPath }, cancellationToken);
+            // 1. Download XML from S3 (the queue message sends the json path, we need the raw xml path)
+            var xmlBlobPath = $"raw-xml/BOE/{documentId}.xml";
+            using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = xmlBlobPath }, cancellationToken);
             var xDoc = await XDocument.LoadAsync(response.ResponseStream, LoadOptions.None, cancellationToken);
 
             // 2. Parse Parent Document (Stub logic - would map actual BOE XML fields)
