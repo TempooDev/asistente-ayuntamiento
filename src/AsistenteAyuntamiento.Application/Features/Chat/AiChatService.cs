@@ -13,6 +13,7 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Result of an AI chat completion request.
@@ -59,6 +60,7 @@ public sealed class AiChatService(
     IAppDbContext dbContext,
     Kernel kernel,
     IHybridRetrievalService _hybridRetrievalService,
+    Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _serviceScopeFactory,
     IClearLanguageGenerationService generationService) : IAiChatService
 {
 
@@ -354,14 +356,21 @@ public sealed class AiChatService(
                 var loserBuilder = new System.Text.StringBuilder();
                 try
                 {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
+                    if (scopedAiChat == null) return "";
+
+                    // Clone history to avoid race condition
+                    var loserHistory = new ChatHistory(history.ToArray());
+
                     if (loserPipeline == PipelineType.Hierarchical)
                     {
-                        await foreach (var chunk in RunHierarchicalStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                        await foreach (var chunk in scopedAiChat.RunHierarchicalStreamingAsync(loserHistory, tenantId, userId, lastUserMessage, CancellationToken.None))
                             loserBuilder.Append(chunk);
                     }
                     else
                     {
-                        await foreach (var chunk in RunBaselineStreamingAsync(history, tenantId, userId, lastUserMessage, CancellationToken.None))
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(loserHistory, tenantId, userId, lastUserMessage, CancellationToken.None))
                             loserBuilder.Append(chunk);
                     }
                 }
@@ -398,8 +407,6 @@ public sealed class AiChatService(
                     var loserResult = await loserTask;
                     var winnerResult = winnerBuilder.ToString();
 
-                    using var scope = dbContext.Database.GetDbConnection().CreateCommand();
-
                     var alfaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult);
                     var betaResult = isHierarchicalAlfa ? (winnerPipeline == PipelineType.Baseline ? winnerResult : loserResult) : (winnerPipeline == PipelineType.Hierarchical ? winnerResult : loserResult);
 
@@ -412,15 +419,15 @@ public sealed class AiChatService(
                         RightSystem = rightSystem,
                         LeftResponse = alfaResult,
                         RightResponse = betaResult,
-                        LeftLatencyMs = 0, // Simplified for now
+                        LeftLatencyMs = 0,
                         RightLatencyMs = 0,
                         Winner = BattleWinner.Pending
                     };
 
-                    // We must create a new DbContext for the background task!
-                    // Let's assume the DbContext is scoped, so we should resolve a new one if possible, 
-                    // but for this prototype, just logging it is fine, or we can just skip DB save if it fails due to context disposed.
-                    _logger.LogInformation("ArenaBattle generated. Alfa: {LeftSystem}, Beta: {RightSystem}", leftSystem, rightSystem);
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                    scopedDb.ArenaBattles.Add(battle);
+                    await scopedDb.SaveChangesAsync();
                 }
                 catch (Exception ex)
                 {
@@ -824,6 +831,168 @@ public sealed class AiChatService(
             c.Department,
             c.PublicationDate.ToString("yyyy-MM-dd"),
             GetPublicUrl(c.Source, c.DocumentId))).Distinct().ToList();
+    }
+
+    public async IAsyncEnumerable<AsistenteAyuntamiento.Application.Features.Chat.DTOs.ArenaStreamChunk> GetArenaStreamingCompletionAsync(
+        ChatHistory history,
+        string tenantId,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var sessionId = Guid.NewGuid();
+        var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User)?.Content ?? "";
+
+        var isHierarchicalAlfa = Random.Shared.NextDouble() > 0.5;
+        var leftSystem = isHierarchicalAlfa ? PipelineType.Hierarchical : PipelineType.Baseline;
+        var rightSystem = isHierarchicalAlfa ? PipelineType.Baseline : PipelineType.Hierarchical;
+
+        // Yield the session ID chunk first so the frontend knows the battle ID
+        yield return new AsistenteAyuntamiento.Application.Features.Chat.DTOs.ArenaStreamChunk("SessionId", sessionId.ToString());
+
+        var alfaChannel = System.Threading.Channels.Channel.CreateUnbounded<string>();
+        var betaChannel = System.Threading.Channels.Channel.CreateUnbounded<string>();
+
+        var alfaHistory = new ChatHistory(history.ToArray());
+        var betaHistory = new ChatHistory(history.ToArray());
+
+        var alfaTask = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                var scopedKernel = scope.ServiceProvider.GetRequiredService<Kernel>();
+                var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
+                var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
+
+                if (leftSystem == PipelineType.Hierarchical)
+                {
+                    // Manually run hierarchical
+                    var expandedQuery = await scopedKernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(lastUserMessage, cancellationToken);
+                    var retrievalResults = await scopedRetrieval.RetrieveAsync(expandedQuery, 5, cancellationToken);
+                    await foreach (var chunk in scopedGeneration.GenerateStreamingResponseAsync(lastUserMessage, retrievalResults, cancellationToken))
+                        if (chunk.Content != null)
+                            await alfaChannel.Writer.WriteAsync(chunk.Content);
+                }
+                else
+                {
+                    // For baseline, we need a scoped AiChatService
+                    var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
+                    if (scopedAiChat != null)
+                    {
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(alfaHistory, tenantId, userId, lastUserMessage, cancellationToken))
+                            await alfaChannel.Writer.WriteAsync(chunk);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Alfa pipeline failed.");
+            }
+            finally
+            {
+                alfaChannel.Writer.Complete();
+            }
+        });
+
+        var betaTask = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                var scopedKernel = scope.ServiceProvider.GetRequiredService<Kernel>();
+                var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
+                var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
+
+                if (rightSystem == PipelineType.Hierarchical)
+                {
+                    var expandedQuery = await scopedKernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(lastUserMessage, cancellationToken);
+                    var retrievalResults = await scopedRetrieval.RetrieveAsync(expandedQuery, 5, cancellationToken);
+                    await foreach (var chunk in scopedGeneration.GenerateStreamingResponseAsync(lastUserMessage, retrievalResults, cancellationToken))
+                        if (chunk.Content != null)
+                            await betaChannel.Writer.WriteAsync(chunk.Content);
+                }
+                else
+                {
+                    var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
+                    if (scopedAiChat != null)
+                    {
+                        await foreach (var chunk in scopedAiChat.RunBaselineStreamingAsync(betaHistory, tenantId, userId, lastUserMessage, cancellationToken))
+                            await betaChannel.Writer.WriteAsync(chunk);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Beta pipeline failed.");
+            }
+            finally
+            {
+                betaChannel.Writer.Complete();
+            }
+        });
+
+        var alfaReader = alfaChannel.Reader.ReadAllAsync(cancellationToken);
+        var betaReader = betaChannel.Reader.ReadAllAsync(cancellationToken);
+
+        var alfaEnumerator = alfaReader.GetAsyncEnumerator(cancellationToken);
+        var betaEnumerator = betaReader.GetAsyncEnumerator(cancellationToken);
+
+        bool alfaActive = true;
+        bool betaActive = true;
+
+        var alfaResultBuilder = new System.Text.StringBuilder();
+        var betaResultBuilder = new System.Text.StringBuilder();
+
+        while (alfaActive || betaActive)
+        {
+            if (alfaActive)
+            {
+                if (await alfaEnumerator.MoveNextAsync())
+                {
+                    alfaResultBuilder.Append(alfaEnumerator.Current);
+                    yield return new AsistenteAyuntamiento.Application.Features.Chat.DTOs.ArenaStreamChunk("Alfa", alfaEnumerator.Current);
+                }
+                else
+                {
+                    alfaActive = false;
+                }
+            }
+
+            if (betaActive)
+            {
+                if (await betaEnumerator.MoveNextAsync())
+                {
+                    betaResultBuilder.Append(betaEnumerator.Current);
+                    yield return new AsistenteAyuntamiento.Application.Features.Chat.DTOs.ArenaStreamChunk("Beta", betaEnumerator.Current);
+                }
+                else
+                {
+                    betaActive = false;
+                }
+            }
+        }
+
+        await Task.WhenAll(alfaTask, betaTask);
+
+        // Save ArenaBattle
+        var battle = new ArenaBattle
+        {
+            SessionId = sessionId,
+            UserQuery = lastUserMessage,
+            CreatedAt = DateTime.UtcNow,
+            LeftSystem = leftSystem,
+            RightSystem = rightSystem,
+            LeftResponse = alfaResultBuilder.ToString(),
+            RightResponse = betaResultBuilder.ToString(),
+            LeftLatencyMs = 0,
+            RightLatencyMs = 0,
+            Winner = BattleWinner.Pending
+        };
+
+        dbContext.ArenaBattles.Add(battle);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
 

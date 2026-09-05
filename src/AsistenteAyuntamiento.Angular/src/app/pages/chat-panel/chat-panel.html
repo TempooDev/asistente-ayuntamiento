@@ -46,17 +46,47 @@
     <!-- Main Chat Area -->
     <div class="chat-main flex-1 flex flex-col h-full bg-secondary-bg min-w-0">
         <!-- Mobile Header -->
-        <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0">
-            <button class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" (click)="toggleSidebar()">
-                <span class="material-symbols-outlined">menu</span>
-            </button>
-            <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
+        <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0 justify-between">
+            <div class="flex items-center">
+                <button class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" (click)="toggleSidebar()">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <button (click)="openWelcomeGuide()" class="text-gray-500 hover:text-primary transition-colors p-1" title="Ayuda">
+                    <span class="material-symbols-outlined text-[20px]">help</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-gray-600">Arena</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" value="" class="sr-only peer" [checked]="arenaMode()" (change)="toggleArenaMode()">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                </div>
+            </div>
         </div>
 
         <!-- Chat Header (Desktop) -->
-        <div class="hidden md:block px-margin-desktop py-4 shrink-0 bg-white border-b border-gray-200">
-            <h1 class="text-headline-lg font-bold text-gray-900 mb-1">Asistente Virtual</h1>
-            <p class="text-body-sm text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+        <div class="hidden md:flex px-margin-desktop py-4 shrink-0 bg-white border-b border-gray-200 justify-between items-center">
+            <div>
+                <h1 class="text-headline-lg font-bold text-gray-900 mb-1">Asistente Virtual</h1>
+                <p class="text-body-sm text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+            </div>
+            <div class="flex items-center gap-6">
+                <button (click)="openWelcomeGuide()" class="flex items-center gap-1.5 text-gray-500 hover:text-primary transition-colors text-sm font-medium">
+                    <span class="material-symbols-outlined text-[20px]">help</span>
+                    Ayuda
+                </button>
+                <div class="w-px h-6 bg-gray-200"></div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-600">Modo Arena</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" value="" class="sr-only peer" [checked]="arenaMode()" (change)="toggleArenaMode()">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                </div>
+            </div>
         </div>
 
         <!-- Messages Area -->
@@ -75,11 +105,48 @@
             } @else {
                 <div class="chat-container w-full max-w-3xl mx-auto pb-4">
                     @for (msg of messages(); track $index) {
-                        <div class="chat-bubble shadow-sm" [class.citizen]="msg.isUser" [class.assistant]="!msg.isUser">
+                        <div class="w-full flex flex-col" [class.items-end]="msg.isUser" [class.items-start]="!msg.isUser">
                             @if (msg.isUser) {
-                                <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
+                                <div class="chat-bubble shadow-sm citizen">
+                                    <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
+                                </div>
+                            } @else if (msg.isArena && !msg.arenaResolved) {
+                                <div class="w-full flex flex-col md:flex-row gap-4 mb-2">
+                                    <div class="chat-bubble shadow-sm assistant flex-1 cursor-pointer hover:ring-2 hover:ring-primary hover:shadow-md transition-all relative group" (click)="voteArena(msg, $index, 'Alfa')" title="Votar por Alfa">
+                                        <div class="absolute inset-0 bg-primary/5 rounded-[20px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 pointer-events-none">
+                                            <div class="bg-white px-4 py-2 rounded-full shadow-md text-primary font-bold flex items-center gap-2">
+                                                <span class="material-symbols-outlined">thumb_up</span>
+                                                Elegir esta respuesta
+                                            </div>
+                                        </div>
+                                        <div class="text-xs font-bold text-gray-400 mb-1">Modelo Alfa</div>
+                                        <div class="markdown-content" [innerHTML]="msg.alfaHtml"></div>
+                                    </div>
+                                    
+                                    <div class="flex items-center justify-center shrink-0">
+                                        <button class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-sm transition-colors" (click)="voteArena(msg, $index, 'Tie')">
+                                            Empate
+                                        </button>
+                                    </div>
+
+                                    <div class="chat-bubble shadow-sm assistant flex-1 cursor-pointer hover:ring-2 hover:ring-primary hover:shadow-md transition-all relative group" (click)="voteArena(msg, $index, 'Beta')" title="Votar por Beta">
+                                        <div class="absolute inset-0 bg-primary/5 rounded-[20px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 pointer-events-none">
+                                            <div class="bg-white px-4 py-2 rounded-full shadow-md text-primary font-bold flex items-center gap-2">
+                                                <span class="material-symbols-outlined">thumb_up</span>
+                                                Elegir esta respuesta
+                                            </div>
+                                        </div>
+                                        <div class="text-xs font-bold text-gray-400 mb-1">Modelo Beta</div>
+                                        <div class="markdown-content" [innerHTML]="msg.betaHtml"></div>
+                                    </div>
+                                </div>
                             } @else {
-                                <div class="markdown-content" [innerHTML]="msg.html"></div>
+                                <div class="chat-bubble shadow-sm assistant">
+                                    @if (msg.arenaResolved) {
+                                        <div class="text-xs font-bold text-green-600 mb-1">Ganador: {{ msg.winner }}</div>
+                                    }
+                                    <div class="markdown-content" [innerHTML]="msg.html"></div>
+                                </div>
                             }
                         </div>
                     }
@@ -153,5 +220,10 @@
                 </div>
             </div>
         </div>
+    }
+
+    <!-- Welcome Guide Modal -->
+    @if (showWelcomeGuide()) {
+        <app-welcome-guide (dismiss)="closeWelcomeGuide()"></app-welcome-guide>
     }
 </div>

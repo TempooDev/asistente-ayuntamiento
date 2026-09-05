@@ -21,6 +21,19 @@ export interface ChatMessage {
   text: string;
   isUser: boolean;
   html?: string;
+  isArena?: boolean;
+  alfaText?: string;
+  alfaHtml?: string;
+  betaText?: string;
+  betaHtml?: string;
+  arenaResolved?: boolean;
+  winner?: 'Alfa' | 'Beta' | 'Tie';
+  battleId?: string;
+}
+
+export interface ArenaStreamChunk {
+  option: 'Alfa' | 'Beta' | 'SessionId';
+  content: string;
 }
 
 @Injectable({
@@ -99,6 +112,19 @@ export class ChatService {
       throw new Error('Not connected');
     }
     return this.hubConnection!.stream('StreamMessage', sessionId, message);
+  }
+
+  public streamArenaMessage(sessionId: string, message: string): signalR.IStreamResult<ArenaStreamChunk> {
+    if (!this.isConnected) {
+      throw new Error('Not connected');
+    }
+    return this.hubConnection!.stream('StreamArenaMessage', sessionId, message);
+  }
+
+  public async voteArenaMessage(chatSessionId: string, battleId: string, winner: 'Alfa' | 'Beta' | 'Tie'): Promise<void> {
+    if (this.isConnected) {
+      await this.hubConnection!.invoke('VoteArenaMessage', { chatSessionId, battleId, winner }).catch(err => console.warn('Vote mock/fallback', err));
+    }
   }
 
   public async disconnect(): Promise<void> {
