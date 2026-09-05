@@ -76,16 +76,42 @@ public class HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvide
                 if (docMsg != null && !string.IsNullOrEmpty(docMsg.BlobPath))
                 {
                     using var scope = _serviceProvider.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Infrastructure.Data.AppDbContext>();
+                    
+                    var jobState = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                        dbContext.DocumentJobStates, j => j.DocumentId == docMsg.DocumentId, stoppingToken);
+                        
+                    if (jobState != null)
+                    {
+                        jobState.Status = "Processing";
+                        jobState.LastUpdatedAt = DateTime.UtcNow;
+                        await dbContext.SaveChangesAsync(stoppingToken);
+                    }
+
                     var sourceKey = docMsg.Source.ToUpperInvariant();
                     var processor = scope.ServiceProvider.GetKeyedService<IHierarchicalIngestionProcessor>(sourceKey);
 
                     if (processor != null)
                     {
                         await processor.ProcessDocumentAsync(docMsg.BlobPath, docMsg.DocumentId, stoppingToken);
+                        
+                        if (jobState != null)
+                        {
+                            jobState.Status = "Completed";
+                            jobState.LastUpdatedAt = DateTime.UtcNow;
+                            await dbContext.SaveChangesAsync(stoppingToken);
+                        }
                     }
                     else
                     {
                         _logger.LogWarning("No processor found for source {Source}", docMsg.Source);
+                        if (jobState != null)
+                        {
+                            jobState.Status = "Failed";
+                            jobState.ErrorMessage = $"No processor found for source {docMsg.Source}";
+                            jobState.LastUpdatedAt = DateTime.UtcNow;
+                            await dbContext.SaveChangesAsync(stoppingToken);
+                        }
                     }
                 }
 
@@ -94,6 +120,27 @@ public class HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvide
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error crítico procesando el documento jerárquico.");
+                
+                try 
+                {
+                    var docMsg = JsonSerializer.Deserialize<DocumentMessage>(message, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (docMsg != null)
+                    {
+                        using var scope = _serviceProvider.CreateScope();
+                        var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Infrastructure.Data.AppDbContext>();
+                        var jobState = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                            dbContext.DocumentJobStates, j => j.DocumentId == docMsg.DocumentId, stoppingToken);
+                        if (jobState != null)
+                        {
+                            jobState.Status = "Failed";
+                            jobState.ErrorMessage = ex.Message;
+                            jobState.LastUpdatedAt = DateTime.UtcNow;
+                            await dbContext.SaveChangesAsync(stoppingToken);
+                        }
+                    }
+                } 
+                catch { /* Ignore inner exceptions */ }
+
                 await _channel.BasicNackAsync(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: stoppingToken);
             }
         };

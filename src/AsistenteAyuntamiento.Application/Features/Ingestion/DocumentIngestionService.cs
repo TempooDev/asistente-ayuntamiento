@@ -26,12 +26,6 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
         var initialJobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
 
-        if (initialJobState != null && initialJobState.Status == "Processing")
-        {
-            _logger.LogWarning($"El documento {docIdFromPath} ya está en estado 'Processing'. Previniendo duplicidad.");
-            return;
-        }
-
         if (initialJobState != null)
         {
             initialJobState.Status = "Processing";
