@@ -2,13 +2,25 @@
     <h2 class="font-headline-lg mb-sm">Documentos en Almacenamiento</h2>
     <div class="flex justify-between items-center mb-md">
                 <p class="m-0">Aquí puedes ver los documentos alojados en el sistema y si han sido procesados por el motor de búsqueda.</p>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
+            <select class="px-2 py-1 border rounded bg-surface" 
+                    [ngModel]="selectedPipelineMode()" 
+                    (ngModelChange)="selectedPipelineMode.set($event)">
+                <option value="BOTH">Ambos pipelines</option>
+                <option value="BASELINE">Solo Flat-Chunk (Antiguo)</option>
+                <option value="HIERARCHICAL">Solo Jerárquico (Nuevo)</option>
+            </select>
+            
             @if (selectedBlobs().size > 0) {
                 <button class="btn btn-sm btn-primary rounded px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                         (click)="enqueueSelected()">
                     Encolar seleccionados ({{ selectedBlobs().size }})
                 </button>
             }
+            <button class="btn btn-sm btn-primary rounded px-3 py-1 bg-green-600 text-white hover:bg-green-700 transition-colors"
+                    (click)="reprocessAll()">
+                Reprocesar todo el histórico
+            </button>
             <button class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
                     (click)="resetStuckProcessing()">
                 Reiniciar colgados en 'Procesando'

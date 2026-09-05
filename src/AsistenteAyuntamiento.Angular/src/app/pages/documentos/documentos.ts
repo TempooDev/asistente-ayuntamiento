@@ -22,6 +22,7 @@ export class DocumentosComponent implements OnInit, OnDestroy {
   totalFilteredCount = signal(0);
   statusMessage = signal('');
   isLoading = signal(false);
+  selectedPipelineMode = signal('BOTH');
   
   // Filters
   searchTerm = signal('');
@@ -221,7 +222,7 @@ export class DocumentosComponent implements OnInit, OnDestroy {
     });
     
     try {
-        const result = await this.ingestionService.enqueueBulk(requests);
+        const result = await this.ingestionService.enqueueBulk(requests, this.selectedPipelineMode());
         this.statusMessage.set(result);
         
         // Mark locally as Queued
@@ -267,6 +268,20 @@ export class DocumentosComponent implements OnInit, OnDestroy {
       await this.loadBlobs();
     } catch (ex: any) {
       this.statusMessage.set(`Error al reiniciar documentos colgados: ${ex.message || ex}`);
+    }
+  }
+
+  async reprocessAll() {
+    try {
+      if (!confirm('¿Estás seguro de que quieres encolar todos los documentos para su reprocesado masivo?')) {
+        return;
+      }
+      this.statusMessage.set('Iniciando reprocesado masivo...');
+      const result = await this.ingestionService.reprocessAllBlobs(this.selectedPipelineMode());
+      this.statusMessage.set(result);
+      await this.loadBlobs();
+    } catch (ex: any) {
+      this.statusMessage.set(`Error al iniciar el reprocesado masivo: ${ex.message || ex}`);
     }
   }
 

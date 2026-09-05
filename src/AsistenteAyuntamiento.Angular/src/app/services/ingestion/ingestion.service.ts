@@ -63,9 +63,10 @@ export class IngestionService {
     return result?.message ?? "Procesado correctamente.";
   }
 
-  async enqueueBulk(blobs: { blobPath: string, source: string }[]): Promise<string> {
+  async enqueueBulk(blobs: { blobPath: string, source: string }[], pipelineMode: string = 'BOTH'): Promise<string> {
+    const params = new HttpParams().set('pipelineMode', pipelineMode);
     const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/enqueue-bulk`, blobs)
+      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/enqueue-bulk`, blobs, { params })
     );
     return result?.message ?? "Documentos encolados correctamente.";
   }
@@ -82,5 +83,13 @@ export class IngestionService {
       this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-stuck-processing`, {})
     );
     return result?.message ?? "Documentos colgados reiniciados correctamente.";
+  }
+
+  async reprocessAllBlobs(pipelineMode: string = 'BOTH'): Promise<string> {
+    const params = new HttpParams().set('pipelineMode', pipelineMode);
+    const result = await firstValueFrom(
+      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reprocess-all`, {}, { params })
+    );
+    return result?.message ?? "Reprocesado masivo iniciado correctamente.";
   }
 }

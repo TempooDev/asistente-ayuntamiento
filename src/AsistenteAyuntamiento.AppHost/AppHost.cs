@@ -151,32 +151,61 @@ goScraper.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
 
 apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
-// var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker")
-//     .WithReference(db)
-//     .WithReference(rabbitmq)
-//     .WithReference(ollama)
-//     .WaitFor(db)
-//     .WaitFor(rabbitmq)
-//     .WaitFor(ollama)
-//     .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
-//     .WithEnvironment("Ai__Chat__Model", aiChatModel)
-//     .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
-//     .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
-//     .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
-//     .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-baseline")
+    .WithReference(db)
+    .WithReference(rabbitmq)
+    .WithReference(ollama)
+    .WaitFor(db)
+    .WaitFor(rabbitmq)
+    .WaitFor(ollama)
+    .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE")
+    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
+    .WithEnvironment("Ai__Chat__Model", aiChatModel)
+    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
+    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
+    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
+    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
 
-// if (!string.IsNullOrEmpty(blobEndpoint))
-// {
-//     worker.WithEnvironment("Blob__Endpoint", blobEndpoint);
-// }
-// else
-// {
-//     worker.WithEnvironment("Blob__Endpoint", minioEndpoint);
-// }
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    workerBaseline.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    workerBaseline.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
 
-// worker.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
-//       .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
-//       .WithEnvironment("Blob__BucketName", blobBucketName);
+workerBaseline.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+      .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+      .WithEnvironment("Blob__BucketName", blobBucketName);
+
+var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-hierarchical")
+    .WithReference(db)
+    .WithReference(rabbitmq)
+    .WithReference(ollama)
+    .WaitFor(db)
+    .WaitFor(rabbitmq)
+    .WaitFor(ollama)
+    .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL")
+    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
+    .WithEnvironment("Ai__Chat__Model", aiChatModel)
+    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
+    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
+    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
+    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+
+if (!string.IsNullOrEmpty(blobEndpoint))
+{
+    workerHierarchical.WithEnvironment("Blob__Endpoint", blobEndpoint);
+}
+else
+{
+    workerHierarchical.WithEnvironment("Blob__Endpoint", minioEndpoint);
+}
+
+workerHierarchical.WithEnvironment("Blob__AccessKeyId", blobAccessKeyId ?? "admin")
+      .WithEnvironment("Blob__SecretAccessKey", blobSecretAccessKey ?? "password123")
+      .WithEnvironment("Blob__BucketName", blobBucketName);
 
 builder.Build().Run();
 

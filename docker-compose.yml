@@ -51,13 +51,46 @@ services:
     extra_hosts:
       - "postgres:host-gateway"
 
-  worker:
+  worker-baseline:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
     pull_policy: always
-    container_name: asistente-worker
+    container_name: asistente-worker-baseline
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - WORKER_PIPELINE_MODE=BASELINE
+      - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
+      - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
+      - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
+      - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
+      - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
+      - Ai__Embeddings__EndpointUrl=${AI_EMBEDDINGS_ENDPOINT_URL:-}
+      - Ai__Embeddings__ChunkMaxTokens=${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}
+      - Ai__Embeddings__ChunkOverlapTokens=${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}
+      - Ai__Embeddings__ChunkMaxLines=${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    depends_on:
+      - rabbitmq
+      - apiservice
+    networks:
+      - dokploy-network
+    extra_hosts:
+      - "postgres:host-gateway"
+
+  worker-hierarchical:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
+    pull_policy: always
+    container_name: asistente-worker-hierarchical
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - WORKER_PIPELINE_MODE=HIERARCHICAL
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
