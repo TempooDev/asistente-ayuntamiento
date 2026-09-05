@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,4 +10,5 @@ public interface IAiChatService
 {
     Task<AiCompletionResult> GetCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default);
     IAsyncEnumerable<string> GetStreamingCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<AsistenteAyuntamiento.Application.Features.Chat.DTOs.ArenaStreamChunk> GetArenaStreamingCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default);
 }

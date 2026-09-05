@@ -46,17 +46,35 @@
     <!-- Main Chat Area -->
     <div class="chat-main flex-1 flex flex-col h-full bg-secondary-bg min-w-0">
         <!-- Mobile Header -->
-        <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0">
-            <button class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" (click)="toggleSidebar()">
-                <span class="material-symbols-outlined">menu</span>
-            </button>
-            <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
+        <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0 justify-between">
+            <div class="flex items-center">
+                <button class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" (click)="toggleSidebar()">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-gray-600">Arena</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" [checked]="arenaMode()" (change)="toggleArenaMode()">
+                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+            </div>
         </div>
 
         <!-- Chat Header (Desktop) -->
-        <div class="hidden md:block px-margin-desktop py-4 shrink-0 bg-white border-b border-gray-200">
-            <h1 class="text-headline-lg font-bold text-gray-900 mb-1">Asistente Virtual</h1>
-            <p class="text-body-sm text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+        <div class="hidden md:flex px-margin-desktop py-4 shrink-0 bg-white border-b border-gray-200 justify-between items-center">
+            <div>
+                <h1 class="text-headline-lg font-bold text-gray-900 mb-1">Asistente Virtual</h1>
+                <p class="text-body-sm text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-600">Modo Arena</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" [checked]="arenaMode()" (change)="toggleArenaMode()">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+            </div>
         </div>
 
         <!-- Messages Area -->
@@ -75,11 +93,34 @@
             } @else {
                 <div class="chat-container w-full max-w-3xl mx-auto pb-4">
                     @for (msg of messages(); track $index) {
-                        <div class="chat-bubble shadow-sm" [class.citizen]="msg.isUser" [class.assistant]="!msg.isUser">
+                        <div class="w-full flex flex-col" [class.items-end]="msg.isUser" [class.items-start]="!msg.isUser">
                             @if (msg.isUser) {
-                                <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
+                                <div class="chat-bubble shadow-sm citizen">
+                                    <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
+                                </div>
+                            } @else if (msg.isArena && !msg.arenaResolved) {
+                                <div class="w-full flex flex-col md:flex-row gap-4 mb-2">
+                                    <div class="chat-bubble shadow-sm assistant flex-1">
+                                        <div class="text-xs font-bold text-gray-400 mb-1">Modelo Alfa</div>
+                                        <div class="markdown-content" [innerHTML]="msg.alfaHtml"></div>
+                                    </div>
+                                    <div class="chat-bubble shadow-sm assistant flex-1">
+                                        <div class="text-xs font-bold text-gray-400 mb-1">Modelo Beta</div>
+                                        <div class="markdown-content" [innerHTML]="msg.betaHtml"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-center gap-2 mb-4">
+                                    <button class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm" (click)="voteArena(msg, $index, 'Alfa')">👈 Alfa es mejor</button>
+                                    <button class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm" (click)="voteArena(msg, $index, 'Tie')">Empate</button>
+                                    <button class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm" (click)="voteArena(msg, $index, 'Beta')">Beta es mejor 👉</button>
+                                </div>
                             } @else {
-                                <div class="markdown-content" [innerHTML]="msg.html"></div>
+                                <div class="chat-bubble shadow-sm assistant">
+                                    @if (msg.arenaResolved) {
+                                        <div class="text-xs font-bold text-green-600 mb-1">Ganador: {{ msg.winner }}</div>
+                                    }
+                                    <div class="markdown-content" [innerHTML]="msg.html"></div>
+                                </div>
                             }
                         </div>
                     }

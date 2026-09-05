@@ -136,6 +136,105 @@ public class ChatHub(
         _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
     }
 
+    public async IAsyncEnumerable<ArenaStreamChunk> StreamArenaMessage(
+        string sessionIdStr,
+        string message,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            yield return new ArenaStreamChunk("Error", "No user ID found.");
+            yield break;
+        }
+
+        ChatSession? session = null;
+        string? errorMessage = null;
+
+        try
+        {
+            _logger.LogInformation("Streaming ARENA message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionIdStr);
+
+            if (!Guid.TryParse(sessionIdStr, out var sessionId))
+            {
+                errorMessage = "Invalid session ID format.";
+            }
+            else
+            {
+                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+                if (session == null)
+                {
+                    errorMessage = "Session not found or unauthorized.";
+                }
+                else
+                {
+                    _sessionService.EnqueueUserMessage(session, message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error preparing ARENA stream for {User}", userId);
+            errorMessage = $"System Error: {ex.Message}";
+        }
+
+        if (errorMessage != null || session == null)
+        {
+            yield return new ArenaStreamChunk("Error", errorMessage ?? "Unexpected error.");
+            yield break;
+        }
+
+        var recentMessages = _sessionService.GetCompactedHistory(session);
+        var history = BuildChatHistory(recentMessages);
+
+        await foreach (var chunk in _aiChatService.GetArenaStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        {
+            yield return chunk;
+        }
+
+        // We do NOT enqueue assistant message here because we wait for the vote!
+        // The winning message will be saved by the VoteArenaMessage endpoint or SignalR method.
+    }
+
+    public async Task VoteArenaMessage(ArenaChatVoteRequest request)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var tenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrEmpty(userId)) return;
+
+        using var scope = Context.GetHttpContext()!.RequestServices.CreateScope();
+        var arenaService = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Application.Features.Arena.IArenaService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext>();
+        
+        var voteResult = await arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest 
+        { 
+            SessionId = request.BattleId, 
+            Winner = request.Winner 
+        });
+
+        var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId);
+        if (session != null)
+        {
+            var battle = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                dbContext.ArenaBattles, b => b.SessionId == request.BattleId);
+
+            if (battle != null)
+            {
+                var winnerText = request.Winner.Equals("Alfa", StringComparison.OrdinalIgnoreCase) 
+                    ? battle.LeftResponse 
+                    : (request.Winner.Equals("Beta", StringComparison.OrdinalIgnoreCase) ? battle.RightResponse : null);
+
+                if (winnerText != null)
+                {
+                    _sessionService.EnqueueAssistantMessage(session, winnerText);
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Converts persisted <see cref="ChatMessage"/> entities into a Semantic Kernel <see cref="ChatHistory"/>.
     /// </summary>

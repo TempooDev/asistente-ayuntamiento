@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild, ElementRef, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ChatService, ChatSessionSummaryDto } from '../../services/chat/chat.service';
+import { ChatService, ChatSessionSummaryDto, ChatMessage } from '../../services/chat/chat.service';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -10,12 +10,6 @@ DOMPurify.addHook('afterSanitizeAttributes', function(node) {
     node.setAttribute('rel', 'noopener noreferrer');
   }
 });
-
-interface ChatMessage {
-  text: string;
-  isUser: boolean;
-  html?: string;
-}
 
 @Component({
   selector: 'app-chat-panel',
@@ -40,6 +34,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   sidebarOpen = signal(false);
   isLoadingHistory = signal(false);
   isConnected = signal(false);
+  arenaMode = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
   @ViewChild('chatInput') private chatInput!: ElementRef<HTMLTextAreaElement>;
@@ -223,7 +218,10 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isWaitingForResponse.set(true);
     this.isGenerating.set(true);
 
-    const assistantMsg: ChatMessage = { text: '', isUser: false, html: '' };
+    const isArena = this.arenaMode();
+    const assistantMsg: ChatMessage = isArena 
+      ? { text: '', isUser: false, isArena: true, alfaText: '', alfaHtml: '', betaText: '', betaHtml: '', arenaResolved: false }
+      : { text: '', isUser: false, html: '' };
     
     // Add to cache
     const currentMsgs = this.chatService.sessionMessages.get(sessionId) || [];
@@ -237,19 +235,34 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     }
 
     try {
-      const stream = this.chatService.streamMessage(sessionId, text);
+      let stream: any;
+      if (isArena) {
+        stream = this.chatService.streamArenaMessage(sessionId, text);
+      } else {
+        stream = this.chatService.streamMessage(sessionId, text);
+      }
+      
       let firstChunk = true;
 
       const sub = stream.subscribe({
-        next: (chunk) => {
+        next: (chunk: any) => {
           if (firstChunk) {
             if (this.currentSessionId() === sessionId) this.isWaitingForResponse.set(false);
             firstChunk = false;
           }
           
-          // Modify the object reference in memory (this updates the cache automatically)
-          assistantMsg.text += chunk;
-          assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+          if (isArena) {
+            if (chunk.option === 'Alfa') {
+              assistantMsg.alfaText += chunk.content;
+              assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');
+            } else if (chunk.option === 'Beta') {
+              assistantMsg.betaText += chunk.content;
+              assistantMsg.betaHtml = this.renderMarkdown(assistantMsg.betaText || '');
+            }
+          } else {
+            assistantMsg.text += chunk;
+            assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+          }
           
           // Only trigger UI change detection if the user is currently viewing THIS chat
           if (this.currentSessionId() === sessionId) {
@@ -266,10 +279,18 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
           }
           this.loadSessions();
         },
-        error: (err) => {
-          assistantMsg.text += `
-[Error: ${err.message || err}]`;
-          assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+        error: (err: any) => {
+          const errorMsg = `\n[Error: ${err.message || err}]`;
+          if (isArena) {
+            assistantMsg.alfaText += errorMsg;
+            assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');
+            assistantMsg.betaText += errorMsg;
+            assistantMsg.betaHtml = this.renderMarkdown(assistantMsg.betaText || '');
+          } else {
+            assistantMsg.text += errorMsg;
+            assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+          }
+          
           if (this.currentSessionId() === sessionId) this.messages.update(msgs => [...msgs]);
           console.error(err);
           this.chatService.activeStreams.delete(sessionId);
@@ -283,8 +304,17 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
       
       this.chatService.activeStreams.set(sessionId, sub);
     } catch (e: any) {
-      assistantMsg.text += `\n[Error: ${e.message || e}]`;
-      assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+      const errorMsg = `\n[Error: ${e.message || e}]`;
+      if (isArena) {
+        assistantMsg.alfaText += errorMsg;
+        assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');
+        assistantMsg.betaText += errorMsg;
+        assistantMsg.betaHtml = this.renderMarkdown(assistantMsg.betaText || '');
+      } else {
+        assistantMsg.text += errorMsg;
+        assistantMsg.html = this.renderMarkdown(assistantMsg.text);
+      }
+      
       if (this.currentSessionId() === sessionId) this.messages.update(msgs => [...msgs]);
       console.error(e);
       this.isWaitingForResponse.set(false);
@@ -298,6 +328,34 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     this.messages.update(msgs => [...msgs, { text: msg, isUser: false, html: this.renderMarkdown(msg) }]);
     await this.loadSessions();
     this.scrollToBottom();
+  }
+
+  async voteArena(msg: ChatMessage, msgIndex: number, vote: 'Alfa' | 'Beta' | 'Tie') {
+    if (!this.currentSessionId()) return;
+    try {
+      await this.chatService.voteArenaMessage(this.currentSessionId(), msgIndex, vote);
+      msg.arenaResolved = true;
+      msg.winner = vote;
+      if (vote === 'Alfa') {
+        msg.text = msg.alfaText || '';
+        msg.html = msg.alfaHtml || '';
+      } else if (vote === 'Beta') {
+        msg.text = msg.betaText || '';
+        msg.html = msg.betaHtml || '';
+      } else {
+        // Tie - just keep both or combine? Let's combine or just pick Alfa for simplicity if Tie?
+        // Wait, Arena mode usually just collapses. I'll set text to something or combine.
+        msg.text = `**Tie**\n\n**Alfa:**\n${msg.alfaText}\n\n**Beta:**\n${msg.betaText}`;
+        msg.html = this.renderMarkdown(msg.text);
+      }
+      this.messages.update(msgs => [...msgs]);
+    } catch (e) {
+      console.error('Error voting:', e);
+    }
+  }
+
+  toggleArenaMode() {
+    this.arenaMode.update(v => !v);
   }
 
   handleKeydown(event: KeyboardEvent) {
