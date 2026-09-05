@@ -99,7 +99,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
             entity.Property(e => e.TsvContent).HasColumnType("tsvector");
 
             entity.HasIndex(e => e.ParentId);
-            entity.HasIndex(e => e.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops");
             entity.HasIndex(e => e.TsvContent).HasMethod("gin");
         });
 
