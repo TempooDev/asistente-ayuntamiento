@@ -1,6 +1,8 @@
+using AsistenteAyuntamiento.Application.Common.Interfaces;
+
 namespace AsistenteAyuntamiento.ApiService.Features.Tenants;
 
-public class CurrentTenantService(IHttpContextAccessor httpContextAccessor) : AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService
+public class CurrentTenantService(IHttpContextAccessor httpContextAccessor) : ICurrentTenantService
 {
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
 

@@ -5,20 +5,24 @@
       <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background mb-xs">Ajustes de Perfil</h2>
       <p class="font-body-md text-body-md text-on-surface-variant">Gestiona tu información personal y de seguridad.</p>
     </div>
-    <button *ngIf="!isEditing" (click)="toggleEdit()" class="px-4 py-2 bg-primary-container text-on-primary-container rounded-full font-label-lg transition-colors hover:bg-primary hover:text-on-primary">
-      Editar Perfil
-    </button>
+    @if (!isEditing()) {
+      <button (click)="toggleEdit()" class="px-4 py-2 bg-primary-container text-on-primary-container rounded-full font-label-lg transition-colors hover:bg-primary hover:text-on-primary">
+        Editar Perfil
+      </button>
+    }
   </div>
 
-  <ng-container *ngIf="auth.user$ | async as user; else loading">
+  @if (auth.user$ | async; as user) {
     
     <!-- Alerta de éxito -->
-    <div *ngIf="saveSuccess" class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg flex items-center gap-3">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-      </svg>
-      <span class="font-medium text-sm">Perfil actualizado correctamente.</span>
-    </div>
+    @if (saveSuccess()) {
+      <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+        <span class="font-medium text-sm">Perfil actualizado correctamente.</span>
+      </div>
+    }
 
     <div class="space-y-6">
       <!-- Tarjeta Principal: Información Pública -->
@@ -32,11 +36,13 @@
           <div class="flex flex-col items-center gap-4">
             <div class="relative">
               <img [src]="user.picture || 'assets/default-avatar.png'" alt="Avatar de usuario" class="w-28 h-28 rounded-full object-cover border-4 border-surface shadow-sm" />
-              <button *ngIf="isEditing" class="absolute bottom-0 right-0 p-2 bg-primary text-on-primary rounded-full shadow-md hover:bg-primary-container hover:text-on-primary-container transition-colors" title="Cambiar foto">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-              </button>
+              @if (isEditing()) {
+                <button class="absolute bottom-0 right-0 p-2 bg-primary text-on-primary rounded-full shadow-md hover:bg-primary-container hover:text-on-primary-container transition-colors" title="Cambiar foto">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                </button>
+              }
             </div>
           </div>
 
@@ -47,54 +53,82 @@
               <!-- Full Name -->
               <div>
                 <label class="block font-label-sm text-on-surface-variant mb-1">Nombre Completo</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
-                  <span *ngIf="profileForm.get('fullName')?.value">{{ profileForm.get('fullName')?.value }}</span>
-                  <span *ngIf="!profileForm.get('fullName')?.value" class="text-on-surface-variant italic">No especificado</span>
-                </div>
-                <input *ngIf="isEditing" type="text" formControlName="fullName" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                @if (!isEditing()) {
+                  <div class="font-body-lg text-on-surface font-medium">
+                    @if (profileForm.get('fullName')?.value) {
+                      <span>{{ profileForm.get('fullName')?.value }}</span>
+                    } @else {
+                      <span class="text-on-surface-variant italic">No especificado</span>
+                    }
+                  </div>
+                } @else {
+                  <input type="text" formControlName="fullName" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                }
               </div>
 
               <!-- Department -->
               <div>
                 <label class="block font-label-sm text-on-surface-variant mb-1">Departamento</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
-                  <span *ngIf="profileForm.get('department')?.value">{{ profileForm.get('department')?.value }}</span>
-                  <span *ngIf="!profileForm.get('department')?.value" class="text-on-surface-variant italic">No especificado</span>
-                </div>
-                <input *ngIf="isEditing" type="text" formControlName="department" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                @if (!isEditing()) {
+                  <div class="font-body-lg text-on-surface font-medium">
+                    @if (profileForm.get('department')?.value) {
+                      <span>{{ profileForm.get('department')?.value }}</span>
+                    } @else {
+                      <span class="text-on-surface-variant italic">No especificado</span>
+                    }
+                  </div>
+                } @else {
+                  <input type="text" formControlName="department" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                }
               </div>
 
               <!-- Position -->
               <div>
                 <label class="block font-label-sm text-on-surface-variant mb-1">Cargo</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
-                  <span *ngIf="profileForm.get('position')?.value">{{ profileForm.get('position')?.value }}</span>
-                  <span *ngIf="!profileForm.get('position')?.value" class="text-on-surface-variant italic">No especificado</span>
-                </div>
-                <input *ngIf="isEditing" type="text" formControlName="position" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                @if (!isEditing()) {
+                  <div class="font-body-lg text-on-surface font-medium">
+                    @if (profileForm.get('position')?.value) {
+                      <span>{{ profileForm.get('position')?.value }}</span>
+                    } @else {
+                      <span class="text-on-surface-variant italic">No especificado</span>
+                    }
+                  </div>
+                } @else {
+                  <input type="text" formControlName="position" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                }
               </div>
 
               <!-- Phone Number -->
               <div>
                 <label class="block font-label-sm text-on-surface-variant mb-1">Teléfono</label>
-                <div *ngIf="!isEditing" class="font-body-lg text-on-surface font-medium">
-                  <span *ngIf="profileForm.get('phoneNumber')?.value">{{ profileForm.get('phoneNumber')?.value }}</span>
-                  <span *ngIf="!profileForm.get('phoneNumber')?.value" class="text-on-surface-variant italic">No especificado</span>
-                </div>
-                <input *ngIf="isEditing" type="tel" formControlName="phoneNumber" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                @if (!isEditing()) {
+                  <div class="font-body-lg text-on-surface font-medium">
+                    @if (profileForm.get('phoneNumber')?.value) {
+                      <span>{{ profileForm.get('phoneNumber')?.value }}</span>
+                    } @else {
+                      <span class="text-on-surface-variant italic">No especificado</span>
+                    }
+                  </div>
+                } @else {
+                  <input type="tel" formControlName="phoneNumber" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                }
               </div>
             </div>
 
             <!-- Botones de Guardar (solo si edita) -->
-            <div *ngIf="isEditing" class="mt-8 flex gap-3 justify-end border-t border-outline-variant pt-6">
-              <button (click)="toggleEdit()" class="px-4 py-2 bg-transparent text-on-surface font-label-md rounded-full hover:bg-surface-variant transition-colors">
-                Cancelar
-              </button>
-              <button (click)="saveProfile()" [disabled]="isSaving || profileForm.invalid" class="px-6 py-2 bg-primary text-on-primary font-label-md rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50">
-                <span *ngIf="isSaving" class="animate-spin w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full"></span>
-                {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
-              </button>
-            </div>
+            @if (isEditing()) {
+              <div class="mt-8 flex gap-3 justify-end border-t border-outline-variant pt-6">
+                <button (click)="toggleEdit()" class="px-4 py-2 bg-transparent text-on-surface font-label-md rounded-full hover:bg-surface-variant transition-colors">
+                  Cancelar
+                </button>
+                <button (click)="saveProfile()" [disabled]="isSaving() || profileForm.invalid" class="px-6 py-2 bg-primary text-on-primary font-label-md rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50">
+                  @if (isSaving()) {
+                    <span class="animate-spin w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full"></span>
+                  }
+                  {{ isSaving() ? 'Guardando...' : 'Guardar Cambios' }}
+                </button>
+              </div>
+            }
           </div>
         </div>
       </div>
@@ -111,9 +145,11 @@
               <label class="block font-label-sm text-on-surface-variant mb-1">Correo Electrónico (No modificable)</label>
               <div class="font-body-lg text-on-surface flex items-center gap-2">
                 {{ user.email }}
-                <span *ngIf="user.email_verified" class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium" title="Correo verificado">
-                  Verificado
-                </span>
+                @if (user.email_verified) {
+                  <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium" title="Correo verificado">
+                    Verificado
+                  </span>
+                }
               </div>
               <p class="text-xs text-on-surface-variant mt-2">Para cambiar tu correo electrónico institucional, por favor contacta con el administrador del sistema.</p>
             </div>
@@ -130,12 +166,66 @@
         </div>
       </div>
 
-    </div>
-  </ng-container>
+      <!-- Tarjeta Terciaria: Preferencias y Contexto -->
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+        <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest flex justify-between items-center">
+          <h3 class="font-title-md text-on-surface">Contexto y Preferencias</h3>
+          <button (click)="analyzeHistory()" [disabled]="isAnalyzing()" class="px-3 py-1 bg-secondary-container text-on-secondary-container text-xs rounded-full hover:bg-secondary hover:text-on-secondary transition-colors">
+            {{ isAnalyzing() ? 'Analizando...' : 'Analizar mi historial' }}
+          </button>
+        </div>
+        
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <label class="block font-label-sm text-on-surface-variant mb-2">Temas de Interés</label>
+            <div class="flex flex-wrap gap-2 mb-3">
+              @for (topic of topics(); track topic) {
+                <span class="px-3 py-1 bg-surface-variant text-on-surface-variant rounded-full text-sm flex items-center gap-1">
+                  {{ topic }}
+                  @if (isEditing()) {
+                    <button (click)="removeTopic(topic)" class="hover:text-error ml-1">&times;</button>
+                  }
+                </span>
+              } @empty {
+                <span class="text-on-surface-variant italic text-sm">Sin temas</span>
+              }
+            </div>
+            @if (isEditing()) {
+              <div class="flex gap-2">
+                <input type="text" [(ngModel)]="newTopic" placeholder="Añadir tema" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded text-sm text-on-surface focus:outline-none focus:border-primary" (keyup.enter)="addTopic()" />
+                <button (click)="addTopic()" class="px-3 py-1 bg-primary text-on-primary rounded text-sm">+</button>
+              </div>
+            }
+          </div>
 
-  <ng-template #loading>
+          <div>
+            <label class="block font-label-sm text-on-surface-variant mb-2">Zonas Geográficas</label>
+            <div class="flex flex-wrap gap-2 mb-3">
+              @for (loc of locations(); track loc) {
+                <span class="px-3 py-1 bg-surface-variant text-on-surface-variant rounded-full text-sm flex items-center gap-1">
+                  {{ loc }}
+                  @if (isEditing()) {
+                    <button (click)="removeLocation(loc)" class="hover:text-error ml-1">&times;</button>
+                  }
+                </span>
+              } @empty {
+                <span class="text-on-surface-variant italic text-sm">Sin zonas</span>
+              }
+            </div>
+            @if (isEditing()) {
+              <div class="flex gap-2">
+                <input type="text" [(ngModel)]="newLocation" placeholder="Añadir zona" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded text-sm text-on-surface focus:outline-none focus:border-primary" (keyup.enter)="addLocation()" />
+                <button (click)="addLocation()" class="px-3 py-1 bg-primary text-on-primary rounded text-sm">+</button>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+    </div>
+  } @else {
     <div class="flex justify-center items-center py-20">
       <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
     </div>
-  </ng-template>
+  }
 </div>

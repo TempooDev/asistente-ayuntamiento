@@ -75,6 +75,7 @@ public class HybridRetrievalService(
 
         // Resolve fragments and parent documents via LINQ
         var fragmentsWithParents = await dbContext.ChildFragments
+            .AsNoTracking()
             .Include(c => c.Parent)
             .Where(c => fragmentIds.Contains(c.Id))
             .ToListAsync(cancellationToken);

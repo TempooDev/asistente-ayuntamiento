@@ -15,6 +15,11 @@ using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.ApiService.Features.Users;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
 using Scalar.AspNetCore;
+using AsistenteAyuntamiento.Application.Features.Users;
+using AsistenteAyuntamiento.Application.Features.Metrics;
+using AsistenteAyuntamiento.Application.Features.Arena;
+using AsistenteAyuntamiento.Application.Features.Generation;
+using AsistenteAyuntamiento.Application.Features.Retrieval;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,12 +103,14 @@ builder.AddRabbitMQClient("messaging");
 builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 
 // Arena Services
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.IQueryExpansionService, AsistenteAyuntamiento.Application.Features.Retrieval.QueryExpansionService>();
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Retrieval.IHybridRetrievalService, AsistenteAyuntamiento.Application.Features.Retrieval.HybridRetrievalService>();
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Generation.IClearLanguageGenerationService, AsistenteAyuntamiento.Application.Features.Generation.ClearLanguageGenerationService>();
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Arena.IArenaService, AsistenteAyuntamiento.Application.Features.Arena.ArenaService>();
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Arena.IArenaAnalyticsService, AsistenteAyuntamiento.Application.Features.Arena.ArenaAnalyticsService>();
-builder.Services.AddScoped<AsistenteAyuntamiento.Application.Features.Metrics.IReadabilityService, AsistenteAyuntamiento.Application.Features.Metrics.ReadabilityService>();
+builder.Services.AddScoped<IQueryExpansionService, QueryExpansionService>();
+builder.Services.AddScoped<IHybridRetrievalService, HybridRetrievalService>();
+builder.Services.AddScoped<IClearLanguageGenerationService, ClearLanguageGenerationService>();
+builder.Services.AddScoped<IArenaService, ArenaService>();
+builder.Services.AddScoped<IArenaAnalyticsService, ArenaAnalyticsService>();
+builder.Services.AddScoped<IReadabilityService, ReadabilityService>();
+builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
+builder.Services.AddScoped<IHistoryAnalyzerService, HistoryAnalyzerService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

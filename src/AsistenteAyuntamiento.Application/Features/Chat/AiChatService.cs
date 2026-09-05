@@ -14,6 +14,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using AsistenteAyuntamiento.Application.Features.Users;
 
 /// <summary>
 /// Result of an AI chat completion request.
@@ -53,15 +54,16 @@ public sealed record TokenUsageInfo(
 /// distributed-tracing internally so callers don't need to manage observability.
 /// </summary>
 public sealed class AiChatService(
-    IAiConfigurationService _aiConfigurationService,
-    IConfiguration _configuration,
-    IAiMetricsService _metricsService,
-    ILogger<AiChatService> _logger,
+    IAiConfigurationService aiConfigurationService,
+    IConfiguration configuration,
+    IAiMetricsService metricsService,
+    ILogger<AiChatService> logger,
     IAppDbContext dbContext,
     Kernel kernel,
-    IHybridRetrievalService _hybridRetrievalService,
-    Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _serviceScopeFactory,
-    IClearLanguageGenerationService generationService) : IAiChatService
+    IHybridRetrievalService hybridRetrievalService,
+    Microsoft.Extensions.DependencyInjection.IServiceScopeFactory serviceScopeFactory,
+    IClearLanguageGenerationService generationService,
+    IUserPreferenceService userPreferenceService) : IAiChatService
 {
 
     /// <summary>
@@ -81,10 +83,11 @@ public sealed class AiChatService(
         var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
         var promptLength = lastUserMessage?.Content?.Length ?? 0;
 
-        var fullConfig = await _aiConfigurationService.GetFullConfigurationAsync(tenantId);
+        var fullConfig = await aiConfigurationService.GetFullConfigurationAsync(tenantId);
         var config = fullConfig.Config;
         var apiKey = fullConfig.DecryptedApiKey;
         var modelId = config.Model;
+        var userPrefs = await userPreferenceService.GetPreferencesAsync(userId, cancellationToken);
 
         activity?.SetTag("ai.model", modelId);
         activity?.SetTag("ai.tenant", tenantId);
@@ -114,7 +117,7 @@ public sealed class AiChatService(
             }
             else
             {
-                var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                var ollamaConnString = configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
                 var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
                     ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
@@ -128,7 +131,16 @@ public sealed class AiChatService(
 
             if (!history.Any(m => m.Role == AuthorRole.System))
             {
-                history.Insert(0, new ChatMessageContent(AuthorRole.System, Prompts.SystemPrompt));
+                var finalSystemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.SystemPrompt;
+                if (userPrefs.Topics.Any() || userPrefs.Locations.Any())
+                {
+                    var prefsText = "\n\n=== CONTEXTO DEL USUARIO ===\n";
+                    if (userPrefs.Topics.Any()) prefsText += $"- Temas de interés principales: {string.Join(", ", userPrefs.Topics)}\n";
+                    if (userPrefs.Locations.Any()) prefsText += $"- Zonas geográficas de interés: {string.Join(", ", userPrefs.Locations)}\n";
+                    prefsText += "Usa este contexto para priorizar o enfocar tus respuestas, pero no ignores los documentos RAG si se te proveen.\n";
+                    finalSystemPrompt += prefsText;
+                }
+                history.Insert(0, new ChatMessageContent(AuthorRole.System, finalSystemPrompt));
             }
 
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
@@ -143,6 +155,7 @@ public sealed class AiChatService(
 
                 // Find top 20 closest chunks
                 var closestChunks = await dbContext.DocumentChunks
+                    .AsNoTracking()
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(5)
                     .ToListAsync(cancellationToken);
@@ -203,7 +216,7 @@ public sealed class AiChatService(
             dbContext.AiCallLogs.Add(callLog);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            _metricsService.RecordCall(new AiCallRecord
+            metricsService.RecordCall(new AiCallRecord
             {
                 ModelId = modelId,
                 TenantId = tenantId,
@@ -218,7 +231,7 @@ public sealed class AiChatService(
                 TotalTokens = tokenUsage.TotalTokens
             });
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "AI completion succeeded for tenant {TenantId}, user {UserId} in {DurationMs:F1} ms — tokens: {InputTokens} in / {OutputTokens} out / {TotalTokens} total",
                 tenantId, userId, stopwatch.Elapsed.TotalMilliseconds,
                 tokenUsage.InputTokens, tokenUsage.OutputTokens, tokenUsage.TotalTokens);
@@ -247,7 +260,7 @@ public sealed class AiChatService(
             dbContext.AiCallLogs.Add(callLog);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            _metricsService.RecordCall(new AiCallRecord
+            metricsService.RecordCall(new AiCallRecord
             {
                 ModelId = config.Model,
                 TenantId = tenantId,
@@ -265,7 +278,7 @@ public sealed class AiChatService(
 
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "AI completion failed for tenant {TenantId}, user {UserId} after {DurationMs:F1} ms",
                 tenantId, userId, stopwatch.Elapsed.TotalMilliseconds);
@@ -288,6 +301,7 @@ public sealed class AiChatService(
     private async Task<PipelineType> DetermineWinningPipelineAsync(CancellationToken cancellationToken)
     {
         var battles = await dbContext.ArenaBattles
+            .AsNoTracking()
             .Where(b => b.Winner == BattleWinner.Alfa || b.Winner == BattleWinner.Beta)
             .Select(b => new { b.Winner, b.LeftSystem, b.RightSystem })
             .ToListAsync(cancellationToken);
@@ -356,7 +370,7 @@ public sealed class AiChatService(
                 var loserBuilder = new System.Text.StringBuilder();
                 try
                 {
-                    using var scope = _serviceScopeFactory.CreateScope();
+                    using var scope = serviceScopeFactory.CreateScope();
                     var scopedAiChat = scope.ServiceProvider.GetRequiredService<IAiChatService>() as AiChatService;
                     if (scopedAiChat == null) return "";
 
@@ -376,7 +390,7 @@ public sealed class AiChatService(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Loser pipeline failed in background.");
+                    logger.LogError(ex, "Loser pipeline failed in background.");
                 }
                 return loserBuilder.ToString();
             });
@@ -424,14 +438,14 @@ public sealed class AiChatService(
                         Winner = BattleWinner.Pending
                     };
 
-                    using var scope = _serviceScopeFactory.CreateScope();
+                    using var scope = serviceScopeFactory.CreateScope();
                     var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
                     scopedDb.ArenaBattles.Add(battle);
                     await scopedDb.SaveChangesAsync();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error saving shadow testing ArenaBattle");
+                    logger.LogError(ex, "Error saving shadow testing ArenaBattle");
                 }
             });
         }
@@ -440,7 +454,7 @@ public sealed class AiChatService(
     private async IAsyncEnumerable<string> RunHierarchicalStreamingAsync(ChatHistory history, string tenantId, string userId, string userQuery, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var expandedQuery = await kernel.GetRequiredService<IQueryExpansionService>().ExpandQueryAsync(userQuery, cancellationToken);
-        var retrievalResults = await _hybridRetrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+        var retrievalResults = await hybridRetrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
 
         await foreach (var chunk in generationService.GenerateStreamingResponseAsync(userQuery, retrievalResults, cancellationToken))
         {
@@ -458,10 +472,11 @@ public sealed class AiChatService(
         var lastUserMessage = history.LastOrDefault(m => m.Role == AuthorRole.User);
         var promptLength = lastUserMessage?.Content?.Length ?? 0;
 
-        var fullConfig = await _aiConfigurationService.GetFullConfigurationAsync(tenantId);
+        var fullConfig = await aiConfigurationService.GetFullConfigurationAsync(tenantId);
         var config = fullConfig.Config;
         var apiKey = fullConfig.DecryptedApiKey;
         var modelId = config.Model;
+        var userPrefs = await userPreferenceService.GetPreferencesAsync(userId, cancellationToken);
 
         activity?.SetTag("ai.model", modelId);
         activity?.SetTag("ai.tenant", tenantId);
@@ -494,7 +509,7 @@ public sealed class AiChatService(
             }
             else
             {
-                var ollamaConnString = _configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
+                var ollamaConnString = configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
                 var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
                     ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
                     : ollamaConnString;
@@ -505,7 +520,7 @@ public sealed class AiChatService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize kernel for streaming.");
+            logger.LogError(ex, "Failed to initialize kernel for streaming.");
             initError = $"Error de inicialización de IA: {ex.Message}";
         }
 
@@ -529,6 +544,7 @@ public sealed class AiChatService(
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 var closestChunks = await dbContext.DocumentChunks
+                    .AsNoTracking()
                     .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
                     .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
                     .Take(3)
@@ -539,7 +555,16 @@ public sealed class AiChatService(
                     var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
                         $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
 
-                    var systemPrompt = "Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).\nTu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.\nSi el usuario hace una pregunta de seguimiento (ej. \"¿qué requisitos tiene?\"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.\nResponde siempre en español de forma clara y precisa.\nSi utilizas información del contexto, incluye al final de tu respuesta un apartado de \"Fuentes consultadas\" en Markdown con los enlaces (URLs) proporcionados.";
+                    var systemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.StreamingSystemPrompt;
+
+                    if (userPrefs.Topics.Any() || userPrefs.Locations.Any())
+                    {
+                        var prefsText = "\n\n=== CONTEXTO DEL USUARIO ===\n";
+                        if (userPrefs.Topics.Any()) prefsText += $"- Temas de interés principales: {string.Join(", ", userPrefs.Topics)}\n";
+                        if (userPrefs.Locations.Any()) prefsText += $"- Zonas geográficas de interés: {string.Join(", ", userPrefs.Locations)}\n";
+                        prefsText += "Usa este contexto para priorizar o enfocar tus respuestas.\n";
+                        systemPrompt += prefsText;
+                    }
 
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = $"CONTEXTO RECUPERADO DE LOS BOLETINES:\n{contextText}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario.\n\nPregunta: {originalMessage}";
@@ -555,7 +580,7 @@ public sealed class AiChatService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to perform RAG vector search during streaming.");
+                logger.LogWarning(ex, "Failed to perform RAG vector search during streaming.");
             }
         }
 
@@ -593,7 +618,7 @@ public sealed class AiChatService(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
+                    logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
                     if (!hasYieldedChunks)
                     {
                         errorToYield = $"\n\n[Error de conexión con la IA ({config.Provider}): {ex.Message}]";
@@ -650,7 +675,7 @@ public sealed class AiChatService(
             dbContext.AiCallLogs.Add(callLog);
             await dbContext.SaveChangesAsync();
 
-            _metricsService.RecordCall(new AiCallRecord
+            metricsService.RecordCall(new AiCallRecord
             {
                 ModelId = modelId,
                 TenantId = tenantId,
@@ -667,7 +692,7 @@ public sealed class AiChatService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save AiCallLog or metrics after streaming completion.");
+            logger.LogError(ex, "Failed to save AiCallLog or metrics after streaming completion.");
         }
 
     }
@@ -730,7 +755,7 @@ public sealed class AiChatService(
                 return new TokenUsageInfo(inputTokens, outputTokens, inputTokens + outputTokens);
         }
 
-        _logger.LogDebug("Token usage not available in AI response metadata");
+        logger.LogDebug("Token usage not available in AI response metadata");
         return TokenUsageInfo.Empty;
     }
 
@@ -859,7 +884,7 @@ public sealed class AiChatService(
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
+                using var scope = serviceScopeFactory.CreateScope();
                 var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
                 var scopedKernel = scope.ServiceProvider.GetRequiredService<Kernel>();
                 var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
@@ -887,7 +912,7 @@ public sealed class AiChatService(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Alfa pipeline failed.");
+                logger.LogError(ex, "Alfa pipeline failed.");
             }
             finally
             {
@@ -899,7 +924,7 @@ public sealed class AiChatService(
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
+                using var scope = serviceScopeFactory.CreateScope();
                 var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
                 var scopedKernel = scope.ServiceProvider.GetRequiredService<Kernel>();
                 var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
@@ -925,7 +950,7 @@ public sealed class AiChatService(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Beta pipeline failed.");
+                logger.LogError(ex, "Beta pipeline failed.");
             }
             finally
             {

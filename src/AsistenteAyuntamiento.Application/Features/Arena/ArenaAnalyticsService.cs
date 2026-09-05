@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
-public class ArenaAnalyticsService(IAppDbContext _dbContext) : IArenaAnalyticsService
+public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsService
 {
     public async Task<ArenaAnalyticsResponse> GetAnalyticsAsync(ArenaAnalyticsRequest? request = null, CancellationToken cancellationToken = default)
     {
         
 
-        var query = _dbContext.ArenaBattles.AsQueryable();
+        var query = dbContext.ArenaBattles.AsNoTracking();
 
         if (request != null)
         {

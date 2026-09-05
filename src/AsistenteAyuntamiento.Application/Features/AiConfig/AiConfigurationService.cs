@@ -19,7 +19,7 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
         try
         {
             var tenantId = _tenantService.TenantId;
-            var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+            var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
             var defaultConfig = _configuration; // IConfiguration injected
 
@@ -61,7 +61,7 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
     public async Task<string?> GetDecryptedApiKeyAsync()
     {
         var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null || string.IsNullOrEmpty(config.EncryptedApiKey))
         {
@@ -81,7 +81,7 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
     public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync(string? explicitTenantId = null)
     {
         var tenantId = explicitTenantId ?? _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null)
         {
