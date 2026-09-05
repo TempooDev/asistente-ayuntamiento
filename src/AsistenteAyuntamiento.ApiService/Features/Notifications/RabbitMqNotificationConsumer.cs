@@ -11,18 +11,16 @@ public partial class RabbitMqNotificationConsumer(
     IServiceProvider serviceProvider,
     ILogger<RabbitMqNotificationConsumer> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
-    private readonly ILogger<RabbitMqNotificationConsumer> _logger = logger;
-    private const string ExchangeName = RabbitMqConstants.DocumentNotificationsExchange;
+            private const string ExchangeName = RabbitMqConstants.DocumentNotificationsExchange;
     private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}"; // Cola temporal para cada instancia de la API
     private IConnection? _connection;
     private IChannel? _channel;
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
+        logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
 
-        var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
+        var connectionFactory = serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
             var connected = false;
@@ -41,19 +39,19 @@ public partial class RabbitMqNotificationConsumer(
                     await _channel.QueueBindAsync(queue: _queueName, exchange: ExchangeName, routingKey: string.Empty, cancellationToken: cancellationToken);
 
                     connected = true;
-                    _logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
+                    logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
                 }
                 catch (Exception ex)
                 {
                     retryCount++;
-                    _logger.LogError(ex, $"Error conectando a RabbitMQ para notificaciones (Intento {retryCount}/10). Reintentando...");
+                    logger.LogError(ex, $"Error conectando a RabbitMQ para notificaciones (Intento {retryCount}/10). Reintentando...");
                     await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
             }
         }
         else
         {
-            _logger.LogWarning("IConnectionFactory no está registrado para notificaciones.");
+            logger.LogWarning("IConnectionFactory no está registrado para notificaciones.");
         }
 
         await base.StartAsync(cancellationToken);
@@ -74,14 +72,14 @@ public partial class RabbitMqNotificationConsumer(
                 var docEvent = JsonSerializer.Deserialize<DocumentNotificationEvent>(message, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (docEvent != null && !string.IsNullOrEmpty(docEvent.DocumentId))
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
                     await notificationService.NotifyDocumentStatusChangedAsync(docEvent.DocumentId, docEvent.NewStatus ?? string.Empty);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error procesando notificación entrante.");
+                logger.LogError(ex, "Error procesando notificación entrante.");
             }
 
             await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
