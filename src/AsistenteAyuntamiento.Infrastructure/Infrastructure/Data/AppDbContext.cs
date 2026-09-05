@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public string CurrentTenantId => _tenantService.TenantId;
 
     public DbSet<UserProfile> UserProfiles { get; set; }
+    public DbSet<UserPreference> UserPreferences { get; set; }
     public DbSet<ChatSession> ChatSessions { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
     public DbSet<AiCallLog> AiCallLogs { get; set; }
@@ -51,6 +52,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
 
         modelBuilder.Entity<UserProfile>()
             .HasQueryFilter(u => u.TenantId == CurrentTenantId);
+
+        modelBuilder.Entity<UserPreference>(entity =>
+        {
+            entity.ToTable("UserPreferences", "identity");
+            entity.HasQueryFilter(p => p.TenantId == CurrentTenantId);
+            entity.HasIndex(p => p.Auth0UserId).IsUnique();
+        });
 
         modelBuilder.Entity<ChatSession>(entity =>
         {

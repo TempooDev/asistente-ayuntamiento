@@ -21,13 +21,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Servir archivos estáticos de Angular
+// Servir archivos estáticos de Angular (producción)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapReverseProxy();
-
-// Fallback para SPA routing (Angular)
-app.MapFallbackToFile("index.html");
 
 app.Run();

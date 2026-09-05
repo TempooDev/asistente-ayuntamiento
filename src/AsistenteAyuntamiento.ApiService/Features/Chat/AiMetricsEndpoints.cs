@@ -1,12 +1,14 @@
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 public static class AiMetricsEndpoints
 {
     public static void MapAiMetricsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/ai");
+        var group = app.MapGroup("/api/ai").RequireAuthorization();
 
         // GET /api/ai/metrics — Full metrics snapshot (aggregates + recent calls)
         group.MapGet("/metrics", (IAiMetricsService metricsService) =>
@@ -63,7 +65,7 @@ public static class AiMetricsEndpoints
         group.MapGet("/metrics/history", async (
             IAppDbContext dbContext,
             System.Security.Claims.ClaimsPrincipal user,
-            int page = 1, 
+            int page = 1,
             int pageSize = 50) =>
         {
             // Note: Since this is an admin panel or for user history, you'd typically filter by TenantId
@@ -75,7 +77,7 @@ public static class AiMetricsEndpoints
 
             var totalItems = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(query);
             var items = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                query.OrderByDescending(l => l.CreatedAt)
+                query.AsNoTracking().OrderByDescending(l => l.CreatedAt)
                      .Skip((page - 1) * pageSize)
                      .Take(pageSize)
             );

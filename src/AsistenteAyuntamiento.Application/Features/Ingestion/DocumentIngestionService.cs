@@ -13,18 +13,12 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null) : IDocumentIngestionService
 {
-    private readonly IAmazonS3 _s3Client = s3Client;
-    private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-    private readonly IAppDbContext _dbContext = dbContext;
-    private readonly Kernel _kernel = kernel;
-    private readonly IConfiguration _config = config;
-    private readonly ILogger<DocumentIngestionService> _logger = logger;
-    private readonly INotificationService? _notificationService = notificationService;
-
+        private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
+                    
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
-        var initialJobState = await _dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
+        var initialJobState = await dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
 
         if (initialJobState != null)
         {
@@ -34,14 +28,14 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         }
         else
         {
-            _dbContext.DocumentJobStates.Add(new DocumentJobState
+            dbContext.DocumentJobStates.Add(new DocumentJobState
             {
                 DocumentId = docIdFromPath,
                 Status = "Processing"
             });
         }
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await _notificationService?.NotifyDocumentStatusChangedAsync(docIdFromPath, "Processing");
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await notificationService?.NotifyDocumentStatusChangedAsync(docIdFromPath, "Processing");
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
@@ -52,7 +46,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                 BucketName = _bucketName,
                 Key = blobPath
             };
-            using var response = await _s3Client.GetObjectAsync(request, cancellationToken);
+            using var response = await s3Client.GetObjectAsync(request, cancellationToken);
             using var reader = new StreamReader(response.ResponseStream);
             jsonContent = await reader.ReadToEndAsync(cancellationToken);
         }
@@ -61,32 +55,32 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
             throw new Exception($"El blob {blobPath} no existe en S3/MinIO.", ex);
         }
 
-        _logger.LogInformation($"JSON descargado ({jsonContent.Length} caracteres). Deserializando...");
+        logger.LogInformation($"JSON descargado ({jsonContent.Length} caracteres). Deserializando...");
 
         var document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         if (document == null)
         {
-            _logger.LogWarning($"El blob {blobPath} no se pudo deserializar (document es null).");
+            logger.LogWarning($"El blob {blobPath} no se pudo deserializar (document es null).");
             return;
         }
 
-        _logger.LogInformation($"DocumentId deserializado: '{document.DocumentId}', Longitud del texto: {document.Content?.Length ?? 0}");
+        logger.LogInformation($"DocumentId deserializado: '{document.DocumentId}', Longitud del texto: {document.Content?.Length ?? 0}");
 
         // 2. Chunking
         List<string> paragraphs;
         if (string.IsNullOrWhiteSpace(document.Content))
         {
-            _logger.LogInformation($"El blob {blobPath} tiene texto vacío. Se guardará un chunk con sus metadatos.");
+            logger.LogInformation($"El blob {blobPath} tiene texto vacío. Se guardará un chunk con sus metadatos.");
             // Usar el título como contenido para que el motor vectorial pueda encontrarlo semánticamente
             var title = !string.IsNullOrWhiteSpace(document.Metadata?.Title) ? document.Metadata.Title : "Documento sin contenido";
             paragraphs = new List<string> { title };
         }
         else
         {
-            var maxLines = _config.GetValue<int>("Ai:Embeddings:ChunkMaxLines", 200);
-            var maxTokens = _config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
-            var overlapTokens = _config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
+            var maxLines = config.GetValue<int>("Ai:Embeddings:ChunkMaxLines", 200);
+            var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
+            var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
 
             paragraphs = TextChunker.SplitPlainTextParagraphs(
                 TextChunker.SplitPlainTextLines(document.Content, maxLines),
@@ -96,7 +90,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         }
 
         // 3. Obtener servicio de embeddings
-        var embeddingGenerator = _kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
+        var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
         // 4. Vectorización (en batch segmentado para evitar límites de payload)
         int batchSize = 100;
@@ -104,7 +98,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         var chunkedParagraphs = paragraphs.Chunk(batchSize).ToList();
         for (int i = 0; i < chunkedParagraphs.Count; i++)
         {
-            _logger.LogInformation($"[Baseline {document.DocumentId}] Vectorizando lote {i + 1}/{chunkedParagraphs.Count}...");
+            logger.LogInformation($"[Baseline {document.DocumentId}] Vectorizando lote {i + 1}/{chunkedParagraphs.Count}...");
             var batchEmbeddings = await embeddingGenerator.GenerateAsync(chunkedParagraphs[i].ToList(), cancellationToken: cancellationToken);
             allEmbeddings.AddRange(batchEmbeddings);
         }
@@ -130,22 +124,22 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         }
 
         // 5. Persistencia transaccional
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        var strategy = dbContext.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
                 // Eliminar los chunks anteriores directamente en base de datos de manera atómica
-                await _dbContext.DocumentChunks
+                await dbContext.DocumentChunks
                     .Where(c => c.DocumentId == document.DocumentId)
                     .ExecuteDeleteAsync(cancellationToken);
 
-                await _dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
-                await _dbContext.SaveChangesAsync(cancellationToken);
+                await dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
 
                 // Update state to Completed using ExecuteUpdateAsync to ensure it bypasses change tracker issues
-                var updatedRows = await _dbContext.DocumentJobStates
+                var updatedRows = await dbContext.DocumentJobStates
                     .Where(j => j.DocumentId == document.DocumentId)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.Status, "Completed")
@@ -155,20 +149,20 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
                 if (updatedRows == 0)
                 {
-                    _dbContext.DocumentJobStates.Add(new DocumentJobState
+                    dbContext.DocumentJobStates.Add(new DocumentJobState
                     {
                         DocumentId = document.DocumentId,
                         Status = "Completed",
                         LastUpdatedAt = DateTime.UtcNow
                     });
-                    await _dbContext.SaveChangesAsync(cancellationToken);
+                    await dbContext.SaveChangesAsync(cancellationToken);
                 }
 
                 await transaction.CommitAsync(cancellationToken);
 
-                await _notificationService?.NotifyDocumentStatusChangedAsync(document.DocumentId, "Completed");
+                await notificationService?.NotifyDocumentStatusChangedAsync(document.DocumentId, "Completed");
 
-                _logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
+                logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
             }
             catch (Exception ex)
             {
@@ -178,7 +172,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                 try
                 {
                     var fallbackDocId = document?.DocumentId ?? blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
-                    var updatedRows = await _dbContext.DocumentJobStates
+                    var updatedRows = await dbContext.DocumentJobStates
                         .Where(j => j.DocumentId == fallbackDocId)
                         .ExecuteUpdateAsync(s => s
                             .SetProperty(p => p.Status, "Failed")
@@ -188,17 +182,17 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
                     if (updatedRows == 0)
                     {
-                        _dbContext.DocumentJobStates.Add(new DocumentJobState
+                        dbContext.DocumentJobStates.Add(new DocumentJobState
                         {
                             DocumentId = fallbackDocId,
                             Status = "Failed",
                             LastUpdatedAt = DateTime.UtcNow,
                             ErrorMessage = ex.Message
                         });
-                        await _dbContext.SaveChangesAsync(cancellationToken);
+                        await dbContext.SaveChangesAsync(cancellationToken);
                     }
 
-                    await _notificationService?.NotifyDocumentStatusChangedAsync(fallbackDocId, "Failed");
+                    await notificationService?.NotifyDocumentStatusChangedAsync(fallbackDocId, "Failed");
                 }
                 catch { /* Ignore inner failure */ }
 

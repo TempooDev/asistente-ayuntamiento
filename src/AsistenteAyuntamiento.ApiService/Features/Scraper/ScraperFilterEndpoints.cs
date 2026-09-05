@@ -4,6 +4,8 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
+using AsistenteAyuntamiento.ApiService.Protos;
+using AsistenteAyuntamiento.ApiService.Features.Notifications;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
@@ -18,7 +20,7 @@ public static class ScraperFilterEndpoints
         {
             try 
             {
-                var rules = await db.ScraperFilterRules.ToListAsync();
+                var rules = await db.ScraperFilterRules.AsNoTracking().ToListAsync();
                 return Results.Ok(rules);
             }
             catch (Exception ex)
@@ -36,7 +38,9 @@ public static class ScraperFilterEndpoints
         });
 
         // 3. Create rule
-        group.MapPost("/", async (IAppDbContext db, [FromBody] CreateFilterRuleDto dto) =>
+        group.MapPost("/", async (
+IAppDbContext db,
+            [FromBody] CreateFilterRuleDto dto) =>
         {
             var rule = new ScraperFilterRule
             {
@@ -54,7 +58,10 @@ public static class ScraperFilterEndpoints
         });
 
         // 4. Update rule
-        group.MapPut("/{id:int}", async (int id, IAppDbContext db, [FromBody] UpdateFilterRuleDto dto) =>
+        group.MapPut("/{id:int}", async (
+            int id,
+IAppDbContext db,
+            [FromBody] UpdateFilterRuleDto dto) =>
         {
             var rule = await db.ScraperFilterRules.FindAsync(id);
             if (rule is null) return Results.NotFound();
@@ -83,17 +90,17 @@ public static class ScraperFilterEndpoints
 
         // 6. Force scrape (manual trigger)
         group.MapPost("/trigger", async (
-            [FromBody] TriggerScrapeDto dto, 
-            AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient client,
+            [FromBody] TriggerScrapeDto dto,
+            ScraperCommandService.ScraperCommandServiceClient client,
             ScraperStateService stateService,
-            IHubContext<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub> hubContext) =>
+            IHubContext<NotificationHub> hubContext) =>
         {
             if (stateService.IsScraping)
             {
                 return Results.BadRequest("El scraper ya está en ejecución.");
             }
 
-            var req = new AsistenteAyuntamiento.ApiService.Protos.ForceScrapeRequest
+            var req = new ForceScrapeRequest
             {
                 Provider = dto.Provider,
                 StartDate = dto.StartDate ?? "",

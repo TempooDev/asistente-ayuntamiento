@@ -12,6 +12,7 @@ namespace AsistenteAyuntamiento.Application.Common.Interfaces;
 public interface IAppDbContext
 {
     DbSet<UserProfile> UserProfiles { get; set; }
+    DbSet<UserPreference> UserPreferences { get; set; }
     DbSet<ChatSession> ChatSessions { get; set; }
     DbSet<ChatMessage> ChatMessages { get; set; }
     DbSet<AiCallLog> AiCallLogs { get; set; }

@@ -1,30 +1,26 @@
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using AsistenteAyuntamiento.Infrastructure.Common;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 
-public class RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILogger<RabbitMqNotificationConsumer> logger) : BackgroundService
+public partial class RabbitMqNotificationConsumer(
+    IServiceProvider serviceProvider,
+    ILogger<RabbitMqNotificationConsumer> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
-    private readonly ILogger<RabbitMqNotificationConsumer> _logger = logger;
-    private const string ExchangeName = AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange;
+            private const string ExchangeName = RabbitMqConstants.DocumentNotificationsExchange;
     private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}"; // Cola temporal para cada instancia de la API
     private IConnection? _connection;
     private IChannel? _channel;
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
+        logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
 
-        var connectionFactory = _serviceProvider.GetService<IConnectionFactory>();
+        var connectionFactory = serviceProvider.GetService<IConnectionFactory>();
         if (connectionFactory != null)
         {
             var connected = false;
@@ -43,19 +39,19 @@ public class RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILog
                     await _channel.QueueBindAsync(queue: _queueName, exchange: ExchangeName, routingKey: string.Empty, cancellationToken: cancellationToken);
 
                     connected = true;
-                    _logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
+                    logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
                 }
                 catch (Exception ex)
                 {
                     retryCount++;
-                    _logger.LogError(ex, $"Error conectando a RabbitMQ para notificaciones (Intento {retryCount}/10). Reintentando...");
+                    logger.LogError(ex, $"Error conectando a RabbitMQ para notificaciones (Intento {retryCount}/10). Reintentando...");
                     await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
             }
         }
         else
         {
-            _logger.LogWarning("IConnectionFactory no está registrado para notificaciones.");
+            logger.LogWarning("IConnectionFactory no está registrado para notificaciones.");
         }
 
         await base.StartAsync(cancellationToken);
@@ -76,14 +72,14 @@ public class RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILog
                 var docEvent = JsonSerializer.Deserialize<DocumentNotificationEvent>(message, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (docEvent != null && !string.IsNullOrEmpty(docEvent.DocumentId))
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
                     await notificationService.NotifyDocumentStatusChangedAsync(docEvent.DocumentId, docEvent.NewStatus ?? string.Empty);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error procesando notificación entrante.");
+                logger.LogError(ex, "Error procesando notificación entrante.");
             }
 
             await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
@@ -97,11 +93,5 @@ public class RabbitMqNotificationConsumer(IServiceProvider serviceProvider, ILog
         if (_channel != null) await _channel.CloseAsync(cancellationToken: cancellationToken);
         if (_connection != null) await _connection.CloseAsync(cancellationToken: cancellationToken);
         await base.StopAsync(cancellationToken);
-    }
-
-    private class DocumentNotificationEvent
-    {
-        public string? DocumentId { get; set; }
-        public string? NewStatus { get; set; }
     }
 }

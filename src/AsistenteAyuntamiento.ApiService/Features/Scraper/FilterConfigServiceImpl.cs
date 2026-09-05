@@ -15,7 +15,7 @@ public class FilterConfigServiceImpl(IAppDbContext db) : FilterConfigService.Fil
         {
             var activeRules = await _db.ScraperFilterRules
                 .Where(r => r.IsActive)
-                .ToListAsync(context.CancellationToken);
+                .AsNoTracking().ToListAsync(context.CancellationToken);
 
             var response = new FilterRulesResponse();
 
