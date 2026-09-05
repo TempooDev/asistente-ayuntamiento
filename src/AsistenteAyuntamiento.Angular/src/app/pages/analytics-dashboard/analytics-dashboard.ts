@@ -1,7 +1,8 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ArenaService, ArenaAnalyticsRequest } from '../../services/arena/arena.service';
+import { MetricsService, AiMetricsSummary } from '../../services/metrics/metrics.service';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { switchMap } from 'rxjs/operators';
 
@@ -11,8 +12,9 @@ import { switchMap } from 'rxjs/operators';
   imports: [CommonModule, FormsModule],
   templateUrl: './analytics-dashboard.html'
 })
-export class AnalyticsDashboardComponent {
+export class AnalyticsDashboardComponent implements OnInit {
   private arenaService = inject(ArenaService);
+  private metricsService = inject(MetricsService);
   
   // Date filters
   startDate = signal<string>('');
@@ -20,6 +22,15 @@ export class AnalyticsDashboardComponent {
   
   // Segmentation filter
   selectedPipeline = signal<string>('ALL');
+
+  // AI Metrics
+  aiMetrics = signal<AiMetricsSummary | null>(null);
+
+  ngOnInit() {
+    this.metricsService.getAiMetricsSummary().subscribe(data => {
+      this.aiMetrics.set(data);
+    });
+  }
 
   // Trigger for refetching
   private filterTrigger = computed(() => {

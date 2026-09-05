@@ -20,6 +20,29 @@
     </div>
   </div>
 
+  @if (aiMetrics(); as metrics) {
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de IA / Tokens</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Llamadas (Éxito)</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ metrics.totalCalls }} <span class="text-sm font-normal text-green-600">({{ metrics.successRate | percent:'1.0-1' }})</span></p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Tokens Input</h3>
+        <p class="text-2xl font-bold text-indigo-600 mt-1">{{ metrics.totalInputTokens | number:'1.0-0' }}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Tokens Output</h3>
+        <p class="text-2xl font-bold text-indigo-600 mt-1">{{ metrics.totalOutputTokens | number:'1.0-0' }}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Total Tokens</h3>
+        <p class="text-2xl font-bold text-purple-600 mt-1">{{ metrics.totalTokens | number:'1.0-0' }}</p>
+      </div>
+    </div>
+  }
+
+  <h2 class="text-xl font-bold text-gray-800 mb-4">Resultados de la Arena</h2>
   @if (analytics(); as data) {
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">

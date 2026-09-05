@@ -314,12 +314,20 @@ public static class IngestionEndpoints
                 int count = 0;
                 foreach (var req in requests)
                 {
-                    var docId = req.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                    var parts = req.BlobPath.Split('/');
+                    var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
                     if (string.IsNullOrEmpty(docId)) continue;
+
+                    var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
+                    // if it's "json/BOE/doc.json", Length is 3, parts[1] is "BOE"
+                    if (req.BlobPath.StartsWith("json/") && parts.Length >= 3)
+                    {
+                        inferredSource = parts[1];
+                    }
 
                     var message = new
                     {
-                        source = req.Source ?? "S3",
+                        source = !string.IsNullOrEmpty(req.Source) ? req.Source : inferredSource,
                         document_id = docId,
                         blob_path = req.BlobPath
                     };
@@ -434,12 +442,19 @@ public static class IngestionEndpoints
                         {
                             if (string.IsNullOrEmpty(s3Obj.Key)) continue;
 
-                            var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                            var parts = s3Obj.Key.Split('/');
+                            var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
                             if (string.IsNullOrEmpty(docId)) continue;
+
+                            var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
+                            if (s3Obj.Key.StartsWith("json/") && parts.Length >= 3)
+                            {
+                                inferredSource = parts[1];
+                            }
 
                             var message = new
                             {
-                                source = "S3",
+                                source = inferredSource,
                                 document_id = docId,
                                 blob_path = s3Obj.Key
                             };
