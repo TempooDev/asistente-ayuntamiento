@@ -19,7 +19,8 @@ type DocumentMessage struct {
 type Publisher struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
-	queue   amqp.Queue
+	queueBaseline       amqp.Queue
+	queueHierarchical   amqp.Queue
 }
 
 func NewPublisher() (*Publisher, error) {
@@ -39,24 +40,39 @@ func NewPublisher() (*Publisher, error) {
 		return nil, fmt.Errorf("error abriendo canal de RabbitMQ: %w", err)
 	}
 
-	q, err := ch.QueueDeclare(
-		"documents_to_process", // nombre de la cola
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		nil,                    // arguments
+	qBaseline, err := ch.QueueDeclare(
+		"documents_to_process_baseline", // nombre de la cola
+		true,                            // durable
+		false,                           // delete when unused
+		false,                           // exclusive
+		false,                           // no-wait
+		nil,                             // arguments
 	)
 	if err != nil {
 		ch.Close()
 		conn.Close()
-		return nil, fmt.Errorf("error declarando la cola: %w", err)
+		return nil, fmt.Errorf("error declarando la cola baseline: %w", err)
+	}
+
+	qHierarchical, err := ch.QueueDeclare(
+		"documents_to_process_hierarchical", // nombre de la cola
+		true,                                // durable
+		false,                               // delete when unused
+		false,                               // exclusive
+		false,                               // no-wait
+		nil,                                 // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, fmt.Errorf("error declarando la cola hierarchical: %w", err)
 	}
 
 	return &Publisher{
-		conn:    conn,
-		channel: ch,
-		queue:   q,
+		conn:              conn,
+		channel:           ch,
+		queueBaseline:     qBaseline,
+		queueHierarchical: qHierarchical,
 	}, nil
 }
 
@@ -66,20 +82,37 @@ func (p *Publisher) PublishDocument(ctx context.Context, msg DocumentMessage) er
 		return err
 	}
 
+	// Publish to baseline queue
 	err = p.channel.PublishWithContext(ctx,
-		"",           // exchange
-		p.queue.Name, // routing key (queue name)
-		false,        // mandatory
-		false,        // immediate
+		"",                    // exchange
+		p.queueBaseline.Name, // routing key (queue name)
+		false,                 // mandatory
+		false,                 // immediate
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("error publicando en RabbitMQ: %w", err)
+		return fmt.Errorf("error publicando en RabbitMQ (baseline): %w", err)
 	}
-	log.Printf("Evento publicado en RabbitMQ: %s", string(body))
+
+	// Publish to hierarchical queue
+	err = p.channel.PublishWithContext(ctx,
+		"",                        // exchange
+		p.queueHierarchical.Name, // routing key (queue name)
+		false,                     // mandatory
+		false,                     // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("error publicando en RabbitMQ (hierarchical): %w", err)
+	}
+
+	log.Printf("Evento publicado en ambas colas de RabbitMQ: %s", string(body))
 	return nil
 }
 
