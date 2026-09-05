@@ -15,13 +15,13 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.AI;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaService(
     IAppDbContext dbContext,
-    IQueryExpansionService expansionService,
-    IHybridRetrievalService retrievalService,
-    IClearLanguageGenerationService generationService,
+    IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
     ILogger<ArenaService> _logger) : IArenaService
 {
@@ -33,9 +33,23 @@ public class ArenaService(
     {
         var sessionId = Guid.NewGuid();
 
-        // Run pipelines sequentially to avoid DbContext concurrency issues
-        var baselineResult = await RunBaselinePipelineAsync(request.Query, cancellationToken);
-        var hierarchicalResult = await RunHierarchicalPipelineAsync(request.Query, cancellationToken);
+        // Start baseline pipeline in the current scope
+        var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
+
+        // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
+        var hierarchicalTask = Task.Run(async () =>
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var scopedExpansion = scope.ServiceProvider.GetRequiredService<IQueryExpansionService>();
+            var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
+            var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
+            
+            return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
+        });
+
+        await Task.WhenAll(baselineTask, hierarchicalTask);
+        var baselineResult = baselineTask.Result;
+        var hierarchicalResult = hierarchicalTask.Result;
 
         var isHierarchicalAlfa = new Random().Next(2) == 0;
 
@@ -129,15 +143,20 @@ Documentos:
         }
     }
 
-    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineScopedAsync(
+        string query, 
+        IQueryExpansionService scopedExpansion,
+        IHybridRetrievalService scopedRetrieval,
+        IClearLanguageGenerationService scopedGeneration,
+        CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            var expandedQuery = await expansionService.ExpandQueryAsync(query, cancellationToken);
-            var retrievalResults = await retrievalService.RetrieveAsync(expandedQuery, 5, cancellationToken);
+            var expandedQuery = await scopedExpansion.ExpandQueryAsync(query, cancellationToken);
+            var retrievalResults = await scopedRetrieval.RetrieveAsync(expandedQuery, 5, cancellationToken);
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
-            var response = await generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
+            var response = await scopedGeneration.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
             
             // Rough estimation for hierarchical (expanded query, retrieval, generation)
