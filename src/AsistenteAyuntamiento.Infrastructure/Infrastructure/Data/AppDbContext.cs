@@ -95,7 +95,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         modelBuilder.Entity<ChildFragment>(entity =>
         {
             entity.ToTable("ChildFragments", "ingestion");
-            entity.Property(e => e.Embedding).HasColumnType("vector(1536)");
+            entity.Property(e => e.Embedding).HasColumnType("vector");
             entity.Property(e => e.TsvContent).HasColumnType("tsvector");
 
             entity.HasIndex(e => e.ParentId);
