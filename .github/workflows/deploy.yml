@@ -10,10 +10,30 @@ on:
   workflow_dispatch:
     inputs:
       force_all:
-        description: 'Forzar la compilación y despliegue de TODOS los servicios'
+        description: 'Forzar la compilación de TODOS los servicios'
         type: boolean
         required: true
-        default: true
+        default: false
+      force_api:
+        description: 'Forzar ApiService'
+        type: boolean
+        required: false
+        default: false
+      force_worker:
+        description: 'Forzar Worker'
+        type: boolean
+        required: false
+        default: false
+      force_gateway:
+        description: 'Forzar Gateway (incluye UI)'
+        type: boolean
+        required: false
+        default: false
+      force_go:
+        description: 'Forzar Go Scraper'
+        type: boolean
+        required: false
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -26,7 +46,7 @@ jobs:
     outputs:
       dotnet_matrix: ${{ steps.set-matrix.outputs.matrix }}
       any_dotnet: ${{ steps.set-matrix.outputs.any }}
-      goscraper: ${{ steps.filter.outputs.goscraper == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true') }}
+      goscraper: ${{ steps.filter.outputs.goscraper == 'true' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.force_all == 'true' || github.event.inputs.force_go == 'true')) }}
       compose: ${{ steps.filter.outputs.compose == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true') }}
     steps:
       - uses: actions/checkout@v4
@@ -61,10 +81,13 @@ jobs:
         run: |
           matrix="[]"
           is_force="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_all == 'true' }}"
+          force_api="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_api == 'true' }}"
+          force_gw="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_gateway == 'true' }}"
+          force_worker="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_worker == 'true' }}"
           
-          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.ApiService"]'); fi
-          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Gateway"]'); fi
-          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' || "$is_force" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Worker"]'); fi
+          if [[ "${{ steps.filter.outputs.ApiService }}" == 'true' || "$is_force" == 'true' || "$force_api" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.ApiService"]'); fi
+          if [[ "${{ steps.filter.outputs.Gateway }}" == 'true' || "$is_force" == 'true' || "$force_gw" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Gateway"]'); fi
+          if [[ "${{ steps.filter.outputs.Worker }}" == 'true' || "$is_force" == 'true' || "$force_worker" == 'true' ]]; then matrix=$(echo $matrix | jq -c '. += ["AsistenteAyuntamiento.Worker"]'); fi
           
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
           if [ "$matrix" != "[]" ]; then echo "any=true" >> $GITHUB_OUTPUT; else echo "any=false" >> $GITHUB_OUTPUT; fi
