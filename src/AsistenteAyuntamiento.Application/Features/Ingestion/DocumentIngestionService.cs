@@ -107,9 +107,11 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         // 4. Vectorización (en batch segmentado para evitar límites de payload)
         int batchSize = 100;
         var allEmbeddings = new List<Microsoft.Extensions.AI.Embedding<float>>();
-        foreach (var batch in paragraphs.Chunk(batchSize))
+        var chunkedParagraphs = paragraphs.Chunk(batchSize).ToList();
+        for (int i = 0; i < chunkedParagraphs.Count; i++)
         {
-            var batchEmbeddings = await embeddingGenerator.GenerateAsync(batch.ToList(), cancellationToken: cancellationToken);
+            _logger.LogInformation($"[Baseline {document.DocumentId}] Vectorizando lote {i + 1}/{chunkedParagraphs.Count}...");
+            var batchEmbeddings = await embeddingGenerator.GenerateAsync(chunkedParagraphs[i].ToList(), cancellationToken: cancellationToken);
             allEmbeddings.AddRange(batchEmbeddings);
         }
 

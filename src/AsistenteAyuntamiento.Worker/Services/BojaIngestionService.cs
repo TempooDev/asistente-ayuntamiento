@@ -67,8 +67,17 @@ public class BojaIngestionService(
             // As a stub, we will just chunk the entire text into 500 character blocks
             var rawText = root.TryGetProperty("texto", out var txt) ? txt.GetString() ?? "" : jsonString;
             int chunkSize = 1000;
+            int totalChunksExpected = (int)Math.Ceiling((double)rawText.Length / chunkSize);
+            int currentChunkIndex = 0;
+            
             for (int i = 0; i < rawText.Length; i += chunkSize)
             {
+                currentChunkIndex++;
+                if (currentChunkIndex % 10 == 0 || currentChunkIndex == totalChunksExpected)
+                {
+                    _logger.LogInformation($"[BOJA {documentId}] Procesando fragmento {currentChunkIndex}/{totalChunksExpected}...");
+                }
+
                 var originalText = rawText.Substring(i, Math.Min(chunkSize, rawText.Length - i));
                 var normSection = $"Sección {i / chunkSize + 1}";
 

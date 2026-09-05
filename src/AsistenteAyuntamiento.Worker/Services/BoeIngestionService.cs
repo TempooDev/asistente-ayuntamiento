@@ -79,6 +79,11 @@ public class BoeIngestionService(
 
                 for (int i = 0; i < paragraphs.Count; i++)
                 {
+                    if (i % 10 == 0 || i == paragraphs.Count - 1)
+                    {
+                        _logger.LogInformation($"[BOE {documentId}] Procesando fragmento {i + 1}/{paragraphs.Count} de la sección '{normSection}'...");
+                    }
+
                     var paragraph = paragraphs[i];
                     var currentSection = paragraphs.Count > 1 ? $"{normSection} (parte {i + 1})" : normSection;
 
