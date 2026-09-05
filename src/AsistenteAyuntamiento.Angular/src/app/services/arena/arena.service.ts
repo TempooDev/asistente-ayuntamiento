@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -58,6 +58,11 @@ export interface ArenaAnalyticsResponse {
 export class ArenaService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiBaseUrl}/api/arena`;
+
+  // --- UI State (Lifted to prevent loss on navigation) ---
+  readonly currentQuery = signal('');
+  readonly compareData = signal<ArenaCompareResponse | null>(null);
+  readonly voteResult = signal<ArenaVoteResponse | null>(null);
 
   compare(request: ArenaCompareRequest) {
     return this.http.post<ArenaCompareResponse>(`${this.apiUrl}/compare`, request);

@@ -12,21 +12,21 @@ import { ArenaService, ArenaCompareResponse, ArenaVoteRequest, ArenaVoteResponse
 export class Arena {
   private arenaApi = inject(ArenaService);
 
-  query = signal('');
+  // Link to service state
+  query = this.arenaApi.currentQuery;
+  compareData = this.arenaApi.compareData;
+  voteResult = this.arenaApi.voteResult;
   
   loading = signal(false);
   error = signal('');
   
-  compareData = signal<ArenaCompareResponse | null>(null);
-  
-  // Voting Form
+  // Voting Form (we can keep these local since they only matter while voting)
   selectedWinner = signal<string | null>(null);
   clarityReason = signal<string>('');
   precisionReason = signal<string>('');
   optionalComment = signal<string>('');
   
   voteLoading = signal(false);
-  voteResult = signal<ArenaVoteResponse | null>(null);
 
   async onCompare() {
     if (!this.query().trim()) return;
