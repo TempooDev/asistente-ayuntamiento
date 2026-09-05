@@ -9,29 +9,26 @@ namespace AsistenteAyuntamiento.Application.Features.AiConfig;
 
 public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration) : IAiConfigurationService
 {
-    private readonly IConfiguration _configuration = configuration;
-    private readonly IAppDbContext _dbContext = dbContext;
-    private readonly ICurrentTenantService _tenantService = tenantService;
-    private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
+                private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {
         try
         {
-            var tenantId = _tenantService.TenantId;
-            var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+            var tenantId = tenantService.TenantId;
+            var config = await dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
-            var defaultConfig = _configuration; // IConfiguration injected
+            var defaultConfig = configuration; // IConfiguration injected
 
             if (config == null)
             {
                 return new AiConfigurationDto
                 {
-                    Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
-                    Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                    Provider = configuration["Ai:Chat:Provider"] ?? "ollama",
+                    Model = configuration["Ai:Chat:Model"] ?? "llama3.2",
                     Temperature = 0.3,
-                    HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
-                    EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+                    HasApiKey = !string.IsNullOrEmpty(configuration["Ai:Chat:ApiKey"]),
+                    EndpointUrl = configuration["Ai:Chat:EndpointUrl"]
                 };
             }
 
@@ -49,19 +46,19 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
             Console.WriteLine($"Error fetching AI config: {ex.Message}");
             return new AiConfigurationDto
             {
-                Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
-                Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                Provider = configuration["Ai:Chat:Provider"] ?? "ollama",
+                Model = configuration["Ai:Chat:Model"] ?? "llama3.2",
                 Temperature = 0.3,
-                HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
-                EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+                HasApiKey = !string.IsNullOrEmpty(configuration["Ai:Chat:ApiKey"]),
+                EndpointUrl = configuration["Ai:Chat:EndpointUrl"]
             };
         }
     }
 
     public async Task<string?> GetDecryptedApiKeyAsync()
     {
-        var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var tenantId = tenantService.TenantId;
+        var config = await dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null || string.IsNullOrEmpty(config.EncryptedApiKey))
         {
@@ -80,20 +77,20 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
 
     public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync(string? explicitTenantId = null)
     {
-        var tenantId = explicitTenantId ?? _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var tenantId = explicitTenantId ?? tenantService.TenantId;
+        var config = await dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null)
         {
             var defaultConfig = new AiConfigurationDto
             {
-                Provider = _configuration["Ai:Chat:Provider"] ?? "ollama",
-                Model = _configuration["Ai:Chat:Model"] ?? "llama3.2",
+                Provider = configuration["Ai:Chat:Provider"] ?? "ollama",
+                Model = configuration["Ai:Chat:Model"] ?? "llama3.2",
                 Temperature = 0.3,
-                HasApiKey = !string.IsNullOrEmpty(_configuration["Ai:Chat:ApiKey"]),
-                EndpointUrl = _configuration["Ai:Chat:EndpointUrl"]
+                HasApiKey = !string.IsNullOrEmpty(configuration["Ai:Chat:ApiKey"]),
+                EndpointUrl = configuration["Ai:Chat:EndpointUrl"]
             };
-            return (defaultConfig, _configuration["Ai:Chat:ApiKey"]);
+            return (defaultConfig, configuration["Ai:Chat:ApiKey"]);
         }
 
         var dto = new AiConfigurationDto
@@ -123,8 +120,8 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
 
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto)
     {
-        var tenantId = _tenantService.TenantId;
-        var config = await _dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        var tenantId = tenantService.TenantId;
+        var config = await dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null)
         {
@@ -132,7 +129,7 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
             {
                 TenantId = tenantId
             };
-            _dbContext.AiConfigurations.Add(config);
+            dbContext.AiConfigurations.Add(config);
         }
 
         config.Provider = dto.Provider ?? "";
@@ -146,7 +143,7 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
         }
         // Si no envía ApiKey, se mantiene la existente.
 
-        await _dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
     }
 }
 

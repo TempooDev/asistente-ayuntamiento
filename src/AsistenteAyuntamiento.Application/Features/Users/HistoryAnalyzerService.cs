@@ -31,6 +31,11 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
             string.Join("\n", s.Messages.OrderBy(m => m.CreatedAt).Select(m => $"{m.Role}: {m.Content}"))
         ));
 
+        if (messagesContext.Length > 8000)
+        {
+            messagesContext = messagesContext.Substring(messagesContext.Length - 8000);
+        }
+
         // 2. Extract using LLM
         var chatCompletion = kernel.GetRequiredService<IChatCompletionService>();
         var systemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.HistoryAnalyzerSystemPrompt;
@@ -41,10 +46,7 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
         var result = await chatCompletion.GetChatMessageContentAsync(history, cancellationToken: cancellationToken);
         var resultContent = result.Content ?? string.Empty;
 
-        if (resultContent.StartsWith("```json"))
-            resultContent = resultContent.Substring(7, resultContent.Length - 10).Trim();
-        else if (resultContent.StartsWith("```"))
-            resultContent = resultContent.Substring(3, resultContent.Length - 6).Trim();
+        resultContent = resultContent.Replace("```json", "").Replace("```", "").Trim();
 
         try 
         {
