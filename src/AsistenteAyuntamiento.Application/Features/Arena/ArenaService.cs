@@ -55,6 +55,8 @@ public class ArenaService(
             RightResponse = betaResult.Response,
             LeftLatencyMs = (int)(isHierarchicalAlfa ? alfaResult.Latency : betaResult.Latency),
             RightLatencyMs = (int)(isHierarchicalAlfa ? betaResult.Latency : alfaResult.Latency),
+            LeftTokens = isHierarchicalAlfa ? alfaResult.Tokens : betaResult.Tokens,
+            RightTokens = isHierarchicalAlfa ? betaResult.Tokens : alfaResult.Tokens,
             Winner = BattleWinner.Pending
         };
 
@@ -94,7 +96,7 @@ public class ArenaService(
         };
     }
 
-    private async Task<(string Response, long Latency, string[] Sources)> RunBaselinePipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunBaselinePipelineAsync(string query, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -118,17 +120,18 @@ Documentos:
             var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
             sw.Stop();
 
-            return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds, sources);
+            int estimatedTokens = (prompt.Length + (result.Content?.Length ?? 0)) / 4;
+            return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Baseline pipeline");
             sw.Stop();
-            return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, []);
+            return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, [], 0);
         }
     }
 
-    private async Task<(string Response, long Latency, string[] Sources)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineAsync(string query, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -138,13 +141,18 @@ Documentos:
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
             var response = await generationService.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
-            return (response, sw.ElapsedMilliseconds, sources);
+            
+            // Rough estimation for hierarchical (expanded query, retrieval, generation)
+            var contextText = string.Join("\n", retrievalResults.Select(r => r.ParentFullText));
+            int estimatedTokens = (query.Length + contextText.Length + response.Length) / 4;
+            
+            return (response, sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Hierarchical pipeline");
             sw.Stop();
-            return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, []);
+            return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, [], 0);
         }
     }
 }

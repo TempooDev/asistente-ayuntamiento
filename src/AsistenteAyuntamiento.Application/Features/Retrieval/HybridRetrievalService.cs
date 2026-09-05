@@ -61,7 +61,7 @@ public class HybridRetrievalService(
         {
             new Npgsql.NpgsqlParameter("@embedding", npgsqlVector),
             new Npgsql.NpgsqlParameter("@tsquery", queryInfo.QueryLexica),
-            new Npgsql.NpgsqlParameter("@municipio", municipioParam),
+            new Npgsql.NpgsqlParameter("@municipio", NpgsqlTypes.NpgsqlDbType.Text) { Value = municipioParam },
             new Npgsql.NpgsqlParameter("@limit", limit)
         };
 
