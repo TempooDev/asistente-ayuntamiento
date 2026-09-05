@@ -84,6 +84,8 @@ public class BojaIngestionService(
                 totalLlmCalls += enrichmentResult.LlmCalls;
                 totalLlmTokens += enrichmentResult.LlmTokens;
 
+                if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
+
                 var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
                 var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
                 totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate

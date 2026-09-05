@@ -72,35 +72,48 @@ public class BoeIngestionService(
                 var normSection = articulo.Attribute("id")?.Value ?? "Artículo Único";
                 var originalText = articulo.Value;
 
-                // 4. Enrich fragment
-                var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
-                    BulletinType.BOE,
-                    parentDoc.IssuingBody ?? "Estado",
-                    parentDoc.NormTitle,
-                    normSection,
-                    "General",
-                    originalText,
-                    cancellationToken);
+                if (string.IsNullOrWhiteSpace(originalText)) continue;
 
-                totalLlmCalls += enrichmentResult.LlmCalls;
-                totalLlmTokens += enrichmentResult.LlmTokens;
+                var lines = Microsoft.SemanticKernel.Text.TextChunker.SplitPlainTextLines(originalText, 200);
+                var paragraphs = Microsoft.SemanticKernel.Text.TextChunker.SplitPlainTextParagraphs(lines, 400, 50);
 
-                // 5. Embed fragment
-                var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
-                var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
-                totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
-
-                var childFragment = new ChildFragment
+                for (int i = 0; i < paragraphs.Count; i++)
                 {
-                    ParentId = parentDoc.Id,
-                    Bulletin = BulletinType.BOE,
-                    SubSection = normSection,
-                    ChunkText = enrichmentResult.EnrichedText,
-                    Embedding = embeddingVector
-                };
+                    var paragraph = paragraphs[i];
+                    var currentSection = paragraphs.Count > 1 ? $"{normSection} (parte {i + 1})" : normSection;
 
-                _dbContext.ChildFragments.Add(childFragment);
-                chunksGenerated++;
+                    // 4. Enrich fragment
+                    var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
+                        BulletinType.BOE,
+                        parentDoc.IssuingBody ?? "Estado",
+                        parentDoc.NormTitle,
+                        currentSection,
+                        "General",
+                        paragraph,
+                        cancellationToken);
+
+                    totalLlmCalls += enrichmentResult.LlmCalls;
+                    totalLlmTokens += enrichmentResult.LlmTokens;
+
+                    if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
+
+                    // 5. Embed fragment
+                    var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
+                    var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+                    totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
+
+                    var childFragment = new ChildFragment
+                    {
+                        ParentId = parentDoc.Id,
+                        Bulletin = BulletinType.BOE,
+                        SubSection = currentSection,
+                        ChunkText = enrichmentResult.EnrichedText,
+                        Embedding = embeddingVector
+                    };
+
+                    _dbContext.ChildFragments.Add(childFragment);
+                    chunksGenerated++;
+                }
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
