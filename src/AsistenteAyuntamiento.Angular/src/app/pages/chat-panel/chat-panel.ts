@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ChatService, ChatSessionSummaryDto, ChatMessage } from '../../services/chat/chat.service';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { WelcomeGuideComponent } from '../../components/welcome-guide/welcome-guide.component';
 
 DOMPurify.addHook('afterSanitizeAttributes', function(node) {
   if (node.tagName === 'A') {
@@ -14,7 +15,7 @@ DOMPurify.addHook('afterSanitizeAttributes', function(node) {
 @Component({
   selector: 'app-chat-panel',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, WelcomeGuideComponent],
   templateUrl: './chat-panel.html',
   styleUrl: './chat-panel.scss'
 })
@@ -23,6 +24,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   
   // Non-signal for two-way binding with ngModel (though model() is an option, this is simpler)
   currentMessage = '';
+
   
   // Signals for state exposed directly from ChatService
   isWaitingForResponse = this.chatService.isWaitingForResponse;
@@ -35,6 +37,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   isLoadingHistory = signal(false);
   isConnected = signal(false);
   arenaMode = signal(false);
+  showWelcomeGuide = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
   @ViewChild('chatInput') private chatInput!: ElementRef<HTMLTextAreaElement>;
@@ -43,6 +46,11 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     this.chatService.messageReceived$.subscribe((msg) => {
       this.handleIncomingMessage(msg);
     });
+
+    const hasSeenGuide = localStorage.getItem('has_seen_welcome_guide');
+    if (!hasSeenGuide) {
+      this.showWelcomeGuide.set(true);
+    }
 
     try {
       await this.chatService.connect();
@@ -363,5 +371,14 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
       event.preventDefault();
       this.sendMessage();
     }
+  }
+
+  openWelcomeGuide() {
+    this.showWelcomeGuide.set(true);
+  }
+
+  closeWelcomeGuide() {
+    this.showWelcomeGuide.set(false);
+    localStorage.setItem('has_seen_welcome_guide', 'true');
   }
 }
