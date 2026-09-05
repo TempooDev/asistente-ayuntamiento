@@ -68,8 +68,8 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
         }
         else
         {
-            var newTopics = extracted.Topics?.Except(preference.Topics ?? new List<string>()).ToList() ?? new List<string>();
-            var newLocations = extracted.Locations?.Except(preference.Locations ?? new List<string>()).ToList() ?? new List<string>();
+            var newTopics = extracted.Topics?.Except(preference.Topics ?? new List<string>(), StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
+            var newLocations = extracted.Locations?.Except(preference.Locations ?? new List<string>(), StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
 
             if (newTopics.Any() || newLocations.Any())
             {

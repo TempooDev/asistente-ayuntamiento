@@ -33,7 +33,7 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
 
         if (messagesContext.Length > 8000)
         {
-            messagesContext = messagesContext.Substring(messagesContext.Length - 8000);
+            messagesContext = messagesContext.Substring(0, 8000);
         }
 
         // 2. Extract using LLM
