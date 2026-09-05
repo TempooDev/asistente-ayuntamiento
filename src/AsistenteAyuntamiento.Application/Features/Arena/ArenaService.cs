@@ -23,7 +23,7 @@ public class ArenaService(
     IAppDbContext dbContext,
     IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
-    ILogger<ArenaService> _logger) : IArenaService
+    ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
@@ -45,13 +45,13 @@ public class ArenaService(
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
             
             return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
-        });
+        }, cancellationToken);
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
         var baselineResult = baselineTask.Result;
         var hierarchicalResult = hierarchicalTask.Result;
 
-        var isHierarchicalAlfa = new Random().Next(2) == 0;
+        var isHierarchicalAlfa = Random.Shared.Next(2) == 0;
 
         var alfaResult = isHierarchicalAlfa ? hierarchicalResult : baselineResult;
         var betaResult = isHierarchicalAlfa ? baselineResult : hierarchicalResult;
@@ -94,7 +94,10 @@ public class ArenaService(
         if (battle == null)
             throw new Exception("Battle session not found");
 
-        if (Enum.TryParse<BattleWinner>(request.Winner, true, out var w)) battle.Winner = w;
+        if (!Enum.TryParse<BattleWinner>(request.Winner, true, out var w))
+            throw new ArgumentException("Invalid winner value provided.", nameof(request.Winner));
+
+        battle.Winner = w;
         if (Enum.TryParse<EvaluationPreference>(request.ClarityReason, true, out var c)) battle.ClarityReason = c;
         if (Enum.TryParse<EvaluationPreference>(request.PrecisionReason, true, out var p)) battle.PrecisionReason = p;
         battle.OptionalComment = request.OptionalComment;
@@ -118,6 +121,7 @@ public class ArenaService(
 
             
             var topChunks = await dbContext.DocumentChunks
+                .AsNoTracking()
                 .OrderBy(x => x.Embedding!.CosineDistance(queryVector))
                 .Take(5)
                 .ToListAsync(cancellationToken);
@@ -137,7 +141,7 @@ Documentos:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in Baseline pipeline");
+            logger.LogError(ex, "Error in Baseline pipeline");
             sw.Stop();
             return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, [], 0);
         }
@@ -167,7 +171,7 @@ Documentos:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in Hierarchical pipeline");
+            logger.LogError(ex, "Error in Hierarchical pipeline");
             sw.Stop();
             return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, [], 0);
         }
