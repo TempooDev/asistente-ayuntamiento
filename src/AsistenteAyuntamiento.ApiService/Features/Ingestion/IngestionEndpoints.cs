@@ -4,6 +4,7 @@ using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
