@@ -20,21 +20,54 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns AI model invocation metrics and recent call history");
 
         // GET /api/ai/metrics/summary — Lightweight summary (no recent calls list)
-        group.MapGet("/metrics/summary", (IAiMetricsService metricsService) =>
+        group.MapGet("/metrics/summary", async (IAppDbContext dbContext) =>
         {
-            var snapshot = metricsService.GetSnapshot();
+            var chatLogs = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(dbContext.AiCallLogs.AsNoTracking());
+            var ingestionLogs = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(dbContext.IngestionMetrics.AsNoTracking());
+
+            var chatConsumptions = chatLogs.GroupBy(c => c.ModelId).Select(g => new
+            {
+                ModelId = string.IsNullOrEmpty(g.Key) ? "Unknown" : g.Key,
+                Type = "Chat",
+                TotalCalls = g.Count(),
+                SucceededCalls = g.Count(x => x.Success),
+                AverageDurationMs = g.Any() ? Math.Round(g.Average(x => x.DurationMs), 2) : 0,
+                TotalTokens = g.Sum(x => x.TotalTokens)
+            });
+
+            var embeddingsConsumptions = ingestionLogs.GroupBy(c => "Ingestion Worker").Select(g => new
+            {
+                ModelId = g.Key,
+                Type = "Embeddings",
+                TotalCalls = g.Sum(x => x.TotalLlmCalls),
+                SucceededCalls = g.Sum(x => x.TotalLlmCalls),
+                AverageDurationMs = g.Any() ? Math.Round(g.Average(x => x.ProcessingDurationMs), 2) : 0,
+                TotalTokens = g.Sum(x => x.TotalTokensEmbedded + x.TotalLlmTokens)
+            });
+
+            var consumptions = chatConsumptions.Concat(embeddingsConsumptions).OrderByDescending(c => c.TotalTokens).ToList();
+
+            var totalCalls = chatLogs.Count + ingestionLogs.Sum(i => i.TotalLlmCalls);
+            var succeededCalls = chatLogs.Count(x => x.Success) + ingestionLogs.Sum(i => i.TotalLlmCalls);
+            var failedCalls = chatLogs.Count(x => !x.Success);
+            
+            var totalInputTokens = chatLogs.Sum(x => x.InputTokens) + ingestionLogs.Sum(i => i.TotalTokensEmbedded);
+            var totalOutputTokens = chatLogs.Sum(x => x.OutputTokens) + ingestionLogs.Sum(i => i.TotalLlmTokens);
+            var totalTokens = totalInputTokens + totalOutputTokens;
+
             return Results.Ok(new
             {
-                snapshot.GeneratedAtUtc,
-                snapshot.TotalCalls,
-                snapshot.SucceededCalls,
-                snapshot.FailedCalls,
-                snapshot.SuccessRate,
-                snapshot.AverageDurationMs,
-                snapshot.TotalInputTokens,
-                snapshot.TotalOutputTokens,
-                snapshot.TotalTokens,
-                snapshot.AverageTokensPerCall
+                GeneratedAtUtc = DateTime.UtcNow,
+                TotalCalls = totalCalls,
+                SucceededCalls = succeededCalls,
+                FailedCalls = failedCalls,
+                SuccessRate = totalCalls > 0 ? Math.Round((double)succeededCalls / totalCalls * 100, 2) : 0,
+                AverageDurationMs = consumptions.Any() ? Math.Round(consumptions.Average(c => c.AverageDurationMs), 2) : 0,
+                TotalInputTokens = totalInputTokens,
+                TotalOutputTokens = totalOutputTokens,
+                TotalTokens = totalTokens,
+                AverageTokensPerCall = succeededCalls > 0 ? Math.Round((double)totalTokens / succeededCalls, 1) : 0,
+                Consumptions = consumptions
             });
         })
         .WithName("GetAiMetricsSummary")

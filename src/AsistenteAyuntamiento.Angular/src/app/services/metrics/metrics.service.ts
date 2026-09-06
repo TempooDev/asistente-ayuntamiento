@@ -3,6 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
+export interface AiModelConsumption {
+  modelId: string;
+  type: string;
+  totalCalls: number;
+  succeededCalls: number;
+  averageDurationMs: number;
+  totalTokens: number;
+}
+
 export interface AiMetricsSummary {
   generatedAtUtc: string;
   totalCalls: number;
@@ -14,6 +23,7 @@ export interface AiMetricsSummary {
   totalOutputTokens: number;
   totalTokens: number;
   averageTokensPerCall: number;
+  consumptions: AiModelConsumption[];
 }
 
 @Injectable({
