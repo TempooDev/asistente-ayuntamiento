@@ -282,8 +282,7 @@ public sealed class AiChatService(
                     Content: content,
                     DurationMs: stopwatch.Elapsed.TotalMilliseconds,
                     ErrorMessage: null,
-                    TokenUsage: TokenUsageInfo.Empty, // Simplified for fallback
-                    Sources: documentSources);
+                    TokenUsage: TokenUsageInfo.Empty); // Simplified for fallback
             }
             catch (Exception fallbackEx)
             {
@@ -678,6 +677,9 @@ public sealed class AiChatService(
             while (true)
             {
                 Microsoft.SemanticKernel.StreamingChatMessageContent chunk = null!;
+                bool shouldContinue = false;
+                string? messageToYield = null;
+                
                 try
                 {
                     if (!await enumerator.MoveNextAsync())
@@ -706,12 +708,11 @@ public sealed class AiChatService(
                     await enumerator.DisposeAsync();
                     enumerator = responseStream.GetAsyncEnumerator(cancellationToken);
                     
-                    var fallbackMessage = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*\n\n";
-                    fullContent += fallbackMessage;
-                    yield return fallbackMessage;
+                    messageToYield = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*\n\n";
+                    fullContent += messageToYield;
                     
                     hasYieldedChunks = true;
-                    continue;
+                    shouldContinue = true;
                 }
                 catch (Exception ex)
                 {
@@ -722,6 +723,16 @@ public sealed class AiChatService(
                         fullContent += errorToYield;
                     }
                     break;
+                }
+
+                if (messageToYield != null)
+                {
+                    yield return messageToYield;
+                }
+                
+                if (shouldContinue)
+                {
+                    continue;
                 }
 
                 var content = chunk.Content;
