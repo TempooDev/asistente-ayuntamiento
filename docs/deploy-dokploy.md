@@ -47,6 +47,14 @@ Asegúrate de reemplazar las siguientes palabras clave antes de desplegar:
 
 ```yaml
 services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: always
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-CLAVE_QDRANT}
+    volumes:
+      - qdrant_data:/qdrant/storage
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     restart: always
@@ -59,14 +67,14 @@ services:
   minio:
     image: minio/minio:latest
     restart: always
-    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: "admin"
       MINIO_ROOT_PASSWORD: "SECRETO_MINIO123!"
+    command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
 
-  minio-init: 
+  minio-setup:
     image: minio/mc:latest
     depends_on:
       - minio
@@ -83,7 +91,7 @@ services:
     restart: always
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
-      ConnectionStrings__qdrant: "Endpoint=URL_DEL_QDRANT_DOKPLOY;ApiKey=CLAVE_QDRANT"
+      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
       ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
       Ai__Chat__Provider: "google"
       Ai__Chat__Model: "gemini-1.5-pro"
@@ -98,12 +106,32 @@ services:
       Auth0__Domain: "${AUTH0_DOMAIN}"
       Auth0__Audience: "${AUTH0_AUDIENCE}"
 
-  worker:
+  worker-baseline:
     image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
     restart: always
     environment:
+      WORKER_PIPELINE_MODE: "BASELINE"
       ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
-      ConnectionStrings__qdrant: "Endpoint=URL_DEL_QDRANT_DOKPLOY;ApiKey=CLAVE_QDRANT"
+      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
+      ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
+      Ai__Chat__Provider: "google"
+      Ai__Chat__Model: "gemini-1.5-pro"
+      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
+      Ai__Embeddings__Provider: "google"
+      Ai__Embeddings__Model: "text-embedding-004"
+      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
+      Blob__Endpoint: "http://minio:9000"
+      Blob__AccessKeyId: "admin"
+      Blob__SecretAccessKey: "SECRETO_MINIO123!"
+      Blob__BucketName: "boletines"
+
+  worker-hierarchical:
+    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
+    restart: always
+    environment:
+      WORKER_PIPELINE_MODE: "HIERARCHICAL"
+      ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
+      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
       ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
       Ai__Chat__Provider: "google"
       Ai__Chat__Model: "gemini-1.5-pro"
@@ -125,6 +153,7 @@ services:
       Blob__AccessKeyId: "admin"
       Blob__SecretAccessKey: "SECRETO_MINIO123!"
       Blob__BucketName: "boletines"
+      DOTNET_API_GRPC_URL: "http://apiservice:50051"
 
   gateway:
     image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
@@ -132,8 +161,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      services__apiservice__http__0: "http://apiservice:8080"
-      services__webfrontend__http__0: "http://webfrontend:8080"
+      ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address: "http://apiservice:8080"
 
   webfrontend:
     image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.web:latest

@@ -1,4 +1,15 @@
 services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: always
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - dokploy-network
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: asistente-rabbitmq
@@ -19,7 +30,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
-      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6333};ApiKey=${QDRANT_API_KEY:-}
+      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:-}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
       - Auth0__Domain=${AUTH0_DOMAIN}
@@ -61,7 +72,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=BASELINE
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
-      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6333};ApiKey=${QDRANT_API_KEY:-}
+      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:-}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
       - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
@@ -94,7 +105,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=HIERARCHICAL
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
-      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6333};ApiKey=${QDRANT_API_KEY:-}
+      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:-}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:-SECRETO_RABBIT}@rabbitmq:5672
       - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
       - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
@@ -161,3 +172,4 @@ networks:
 
 volumes:
   rabbitmq_data:
+  qdrant_data:
