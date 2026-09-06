@@ -167,7 +167,7 @@ public sealed class AiChatService(
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 // Find top 20 closest chunks
-                var searchResult = await qdrantClient.SearchAsync(
+                var searchResult = await qdrantClient.QueryAsync(
                     "document_chunks",
                     queryVector.ToArray(),
                     limit: 5,
@@ -612,7 +612,7 @@ public sealed class AiChatService(
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                var searchResult = await qdrantClient.SearchAsync(
+                var searchResult = await qdrantClient.QueryAsync(
                     "document_chunks",
                     queryVector.ToArray(),
                     limit: 3,
@@ -931,7 +931,7 @@ public sealed class AiChatService(
         var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
         // 1. Get Top 3 using HNSW Index
-        var searchResult = await qdrantClient.SearchAsync(
+        var searchResult = await qdrantClient.QueryAsync(
             "document_chunks",
             queryVector.ToArray(),
             limit: 3,

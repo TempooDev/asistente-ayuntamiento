@@ -53,9 +53,9 @@ public class HybridRetrievalService(
                     };
                 }
 
-                qdrantPoints = (await qdrantClient.SearchAsync(
+                qdrantPoints = (await qdrantClient.QueryAsync(
                     collectionName: QdrantCollectionName,
-                    vector: embeddingVector,
+                    query: embeddingVector,
                     filter: qdrantFilter,
                     limit: (ulong)limit,
                     cancellationToken: cancellationToken

@@ -123,7 +123,7 @@ public class ArenaService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
             var queryVector = embeddings[0].Vector.ToArray();
 
-            var searchResult = await _qdrantClient.SearchAsync(
+            var searchResult = await _qdrantClient.QueryAsync(
                 "document_chunks",
                 queryVector,
                 limit: 5,
