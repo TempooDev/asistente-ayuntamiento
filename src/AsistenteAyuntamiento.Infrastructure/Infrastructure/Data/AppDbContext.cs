@@ -37,14 +37,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         modelBuilder.Entity<DocumentChunk>().ToTable("DocumentChunks", "ingestion");
 
         // Habilitar pgvector
-        modelBuilder.HasPostgresExtension("vector");
 
         // Asignar esquema por Bounded Context (DDD)
         modelBuilder.HasDefaultSchema("identity");
 
-        modelBuilder.Entity<DocumentChunk>()
-            .Property(c => c.Embedding)
-            .HasColumnType("vector(4096)");
 
         modelBuilder.Entity<UserProfile>()
             .HasIndex(u => u.Auth0UserId)

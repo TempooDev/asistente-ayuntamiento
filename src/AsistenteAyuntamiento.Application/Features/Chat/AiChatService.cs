@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Generation;
@@ -63,7 +64,8 @@ public sealed class AiChatService(
     IHybridRetrievalService hybridRetrievalService,
     Microsoft.Extensions.DependencyInjection.IServiceScopeFactory serviceScopeFactory,
     IClearLanguageGenerationService generationService,
-    IUserPreferenceService userPreferenceService) : IAiChatService
+    IUserPreferenceService userPreferenceService,
+    Qdrant.Client.QdrantClient qdrantClient) : IAiChatService
 {
 
     /// <summary>
@@ -165,16 +167,16 @@ public sealed class AiChatService(
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
                 // Find top 20 closest chunks
-                var closestChunks = await dbContext.DocumentChunks
-                    .AsNoTracking()
-                    .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
-                    .Take(5)
-                    .ToListAsync(cancellationToken);
+                var searchResult = await qdrantClient.SearchAsync(
+                    "document_chunks",
+                    queryVector.ToArray(),
+                    limit: 5,
+                    cancellationToken: cancellationToken);
 
-                if (closestChunks.Any())
+                if (searchResult.Any())
                 {
-                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
-                        $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                    var contextText = string.Join("\n\n---\n\n", searchResult.Select(c =>
+                        $"[Documento: {c.Payload["Title"].StringValue} | URL: {GetPublicUrl(c.Payload["Source"].StringValue, c.Payload["DocumentId"].StringValue)} | Departamento: {c.Payload["Department"].StringValue} | Fecha: {DateTime.Parse(c.Payload["PublicationDate"].StringValue):yyyy-MM-dd}]\n{c.Payload["Content"].StringValue}"));
 
                     var originalMessage = lastUserMessage.Content;
                     var userPromptWithContext = string.Format(
@@ -610,17 +612,17 @@ public sealed class AiChatService(
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
                 var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
-                var closestChunks = await dbContext.DocumentChunks
-                    .AsNoTracking()
-                    .Where(c => c.Embedding!.CosineDistance(queryVector) < 0.35)
-                    .OrderBy(c => c.Embedding!.CosineDistance(queryVector))
-                    .Take(3)
-                    .ToListAsync(cancellationToken);
+                var searchResult = await qdrantClient.SearchAsync(
+                    "document_chunks",
+                    queryVector.ToArray(),
+                    limit: 3,
+                    scoreThreshold: 0.65f,
+                    cancellationToken: cancellationToken);
 
-                if (closestChunks.Any())
+                if (searchResult.Any())
                 {
-                    var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
-                        $"[Documento: {c.Title} | URL: {GetPublicUrl(c.Source, c.DocumentId)} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));
+                    var contextText = string.Join("\n\n---\n\n", searchResult.Select(c =>
+                        $"[Documento: {c.Payload["Title"].StringValue} | URL: {GetPublicUrl(c.Payload["Source"].StringValue, c.Payload["DocumentId"].StringValue)} | Departamento: {c.Payload["Department"].StringValue} | Fecha: {DateTime.Parse(c.Payload["PublicationDate"].StringValue):yyyy-MM-dd}]\n{c.Payload["Content"].StringValue}"));
 
                     var systemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.StreamingSystemPrompt;
 
@@ -929,19 +931,25 @@ public sealed class AiChatService(
         var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
 
         // 1. Get Top 3 using HNSW Index
-        var topChunks = await dbContext.DocumentChunks
-            .Select(c => new { Chunk = c, Distance = c.Embedding!.CosineDistance(queryVector) })
-            .OrderBy(x => x.Distance)
-            .Take(3)
-            .ToListAsync(cancellationToken);
+        var searchResult = await qdrantClient.SearchAsync(
+            "document_chunks",
+            queryVector.ToArray(),
+            limit: 3,
+            scoreThreshold: 0.65f,
+            cancellationToken: cancellationToken);
 
-        // 2. Filter locally by distance to prevent Hallucinations
-        var closestChunks = topChunks
-            .Where(x => x.Distance < 0.35)
-            .Select(x => x.Chunk)
-            .ToList();
+        if (!searchResult.Any()) return null;
 
-        if (!closestChunks.Any()) return null;
+        var closestChunks = searchResult.Select(p => new DocumentChunk
+        {
+            DocumentId = p.Payload["DocumentId"].StringValue,
+            Source = p.Payload["Source"].StringValue,
+            Title = p.Payload["Title"].StringValue,
+            Department = p.Payload["Department"].StringValue,
+            Content = p.Payload["Content"].StringValue,
+            ChunkIndex = (int)p.Payload["ChunkIndex"].IntegerValue,
+            PublicationDate = DateTime.Parse(p.Payload["PublicationDate"].StringValue)
+        }).ToList();
 
         var contextText = string.Join("\n\n---\n\n", closestChunks.Select(c =>
             $"[Documento: {c.Title} | Departamento: {c.Department} | Fecha: {c.PublicationDate:yyyy-MM-dd}]\n{c.Content}"));

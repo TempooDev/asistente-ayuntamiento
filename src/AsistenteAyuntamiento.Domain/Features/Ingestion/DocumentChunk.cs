@@ -15,7 +15,4 @@ public class DocumentChunk
     public string Content { get; set; } = string.Empty;
     public int ChunkIndex { get; set; }
     public DateTime PublicationDate { get; set; }
-    
-    // Nomic Embed Text model produces 768 dimensions. Llama3.2 produces variable depending on version. We'll use a dynamic column if possible, but pgvector requires dimension constraint typically, e.g. vector(768) or vector(384). We will define it via FluentAPI.
-    public Vector? Embedding { get; set; }
 }

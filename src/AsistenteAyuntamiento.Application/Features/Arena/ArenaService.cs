@@ -17,15 +17,19 @@ using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Qdrant.Client;
+
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
 public class ArenaService(
     IAppDbContext dbContext,
     IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
+    QdrantClient qdrantClient,
     ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly QdrantClient _qdrantClient = qdrantClient;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
@@ -43,7 +47,7 @@ public class ArenaService(
             var scopedExpansion = scope.ServiceProvider.GetRequiredService<IQueryExpansionService>();
             var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
-            
+
             return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
         }, cancellationToken);
 
@@ -89,7 +93,7 @@ public class ArenaService(
 
     public async Task<ArenaVoteResponse> VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
     {
-        
+
         var battle = await dbContext.ArenaBattles.FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
         if (battle == null)
             throw new Exception("Battle session not found");
@@ -117,16 +121,15 @@ public class ArenaService(
         try
         {
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
-            var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+            var queryVector = embeddings[0].Vector.ToArray();
 
-            
-            var topChunks = await dbContext.DocumentChunks
-                .AsNoTracking()
-                .OrderBy(x => x.Embedding!.CosineDistance(queryVector))
-                .Take(5)
-                .ToListAsync(cancellationToken);
+            var searchResult = await _qdrantClient.SearchAsync(
+                "document_chunks",
+                queryVector,
+                limit: 5,
+                cancellationToken: cancellationToken);
 
-            var sources = topChunks.Select(c => c.Content).ToArray();
+            var sources = searchResult.Select(p => p.Payload["Content"].StringValue).ToArray();
             var contextText = string.Join("\n\n", sources);
             var prompt = $@"Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
 Consulta: {query}
@@ -148,7 +151,7 @@ Documentos:
     }
 
     private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineScopedAsync(
-        string query, 
+        string query,
         IQueryExpansionService scopedExpansion,
         IHybridRetrievalService scopedRetrieval,
         IClearLanguageGenerationService scopedGeneration,
@@ -162,11 +165,11 @@ Documentos:
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
             var response = await scopedGeneration.GenerateResponseAsync(query, retrievalResults, cancellationToken);
             sw.Stop();
-            
+
             // Rough estimation for hierarchical (expanded query, retrieval, generation)
             var contextText = string.Join("\n", retrievalResults.Select(r => r.ParentFullText));
             int estimatedTokens = (query.Length + contextText.Length + response.Length) / 4;
-            
+
             return (response, sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
         catch (Exception ex)

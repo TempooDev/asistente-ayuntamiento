@@ -1,4 +1,3 @@
-using AsistenteAyuntamiento.ApiService.Features.Admin;
 using AsistenteAyuntamiento.Infrastructure;
 
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -21,7 +20,6 @@ using AsistenteAyuntamiento.Application.Features.Metrics;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
-using AsistenteAyuntamiento.ApiService.Features.Admin;
 using AsistenteAyuntamiento.ApiService.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Config;
@@ -190,6 +188,5 @@ app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();
 
-DocumentChunkMigrationEndpoints.MapDocumentChunkMigrationEndpoints(app);
 
 app.Run();

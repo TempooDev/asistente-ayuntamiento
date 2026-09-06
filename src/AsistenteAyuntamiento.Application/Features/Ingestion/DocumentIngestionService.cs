@@ -8,10 +8,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
 using System.Text.Json;
+using Qdrant.Client;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null) : IDocumentIngestionService
+public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null) : IDocumentIngestionService
 {
         private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
                     
@@ -104,6 +105,8 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         }
 
         var chunks = new List<DocumentChunk>();
+        var qdrantPoints = new List<(DocumentChunk Chunk, float[] Vector)>();
+
         for (int i = 0; i < paragraphs.Count; i++)
         {
             var p = paragraphs[i];
@@ -117,10 +120,10 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                 Department = document.Metadata?.Department ?? string.Empty,
                 Content = p,
                 ChunkIndex = i,
-                PublicationDate = DateTime.TryParse(document.Metadata?.PublicationDate, out var date) ? date.ToUniversalTime() : DateTime.UtcNow,
-                Embedding = new Pgvector.Vector(embedding.ToArray())
+                PublicationDate = DateTime.TryParse(document.Metadata?.PublicationDate, out var date) ? date.ToUniversalTime() : DateTime.UtcNow
             };
             chunks.Add(chunk);
+            qdrantPoints.Add((chunk, embedding.ToArray()));
         }
 
         // 5. Persistencia transaccional
@@ -137,6 +140,27 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
                 await dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
+
+                if (qdrantPoints.Any())
+                {
+                    var points = qdrantPoints.Select(p => new Qdrant.Client.Grpc.PointStruct
+                    {
+                        Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)p.Chunk.Id },
+                        Vectors = p.Vector,
+                        Payload =
+                        {
+                            ["DocumentId"] = p.Chunk.DocumentId,
+                            ["Source"] = p.Chunk.Source,
+                            ["Title"] = p.Chunk.Title ?? "",
+                            ["Department"] = p.Chunk.Department ?? "",
+                            ["Content"] = p.Chunk.Content,
+                            ["ChunkIndex"] = p.Chunk.ChunkIndex,
+                            ["PublicationDate"] = p.Chunk.PublicationDate.ToString("O")
+                        }
+                    }).ToList();
+
+                    await qdrantClient.UpsertAsync("document_chunks", points, cancellationToken: cancellationToken);
+                }
 
                 // Update state to Completed using ExecuteUpdateAsync to ensure it bypasses change tracker issues
                 var updatedRows = await dbContext.DocumentJobStates
