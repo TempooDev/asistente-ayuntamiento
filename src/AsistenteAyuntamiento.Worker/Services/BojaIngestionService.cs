@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Text;
 using Microsoft.SemanticKernel.Embeddings;
+using Qdrant.Client;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
@@ -18,6 +19,7 @@ public class BojaIngestionService(
     AppDbContext dbContext,
     IFragmentEnrichmentService enrichmentService,
     IIngestionMetricsService metricsService,
+    QdrantClient qdrantClient,
     ILogger<BojaIngestionService> logger,
     Kernel kernel) : IHierarchicalIngestionProcessor
 {
@@ -26,6 +28,7 @@ public class BojaIngestionService(
     private readonly AppDbContext _dbContext = dbContext;
     private readonly IFragmentEnrichmentService _enrichmentService = enrichmentService;
     private readonly IIngestionMetricsService _metricsService = metricsService;
+    private readonly QdrantClient _qdrantClient = qdrantClient;
     private readonly ILogger<BojaIngestionService> _logger = logger;
 
     private readonly Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>> _embeddingService = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
@@ -70,6 +73,8 @@ public class BojaIngestionService(
             int totalChunksExpected = (int)Math.Ceiling((double)rawText.Length / chunkSize);
             int currentChunkIndex = 0;
             
+            var qdrantPoints = new List<(ChildFragment Fragment, float[] Vector)>();
+
             for (int i = 0; i < rawText.Length; i += chunkSize)
             {
                 currentChunkIndex++;
@@ -96,7 +101,7 @@ public class BojaIngestionService(
                 if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
 
                 var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
-                var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+                var rawVector = embeddings[0].Vector.ToArray();
                 totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
 
                 var childFragment = new ChildFragment
@@ -104,15 +109,34 @@ public class BojaIngestionService(
                     ParentId = parentDoc.Id,
                     Bulletin = BulletinType.BOJA,
                     SubSection = normSection,
-                    ChunkText = enrichmentResult.EnrichedText,
-                    Embedding = embeddingVector
+                    ChunkText = enrichmentResult.EnrichedText
                 };
 
                 _dbContext.ChildFragments.Add(childFragment);
+                qdrantPoints.Add((childFragment, rawVector));
                 chunksGenerated++;
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            if (qdrantPoints.Any())
+            {
+                var points = qdrantPoints.Select(p => new Qdrant.Client.Grpc.PointStruct
+                {
+                    Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)p.Fragment.Id },
+                    Vectors = p.Vector,
+                    Payload =
+                    {
+                        ["ParentId"] = p.Fragment.ParentId,
+                        ["Bulletin"] = (int)p.Fragment.Bulletin,
+                        ["Municipality"] = p.Fragment.Municipality ?? "",
+                        ["SubSection"] = p.Fragment.SubSection ?? "",
+                        ["ChunkText"] = p.Fragment.ChunkText ?? ""
+                    }
+                }).ToList();
+
+                await _qdrantClient.UpsertAsync("child_fragments", points, cancellationToken: cancellationToken);
+            }
 
             sw.Stop();
             await _metricsService.TrackIngestionAsync(PipelineType.Hierarchical, BulletinType.BOJA, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);

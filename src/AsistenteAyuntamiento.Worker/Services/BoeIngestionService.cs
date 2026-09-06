@@ -7,6 +7,7 @@ using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using Microsoft.SemanticKernel;
 using Microsoft.Extensions.AI;
+using Qdrant.Client;
 
 namespace AsistenteAyuntamiento.Worker.Services;
 
@@ -15,6 +16,7 @@ public class BoeIngestionService(
     AppDbContext dbContext,
     IFragmentEnrichmentService enrichmentService,
     IIngestionMetricsService metricsService,
+    QdrantClient qdrantClient,
     ILogger<BoeIngestionService> logger,
     Kernel kernel) : IHierarchicalIngestionProcessor
 {
@@ -23,6 +25,7 @@ public class BoeIngestionService(
     private readonly AppDbContext _dbContext = dbContext;
     private readonly IFragmentEnrichmentService _enrichmentService = enrichmentService;
     private readonly IIngestionMetricsService _metricsService = metricsService;
+    private readonly QdrantClient _qdrantClient = qdrantClient;
     private readonly ILogger<BoeIngestionService> _logger = logger;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -67,6 +70,8 @@ public class BoeIngestionService(
                 articulos.Add(new XElement("articulo", new XAttribute("id", "1"), xDoc.Root?.Value ?? ""));
             }
 
+            var qdrantPoints = new List<(ChildFragment Fragment, float[] Vector)>();
+
             foreach (var articulo in articulos)
             {
                 var normSection = articulo.Attribute("id")?.Value ?? "Artículo Único";
@@ -104,7 +109,7 @@ public class BoeIngestionService(
 
                     // 5. Embed fragment
                     var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
-                    var embeddingVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+                    var rawVector = embeddings[0].Vector.ToArray();
                     totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
 
                     var childFragment = new ChildFragment
@@ -112,16 +117,35 @@ public class BoeIngestionService(
                         ParentId = parentDoc.Id,
                         Bulletin = BulletinType.BOE,
                         SubSection = currentSection,
-                        ChunkText = enrichmentResult.EnrichedText,
-                        Embedding = embeddingVector
+                        ChunkText = enrichmentResult.EnrichedText
                     };
 
                     _dbContext.ChildFragments.Add(childFragment);
+                    qdrantPoints.Add((childFragment, rawVector));
                     chunksGenerated++;
                 }
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            if (qdrantPoints.Any())
+            {
+                var points = qdrantPoints.Select(p => new Qdrant.Client.Grpc.PointStruct
+                {
+                    Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)p.Fragment.Id },
+                    Vectors = p.Vector,
+                    Payload =
+                    {
+                        ["ParentId"] = p.Fragment.ParentId,
+                        ["Bulletin"] = (int)p.Fragment.Bulletin,
+                        ["Municipality"] = p.Fragment.Municipality ?? "",
+                        ["SubSection"] = p.Fragment.SubSection ?? "",
+                        ["ChunkText"] = p.Fragment.ChunkText ?? ""
+                    }
+                }).ToList();
+
+                await _qdrantClient.UpsertAsync("child_fragments", points, cancellationToken: cancellationToken);
+            }
 
             // 6. Record Metrics
             sw.Stop();

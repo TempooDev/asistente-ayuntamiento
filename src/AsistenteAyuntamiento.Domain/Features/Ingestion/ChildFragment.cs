@@ -25,8 +25,6 @@ public class ChildFragment
     // TsvContent is managed by a DB trigger, not set from C#
     public NpgsqlTypes.NpgsqlTsVector? TsvContent { get; set; }
 
-    public Vector? Embedding { get; set; }
-
     // Navigation
     public ParentDocument Parent { get; set; } = null!;
 }

@@ -1,22 +1,20 @@
-using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Admin;
 
-public static class MigrationEndpoints
+public static class DocumentChunkMigrationEndpoints
 {
-    public static void MapMigrationEndpoints(this IEndpointRouteBuilder app)
+    public static void MapDocumentChunkMigrationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/admin/migration"); // .RequireAuthorization(); // Add auth later if needed
-
-        group.MapPost("/migrate-to-qdrant", async (
-            IAppDbContext dbContext,
+        app.MapPost("/api/admin/migration/migrate-chunks-to-qdrant", async (
+            AppDbContext dbContext,
             QdrantClient qdrantClient) =>
         {
-            var collectionName = "child_fragments";
+            var collectionName = "document_chunks";
             
             // Re-create collection
             try
@@ -40,39 +38,40 @@ public static class MigrationEndpoints
 
             while (true)
             {
-                var fragments = await dbContext.ChildFragments
+                var chunks = await dbContext.DocumentChunks
                     .AsNoTracking()
-                    .Where(f => f.Id > lastId && f.Embedding != null)
-                    .OrderBy(f => f.Id)
+                    .Where(c => c.Id > lastId && c.Embedding != null)
+                    .OrderBy(c => c.Id)
                     .Take(batchSize)
                     .ToListAsync();
 
-                if (!fragments.Any())
+                if (!chunks.Any())
                 {
                     break;
                 }
 
-                var points = fragments.Select(f => new PointStruct
+                var points = chunks.Select(c => new PointStruct
                 {
-                    Id = new PointId { Num = (ulong)f.Id },
-                    Vectors = f.Embedding!.ToArray(),
+                    Id = new PointId { Num = (ulong)c.Id },
+                    Vectors = c.Embedding!.ToArray(),
                     Payload =
                     {
-                        ["ParentId"] = f.ParentId,
-                        ["Bulletin"] = (int)f.Bulletin,
-                        ["Municipality"] = f.Municipality ?? "",
-                        ["SubSection"] = f.SubSection ?? "",
-                        ["ChunkText"] = f.ChunkText
+                        ["DocumentId"] = c.DocumentId,
+                        ["Source"] = c.Source,
+                        ["Title"] = c.Title ?? "",
+                        ["Department"] = c.Department ?? "",
+                        ["Content"] = c.Content,
+                        ["ChunkIndex"] = c.ChunkIndex,
+                        ["PublicationDate"] = c.PublicationDate.ToString("O")
                     }
                 }).ToList();
 
                 await qdrantClient.UpsertAsync(collectionName, points);
 
-                totalMigrated += fragments.Count;
-                lastId = fragments.Last().Id;
+                totalMigrated += chunks.Count;
+                lastId = chunks.Last().Id;
             }
 
-            // Count in Qdrant to verify
             var qdrantCount = await qdrantClient.CountAsync(collectionName);
 
             return Results.Ok(new
@@ -82,7 +81,7 @@ public static class MigrationEndpoints
                 QdrantCount = qdrantCount
             });
         })
-        .WithName("MigrateToQdrant")
-        .WithSummary("Migrates vector embeddings from Postgres to Qdrant");
+        .WithName("MigrateChunksToQdrant")
+        .WithSummary("Migrates vector embeddings from DocumentChunks to Qdrant");
     }
 }

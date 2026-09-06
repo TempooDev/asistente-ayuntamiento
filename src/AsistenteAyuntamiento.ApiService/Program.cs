@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.ApiService.Features.Admin;
 using AsistenteAyuntamiento.Infrastructure;
 
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -186,8 +187,9 @@ IngestionEndpoints.MapIngestionEndpoints(app);
 ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
 ArenaEndpoints.MapArenaEndpoints(app);
 app.MapAiMetricsEndpoints();
-MigrationEndpoints.MapMigrationEndpoints(app);
 
 app.MapDefaultEndpoints();
+
+DocumentChunkMigrationEndpoints.MapDocumentChunkMigrationEndpoints(app);
 
 app.Run();

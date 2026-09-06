@@ -19,5 +19,5 @@
 - [x] 4.1 Update `HybridRetrievalService.cs` to query Qdrant for the dense vector semantic search.
 - [x] 4.2 Update `HybridRetrievalService.cs` to execute the sparse search (GIN tsvector) against PostgreSQL.
 - [x] 4.3 Implement in-memory Reciprocal Rank Fusion (RRF) in C# to combine the results from Qdrant and PostgreSQL.
-- [ ] 4.4 Modify `AppDbContext.cs` to explicitly drop or stop querying the `Embedding` column from `ChildFragments` for dense search.
-- [ ] 4.5 Update all corresponding unit/integration tests for the retrieval service.
+- [x] 4.4 Modify `AppDbContext.cs` to explicitly drop or stop querying the `Embedding` column from `ChildFragments` for dense search.
+- [x] 4.5 Update all corresponding unit/integration tests for the retrieval service.
