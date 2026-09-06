@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Pgvector;
 
 #nullable disable
@@ -11,10 +11,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_DocumentChunks_Embedding",
-                schema: "ingestion",
-                table: "DocumentChunks");
+            migrationBuilder.Sql("DROP INDEX IF EXISTS ingestion.\"IX_DocumentChunks_Embedding\";");
 
             migrationBuilder.AlterColumn<Vector>(
                 name: "Embedding",
