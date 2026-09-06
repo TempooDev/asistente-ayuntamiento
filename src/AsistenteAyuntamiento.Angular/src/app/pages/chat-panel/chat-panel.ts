@@ -298,7 +298,11 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
           this.loadSessions();
         },
         error: (err: any) => {
-          const errorMsg = `\n[Error: ${err.message || err}]`;
+          let errorMsg = `\n[Error: ${err.message || err}]`;
+          const errStr = (err?.message || err || '').toString().toLowerCase();
+          if (errStr.includes('429') || errStr.includes('quota') || errStr.includes('limit') || errStr.includes('budget') || errStr.includes('token') || errStr.includes('insufficient_quota')) {
+            errorMsg = `\n\n**⚠️ Hemos llegado al límite de tokens/presupuesto de IA.**\nPor el momento no podemos procesar más mensajes. Por favor, inténtalo de nuevo más tarde.`;
+          }
           if (isArena) {
             assistantMsg.alfaText += errorMsg;
             assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');
@@ -322,7 +326,11 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
       
       this.chatService.activeStreams.set(sessionId, sub);
     } catch (e: any) {
-      const errorMsg = `\n[Error: ${e.message || e}]`;
+      let errorMsg = `\n[Error: ${e.message || e}]`;
+      const errStr = (e?.message || e || '').toString().toLowerCase();
+      if (errStr.includes('429') || errStr.includes('quota') || errStr.includes('limit') || errStr.includes('budget') || errStr.includes('token') || errStr.includes('insufficient_quota')) {
+        errorMsg = `\n\n**⚠️ Hemos llegado al límite de tokens/presupuesto de IA.**\nPor el momento no podemos procesar más mensajes. Por favor, inténtalo de nuevo más tarde.`;
+      }
       if (isArena) {
         assistantMsg.alfaText += errorMsg;
         assistantMsg.alfaHtml = this.renderMarkdown(assistantMsg.alfaText || '');

@@ -255,6 +255,52 @@ public sealed class AiChatService(
                 TokenUsage: tokenUsage,
                 Sources: documentSources);
         }
+        catch (Exception ex) when (ex.Message.Contains("429") || ex.Message.ToLower().Contains("quota") || ex.Message.ToLower().Contains("limit") || ex.Message.ToLower().Contains("insufficient"))
+        {
+            logger.LogWarning(ex, "Limit reached in GetCompletionAsync. Falling back to minimax/minimax-m3:free.");
+            try
+            {
+                var fallbackModelId = "minimax/minimax-m3:free";
+                var fallbackKernelBuilder = Kernel.CreateBuilder();
+                var endpointUrl = "https://openrouter.ai/api/v1";
+                var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
+                fallbackKernelBuilder.AddOpenAIChatCompletion(fallbackModelId, apiKey ?? string.Empty, httpClient: httpClient);
+                
+                var fallbackKernel = fallbackKernelBuilder.Build();
+                var fallbackService = fallbackKernel.GetRequiredService<IChatCompletionService>();
+                
+                var executionSettings = new PromptExecutionSettings { ExtensionData = new Dictionary<string, object> { { "Temperature", config.Temperature } } };
+                var fallbackResponse = await fallbackService.GetChatMessageContentAsync(history, executionSettings: executionSettings, cancellationToken: cancellationToken);
+                
+                stopwatch.Stop();
+                var content = fallbackResponse.Content ?? string.Empty;
+                var fallbackMessage = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*";
+                content += fallbackMessage;
+                
+                return new AiCompletionResult(
+                    Success: true,
+                    Content: content,
+                    DurationMs: stopwatch.Elapsed.TotalMilliseconds,
+                    ErrorMessage: null,
+                    TokenUsage: TokenUsageInfo.Empty, // Simplified for fallback
+                    Sources: documentSources);
+            }
+            catch (Exception fallbackEx)
+            {
+                logger.LogError(fallbackEx, "Fallback also failed.");
+                // If fallback fails, just let the original error flow below, or throw?
+                // Actually, if we throw, it won't be caught by the catch block below because we are in a catch block!
+                // So we have to handle the original error recording here.
+                stopwatch.Stop();
+                var errorMessage = $"Error de comunicación con el modelo de IA y el modelo de respaldo ({config.Provider}): {ex.Message} (Fallback: {fallbackEx.Message})";
+                return new AiCompletionResult(
+                    Success: false,
+                    Content: errorMessage,
+                    DurationMs: stopwatch.Elapsed.TotalMilliseconds,
+                    ErrorMessage: errorMessage,
+                    TokenUsage: TokenUsageInfo.Empty);
+            }
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
@@ -637,6 +683,35 @@ public sealed class AiChatService(
                     if (!await enumerator.MoveNextAsync())
                         break;
                     chunk = enumerator.Current;
+                }
+                catch (Exception ex) when (!hasYieldedChunks && (ex.Message.Contains("429") || ex.Message.ToLower().Contains("quota") || ex.Message.ToLower().Contains("limit") || ex.Message.ToLower().Contains("insufficient")))
+                {
+                    logger.LogWarning(ex, "Limit reached. Falling back to minimax/minimax-m3:free.");
+                    var fallbackModelId = "minimax/minimax-m3:free";
+                    var fallbackKernelBuilder = Kernel.CreateBuilder();
+                    
+                    var endpointUrl = "https://openrouter.ai/api/v1";
+                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
+                    // Asumiendo que usamos la misma API Key de OpenRouter
+                    fallbackKernelBuilder.AddOpenAIChatCompletion(fallbackModelId, apiKey ?? string.Empty, httpClient: httpClient);
+                    
+                    var fallbackKernel = fallbackKernelBuilder.Build();
+                    var fallbackService = fallbackKernel.GetRequiredService<IChatCompletionService>();
+                    
+                    responseStream = fallbackService.GetStreamingChatMessageContentsAsync(
+                        history,
+                        executionSettings: executionSettings,
+                        cancellationToken: cancellationToken);
+                        
+                    await enumerator.DisposeAsync();
+                    enumerator = responseStream.GetAsyncEnumerator(cancellationToken);
+                    
+                    var fallbackMessage = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*\n\n";
+                    fullContent += fallbackMessage;
+                    yield return fallbackMessage;
+                    
+                    hasYieldedChunks = true;
+                    continue;
                 }
                 catch (Exception ex)
                 {
