@@ -3,9 +3,13 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace AsistenteAyuntamiento.Worker.Services;
 
-public class FragmentEnrichmentService(Kernel kernel, ILogger<FragmentEnrichmentService> logger) : IFragmentEnrichmentService
+public class FragmentEnrichmentService(
+    [FromKeyedServices("IngestionKernel")] Kernel kernel,
+    ILogger<FragmentEnrichmentService> logger) : IFragmentEnrichmentService
 {
     private readonly Kernel _kernel = kernel;
     private readonly ILogger<FragmentEnrichmentService> _logger = logger;

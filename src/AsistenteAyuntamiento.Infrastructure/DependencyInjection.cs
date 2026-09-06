@@ -110,5 +110,38 @@ public static class DependencyInjection
             var embUri = embEndpoint.StartsWith("Endpoint=") ? embEndpoint.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length) : embEndpoint;
             kernelBuilder.AddOllamaEmbeddingGenerator(embModel, new Uri(embUri));
         }
+
+        // --- Ingestion / Tasks Kernel (Ultra-fast, cheap model) ---
+        var ingestionProvider = builder.Configuration["Ai:Ingestion:Provider"] ?? chatProvider;
+        var ingestionModel = builder.Configuration["Ai:Ingestion:Model"] ?? chatModel;
+        var ingestionApiKey = builder.Configuration["Ai:Ingestion:ApiKey"] ?? chatApiKey;
+        
+        builder.Services.AddKeyedTransient<Kernel>("IngestionKernel", (sp, key) =>
+        {
+            var kBuilder = Kernel.CreateBuilder();
+            
+            if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
+            {
+                var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
+                kBuilder.AddGoogleAIGeminiChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient(handler));
+            }
+            else if (ingestionProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
+            {
+                var endpointUrl = builder.Configuration["Ai:Ingestion:EndpointUrl"];
+                if (ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(endpointUrl))
+                    endpointUrl = "https://openrouter.ai/api/v1";
+
+                if (!string.IsNullOrEmpty(endpointUrl))
+                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient { BaseAddress = new Uri(endpointUrl) });
+                else
+                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey);
+            }
+            else
+            {
+                kBuilder.AddOllamaChatCompletion(ingestionModel, new Uri(ollamaEndpoint));
+            }
+
+            return kBuilder.Build();
+        });
     }
 }

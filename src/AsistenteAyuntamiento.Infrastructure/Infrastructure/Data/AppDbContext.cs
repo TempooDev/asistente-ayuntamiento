@@ -44,7 +44,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
 
         modelBuilder.Entity<DocumentChunk>()
             .Property(c => c.Embedding)
-            .HasColumnType("vector");
+            .HasColumnType("vector(768)");
+
+        modelBuilder.Entity<DocumentChunk>()
+            .HasIndex(c => c.Embedding)
+            .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops");
 
         modelBuilder.Entity<UserProfile>()
             .HasIndex(u => u.Auth0UserId)
@@ -103,9 +108,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         modelBuilder.Entity<ChildFragment>(entity =>
         {
             entity.ToTable("ChildFragments", "ingestion");
-            entity.Property(e => e.Embedding).HasColumnType("vector");
+            entity.Property(e => e.Embedding).HasColumnType("vector(4096)");
             entity.Property(e => e.TsvContent).HasColumnType("tsvector");
 
+            entity.HasIndex(e => e.Embedding)
+                .HasMethod("hnsw")
+                .HasOperators("vector_cosine_ops");
             entity.HasIndex(e => e.ParentId);
             entity.HasIndex(e => e.TsvContent).HasMethod("gin");
         });

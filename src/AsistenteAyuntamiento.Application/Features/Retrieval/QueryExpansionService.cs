@@ -1,32 +1,17 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
-public class ExpandedQueryInfo
+public class QueryExpansionService(
+    [FromKeyedServices("IngestionKernel")] Kernel kernel,
+    ILogger<QueryExpansionService> logger) : IQueryExpansionService
 {
-    [JsonPropertyName("query_lexica")]
-    public string QueryLexica { get; set; } = string.Empty;
-
-    [JsonPropertyName("query_semantica")]
-    public string QuerySemantica { get; set; } = string.Empty;
-
-    [JsonPropertyName("filtro_municipio")]
-    public string? FiltroMunicipio { get; set; }
-}
-
-public interface IQueryExpansionService
-{
-    Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, CancellationToken cancellationToken = default);
-}
-
-public class QueryExpansionService(Kernel kernel, ILogger<QueryExpansionService> logger) : IQueryExpansionService
-    {
-        private readonly IChatCompletionService chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly IChatCompletionService chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
     public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, CancellationToken cancellationToken = default)
     {
@@ -70,6 +55,4 @@ public class QueryExpansionService(Kernel kernel, ILogger<QueryExpansionService>
         }
     }
 }
-
-
 
