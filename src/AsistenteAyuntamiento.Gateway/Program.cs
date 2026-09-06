@@ -27,4 +27,9 @@ app.UseStaticFiles();
 
 app.MapReverseProxy();
 
+if (!app.Environment.IsDevelopment())
+{
+    app.MapFallbackToFile("index.html");
+}
+
 app.Run();
