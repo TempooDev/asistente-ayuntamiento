@@ -28,10 +28,33 @@ export class Arena {
   
   voteLoading = signal(false);
 
+  loadingMessage = signal('Analizando la consulta...');
+  private loadingMessages = [
+    'Analizando la consulta...',
+    'Buscando en normativas locales y ordenanzas...',
+    'Aplicando Búsqueda Jerárquica...',
+    'Sintetizando información...',
+    'Redactando respuesta en lenguaje claro...',
+    'Casi listo, comparando resultados...'
+  ];
+  private messageInterval: any;
+
   async onCompare() {
     if (!this.query().trim()) return;
     
     this.loading.set(true);
+    
+    let msgIndex = 0;
+    this.loadingMessage.set(this.loadingMessages[0]);
+    this.messageInterval = setInterval(() => {
+      msgIndex++;
+      if (msgIndex >= this.loadingMessages.length) {
+        msgIndex = this.loadingMessages.length - 1; // Stay on the last message
+        clearInterval(this.messageInterval);
+      }
+      this.loadingMessage.set(this.loadingMessages[msgIndex]);
+    }, 2000);
+
     this.error.set('');
     this.compareData.set(null);
     this.voteResult.set(null);
@@ -42,10 +65,12 @@ export class Arena {
 
     this.arenaApi.compare({ query: this.query() }).subscribe({
         next: (res) => {
+          clearInterval(this.messageInterval);
           this.compareData.set(res);
           this.loading.set(false);
         },
         error: (err) => {
+          clearInterval(this.messageInterval);
           this.error.set('Error al comparar respuestas.');
           this.loading.set(false);
           console.error(err);

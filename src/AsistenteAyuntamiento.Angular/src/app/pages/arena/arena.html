@@ -27,11 +27,11 @@
   <div *ngIf="loading()" class="grid grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-8 flex flex-col items-center justify-center min-h-[300px]">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-      <p class="text-gray-500">Asistente Alfa procesando...</p>
+      <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">{{ loadingMessage() }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-8 flex flex-col items-center justify-center min-h-[300px]">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-      <p class="text-gray-500">Asistente Beta procesando...</p>
+      <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">{{ loadingMessage() }}</p>
     </div>
   </div>
 
