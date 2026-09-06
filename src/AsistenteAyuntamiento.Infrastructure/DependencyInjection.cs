@@ -29,6 +29,9 @@ public static class DependencyInjection
         }
 
 
+        builder.AddQdrantClient("qdrant");
+        builder.Services.AddQdrantVectorStore();
+
         AddSemanticKernelServices(builder);
 
         return builder;

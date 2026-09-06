@@ -20,6 +20,11 @@ using AsistenteAyuntamiento.Application.Features.Metrics;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
+using AsistenteAyuntamiento.ApiService.Features.Admin;
+using AsistenteAyuntamiento.ApiService.Features.Scraper;
+using AsistenteAyuntamiento.ApiService.Features.Arena;
+using AsistenteAyuntamiento.ApiService.Features.Config;
+using AsistenteAyuntamiento.ApiService.Features.Notifications;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,7 +41,7 @@ builder.Services.AddSingleton<IAiMetricsService, AiMetricsService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IAiChatService, AiChatService>();
 builder.Services.AddSingleton<ChatMessageBuffer>();
-builder.Services.AddSingleton<AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperStateService>();
+builder.Services.AddSingleton<ScraperStateService>();
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.Services.AddDataProtection();
@@ -79,8 +84,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
-builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.ApiService.Features.Notifications.SignalRNotificationService>();
-builder.Services.AddHostedService<AsistenteAyuntamiento.ApiService.Features.Notifications.RabbitMqNotificationConsumer>();
+builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, SignalRNotificationService>();
+builder.Services.AddHostedService<RabbitMqNotificationConsumer>();
 builder.Services.AddGrpc();
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
@@ -170,17 +175,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<ChatHub>("/hubs/chat");
-app.MapHub<AsistenteAyuntamiento.ApiService.Features.Notifications.NotificationHub>("/hubs/notifications");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
-app.MapGrpcService<AsistenteAyuntamiento.ApiService.Features.Scraper.FilterConfigServiceImpl>();
+app.MapGrpcService<FilterConfigServiceImpl>();
 
 UserEndpoints.MapUserEndpoints(app);
 AiConfigEndpoints.MapAiConfigEndpoints(app);
-AsistenteAyuntamiento.ApiService.Features.Config.ConfigEndpoints.MapConfigEndpoints(app);
+ConfigEndpoints.MapConfigEndpoints(app);
 IngestionEndpoints.MapIngestionEndpoints(app);
-AsistenteAyuntamiento.ApiService.Features.Scraper.ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
-AsistenteAyuntamiento.ApiService.Features.Arena.ArenaEndpoints.MapArenaEndpoints(app);
+ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
+ArenaEndpoints.MapArenaEndpoints(app);
 app.MapAiMetricsEndpoints();
+MigrationEndpoints.MapMigrationEndpoints(app);
 
 app.MapDefaultEndpoints();
 

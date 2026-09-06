@@ -60,6 +60,10 @@ var rabbitmq = builder.AddRabbitMQ("messaging")
     .WithDataVolume("asistente-ayuntamiento-rmqdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
+var qdrant = builder.AddQdrant("qdrant")
+    .WithDataVolume("asistente-ayuntamiento-qdrantdata")
+    .WithLifetime(ContainerLifetime.Persistent);
+
 var ollama = builder.AddOllama("ollama")
     .WithDataVolume();
 ollama.AddModel("llama3.2");
@@ -70,8 +74,10 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WithReference(rabbitmq)
+    .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(rabbitmq)
+    .WaitFor(qdrant)
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__ClientId", auth0ClientId)
     .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
@@ -156,9 +162,11 @@ var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("
     .WithReference(db)
     .WithReference(rabbitmq)
     .WithReference(ollama)
+    .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(rabbitmq)
     .WaitFor(ollama)
+    .WaitFor(qdrant)
     .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE")
     .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
     .WithEnvironment("Ai__Chat__Model", aiChatModel)
@@ -184,9 +192,11 @@ var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worke
     .WithReference(db)
     .WithReference(rabbitmq)
     .WithReference(ollama)
+    .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(rabbitmq)
     .WaitFor(ollama)
+    .WaitFor(qdrant)
     .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL")
     .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
     .WithEnvironment("Ai__Chat__Model", aiChatModel)

@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.80.0-alpha" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" Version="1.80.0-alpha" />
     <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+    <PackageReference Include="Qdrant.Client" Version="1.19.0" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -83,6 +83,7 @@ services:
     restart: always
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
+      ConnectionStrings__qdrant: "Endpoint=URL_DEL_QDRANT_DOKPLOY;ApiKey=CLAVE_QDRANT"
       ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
       Ai__Chat__Provider: "google"
       Ai__Chat__Model: "gemini-1.5-pro"
@@ -102,6 +103,7 @@ services:
     restart: always
     environment:
       ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
+      ConnectionStrings__qdrant: "Endpoint=URL_DEL_QDRANT_DOKPLOY;ApiKey=CLAVE_QDRANT"
       ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
       Ai__Chat__Provider: "google"
       Ai__Chat__Model: "gemini-1.5-pro"
