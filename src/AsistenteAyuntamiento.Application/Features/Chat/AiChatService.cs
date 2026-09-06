@@ -97,6 +97,11 @@ public sealed class AiChatService(
 
         try
         {
+            if ((config.Provider == "google" || config.Provider == "openai" || config.Provider == "openrouter") && string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException($"No se ha configurado la API Key para el proveedor {config.Provider}. Por favor, configúrala en los ajustes de IA.");
+            }
+
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "google")
             {
@@ -495,6 +500,11 @@ public sealed class AiChatService(
 
         try
         {
+            if ((config.Provider == "google" || config.Provider == "openai" || config.Provider == "openrouter") && string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException($"No se ha configurado la API Key para el proveedor {config.Provider}. Por favor, configúrala en los ajustes de IA.");
+            }
+
             var kernelBuilder = Kernel.CreateBuilder();
             if (config.Provider == "google")
             {

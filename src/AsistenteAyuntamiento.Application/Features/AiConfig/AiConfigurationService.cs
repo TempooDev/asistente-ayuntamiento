@@ -115,6 +115,11 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
             }
         }
 
+        if (string.IsNullOrEmpty(decryptedKey))
+        {
+            decryptedKey = configuration["Ai:Chat:ApiKey"];
+        }
+
         return (dto, decryptedKey);
     }
 
