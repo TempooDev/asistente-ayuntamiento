@@ -278,7 +278,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<Vector>("Embedding")
-                        .HasColumnType("vector(768)");
+                        .HasColumnType("vector(4096)");
 
                     b.Property<DateTime>("PublicationDate")
                         .HasColumnType("timestamp with time zone");
@@ -292,11 +292,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Embedding");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
 
                     b.ToTable("DocumentChunks", "ingestion");
                 });

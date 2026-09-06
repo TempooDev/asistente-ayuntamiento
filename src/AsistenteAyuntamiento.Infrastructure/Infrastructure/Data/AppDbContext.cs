@@ -44,12 +44,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
 
         modelBuilder.Entity<DocumentChunk>()
             .Property(c => c.Embedding)
-            .HasColumnType("vector(768)");
-
-        modelBuilder.Entity<DocumentChunk>()
-            .HasIndex(c => c.Embedding)
-            .HasMethod("hnsw")
-            .HasOperators("vector_cosine_ops");
+            .HasColumnType("vector(4096)");
 
         modelBuilder.Entity<UserProfile>()
             .HasIndex(u => u.Auth0UserId)
