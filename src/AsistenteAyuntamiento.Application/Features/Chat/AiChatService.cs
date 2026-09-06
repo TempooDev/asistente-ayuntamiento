@@ -103,11 +103,17 @@ public sealed class AiChatService(
                 var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
                 kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
             }
-            else if (config.Provider == "openai")
+            else if (config.Provider == "openai" || config.Provider == "openrouter")
             {
-                if (!string.IsNullOrEmpty(config.EndpointUrl))
+                var endpointUrl = config.EndpointUrl;
+                if (config.Provider == "openrouter" && string.IsNullOrEmpty(endpointUrl))
                 {
-                    var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
+                    endpointUrl = "https://openrouter.ai/api/v1";
+                }
+
+                if (!string.IsNullOrEmpty(endpointUrl))
+                {
+                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
                 }
                 else
@@ -495,11 +501,17 @@ public sealed class AiChatService(
                 var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
                 kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
             }
-            else if (config.Provider == "openai")
+            else if (config.Provider == "openai" || config.Provider == "openrouter")
             {
-                if (!string.IsNullOrEmpty(config.EndpointUrl))
+                var endpointUrl = config.EndpointUrl;
+                if (config.Provider == "openrouter" && string.IsNullOrEmpty(endpointUrl))
                 {
-                    var httpClient = new HttpClient { BaseAddress = new Uri(config.EndpointUrl) };
+                    endpointUrl = "https://openrouter.ai/api/v1";
+                }
+
+                if (!string.IsNullOrEmpty(endpointUrl))
+                {
+                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
                     kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
                 }
                 else

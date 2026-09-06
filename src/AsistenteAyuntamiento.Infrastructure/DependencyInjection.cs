@@ -58,9 +58,14 @@ public static class DependencyInjection
             if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
             kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
         }
-        else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+        else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || chatProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
         {
             var chatEndpointUrl = builder.Configuration["Ai:Chat:EndpointUrl"];
+            if (chatProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(chatEndpointUrl))
+            {
+                chatEndpointUrl = "https://openrouter.ai/api/v1";
+            }
+
             if (!string.IsNullOrEmpty(chatEndpointUrl))
             {
                 var httpClient = new HttpClient { BaseAddress = new Uri(chatEndpointUrl) };
@@ -82,11 +87,17 @@ public static class DependencyInjection
             if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
             kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
         }
-        else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+        else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || embProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
         {
-            if (!string.IsNullOrEmpty(aiEmbeddingsConfig["EndpointUrl"]))
+            var endpointUrl = aiEmbeddingsConfig["EndpointUrl"];
+            if (embProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(endpointUrl))
             {
-                var httpClient = new HttpClient { BaseAddress = new Uri(aiEmbeddingsConfig["EndpointUrl"]!) };
+                endpointUrl = "https://openrouter.ai/api/v1";
+            }
+
+            if (!string.IsNullOrEmpty(endpointUrl))
+            {
+                var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
                 kernelBuilder.AddOpenAIEmbeddingGenerator(embModel, embApiKey, httpClient: httpClient);
             }
             else
