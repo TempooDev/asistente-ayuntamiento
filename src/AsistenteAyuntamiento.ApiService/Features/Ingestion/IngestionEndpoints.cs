@@ -49,11 +49,13 @@ public static class IngestionEndpoints
             [FromQuery] DateTime? dateTo,
             [FromQuery] int? minSizeKb,
             [FromQuery] int? maxSizeKb,
-            [FromServices] Amazon.S3.IAmazonS3 s3Client,
+            [FromServices] Amazon.S3.IAmazonS3? s3Client,
             [FromServices] IConfiguration config,
             [FromServices] IAppDbContext dbContext,
-            [FromServices] Microsoft.Extensions.Caching.Memory.IMemoryCache cache) =>
+            [FromServices] Microsoft.Extensions.Caching.Memory.IMemoryCache cache,
+            [FromServices] ILoggerFactory loggerFactory) =>
 {
+    var logger = loggerFactory.CreateLogger("IngestionEndpoints");
     var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
     // Cache the whole list for 30 seconds to drastically improve pagination/filtering performance (cuts latency from 2s to 10ms)
@@ -107,7 +109,10 @@ public static class IngestionEndpoints
                         } while (response?.IsTruncated == true);
                     }
                 }
-                catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket") { /* Ignore */ }
+                catch (Exception ex) 
+                { 
+                    logger.LogError(ex, "Error fetching objects from S3"); 
+                }
                 
                 cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
             }
@@ -402,13 +407,18 @@ public static class IngestionEndpoints
 
         group.MapPost("/reprocess-all", async (
             [FromQuery] string? pipelineMode,
-            [FromServices] Amazon.S3.IAmazonS3 s3Client,
+            [FromServices] Amazon.S3.IAmazonS3? s3Client,
             [FromServices] IConfiguration config,
             [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
             [FromServices] IAppDbContext dbContext,
             [FromServices] INotificationService notificationService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
+            if (s3Client == null)
+            {
+                return Results.Problem("Blob storage is not configured.", statusCode: StatusCodes.Status500InternalServerError);
+            }
+
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             var bucketName = config["Blob:BucketName"] ?? Shared.AppConstants.BlobStorage.DefaultBucketName;
             var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
