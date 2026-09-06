@@ -6,5 +6,6 @@ export const environment = {
     audience: '',
     customClaimsNamespace: 'https://asistente.antoniobermudez.dev'
   },
-  apiBaseUrl: ''
+  apiBaseUrl: '',
+  enableArenaModeByDefault: true
 };

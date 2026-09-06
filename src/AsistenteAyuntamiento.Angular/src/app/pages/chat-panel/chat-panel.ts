@@ -4,6 +4,7 @@ import { ChatService, ChatSessionSummaryDto, ChatMessage } from '../../services/
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { WelcomeGuideComponent } from '../../components/welcome-guide/welcome-guide.component';
+import { environment } from '../../../environments/environment';
 
 DOMPurify.addHook('afterSanitizeAttributes', function(node) {
   if (node.tagName === 'A') {
@@ -38,7 +39,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   sidebarOpen = signal(false);
   isLoadingHistory = signal(false);
   isConnected = signal(false);
-  arenaMode = signal(false);
+  arenaMode = signal(environment.enableArenaModeByDefault ?? false);
   showWelcomeGuide = signal(false);
   
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
