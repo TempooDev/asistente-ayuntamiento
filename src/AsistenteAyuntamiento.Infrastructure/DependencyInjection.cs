@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -116,9 +117,12 @@ public static class DependencyInjection
         var ingestionModel = builder.Configuration["Ai:Ingestion:Model"] ?? chatModel;
         var ingestionApiKey = builder.Configuration["Ai:Ingestion:ApiKey"] ?? chatApiKey;
         
+        builder.Services.AddHttpClient("IngestionClient");
+
         builder.Services.AddKeyedTransient<Kernel>("IngestionKernel", (sp, key) =>
         {
             var kBuilder = Kernel.CreateBuilder();
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
             
             if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
             {
@@ -132,7 +136,11 @@ public static class DependencyInjection
                     endpointUrl = "https://openrouter.ai/api/v1";
 
                 if (!string.IsNullOrEmpty(endpointUrl))
-                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient { BaseAddress = new Uri(endpointUrl) });
+                {
+                    var client = httpClientFactory.CreateClient("IngestionClient");
+                    client.BaseAddress = new Uri(endpointUrl);
+                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey, httpClient: client);
+                }
                 else
                     kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey);
             }

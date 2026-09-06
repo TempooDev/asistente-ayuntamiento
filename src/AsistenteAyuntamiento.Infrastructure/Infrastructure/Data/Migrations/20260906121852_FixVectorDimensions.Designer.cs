@@ -15,8 +15,8 @@ using Pgvector;
 namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260906120029_RestoreVectorHnswIndexes")]
-    partial class RestoreVectorHnswIndexes
+    [Migration("20260906121852_FixVectorDimensions")]
+    partial class FixVectorDimensions
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -247,11 +247,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
                         .HasColumnType("tsvector");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Embedding");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
 
                     b.HasIndex("ParentId");
 
