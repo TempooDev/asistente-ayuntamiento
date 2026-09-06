@@ -209,10 +209,10 @@ public class ChatHub(
 
         if (string.IsNullOrEmpty(userId)) return;
 
-        var voteResult = await _arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest 
-        { 
-            SessionId = request.BattleId, 
-            Winner = request.Winner 
+        var voteResult = await _arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest
+        {
+            SessionId = request.BattleId,
+            Winner = request.Winner
         });
 
         var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId);
@@ -223,8 +223,8 @@ public class ChatHub(
 
             if (battle != null)
             {
-                var winnerText = request.Winner.Equals("Alfa", StringComparison.OrdinalIgnoreCase) 
-                    ? battle.LeftResponse 
+                var winnerText = request.Winner.Equals("Alfa", StringComparison.OrdinalIgnoreCase)
+                    ? battle.LeftResponse
                     : (request.Winner.Equals("Beta", StringComparison.OrdinalIgnoreCase) ? battle.RightResponse : null);
 
                 if (winnerText != null)
@@ -306,9 +306,3 @@ public class ChatHub(
         await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
     }
 }
-
-
-
-
-
-

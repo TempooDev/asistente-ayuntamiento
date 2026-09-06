@@ -171,6 +171,7 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     public async Task<List<ChatSession>> GetUserSessionsAsync(string userId, string tenantId)
     {
         return await _dbContext.ChatSessions
+            .AsNoTracking()
             .Include(s => s.Messages)
             .Where(s => s.UserId == userId && s.TenantId == tenantId)
             .OrderByDescending(s => s.CreatedAt)
@@ -183,6 +184,7 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     public async Task<List<ChatMessage>> GetSessionMessagesAsync(Guid sessionId, string userId, string tenantId)
     {
         var session = await _dbContext.ChatSessions
+            .AsNoTracking()
             .Include(s => s.Messages)
             .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
 

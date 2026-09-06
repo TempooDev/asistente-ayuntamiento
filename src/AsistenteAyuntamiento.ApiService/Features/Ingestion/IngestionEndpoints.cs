@@ -12,7 +12,8 @@ public static class IngestionEndpoints
     public static void MapIngestionEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ingestion")
-                       .WithTags("Ingestion");
+            .RequireAuthorization()
+            .WithTags("Ingestion");
 
         group.MapPost("/process-blob", async (
             [FromBody] ProcessBlobRequest request,
@@ -34,17 +35,17 @@ public static class IngestionEndpoints
         })
         .WithName("ProcessBlobManually");
         group.MapGet("/blobs", async (
-[FromQuery] int? page,
-[FromQuery] int? pageSize,
-[FromQuery] string? status,
-[FromQuery] string? search,
-[FromQuery] DateTime? dateFrom,
-[FromQuery] DateTime? dateTo,
-[FromQuery] int? minSizeKb,
-[FromQuery] int? maxSizeKb,
-[FromServices] Amazon.S3.IAmazonS3 s3Client,
-[FromServices] IConfiguration config,
-[FromServices] IAppDbContext dbContext) =>
+            [FromQuery] int? page,
+            [FromQuery] int? pageSize,
+            [FromQuery] string? status,
+            [FromQuery] string? search,
+            [FromQuery] DateTime? dateFrom,
+            [FromQuery] DateTime? dateTo,
+            [FromQuery] int? minSizeKb,
+            [FromQuery] int? maxSizeKb,
+            [FromServices] Amazon.S3.IAmazonS3 s3Client,
+            [FromServices] IConfiguration config,
+            [FromServices] IAppDbContext dbContext) =>
 {
     var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
@@ -219,11 +220,11 @@ public static class IngestionEndpoints
                 var processedDocIds = await dbContext.DocumentChunks
                     .Select(c => c.DocumentId)
                     .Distinct()
-                    .ToListAsync();
+                    .AsNoTracking().ToListAsync();
 
                 var stuckJobs = await dbContext.DocumentJobStates
                     .Where(j => j.Status == "Processing")
-                    .ToListAsync();
+                    .AsNoTracking().ToListAsync();
 
                 int completedCount = 0;
                 int pendingCount = 0;
@@ -296,7 +297,7 @@ public static class IngestionEndpoints
 
                 using var connection = await connectionFactory.CreateConnectionAsync();
                 using var channel = await connection.CreateChannelAsync();
-                
+
                 if (mode == "BASELINE" || mode == "BOTH")
                     await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
                 if (mode == "HIERARCHICAL" || mode == "BOTH")
@@ -306,7 +307,7 @@ public static class IngestionEndpoints
                     .Select(r => r.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
                     .Where(id => !string.IsNullOrEmpty(id))
                     .ToList();
-                
+
                 var existingJobStates = await dbContext.DocumentJobStates
                     .Where(j => docIds.Contains(j.DocumentId))
                     .ToDictionaryAsync(j => j.DocumentId);
@@ -407,7 +408,7 @@ public static class IngestionEndpoints
 
                 using var connection = await connectionFactory.CreateConnectionAsync();
                 using var channel = await connection.CreateChannelAsync();
-                
+
                 if (mode == "BASELINE" || mode == "BOTH")
                     await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
                 if (mode == "HIERARCHICAL" || mode == "BOTH")
@@ -415,7 +416,7 @@ public static class IngestionEndpoints
 
                 int count = 0;
                 string? continuationToken = null;
-                
+
                 do
                 {
                     var request = new Amazon.S3.Model.ListObjectsV2Request
@@ -424,7 +425,7 @@ public static class IngestionEndpoints
                         Prefix = "json/",
                         ContinuationToken = continuationToken
                     };
-                    
+
                     var response = await s3Client.ListObjectsV2Async(request);
 
                     if (response?.S3Objects != null && response.S3Objects.Count > 0)
@@ -433,7 +434,7 @@ public static class IngestionEndpoints
                             .Select(o => o.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
                             .Where(id => !string.IsNullOrEmpty(id))
                             .ToList();
-                            
+
                         var existingJobStates = await dbContext.DocumentJobStates
                             .Where(j => batchDocIds.Contains(j.DocumentId))
                             .ToDictionaryAsync(j => j.DocumentId);
@@ -481,7 +482,7 @@ public static class IngestionEndpoints
                                     basicProperties: new RabbitMQ.Client.BasicProperties(),
                                     body: body);
                             }
-                            
+
                             // Update job state
                             if (existingJobStates.TryGetValue(docId, out var jobState))
                             {
@@ -503,13 +504,13 @@ public static class IngestionEndpoints
 
                             count++;
                         }
-                        
+
                         await dbContext.SaveChangesAsync();
                         ((Microsoft.EntityFrameworkCore.DbContext)dbContext).ChangeTracker.Clear();
                     }
-                    
+
                     continuationToken = response?.NextContinuationToken;
-                    
+
                 } while (!string.IsNullOrEmpty(continuationToken));
 
                 if (count == 0)

@@ -6,8 +6,7 @@ public static class AiConfigEndpoints
 {
     public static void MapAiConfigEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/settings")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/settings").RequireAuthorization();
 
         group.MapGet("/ai", async (IAiConfigurationService service) =>
         {

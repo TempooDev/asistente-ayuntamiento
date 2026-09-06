@@ -1,28 +1,38 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { AuthService } from '@auth0/auth0-angular';
 import { CommonModule } from '@angular/common';
 import { UserService, UserProfileDto } from '../../services/auth/user.service';
-import { finalize } from 'rxjs/operators';
+import { UserPreferencesService, UserPreferenceDto } from '../../services/user-preferences.service';
+import { finalize, switchMap, catchError } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-perfil',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './perfil.html',
 })
 export class PerfilComponent implements OnInit {
   public auth = inject(AuthService);
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
+  private prefsService = inject(UserPreferencesService);
 
   profileForm: FormGroup;
-  isEditing = false;
-  isSaving = false;
-  isLoading = true;
-  saveSuccess = false;
-  saveError = false;
+  isEditing = signal(false);
+  isSaving = signal(false);
+  isLoading = signal(true);
+  saveSuccess = signal(false);
+  saveError = signal(false);
+
+  // Preferences
+  topics = signal<string[]>([]);
+  locations = signal<string[]>([]);
+  newTopic = signal('');
+  newLocation = signal('');
+  isAnalyzing = signal(false);
 
   constructor() {
     this.profileForm = this.fb.group({
@@ -38,43 +48,78 @@ export class PerfilComponent implements OnInit {
   }
 
   loadProfile() {
-    this.isLoading = true;
+    this.isLoading.set(true);
     
-    // First subscribe to Auth0 user to get default values
-    this.auth.user$.subscribe(authUser => {
-      if (authUser) {
-        // Pre-fill with Auth0 data
-        this.profileForm.patchValue({
-          fullName: authUser.name || '',
+    this.auth.user$.pipe(
+      switchMap(authUser => {
+        if (!authUser) return of(null);
+        
+        this.profileForm.patchValue({ fullName: authUser.name || '' });
+        
+        return forkJoin({
+          authUser: of(authUser),
+          profile: this.userService.getProfile().pipe(catchError(() => of(null))),
+          prefs: this.prefsService.getPreferences().pipe(catchError(() => of(null)))
         });
-
-        // Then fetch from backend, which will overwrite if there are saved values
-        this.userService.getProfile()
-          .pipe(finalize(() => this.isLoading = false))
-          .subscribe({
-            next: (profile) => {
-              this.profileForm.patchValue({
-                fullName: profile.fullName || authUser.name || '',
-                department: profile.department || '',
-                position: profile.position || '',
-                phoneNumber: profile.phoneNumber || ''
-              });
-            },
-            error: (err) => {
-              console.error('Error loading profile', err);
-            }
+      }),
+      finalize(() => this.isLoading.set(false))
+    ).subscribe({
+      next: (res) => {
+        if (res && res.profile) {
+          this.profileForm.patchValue({
+            fullName: res.profile.fullName || res.authUser.name || '',
+            department: res.profile.department || '',
+            position: res.profile.position || '',
+            phoneNumber: res.profile.phoneNumber || ''
           });
-      } else {
-        this.isLoading = false;
-      }
+        }
+        if (res && res.prefs) {
+          this.topics.set(res.prefs.topics || []);
+          this.locations.set(res.prefs.locations || []);
+        }
+      },
+      error: (err) => console.error('Error loading profile data', err)
+    });
+  }
+
+  addTopic() {
+    const val = this.newTopic().trim();
+    if (val && !this.topics().includes(val)) {
+      this.topics.update(t => [...t, val]);
+      this.newTopic.set('');
+    }
+  }
+  removeTopic(topic: string) {
+    this.topics.update(t => t.filter(x => x !== topic));
+  }
+  
+  addLocation() {
+    const val = this.newLocation().trim();
+    if (val && !this.locations().includes(val)) {
+      this.locations.update(l => [...l, val]);
+      this.newLocation.set('');
+    }
+  }
+  removeLocation(loc: string) {
+    this.locations.update(l => l.filter(x => x !== loc));
+  }
+
+  analyzeHistory() {
+    this.isAnalyzing.set(true);
+    this.prefsService.analyzeHistory().subscribe({
+      next: () => {
+        alert('Se ha iniciado el análisis. Recarga la página en unos segundos.');
+        this.isAnalyzing.set(false);
+      },
+      error: () => this.isAnalyzing.set(false)
     });
   }
 
   toggleEdit() {
-    this.isEditing = !this.isEditing;
-    this.saveSuccess = false;
-    this.saveError = false;
-    if (!this.isEditing) {
+    this.isEditing.set(!this.isEditing());
+    this.saveSuccess.set(false);
+    this.saveError.set(false);
+    if (!this.isEditing()) {
       // Revert changes if cancelled
       this.loadProfile();
     }
@@ -83,27 +128,29 @@ export class PerfilComponent implements OnInit {
   saveProfile() {
     if (this.profileForm.invalid) return;
     
-    this.isSaving = true;
-    this.saveSuccess = false;
-    this.saveError = false;
+    this.isSaving.set(true);
+    this.saveSuccess.set(false);
+    this.saveError.set(false);
     
     const profileData: UserProfileDto = this.profileForm.value;
     
-    this.userService.updateProfile(profileData)
-      .pipe(finalize(() => this.isSaving = false))
-      .subscribe({
-        next: (updatedProfile) => {
-          this.isEditing = false;
-          this.saveSuccess = true;
-          this.profileForm.patchValue(updatedProfile);
-          
-          setTimeout(() => this.saveSuccess = false, 3000);
-        },
-        error: (err) => {
-          console.error('Error saving profile', err);
-          this.saveError = true;
-        }
-      });
+    this.userService.updateProfile(profileData).pipe(
+      switchMap(updatedProfile => {
+        this.profileForm.patchValue(updatedProfile);
+        return this.prefsService.updatePreferences({ topics: this.topics(), locations: this.locations() });
+      }),
+      finalize(() => this.isSaving.set(false))
+    ).subscribe({
+      next: () => {
+        this.isEditing.set(false);
+        this.saveSuccess.set(true);
+        setTimeout(() => this.saveSuccess.set(false), 3000);
+      },
+      error: (err) => {
+        console.error('Error saving profile or prefs', err);
+        this.saveError.set(true);
+      }
+    });
   }
 
   changePassword(email: string | undefined) {

@@ -25,4 +25,21 @@ public static class Prompts
         
         Pregunta del ciudadano: {1}
         """;
+
+    public const string HistoryAnalyzerSystemPrompt = """
+        Analiza el siguiente historial de chat de un usuario y extrae los principales temas de interés y zonas geográficas que menciona de manera recurrente o explícita.
+        Devuelve el resultado ÚNICAMENTE en formato JSON, sin texto adicional, con esta estructura:
+        {
+          "Topics": ["Urbanismo", "Ayudas familiares"],
+          "Locations": ["Madrid Centro", "Vallecas"]
+        }
+        """;
+
+    public const string StreamingSystemPrompt = """
+        Eres un asistente especializado en los Boletines Oficiales (BOE, BOJA, BOPMA).
+        Tu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.
+        Si el usuario hace una pregunta de seguimiento (ej. "¿qué requisitos tiene?"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.
+        Responde siempre en español de forma clara y precisa.
+        Si utilizas información del contexto, incluye al final de tu respuesta un apartado de "Fuentes consultadas" en Markdown con los enlaces (URLs) proporcionados.
+        """;
 }

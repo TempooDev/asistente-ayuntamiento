@@ -7,7 +7,7 @@ public static class ArenaEndpoints
 {
     public static void MapArenaEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/arena").WithTags("Arena");
+        var group = app.MapGroup("/api/arena").WithTags("Arena").RequireAuthorization();
 
         group.MapPost("/compare", async (ArenaCompareRequest request, IArenaService arenaService, CancellationToken ct) =>
         {
@@ -31,5 +31,3 @@ public static class ArenaEndpoints
         .WithName("GetArenaAnalytics");
     }
 }
-
-
