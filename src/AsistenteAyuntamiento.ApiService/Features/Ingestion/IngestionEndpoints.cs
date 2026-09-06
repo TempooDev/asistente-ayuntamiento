@@ -5,11 +5,16 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Threading;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
+public record BlobItemDto(string Name, long? Size, DateTime? LastModified, bool IsProcessed, string Status);
+
 public static class IngestionEndpoints
 {
+    private static readonly SemaphoreSlim _cacheLock = new SemaphoreSlim(1, 1);
+
     public static void MapIngestionEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ingestion")
@@ -53,55 +58,64 @@ public static class IngestionEndpoints
 
     // Cache the whole list for 30 seconds to drastically improve pagination/filtering performance (cuts latency from 2s to 10ms)
     var cacheKey = $"blobs_list_{bucketName}";
-    if (!cache.TryGetValue(cacheKey, out List<dynamic>? allBlobs) || allBlobs == null)
+    if (!cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
     {
-        allBlobs = new List<dynamic>();
-        
-        // Fetch only required columns from DB instead of full entity tracking
-        var jobStates = await dbContext.DocumentJobStates
-            .AsNoTracking()
-            .Select(j => new { j.DocumentId, j.Status })
-            .ToDictionaryAsync(j => j.DocumentId, j => j.Status);
-
+        await _cacheLock.WaitAsync();
         try
         {
-            if (s3Client != null)
+            if (!cache.TryGetValue(cacheKey, out allBlobs) || allBlobs == null)
             {
-                var request = new Amazon.S3.Model.ListObjectsV2Request
-                {
-                    BucketName = bucketName,
-                    Prefix = "json/"
-                };
+                allBlobs = new List<BlobItemDto>();
+                
+                var jobStates = await dbContext.DocumentJobStates
+                    .AsNoTracking()
+                    .Select(j => new { j.DocumentId, j.Status })
+                    .ToDictionaryAsync(j => j.DocumentId, j => j.Status);
 
-                Amazon.S3.Model.ListObjectsV2Response response;
-                do
+                try
                 {
-                    response = await s3Client.ListObjectsV2Async(request);
-                    if (response?.S3Objects != null)
+                    if (s3Client != null)
                     {
-                        foreach (var s3Obj in response.S3Objects)
+                        var request = new Amazon.S3.Model.ListObjectsV2Request
                         {
-                            if (s3Obj?.Key == null) continue;
-                            var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-                            var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : "Pending";
+                            BucketName = bucketName,
+                            Prefix = "json/"
+                        };
 
-                            allBlobs.Add(new
+                        Amazon.S3.Model.ListObjectsV2Response response;
+                        do
+                        {
+                            response = await s3Client.ListObjectsV2Async(request);
+                            if (response?.S3Objects != null)
                             {
-                                Name = s3Obj.Key,
-                                Size = s3Obj.Size,
-                                LastModified = s3Obj.LastModified,
-                                IsProcessed = objStatus == "Completed",
-                                Status = objStatus
-                            });
-                        }
+                                foreach (var s3Obj in response.S3Objects)
+                                {
+                                    if (s3Obj?.Key == null) continue;
+                                    var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                                    var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : "Pending";
+
+                                    allBlobs.Add(new BlobItemDto(
+                                        s3Obj.Key,
+                                        s3Obj.Size,
+                                        s3Obj.LastModified,
+                                        objStatus == "Completed",
+                                        objStatus
+                                    ));
+                                }
+                            }
+                            request.ContinuationToken = response?.NextContinuationToken;
+                        } while (response?.IsTruncated == true);
                     }
-                    request.ContinuationToken = response?.NextContinuationToken;
-                } while (response?.IsTruncated == true);
+                }
+                catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket") { /* Ignore */ }
+                
+                cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
             }
         }
-        catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket") { /* Ignore */ }
-        
-        cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     int pendingCount = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed");
