@@ -210,35 +210,49 @@ func contains(s, substr string) bool {
 }
 
 func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.Client) {
-	startDateStr := os.Getenv("SCRAPE_START_DATE")
-	endDateStr := os.Getenv("SCRAPE_END_DATE")
-	
-	var startDate, endDate time.Time
-	var err error
-
-	if startDateStr != "" {
-		startDate, err = time.Parse("2006-01-02", startDateStr)
-		if err != nil {
-			log.Printf("Error parseando SCRAPE_START_DATE: %v", err)
-			return
+	for {
+		now := time.Now()
+		// Programar para las 1:00 AM del día siguiente (o de hoy si aún no es la 1:00 AM)
+		target := time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, 0, now.Location())
+		if !target.After(now) {
+			target = target.AddDate(0, 0, 1)
 		}
-		if endDateStr != "" {
-			endDate, err = time.Parse("2006-01-02", endDateStr)
-			if err != nil {
-				log.Printf("Error parseando SCRAPE_END_DATE: %v", err)
-				return
+
+		sleepDuration := target.Sub(now)
+		log.Printf("Programando próximo scraping automático para las 1:00 AM (en %v)", sleepDuration)
+
+		select {
+		case <-ctx.Done():
+			log.Println("Contexto cancelado, deteniendo scheduler automático.")
+			return
+		case <-time.After(sleepDuration):
+		}
+
+		log.Println("Iniciando scraping automático programado de las 1:00 AM")
+
+		// Ejecutar scraping para el día anterior
+		scrapeDate := time.Now().AddDate(0, 0, -1)
+		
+		// Buscar únicamente el proveedor BOE
+		var provider scraper.BoletinProvider
+		for _, prv := range providers {
+			if prv.Name() == "BOE" {
+				provider = prv
+				break
+			}
+		}
+
+		if provider != nil {
+			if scrapeMutex.TryLock() {
+				scrapeProviderDateRange(ctx, provider, scrapeDate, scrapeDate, filterClient, nil)
+				scrapeMutex.Unlock()
+			} else {
+				log.Println("Ya hay un proceso de scraping en curso, saltando ejecución programada")
 			}
 		} else {
-			endDate = time.Now()
+			log.Println("No se encontró el proveedor BOE para el scraping programado.")
 		}
-	} else {
-		// Por defecto
-		targetDate := time.Now().AddDate(0, 0, -1)
-		startDate = targetDate
-		endDate = targetDate
 	}
-
-	scrapeDateRange(ctx, startDate, endDate, filterClient)
 }
 
 func configureProviderFromRules(ctx context.Context, provider scraper.BoletinProvider, filterClient *filterclient.Client) {
