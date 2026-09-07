@@ -104,32 +104,33 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
             allEmbeddings.AddRange(batchEmbeddings);
         }
 
-        var chunks = new List<DocumentChunk>();
-        var qdrantPoints = new List<(DocumentChunk Chunk, float[] Vector)>();
-
-        for (int i = 0; i < paragraphs.Count; i++)
-        {
-            var p = paragraphs[i];
-            var embedding = allEmbeddings[i].Vector;
-
-            var chunk = new DocumentChunk
-            {
-                DocumentId = document.DocumentId,
-                Source = source,
-                Title = document.Metadata?.Title ?? string.Empty,
-                Department = document.Metadata?.Department ?? string.Empty,
-                Content = p,
-                ChunkIndex = i,
-                PublicationDate = DateTime.TryParse(document.Metadata?.PublicationDate, out var date) ? date.ToUniversalTime() : DateTime.UtcNow
-            };
-            chunks.Add(chunk);
-            qdrantPoints.Add((chunk, embedding.ToArray()));
-        }
-
         // 5. Persistencia transaccional
         var strategy = dbContext.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
+            // Generate entities inside the strategy to avoid issues if retried
+            var chunks = new List<DocumentChunk>();
+            var qdrantPoints = new List<(DocumentChunk Chunk, float[] Vector)>();
+
+            for (int i = 0; i < paragraphs.Count; i++)
+            {
+                var p = paragraphs[i];
+                var embedding = allEmbeddings[i].Vector;
+
+                var chunk = new DocumentChunk
+                {
+                    DocumentId = document.DocumentId,
+                    Source = source,
+                    Title = document.Metadata?.Title ?? string.Empty,
+                    Department = document.Metadata?.Department ?? string.Empty,
+                    Content = p,
+                    ChunkIndex = i,
+                    PublicationDate = DateTime.TryParse(document.Metadata?.PublicationDate, out var date) ? date.ToUniversalTime() : DateTime.UtcNow
+                };
+                chunks.Add(chunk);
+                qdrantPoints.Add((chunk, embedding.ToArray()));
+            }
+            
             using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
@@ -162,16 +163,14 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                     await qdrantClient.UpsertAsync("document_chunks", points, cancellationToken: cancellationToken);
                 }
 
-                // Update state to Completed using ExecuteUpdateAsync to ensure it bypasses change tracker issues
-                var updatedRows = await dbContext.DocumentJobStates
-                    .Where(j => j.DocumentId == document.DocumentId)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(p => p.Status, "Completed")
-                        .SetProperty(p => p.LastUpdatedAt, DateTime.UtcNow)
-                        .SetProperty(p => p.ErrorMessage, (string?)null),
-                        cancellationToken);
-
-                if (updatedRows == 0)
+                var jobToUpdate = await dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == document.DocumentId, cancellationToken);
+                if (jobToUpdate != null)
+                {
+                    jobToUpdate.Status = "Completed";
+                    jobToUpdate.LastUpdatedAt = DateTime.UtcNow;
+                    jobToUpdate.ErrorMessage = null;
+                }
+                else
                 {
                     dbContext.DocumentJobStates.Add(new DocumentJobState
                     {
@@ -179,8 +178,8 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                         Status = "Completed",
                         LastUpdatedAt = DateTime.UtcNow
                     });
-                    await dbContext.SaveChangesAsync(cancellationToken);
                 }
+                await dbContext.SaveChangesAsync(cancellationToken);
 
                 await transaction.CommitAsync(cancellationToken);
 
