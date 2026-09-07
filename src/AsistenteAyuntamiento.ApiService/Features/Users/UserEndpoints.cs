@@ -56,6 +56,7 @@ public static class UserEndpoints
             profile.PhoneNumber = dto.PhoneNumber;
             profile.UpdatedAt = DateTime.UtcNow;
 
+            db.UserProfiles.Update(profile);
             await db.SaveChangesAsync();
 
             return Results.Ok(dto);
@@ -111,11 +112,18 @@ public static class UserEndpoints
         string auth0Id,
         ClaimsPrincipal user,
         Tenants.CurrentTenantService tenantService,
-        IConfiguration config)
+        IConfiguration config,
+        bool asNoTracking = true)
     {
         try
         {
-            var profile = await db.UserProfiles.AsNoTracking().FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
+            var query = db.UserProfiles.AsQueryable();
+            if (asNoTracking)
+            {
+                query = query.AsNoTracking();
+            }
+            
+            var profile = await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
 
             if (profile == null)
             {
@@ -132,8 +140,27 @@ public static class UserEndpoints
                     TenantId = tenantService.TenantId,
                     FullName = nameClaim ?? string.Empty
                 };
-                db.UserProfiles.Add(profile);
-                await db.SaveChangesAsync();
+                
+                try 
+                {
+                    db.UserProfiles.Add(profile);
+                    await db.SaveChangesAsync();
+                    
+                    if (asNoTracking)
+                    {
+                        // Detach so it behaves like AsNoTracking
+                        db.UserProfiles.Entry(profile).State = EntityState.Detached;
+                    }
+                }
+                catch (DbUpdateException)
+                {
+                    // A race condition occurred, another thread already created the profile.
+                    // Remove the failed addition to keep the DbContext clean.
+                    try { db.UserProfiles.Remove(profile); } catch { /* ignore */ }
+                    
+                    // Fetch the profile created by the other thread
+                    profile = await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
+                }
             }
 
             return profile;

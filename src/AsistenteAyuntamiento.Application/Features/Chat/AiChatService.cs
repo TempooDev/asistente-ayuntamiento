@@ -718,7 +718,15 @@ public sealed class AiChatService(
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
+                    if (ex is OperationCanceledException || ex.InnerException is OperationCanceledException || ex is System.IO.IOException || ex is System.Net.Sockets.SocketException)
+                    {
+                        logger.LogInformation("El stream de la IA fue cancelado por el cliente o la red (Ignorando).");
+                    }
+                    else
+                    {
+                        logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
+                    }
+                    
                     if (!hasYieldedChunks)
                     {
                         errorToYield = $"\n\n[Error de conexión con la IA ({config.Provider}): {ex.Message}]";
@@ -1133,7 +1141,19 @@ public sealed class AiChatService(
         };
 
         dbContext.ArenaBattles.Add(battle);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("ArenaBattle insert returned 0 rows due to cancellation.");
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("ArenaBattle insert cancelled by user.");
+        }
     }
 }
 

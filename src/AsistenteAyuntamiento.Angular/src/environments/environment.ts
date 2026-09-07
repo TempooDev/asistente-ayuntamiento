@@ -7,5 +7,5 @@ export const environment = {
     customClaimsNamespace: 'https://asistente.antoniobermudez.dev'
   },
   apiBaseUrl: '',
-  enableArenaModeByDefault: true
+  enableArenaModeByDefault: false
 };

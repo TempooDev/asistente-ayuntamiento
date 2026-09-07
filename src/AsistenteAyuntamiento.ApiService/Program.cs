@@ -164,6 +164,11 @@ using (var scope = app.Services.CreateScope())
         {
             // Bucket already exists, all good
         }
+        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "AccessDenied")
+        {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Access Denied when trying to create S3 bucket. It must be created manually or credentials lack s3:CreateBucket permissions.");
+        }
         catch (Exception ex)
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
