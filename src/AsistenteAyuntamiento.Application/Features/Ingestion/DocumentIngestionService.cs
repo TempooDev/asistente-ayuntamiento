@@ -85,7 +85,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         }
         else
         {
-            paragraphs = chunkingStrategy.ChunkText(document.Content).ToList();
+            paragraphs = chunkingStrategy.ChunkText(document.Content).Select(c => c.Text).ToList();
         }
 
         // 3. Obtener servicio de embeddings

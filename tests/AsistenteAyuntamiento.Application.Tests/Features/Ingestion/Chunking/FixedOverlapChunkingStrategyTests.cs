@@ -30,7 +30,7 @@ public class FixedOverlapChunkingStrategyTests
 
         // Assert
         Assert.Single(result);
-        Assert.Equal(text, result[0]);
+        Assert.Equal(text, result[0].Text);
     }
 
     [Fact]
@@ -52,6 +52,6 @@ public class FixedOverlapChunkingStrategyTests
         
         // Let's verify that overlap exists. It's tricky to assert exact overlap without
         // knowing the exact tokenization, but we can at least assert it chunks.
-        Assert.All(result, chunk => Assert.False(string.IsNullOrWhiteSpace(chunk)));
+        Assert.All(result, chunk => Assert.False(string.IsNullOrWhiteSpace(chunk.Text)));
     }
 }

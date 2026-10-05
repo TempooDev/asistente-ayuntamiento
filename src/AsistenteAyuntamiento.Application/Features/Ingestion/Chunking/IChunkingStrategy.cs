@@ -2,5 +2,6 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 public interface IChunkingStrategy
 {
-    IEnumerable<string> ChunkText(string text);
+    string StrategyName { get; }
+    IEnumerable<DocumentChunkResult> ChunkText(string text);
 }

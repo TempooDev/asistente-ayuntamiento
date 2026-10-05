@@ -15,13 +15,13 @@ public static class IngestionEndpoints
         group.MapPost("/process-blob", async (
             [FromBody] ProcessBlobRequest request,
             [FromServices] IDocumentIngestionService ingestionService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation($"Iniciando proceso manual de {request.BlobPath} (Source: {request.Source})");
-                await ingestionService.ProcessBlobAsync(request.BlobPath, request.Source);
+                await ingestionService.ProcessBlobAsync(request.BlobPath, request.Source, cancellationToken);
                 return Results.Ok(new { message = $"Blob {request.BlobPath} procesado y vectorizado correctamente." });
             }
             catch (Exception ex)
@@ -42,12 +42,12 @@ public static class IngestionEndpoints
             [FromQuery] int? minSizeKb,
             [FromQuery] int? maxSizeKb,
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
-                var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb);
+                var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb, cancellationToken);
                 return Results.Ok(result);
             }
             catch (Exception ex)
@@ -61,13 +61,13 @@ public static class IngestionEndpoints
         group.MapPost("/reset-status/{documentId}", async (
             string documentId,
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation($"Restableciendo estado del documento {documentId} a Pending...");
-                await adminService.ResetDocumentStatusAsync(documentId);
+                await adminService.ResetDocumentStatusAsync(documentId, cancellationToken);
                 return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
             }
             catch (Exception ex)
@@ -80,13 +80,13 @@ public static class IngestionEndpoints
 
         group.MapPost("/reset-stuck-processing", async (
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation("Corrigiendo documentos atascados en 'Processing'...");
-                var (completedCount, pendingCount) = await adminService.ResetStuckProcessingDocumentsAsync();
+                var (completedCount, pendingCount) = await adminService.ResetStuckProcessingDocumentsAsync(cancellationToken);
                 return Results.Ok(new { message = $"Se han marcado {completedCount} documentos como 'Completed' (ya vectorizados) y reiniciado {pendingCount} a 'Pending'." });
             }
             catch (Exception ex)
@@ -99,13 +99,13 @@ public static class IngestionEndpoints
 
         group.MapPost("/reset", async (
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation("Restableciendo la base de datos de vectores y estados...");
-                await adminService.ResetIngestionAsync();
+                await adminService.ResetIngestionAsync(cancellationToken);
                 return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
             }
             catch (Exception ex)
@@ -120,13 +120,13 @@ public static class IngestionEndpoints
             [FromQuery] string? pipelineMode,
             [FromBody] List<ProcessBlobRequest> requests,
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation($"Encolando {requests.Count} documentos... (Mode: {pipelineMode ?? "BOTH"})");
-                var count = await adminService.EnqueueBulkAsync(requests, pipelineMode);
+                var count = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
                 return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
             }
             catch (Exception ex)
@@ -140,13 +140,13 @@ public static class IngestionEndpoints
         group.MapPost("/reprocess-all", async (
             [FromQuery] string? pipelineMode,
             [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory) =>
+            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation($"Iniciando reprocesado masivo de todos los documentos en S3... (Mode: {pipelineMode ?? "BOTH"})");
-                var count = await adminService.ReprocessAllAsync(pipelineMode);
+                var count = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
                 
                 if (count == 0)
                 {

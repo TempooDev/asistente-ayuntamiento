@@ -76,6 +76,8 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
             int fragmentCount = fragments.Count();
             int current = 0;
 
+            var childFragmentsToEmbed = new List<ChildFragment>();
+
             foreach (var frag in fragments)
             {
                 current++;
@@ -98,10 +100,6 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
                 if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
 
-                var embeddings = await _embeddingService.GenerateAsync(new List<string> { enrichmentResult.EnrichedText }, cancellationToken: cancellationToken);
-                var rawVector = embeddings[0].Vector.ToArray();
-                totalTokensEmbedded += enrichmentResult.EnrichedText.Length / 4; // Estimate
-
                 var childFragment = new ChildFragment
                 {
                     ParentId = parentDoc.Id,
@@ -109,10 +107,27 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
                     SubSection = frag.Section,
                     ChunkText = enrichmentResult.EnrichedText
                 };
-
+                
                 _dbContext.ChildFragments.Add(childFragment);
-                qdrantPoints.Add((childFragment, rawVector));
-                chunksGenerated++;
+                childFragmentsToEmbed.Add(childFragment);
+            }
+
+            // Batch embeddings to avoid N+1 problem
+            var batchSize = 100;
+            for (int i = 0; i < childFragmentsToEmbed.Count; i += batchSize)
+            {
+                var batch = childFragmentsToEmbed.Skip(i).Take(batchSize).ToList();
+                var batchTexts = batch.Select(x => x.ChunkText).ToList();
+                
+                var embeddings = await _embeddingService.GenerateAsync(batchTexts, cancellationToken: cancellationToken);
+                
+                for (int j = 0; j < batch.Count; j++)
+                {
+                    var rawVector = embeddings[j].Vector.ToArray();
+                    totalTokensEmbedded += batch[j].ChunkText.Length / 4; // Estimate
+                    qdrantPoints.Add((batch[j], rawVector));
+                    chunksGenerated++;
+                }
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);

@@ -43,12 +43,12 @@ public class IngestionAdminService : IIngestionAdminService
         _bucketName = _config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
     }
 
-    public async Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb)
+    public async Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb, CancellationToken cancellationToken = default)
     {
         var cacheKey = $"blobs_list_{_bucketName}";
         if (!_cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
         {
-            await _cacheLock.WaitAsync();
+            await _cacheLock.WaitAsync(cancellationToken);
             try
             {
                 if (!_cache.TryGetValue(cacheKey, out allBlobs) || allBlobs == null)
@@ -57,7 +57,7 @@ public class IngestionAdminService : IIngestionAdminService
                     var jobStates = await _dbContext.DocumentJobStates
                         .AsNoTracking()
                         .Select(j => new { j.DocumentId, j.Status })
-                        .ToDictionaryAsync(j => j.DocumentId, j => j.Status);
+                        .ToDictionaryAsync(j => j.DocumentId, j => j.Status, cancellationToken);
 
                     try
                     {
@@ -65,7 +65,7 @@ public class IngestionAdminService : IIngestionAdminService
                         ListObjectsV2Response response;
                         do
                         {
-                            response = await _s3Client.ListObjectsV2Async(request);
+                            response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
                             if (response?.S3Objects != null)
                             {
                                 foreach (var s3Obj in response.S3Objects)
@@ -154,14 +154,14 @@ public class IngestionAdminService : IIngestionAdminService
         };
     }
 
-    public async Task ResetDocumentStatusAsync(string documentId)
+    public async Task ResetDocumentStatusAsync(string documentId, CancellationToken cancellationToken = default)
     {
-        var jobState = await _dbContext.DocumentJobStates.FindAsync(documentId);
+        var jobState = await _dbContext.DocumentJobStates.FindAsync(new object[] { documentId }, cancellationToken);
         if (jobState != null)
         {
             jobState.Status = "Pending";
             jobState.LastUpdatedAt = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         else
         {
@@ -169,51 +169,40 @@ public class IngestionAdminService : IIngestionAdminService
         }
     }
 
-    public async Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync()
+    public async Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync(CancellationToken cancellationToken = default)
     {
         var processedDocIds = await _dbContext.DocumentChunks
             .Select(c => c.DocumentId)
             .Distinct()
-            .AsNoTracking().ToListAsync();
+            .AsNoTracking().ToListAsync(cancellationToken);
 
-        var stuckJobs = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == "Processing")
-            .ToListAsync(); // Needs to be tracked to update
+        var completedCount = await _dbContext.DocumentJobStates
+            .Where(j => j.Status == "Processing" && processedDocIds.Contains(j.DocumentId))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(j => j.Status, "Completed")
+                .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
 
-        int completedCount = 0;
-        int pendingCount = 0;
+        var pendingCount = await _dbContext.DocumentJobStates
+            .Where(j => j.Status == "Processing" && !processedDocIds.Contains(j.DocumentId))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(j => j.Status, "Pending")
+                .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
 
-        foreach (var job in stuckJobs)
-        {
-            if (processedDocIds.Contains(job.DocumentId))
-            {
-                job.Status = "Completed";
-                completedCount++;
-            }
-            else
-            {
-                job.Status = "Pending";
-                pendingCount++;
-            }
-            job.LastUpdatedAt = DateTime.UtcNow;
-        }
-
-        await _dbContext.SaveChangesAsync();
         return (completedCount, pendingCount);
     }
 
-    public async Task ResetIngestionAsync()
+    public async Task ResetIngestionAsync(CancellationToken cancellationToken = default)
     {
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
             _dbContext.Database,
-            "TRUNCATE TABLE identity.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";");
+            "TRUNCATE TABLE identity.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
     }
 
-    public async Task<int> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode)
+    public async Task<int> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default)
     {
         var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        using var channel = await connection.CreateChannelAsync();
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         if (mode == "BASELINE" || mode == "BOTH")
             await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
@@ -227,7 +216,7 @@ public class IngestionAdminService : IIngestionAdminService
 
         var existingJobStates = await _dbContext.DocumentJobStates
             .Where(j => docIds.Contains(j.DocumentId))
-            .ToDictionaryAsync(j => j.DocumentId);
+            .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
 
         int count = 0;
         foreach (var req in requests)
@@ -281,15 +270,15 @@ public class IngestionAdminService : IIngestionAdminService
             count++;
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return count;
     }
 
-    public async Task<int> ReprocessAllAsync(string? pipelineMode)
+    public async Task<int> ReprocessAllAsync(string? pipelineMode, CancellationToken cancellationToken = default)
     {
         var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        using var channel = await connection.CreateChannelAsync();
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         if (mode == "BASELINE" || mode == "BOTH")
             await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
@@ -308,7 +297,7 @@ public class IngestionAdminService : IIngestionAdminService
                 ContinuationToken = continuationToken
             };
 
-            var response = await _s3Client.ListObjectsV2Async(request);
+            var response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
 
             if (response?.S3Objects != null && response.S3Objects.Count > 0)
             {
@@ -319,7 +308,7 @@ public class IngestionAdminService : IIngestionAdminService
 
                 var existingJobStates = await _dbContext.DocumentJobStates
                     .Where(j => batchDocIds.Contains(j.DocumentId))
-                    .ToDictionaryAsync(j => j.DocumentId);
+                    .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
 
                 foreach (var s3Obj in response.S3Objects)
                 {
@@ -370,7 +359,7 @@ public class IngestionAdminService : IIngestionAdminService
                     count++;
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync(cancellationToken);
                 ((Microsoft.EntityFrameworkCore.DbContext)_dbContext).ChangeTracker.Clear();
             }
 
