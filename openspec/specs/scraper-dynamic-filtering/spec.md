@@ -16,6 +16,13 @@ The .NET backend SHALL persist scraping filter rules in the PostgreSQL database 
 - **WHEN** an administrator uses the Angular UI
 - **THEN** they SHALL be able to perform CRUD operations on `ScraperFilterRule` via protected HTTP endpoints in the .NET API.
 
+### Requirement: Centralized Scraper Filter Management Service
+The system SHALL provide an application service `IScraperFilterService` in `AsistenteAyuntamiento.Application.Features.Scraper` to decouple filter query and persistence logic from API endpoints and gRPC services.
+
+#### Scenario: Service-driven filter queries
+- **WHEN** the gRPC service or HTTP endpoints query or manipulate filter rules
+- **THEN** they SHALL invoke `IScraperFilterService` methods instead of directly executing Entity Framework Core queries.
+
 ### Requirement: gRPC Microservices Communication
 The system SHALL use gRPC (Protocol Buffers over HTTP/2) for direct, strongly-typed, and highly efficient communication between the Go scraper and the .NET API.
 

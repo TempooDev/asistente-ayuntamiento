@@ -13,11 +13,26 @@ The system SHALL retrieve raw documents and extract plain text.
 - **THEN** the system SHALL download the raw stream from storage and extract text using PdfPig
 
 ### Requirement: Text Chunking
-The system SHALL divide plain text into smaller, overlapping semantic fragments.
+The system SHALL divide plain text into smaller, overlapping semantic fragments using an extensible chunking strategy abstraction.
 
 #### Scenario: Running Semantic Kernel TextChunker
 - **WHEN** raw text is extracted
 - **THEN** the system SHALL split the text using `maxTokensPerLine: 100` and `maxTokensPerParagraph: 300` with `overlapTokens: 50`
+
+### Requirement: Modular Chunking Strategy Abstraction
+The system SHALL provide an abstraction `IChunkingStrategy` in `Application.Features.Ingestion` to decouple text decomposition from document ingestion and persistence, enabling empirical comparative evaluation between diverse chunking algorithms.
+
+#### Scenario: Running a chunking strategy
+- **WHEN** plain text and optional metadata are supplied to an `IChunkingStrategy` implementation (e.g., `FixedOverlapChunkingStrategy`)
+- **THEN** it SHALL return a list of `DocumentChunkResult` records containing chunk text, chunk index, and strategy-specific metadata.
+
+### Requirement: Discard BOPMA Documents in Classic Pipeline
+The classic baseline pipeline SHALL discard any document with source `BOPMA`.
+
+#### Scenario: Processing a BOPMA document in baseline pipeline
+- **WHEN** a document with source `BOPMA` is received by `DocumentIngestionService`
+- **THEN** the service SHALL log an informative warning stating that BOPMA ingestion is discarded
+- **AND** skip chunking, embedding generation, and database insertion without failing.
 
 ### Requirement: Embedding Generation and Storage
 The system SHALL batch-generate embedding vectors for all paragraphs and save them.

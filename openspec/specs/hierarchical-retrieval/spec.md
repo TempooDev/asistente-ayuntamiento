@@ -18,6 +18,22 @@ The system SHALL store legal documents in a two-level hierarchy where parent rec
 - **THEN** it SHALL create one `DocumentoPadre` record per article or requirement section
 - **AND** create subordinate `FragmentoHijo` records decomposed by clause or paragraph.
 
+### Requirement: Unified Hierarchical Ingestion Pipeline
+The system SHALL provide a reusable abstract base processor (`BaseHierarchicalIngestionProcessor`) in `AsistenteAyuntamiento.Application.Features.Ingestion` that executes the standard ingestion workflow for legal gazettes (BOE and BOJA).
+
+#### Scenario: Common pipeline execution
+- **WHEN** a concrete gazette processor (BOE or BOJA) processes a legal document
+- **THEN** it SHALL extract the parent entity and fragment list using gazette-specific parsers
+- **AND** execute the common pipeline for synthetic enrichment via LLM, embedding generation, `ChildFragment` persistence in PostgreSQL, vector upsert in Qdrant, and telemetry metric recording in `IngestionMetrics`.
+
+### Requirement: Discard BOPMA Data Ingestion
+The hierarchical ingestion pipeline SHALL explicitly discard and ignore data insertion requests for BOPMA (Boletín Oficial de la Provincia de Málaga).
+
+#### Scenario: Ingestion request received for BOPMA
+- **WHEN** a document with source `BOPMA` is received by the hierarchical ingestion system
+- **THEN** the system SHALL log an informative warning indicating that BOPMA data insertion is discarded
+- **AND** mark the job state as skipped/unsupported without raising an unhandled exception or inserting records into the database.
+
 ### Requirement: Child Fragment Contextual Enrichment
 The system SHALL enrich each child fragment with a contextual breadcrumb and synthetic citizen questions before embedding.
 
