@@ -1,6 +1,6 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 
-namespace AsistenteAyuntamiento.Worker.Services;
+namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public interface IIngestionMetricsService
 {
@@ -15,3 +15,4 @@ public interface IIngestionMetricsService
         long processingDurationMs, 
         CancellationToken cancellationToken = default);
 }
+

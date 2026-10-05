@@ -6,19 +6,26 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Text;
 using System.Text.Json;
 using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, INotificationService? notificationService = null) : IDocumentIngestionService
+public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService? notificationService = null) : IDocumentIngestionService
 {
-        private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-                    
+    private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
+
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
+        
+        if (source.Equals("BOPMA", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("BOPMA document ingestion is discarded. Skipping {DocumentId}.", docIdFromPath);
+            return;
+        }
+
         var initialJobState = await dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == docIdFromPath, cancellationToken);
 
         if (initialJobState != null)
@@ -73,27 +80,18 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         if (string.IsNullOrWhiteSpace(document.Content))
         {
             logger.LogInformation($"El blob {blobPath} tiene texto vacío. Se guardará un chunk con sus metadatos.");
-            // Usar el título como contenido para que el motor vectorial pueda encontrarlo semánticamente
             var title = !string.IsNullOrWhiteSpace(document.Metadata?.Title) ? document.Metadata.Title : "Documento sin contenido";
             paragraphs = new List<string> { title };
         }
         else
         {
-            var maxLines = config.GetValue<int>("Ai:Embeddings:ChunkMaxLines", 200);
-            var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
-            var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
-
-            paragraphs = TextChunker.SplitPlainTextParagraphs(
-                TextChunker.SplitPlainTextLines(document.Content, maxLines),
-                maxTokens,
-                overlapTokens
-            );
+            paragraphs = chunkingStrategy.ChunkText(document.Content).Select(c => c.Text).ToList();
         }
 
         // 3. Obtener servicio de embeddings
         var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
-        // 4. Vectorización (en batch segmentado para evitar límites de payload)
+        // 4. Vectorización
         int batchSize = 100;
         var allEmbeddings = new List<Microsoft.Extensions.AI.Embedding<float>>();
         var chunkedParagraphs = paragraphs.Chunk(batchSize).ToList();
@@ -108,7 +106,6 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         var strategy = dbContext.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
-            // Generate entities inside the strategy to avoid issues if retried
             var chunks = new List<DocumentChunk>();
             var qdrantPoints = new List<(DocumentChunk Chunk, float[] Vector)>();
 
@@ -134,7 +131,6 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
             using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                // Eliminar los chunks anteriores directamente en base de datos de manera atómica
                 await dbContext.DocumentChunks
                     .Where(c => c.DocumentId == document.DocumentId)
                     .ExecuteDeleteAsync(cancellationToken);
@@ -191,7 +187,6 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
             {
                 await transaction.RollbackAsync(cancellationToken);
 
-                // Tratar de registrar el fallo si tenemos un DocumentId
                 try
                 {
                     var fallbackDocId = document?.DocumentId ?? blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
@@ -224,5 +219,3 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         });
     }
 }
-
-

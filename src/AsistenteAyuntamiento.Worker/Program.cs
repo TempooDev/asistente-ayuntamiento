@@ -1,11 +1,12 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using AsistenteAyuntamiento.Worker.Services;
 using AsistenteAyuntamiento.Application.Common;
+using AsistenteAyuntamiento.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -26,6 +27,14 @@ builder.AddRabbitMQClient("messaging");
 
 // Configure S3 & Semantic Kernel (Infrastructure)
 builder.AddInfrastructureServices();
+
+builder.Services.AddSingleton<IChunkingStrategy>(sp => 
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
+    var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
+    return new FixedOverlapChunkingStrategy(maxTokens, overlapTokens);
+});
 
 var pipelineModeStr = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
 var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p) ? p : PipelineType.Baseline;
@@ -52,3 +61,4 @@ builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interface
 
 var host = builder.Build();
 host.Run();
+

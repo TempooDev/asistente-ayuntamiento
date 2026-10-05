@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace AsistenteAyuntamiento.Worker.Services;
+namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public class IngestionMetricsService(IServiceProvider serviceProvider, ILogger<IngestionMetricsService> logger) : IIngestionMetricsService
 {
@@ -17,7 +17,7 @@ public class IngestionMetricsService(IServiceProvider serviceProvider, ILogger<I
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
             var metric = new IngestionMetric
             {
@@ -43,3 +43,5 @@ public class IngestionMetricsService(IServiceProvider serviceProvider, ILogger<I
         }
     }
 }
+
+
