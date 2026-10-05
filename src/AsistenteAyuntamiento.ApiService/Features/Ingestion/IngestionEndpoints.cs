@@ -1,20 +1,11 @@
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
-using System.Threading;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
-public record BlobItemDto(string Name, long? Size, DateTime? LastModified, bool IsProcessed, string Status);
-
 public static class IngestionEndpoints
 {
-    private static readonly SemaphoreSlim _cacheLock = new SemaphoreSlim(1, 1);
-
     public static void MapIngestionEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ingestion")
@@ -40,6 +31,7 @@ public static class IngestionEndpoints
             }
         })
         .WithName("ProcessBlobManually");
+
         group.MapGet("/blobs", async (
             [FromQuery] int? page,
             [FromQuery] int? pageSize,
@@ -49,172 +41,34 @@ public static class IngestionEndpoints
             [FromQuery] DateTime? dateTo,
             [FromQuery] int? minSizeKb,
             [FromQuery] int? maxSizeKb,
-            [FromServices] Amazon.S3.IAmazonS3? s3Client,
-            [FromServices] IConfiguration config,
-            [FromServices] IAppDbContext dbContext,
-            [FromServices] Microsoft.Extensions.Caching.Memory.IMemoryCache cache,
+            [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory) =>
-{
-    var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-    var bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-
-    // Cache the whole list for 30 seconds to drastically improve pagination/filtering performance (cuts latency from 2s to 10ms)
-    var cacheKey = $"blobs_list_{bucketName}";
-    if (!cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
-    {
-        await _cacheLock.WaitAsync();
-        try
         {
-            if (!cache.TryGetValue(cacheKey, out allBlobs) || allBlobs == null)
+            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
+            try
             {
-                allBlobs = new List<BlobItemDto>();
-                
-                var jobStates = await dbContext.DocumentJobStates
-                    .AsNoTracking()
-                    .Select(j => new { j.DocumentId, j.Status })
-                    .ToDictionaryAsync(j => j.DocumentId, j => j.Status);
-
-                try
-                {
-                    if (s3Client != null)
-                    {
-                        var request = new Amazon.S3.Model.ListObjectsV2Request
-                        {
-                            BucketName = bucketName,
-                            Prefix = "json/"
-                        };
-
-                        Amazon.S3.Model.ListObjectsV2Response response;
-                        do
-                        {
-                            response = await s3Client.ListObjectsV2Async(request);
-                            if (response?.S3Objects != null)
-                            {
-                                foreach (var s3Obj in response.S3Objects)
-                                {
-                                    if (s3Obj?.Key == null) continue;
-                                    var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-                                    var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : "Pending";
-
-                                    allBlobs.Add(new BlobItemDto(
-                                        s3Obj.Key,
-                                        s3Obj.Size,
-                                        s3Obj.LastModified,
-                                        objStatus == "Completed",
-                                        objStatus
-                                    ));
-                                }
-                            }
-                            request.ContinuationToken = response?.NextContinuationToken;
-                        } while (response?.IsTruncated == true);
-                    }
-                }
-                catch (Exception ex) 
-                { 
-                    logger.LogError(ex, "Error fetching objects from S3"); 
-                }
-                
-                cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
+                var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb);
+                return Results.Ok(result);
             }
-        }
-        finally
-        {
-            _cacheLock.Release();
-        }
-    }
-
-    int pendingCount = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed");
-    int processingCount = allBlobs.Count(b => b.Status == "Processing");
-    int completedCount = allBlobs.Count(b => b.Status == "Completed");
-    int totalCount = allBlobs.Count;
-
-    var filteredBlobs = allBlobs.AsEnumerable();
-
-    if (!string.IsNullOrEmpty(search))
-    {
-        var lowerSearch = search.ToLower();
-        filteredBlobs = filteredBlobs.Where(b => ((string)b.Name).ToLower().Contains(lowerSearch));
-    }
-
-    if (!string.IsNullOrEmpty(status) && status != "Todos")
-    {
-        if (status == "Procesados")
-            filteredBlobs = filteredBlobs.Where(b => b.Status == "Completed");
-        else if (status == "Pendientes")
-            filteredBlobs = filteredBlobs.Where(b => b.Status == "Pending" || b.Status == "Failed");
-        else if (status == "Encolados")
-            filteredBlobs = filteredBlobs.Where(b => b.Status == "Queued" || b.Status == "Processing");
-    }
-
-    if (dateFrom.HasValue)
-    {
-        var df = dateFrom.Value.Date;
-        filteredBlobs = filteredBlobs.Where(b => b.LastModified != null && ((DateTime)b.LastModified).Date >= df);
-    }
-
-    if (dateTo.HasValue)
-    {
-        var dt = dateTo.Value.Date;
-        filteredBlobs = filteredBlobs.Where(b => b.LastModified != null && ((DateTime)b.LastModified).Date <= dt);
-    }
-
-    if (minSizeKb.HasValue)
-    {
-        var minBytes = minSizeKb.Value * 1024L;
-        filteredBlobs = filteredBlobs.Where(b => b.Size >= minBytes);
-    }
-
-    if (maxSizeKb.HasValue)
-    {
-        var maxBytes = maxSizeKb.Value * 1024L;
-        filteredBlobs = filteredBlobs.Where(b => b.Size <= maxBytes);
-    }
-
-    var totalItems = filteredBlobs.Count();
-
-    // Paginación
-    var skip = ((page ?? 1) - 1) * (pageSize ?? 100);
-    var pagedBlobs = filteredBlobs.Skip(skip).Take(pageSize ?? 100).ToList();
-
-    var result = new
-    {
-        Total = totalItems,
-        Page = page ?? 1,
-        PageSize = pageSize ?? 100,
-        Items = pagedBlobs,
-        Stats = new
-        {
-            Total = allBlobs.Count,
-            Pending = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed"),
-            Queued = allBlobs.Count(b => b.Status == "Queued"),
-            Completed = allBlobs.Count(b => b.Status == "Completed"),
-            Processing = allBlobs.Count(b => b.Status == "Processing")
-        }
-    };
-    return Results.Ok(result);
-})
-.WithName("ListBlobs");
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error fetching blobs");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("ListBlobs");
 
         group.MapPost("/reset-status/{documentId}", async (
             string documentId,
-            [FromServices] IAppDbContext dbContext,
+            [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation($"Restableciendo estado del documento {documentId} a Pending...");
-
-                var jobState = await dbContext.DocumentJobStates.FindAsync(documentId);
-                if (jobState != null)
-                {
-                    jobState.Status = "Pending";
-                    jobState.LastUpdatedAt = DateTime.UtcNow;
-                    await dbContext.SaveChangesAsync();
-                    return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
-                }
-
-                return Results.NotFound(new { message = $"Documento {documentId} no encontrado." });
+                await adminService.ResetDocumentStatusAsync(documentId);
+                return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
             }
             catch (Exception ex)
             {
@@ -225,43 +79,14 @@ public static class IngestionEndpoints
         .WithName("ResetDocumentStatus");
 
         group.MapPost("/reset-stuck-processing", async (
-            [FromServices] IAppDbContext dbContext,
+            [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation("Corrigiendo documentos atascados en 'Processing'...");
-
-                var processedDocIds = await dbContext.DocumentChunks
-                    .Select(c => c.DocumentId)
-                    .Distinct()
-                    .AsNoTracking().ToListAsync();
-
-                var stuckJobs = await dbContext.DocumentJobStates
-                    .Where(j => j.Status == "Processing")
-                    .AsNoTracking().ToListAsync();
-
-                int completedCount = 0;
-                int pendingCount = 0;
-
-                foreach (var job in stuckJobs)
-                {
-                    if (processedDocIds.Contains(job.DocumentId))
-                    {
-                        job.Status = "Completed";
-                        completedCount++;
-                    }
-                    else
-                    {
-                        job.Status = "Pending";
-                        pendingCount++;
-                    }
-                    job.LastUpdatedAt = DateTime.UtcNow;
-                }
-
-                await dbContext.SaveChangesAsync();
-
+                var (completedCount, pendingCount) = await adminService.ResetStuckProcessingDocumentsAsync();
                 return Results.Ok(new { message = $"Se han marcado {completedCount} documentos como 'Completed' (ya vectorizados) y reiniciado {pendingCount} a 'Pending'." });
             }
             catch (Exception ex)
@@ -273,19 +98,14 @@ public static class IngestionEndpoints
         .WithName("ResetStuckProcessingDocuments");
 
         group.MapPost("/reset", async (
-            [FromServices] IAppDbContext dbContext,
+            [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             try
             {
                 logger.LogInformation("Restableciendo la base de datos de vectores y estados...");
-
-                // Truncate vector database and job states using raw SQL
-                await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
-                    dbContext.Database,
-                    "TRUNCATE TABLE identity.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";");
-
+                await adminService.ResetIngestionAsync();
                 return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
             }
             catch (Exception ex)
@@ -296,105 +116,17 @@ public static class IngestionEndpoints
         })
         .WithName("ResetIngestion");
 
-
         group.MapPost("/enqueue-bulk", async (
             [FromQuery] string? pipelineMode,
-            [FromBody] List<AsistenteAyuntamiento.Application.Features.Ingestion.DTOs.ProcessBlobRequest> requests,
-            [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
-            [FromServices] IAppDbContext dbContext,
-            [FromServices] ILoggerFactory loggerFactory,
-            [FromServices] INotificationService notificationService) =>
+            [FromBody] List<ProcessBlobRequest> requests,
+            [FromServices] IIngestionAdminService adminService,
+            [FromServices] ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
             try
             {
-                logger.LogInformation($"Encolando {requests.Count} documentos... (Mode: {mode})");
-
-                using var connection = await connectionFactory.CreateConnectionAsync();
-                using var channel = await connection.CreateChannelAsync();
-
-                if (mode == "BASELINE" || mode == "BOTH")
-                    await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
-                if (mode == "HIERARCHICAL" || mode == "BOTH")
-                    await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
-
-                var docIds = requests
-                    .Select(r => r.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
-                    .Where(id => !string.IsNullOrEmpty(id))
-                    .ToList();
-
-                var existingJobStates = await dbContext.DocumentJobStates
-                    .Where(j => docIds.Contains(j.DocumentId))
-                    .ToDictionaryAsync(j => j.DocumentId);
-
-                int count = 0;
-                foreach (var req in requests)
-                {
-                    var parts = req.BlobPath.Split('/');
-                    var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-                    if (string.IsNullOrEmpty(docId)) continue;
-
-                    var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
-                    // if it's "json/BOE/doc.json", Length is 3, parts[1] is "BOE"
-                    if (req.BlobPath.StartsWith("json/") && parts.Length >= 3)
-                    {
-                        inferredSource = parts[1];
-                    }
-
-                    var message = new
-                    {
-                        source = !string.IsNullOrEmpty(req.Source) ? req.Source : inferredSource,
-                        document_id = docId,
-                        blob_path = req.BlobPath
-                    };
-
-                    var json = System.Text.Json.JsonSerializer.Serialize(message);
-                    var body = System.Text.Encoding.UTF8.GetBytes(json);
-
-                    if (mode == "BASELINE" || mode == "BOTH")
-                    {
-                        await channel.BasicPublishAsync(
-                            exchange: string.Empty,
-                            routingKey: "documents_to_process_baseline",
-                            mandatory: false,
-                            basicProperties: new RabbitMQ.Client.BasicProperties(),
-                            body: body);
-                    }
-
-                    if (mode == "HIERARCHICAL" || mode == "BOTH")
-                    {
-                        await channel.BasicPublishAsync(
-                            exchange: string.Empty,
-                            routingKey: "documents_to_process_hierarchical",
-                            mandatory: false,
-                            basicProperties: new RabbitMQ.Client.BasicProperties(),
-                            body: body);
-                    }
-
-                    // Update job state
-                    if (existingJobStates.TryGetValue(docId, out var jobState))
-                    {
-                        jobState.Status = "Queued";
-                        jobState.LastUpdatedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        dbContext.DocumentJobStates.Add(new DocumentJobState
-                        {
-                            DocumentId = docId,
-                            Status = "Queued",
-                            CreatedAt = DateTime.UtcNow,
-                            LastUpdatedAt = DateTime.UtcNow
-                        });
-                    }
-
-                    await notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
-                    count++;
-                }
-
-                await dbContext.SaveChangesAsync();
-
+                logger.LogInformation($"Encolando {requests.Count} documentos... (Mode: {pipelineMode ?? "BOTH"})");
+                var count = await adminService.EnqueueBulkAsync(requests, pipelineMode);
                 return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
             }
             catch (Exception ex)
@@ -407,138 +139,20 @@ public static class IngestionEndpoints
 
         group.MapPost("/reprocess-all", async (
             [FromQuery] string? pipelineMode,
-            [FromServices] Amazon.S3.IAmazonS3? s3Client,
-            [FromServices] IConfiguration config,
-            [FromServices] RabbitMQ.Client.IConnectionFactory connectionFactory,
-            [FromServices] IAppDbContext dbContext,
-            [FromServices] INotificationService notificationService,
+            [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory) =>
         {
-            if (s3Client == null)
-            {
-                return Results.Problem("Blob storage is not configured.", statusCode: StatusCodes.Status500InternalServerError);
-            }
-
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            var bucketName = config["Blob:BucketName"] ?? Shared.AppConstants.BlobStorage.DefaultBucketName;
-            var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
-
             try
             {
-                logger.LogInformation($"Iniciando reprocesado masivo de todos los documentos en S3... (Mode: {mode})");
-
-                using var connection = await connectionFactory.CreateConnectionAsync();
-                using var channel = await connection.CreateChannelAsync();
-
-                if (mode == "BASELINE" || mode == "BOTH")
-                    await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
-                if (mode == "HIERARCHICAL" || mode == "BOTH")
-                    await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
-
-                int count = 0;
-                string? continuationToken = null;
-
-                do
-                {
-                    var request = new Amazon.S3.Model.ListObjectsV2Request
-                    {
-                        BucketName = bucketName,
-                        Prefix = "json/",
-                        ContinuationToken = continuationToken
-                    };
-
-                    var response = await s3Client.ListObjectsV2Async(request);
-
-                    if (response?.S3Objects != null && response.S3Objects.Count > 0)
-                    {
-                        var batchDocIds = response.S3Objects
-                            .Select(o => o.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
-                            .Where(id => !string.IsNullOrEmpty(id))
-                            .ToList();
-
-                        var existingJobStates = await dbContext.DocumentJobStates
-                            .Where(j => batchDocIds.Contains(j.DocumentId))
-                            .ToDictionaryAsync(j => j.DocumentId);
-
-                        foreach (var s3Obj in response.S3Objects)
-                        {
-                            if (string.IsNullOrEmpty(s3Obj.Key)) continue;
-
-                            var parts = s3Obj.Key.Split('/');
-                            var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-                            if (string.IsNullOrEmpty(docId)) continue;
-
-                            var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
-                            if (s3Obj.Key.StartsWith("json/") && parts.Length >= 3)
-                            {
-                                inferredSource = parts[1];
-                            }
-
-                            var message = new
-                            {
-                                source = inferredSource,
-                                document_id = docId,
-                                blob_path = s3Obj.Key
-                            };
-
-                            var json = System.Text.Json.JsonSerializer.Serialize(message);
-                            var body = System.Text.Encoding.UTF8.GetBytes(json);
-
-                            if (mode == "BASELINE" || mode == "BOTH")
-                            {
-                                await channel.BasicPublishAsync(
-                                    exchange: string.Empty,
-                                    routingKey: "documents_to_process_baseline",
-                                    mandatory: false,
-                                    basicProperties: new RabbitMQ.Client.BasicProperties(),
-                                    body: body);
-                            }
-
-                            if (mode == "HIERARCHICAL" || mode == "BOTH")
-                            {
-                                await channel.BasicPublishAsync(
-                                    exchange: string.Empty,
-                                    routingKey: "documents_to_process_hierarchical",
-                                    mandatory: false,
-                                    basicProperties: new RabbitMQ.Client.BasicProperties(),
-                                    body: body);
-                            }
-
-                            // Update job state
-                            if (existingJobStates.TryGetValue(docId, out var jobState))
-                            {
-                                jobState.Status = "Queued";
-                                jobState.LastUpdatedAt = DateTime.UtcNow;
-                            }
-                            else
-                            {
-                                dbContext.DocumentJobStates.Add(new DocumentJobState
-                                {
-                                    DocumentId = docId,
-                                    Status = "Queued",
-                                    CreatedAt = DateTime.UtcNow,
-                                    LastUpdatedAt = DateTime.UtcNow
-                                });
-                            }
-
-                            await notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
-
-                            count++;
-                        }
-
-                        await dbContext.SaveChangesAsync();
-                        ((Microsoft.EntityFrameworkCore.DbContext)dbContext).ChangeTracker.Clear();
-                    }
-
-                    continuationToken = response?.NextContinuationToken;
-
-                } while (!string.IsNullOrEmpty(continuationToken));
-
+                logger.LogInformation($"Iniciando reprocesado masivo de todos los documentos en S3... (Mode: {pipelineMode ?? "BOTH"})");
+                var count = await adminService.ReprocessAllAsync(pipelineMode);
+                
                 if (count == 0)
                 {
                     return Results.Ok(new { message = "No se encontraron documentos en S3." });
                 }
-
+                
                 return Results.Ok(new { message = $"Se han encolado {count} documentos en las colas seleccionadas para reprocesado masivo." });
             }
             catch (Exception ex)

@@ -1,22 +1,18 @@
-using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Protos;
 using Grpc.Core;
-using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
-public class FilterConfigServiceImpl(IAppDbContext db) : FilterConfigService.FilterConfigServiceBase
+public class FilterConfigServiceImpl(IScraperFilterService filterService) : FilterConfigService.FilterConfigServiceBase
 {
-    private readonly IAppDbContext _db = db;
+    private readonly IScraperFilterService _filterService = filterService;
 
     public override async Task<FilterRulesResponse> GetActiveFilters(EmptyRequest request, ServerCallContext context)
     {
         try
         {
-            var activeRules = await _db.ScraperFilterRules
-                .Where(r => r.IsActive)
-                .AsNoTracking().ToListAsync(context.CancellationToken);
-
+            var activeRules = await _filterService.GetActiveRulesAsync(context.CancellationToken);
             var response = new FilterRulesResponse();
 
             foreach (var rule in activeRules)

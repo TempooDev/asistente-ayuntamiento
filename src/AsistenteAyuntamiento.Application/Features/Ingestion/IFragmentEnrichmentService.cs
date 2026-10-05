@@ -1,6 +1,6 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 
-namespace AsistenteAyuntamiento.Worker.Services;
+namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public interface IFragmentEnrichmentService
 {
@@ -13,3 +13,4 @@ public interface IFragmentEnrichmentService
         string originalText,
         CancellationToken cancellationToken = default);
 }
+

@@ -5,7 +5,7 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AsistenteAyuntamiento.Worker.Services;
+namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public class FragmentEnrichmentService(
     [FromKeyedServices("IngestionKernel")] Kernel kernel,
@@ -55,3 +55,5 @@ public class FragmentEnrichmentService(
         return (enrichedText, llmCalls, llmTokens);
     }
 }
+
+

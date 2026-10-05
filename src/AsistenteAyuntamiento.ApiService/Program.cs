@@ -5,6 +5,7 @@ using AsistenteAyuntamiento.Infrastructure.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
@@ -20,6 +21,7 @@ using AsistenteAyuntamiento.Application.Features.Metrics;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
+using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Config;
@@ -40,7 +42,11 @@ builder.Services.AddSingleton<IAiMetricsService, AiMetricsService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IAiChatService, AiChatService>();
 builder.Services.AddSingleton<ChatMessageBuffer>();
+
+// Move ScraperStateService to DI
 builder.Services.AddSingleton<ScraperStateService>();
+builder.Services.AddScoped<IScraperFilterService, ScraperFilterService>();
+
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.Services.AddDataProtection();
@@ -104,8 +110,14 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 builder.AddInfrastructureServices();
 builder.AddRabbitMQClient("messaging");
 
-// Registramos el IngestionService en el API solo para permitir peticiones de reprocesado manual,
-// pero el consumidor automático en background (RabbitMqConsumerService) ahora se ejecuta exclusivamente en el Worker.
+builder.Services.AddSingleton<IChunkingStrategy>(sp => 
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
+    var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
+    return new FixedOverlapChunkingStrategy(maxTokens, overlapTokens);
+});
+builder.Services.AddScoped<IIngestionAdminService, IngestionAdminService>();
 builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 
 // Arena Services
