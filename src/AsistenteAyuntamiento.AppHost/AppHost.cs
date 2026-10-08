@@ -133,7 +133,11 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
-var goScraper = builder.AddGolangApp("go-scraper", "../go-scraper")
+var goScraper = builder.AddGoApp("go-scraper", "../go-scraper")
+    .WithModTidy()
+    .WithModVendor()
+    .WithModDownload()
+    .WithVetTool()
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
     .WithHttpEndpoint(targetPort: 50051, name: "grpc", env: "GRPC_PORT")
     .WithHttpHealthCheck("/health")

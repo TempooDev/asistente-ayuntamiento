@@ -12,6 +12,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("DROP INDEX IF EXISTS ingestion.\"IX_DocumentChunks_Embedding\";");
+            migrationBuilder.Sql("UPDATE ingestion.\"DocumentChunks\" SET \"Embedding\" = NULL;");
 
             migrationBuilder.AlterColumn<Vector>(
                 name: "Embedding",

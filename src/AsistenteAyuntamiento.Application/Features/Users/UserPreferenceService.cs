@@ -10,6 +10,7 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
     {
         var preference = await context.UserPreferences
             .AsNoTracking()
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
 
         if (preference == null)
@@ -27,6 +28,7 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
     public async Task UpdatePreferencesAsync(string auth0UserId, UserPreferenceDto dto, CancellationToken cancellationToken = default)
     {
         var preference = await context.UserPreferences
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
 
         if (preference == null)
@@ -53,6 +55,7 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
     public async Task MergePreferencesAsync(string auth0UserId, UserPreferenceDto extracted, CancellationToken cancellationToken = default)
     {
         var preference = await context.UserPreferences
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
 
         if (preference == null)

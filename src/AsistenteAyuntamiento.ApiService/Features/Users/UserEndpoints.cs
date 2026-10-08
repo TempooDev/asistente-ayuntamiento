@@ -117,7 +117,7 @@ public static class UserEndpoints
     {
         try
         {
-            var query = db.UserProfiles.AsQueryable();
+            var query = db.UserProfiles.IgnoreQueryFilters().AsQueryable();
             if (asNoTracking)
             {
                 query = query.AsNoTracking();
