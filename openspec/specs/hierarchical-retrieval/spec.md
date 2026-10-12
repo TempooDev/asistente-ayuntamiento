@@ -53,12 +53,12 @@ The system SHALL combine dense vector similarity and sparse full-text search ran
 
 #### Scenario: Executing a hybrid search
 - **WHEN** an expanded query is submitted to the retrieval service
-- **THEN** the system SHALL execute a dense ranking (HNSW cosine distance) and a sparse ranking (GIN tsvector `ts_rank`) in a single SQL query
-- **AND** fuse both rankings using RRF (`1/(k + rank)` with k=60) to produce a final ranked list of the top 5 child fragments.
+- **THEN** the system SHALL execute a dense ranking using Qdrant (collection `child_fragments`, cosine distance) and a sparse ranking using PostgreSQL (GIN tsvector `ts_rank`)
+- **AND** fuse both rankings in application code using RRF (`1/(k + rank)` with k=60) to produce a final ranked list of the top 5 child fragments.
 
 #### Scenario: Filtering by municipality
 - **WHEN** the query expansion detects a municipality filter
-- **THEN** the hybrid search SHALL restrict results to fragments matching that municipality or fragments with no municipality (state/regional scope).
+- **THEN** the hybrid search SHALL restrict results to fragments matching that municipality or fragments with no municipality (state/regional scope), applying this filter to both the Qdrant query and the PostgreSQL query.
 
 ### Requirement: Parent Resolution for Generation
 The system SHALL resolve matched child fragments to their parent documents and provide the full parent text to the LLM.
