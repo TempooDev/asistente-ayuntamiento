@@ -358,7 +358,10 @@ public sealed class AiChatService(
 
     private async Task<PipelineType> DetermineWinningPipelineAsync(CancellationToken cancellationToken)
     {
+        // Cross-tenant on purpose: only aggregate win counts are read (no battle content),
+        // and the winning pipeline is a platform-wide decision.
         var battles = await dbContext.ArenaBattles
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(b => b.Winner == BattleWinner.Alfa || b.Winner == BattleWinner.Beta)
             .Select(b => new { b.Winner, b.LeftSystem, b.RightSystem })
@@ -485,6 +488,8 @@ public sealed class AiChatService(
                     var battle = new ArenaBattle
                     {
                         SessionId = sessionId,
+                        TenantId = tenantId,
+                        UserId = userId,
                         UserQuery = lastUserMessage,
                         CreatedAt = DateTime.UtcNow,
                         LeftSystem = leftSystem,
@@ -1129,6 +1134,8 @@ public sealed class AiChatService(
         var battle = new ArenaBattle
         {
             SessionId = sessionId,
+            TenantId = tenantId,
+            UserId = userId,
             UserQuery = lastUserMessage,
             CreatedAt = DateTime.UtcNow,
             LeftSystem = leftSystem,

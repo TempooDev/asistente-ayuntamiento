@@ -33,7 +33,7 @@ public class ArenaService(
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
-    public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, CancellationToken cancellationToken = default)
+    public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, string tenantId, string userId, CancellationToken cancellationToken = default)
     {
         var sessionId = Guid.NewGuid();
 
@@ -63,6 +63,8 @@ public class ArenaService(
         var battle = new ArenaBattle
         {
             SessionId = sessionId,
+            TenantId = tenantId,
+            UserId = userId,
             UserQuery = request.Query,
             CreatedAt = DateTime.UtcNow,
             LeftSystem = isHierarchicalAlfa ? PipelineType.Hierarchical : PipelineType.Baseline,
@@ -91,15 +93,16 @@ public class ArenaService(
         };
     }
 
-    public async Task<ArenaVoteResponse> VoteAsync(ArenaVoteRequest request, CancellationToken cancellationToken = default)
+    public async Task<ArenaVoteResponse?> VoteAsync(ArenaVoteRequest request, string userId, CancellationToken cancellationToken = default)
     {
-
-        var battle = await dbContext.ArenaBattles.FirstOrDefaultAsync(b => b.SessionId == request.SessionId, cancellationToken);
-        if (battle == null)
-            throw new Exception("Battle session not found");
-
-        if (!Enum.TryParse<BattleWinner>(request.Winner, true, out var w))
+        if (!Enum.TryParse<BattleWinner>(request.Winner, true, out var w) || !Enum.IsDefined(w) || w == BattleWinner.Pending)
             throw new ArgumentException("Invalid winner value provided.", nameof(request.Winner));
+
+        // The tenant query filter scopes the lookup to the current tenant; the UserId predicate to the owner.
+        var battle = await dbContext.ArenaBattles
+            .FirstOrDefaultAsync(b => b.SessionId == request.SessionId && b.UserId == userId, cancellationToken);
+        if (battle == null)
+            return null;
 
         battle.Winner = w;
         if (Enum.TryParse<EvaluationPreference>(request.ClarityReason, true, out var c)) battle.ClarityReason = c;

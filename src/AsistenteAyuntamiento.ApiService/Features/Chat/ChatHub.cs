@@ -1,9 +1,12 @@
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using System.Security.Claims;
-using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel.ChatCompletion;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Features.Arena;
+using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 
@@ -15,40 +18,48 @@ namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 /// </summary>
 [Authorize]
 public class ChatHub(
-    CurrentTenantService tenantService,
+    ICurrentTenantService tenantService,
     IChatSessionService sessionService,
     IAiChatService aiChatService,
-    AsistenteAyuntamiento.Application.Features.Arena.IArenaService arenaService,
-    AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext dbContext,
+    IArenaService arenaService,
+    IAppDbContext dbContext,
     ILogger<ChatHub> logger) : Hub
 {
-    private readonly CurrentTenantService _tenantService = tenantService;
+    private readonly ICurrentTenantService _tenantService = tenantService;
     private readonly IChatSessionService _sessionService = sessionService;
     private readonly IAiChatService _aiChatService = aiChatService;
-    private readonly AsistenteAyuntamiento.Application.Features.Arena.IArenaService _arenaService = arenaService;
-    private readonly AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext _dbContext = dbContext;
+    private readonly IArenaService _arenaService = arenaService;
+    private readonly IAppDbContext _dbContext = dbContext;
     private readonly ILogger<ChatHub> _logger = logger;
+
+    private string? CurrentUserId => Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    /// <summary>
+    /// TenantRequiredMiddleware rejects connections without a tenant, so this is only null
+    /// if that guarantee is broken; fail closed instead of using a shared tenant.
+    /// </summary>
+    private string CurrentTenantId => _tenantService.TenantId
+        ?? throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
     public async Task SendMessage(Guid sessionId, string message)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
         {
-            await Clients.Caller.SendAsync("ReceiveMessage", "Error: No user ID found.");
+            await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.Unauthorized));
             return;
         }
 
         try
         {
+            var tenantId = CurrentTenantId;
             _logger.LogInformation("Message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
 
             // 1. Fetch specific session
             var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
             if (session == null)
             {
-                await Clients.Caller.SendAsync("ReceiveMessage", "Error: Session not found or unauthorized.");
+                await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.NotFound));
                 return;
             }
             _sessionService.EnqueueUserMessage(session, message);
@@ -62,7 +73,6 @@ public class ChatHub(
 
             var finalContent = result.Content;
 
-
             // 4. Persist assistant response
             _sessionService.EnqueueAssistantMessage(session, finalContent);
 
@@ -72,7 +82,7 @@ public class ChatHub(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error in SendMessage for {User}", userId);
-            await Clients.Caller.SendAsync("ReceiveMessage", $"System Error: {ex.GetType().Name} - {ex.Message}");
+            await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.Internal));
         }
     }
 
@@ -81,15 +91,14 @@ public class ChatHub(
         string message,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
         {
-            yield return "Error: No user ID found.";
+            yield return HubErrors.Message(HubErrors.Unauthorized);
             yield break;
         }
 
+        var tenantId = CurrentTenantId;
         ChatSession? session = null;
         string? errorMessage = null;
 
@@ -99,14 +108,14 @@ public class ChatHub(
 
             if (!Guid.TryParse(sessionIdStr, out var sessionId))
             {
-                errorMessage = "Error: Invalid session ID format.";
+                errorMessage = HubErrors.Message(HubErrors.InvalidRequest);
             }
             else
             {
                 session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
                 if (session == null)
                 {
-                    errorMessage = "Error: Session not found or unauthorized.";
+                    errorMessage = HubErrors.Message(HubErrors.NotFound);
                 }
                 else
                 {
@@ -117,12 +126,12 @@ public class ChatHub(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error preparing stream for {User}", userId);
-            errorMessage = $"System Error: {ex.GetType().Name} - {ex.Message}";
+            errorMessage = HubErrors.Message(HubErrors.Internal);
         }
 
         if (errorMessage != null || session == null)
         {
-            yield return errorMessage ?? "Unexpected error.";
+            yield return errorMessage ?? HubErrors.Message(HubErrors.Internal);
             yield break;
         }
 
@@ -145,15 +154,14 @@ public class ChatHub(
         string message,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
         {
-            yield return new ArenaStreamChunk("Error", "No user ID found.");
+            yield return new ArenaStreamChunk("Error", HubErrors.Message(HubErrors.Unauthorized));
             yield break;
         }
 
+        var tenantId = CurrentTenantId;
         ChatSession? session = null;
         string? errorMessage = null;
 
@@ -163,14 +171,14 @@ public class ChatHub(
 
             if (!Guid.TryParse(sessionIdStr, out var sessionId))
             {
-                errorMessage = "Invalid session ID format.";
+                errorMessage = HubErrors.Message(HubErrors.InvalidRequest);
             }
             else
             {
                 session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
                 if (session == null)
                 {
-                    errorMessage = "Session not found or unauthorized.";
+                    errorMessage = HubErrors.Message(HubErrors.NotFound);
                 }
                 else
                 {
@@ -181,12 +189,12 @@ public class ChatHub(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error preparing ARENA stream for {User}", userId);
-            errorMessage = $"System Error: {ex.Message}";
+            errorMessage = HubErrors.Message(HubErrors.Internal);
         }
 
         if (errorMessage != null || session == null)
         {
-            yield return new ArenaStreamChunk("Error", errorMessage ?? "Unexpected error.");
+            yield return new ArenaStreamChunk("Error", errorMessage ?? HubErrors.Message(HubErrors.Internal));
             yield break;
         }
 
@@ -204,22 +212,36 @@ public class ChatHub(
 
     public async Task VoteArenaMessage(ArenaChatVoteRequest request)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId))
+            throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-        if (string.IsNullOrEmpty(userId)) return;
+        var tenantId = CurrentTenantId;
 
-        var voteResult = await _arenaService.VoteAsync(new AsistenteAyuntamiento.Application.Features.Arena.Models.ArenaVoteRequest
+        ArenaVoteResponse? voteResult;
+        try
         {
-            SessionId = request.BattleId,
-            Winner = request.Winner
-        });
+            voteResult = await _arenaService.VoteAsync(new ArenaVoteRequest
+            {
+                SessionId = request.BattleId,
+                Winner = request.Winner
+            }, userId);
+        }
+        catch (ArgumentException)
+        {
+            throw new HubException(HubErrors.Message(HubErrors.InvalidRequest));
+        }
+
+        // Unknown battle or owned by someone else: same answer, so existence is not revealed.
+        if (voteResult is null)
+            throw new HubException(HubErrors.Message(HubErrors.NotFound));
 
         var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId);
         if (session != null)
         {
-            var battle = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-                _dbContext.ArenaBattles, b => b.SessionId == request.BattleId);
+            var battle = await _dbContext.ArenaBattles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.SessionId == request.BattleId && b.UserId == userId);
 
             if (battle != null)
             {
@@ -256,13 +278,11 @@ public class ChatHub(
 
     public async Task<List<ChatSessionSummaryDto>> GetSessions()
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
             return new List<ChatSessionSummaryDto>();
 
-        var sessions = await _sessionService.GetUserSessionsAsync(userId, tenantId);
+        var sessions = await _sessionService.GetUserSessionsAsync(userId, CurrentTenantId);
         return sessions.Select(s =>
         {
             var firstUserMsg = s.Messages.OrderBy(m => m.CreatedAt).FirstOrDefault(m => m.Role == "user")?.Content ?? "";
@@ -273,36 +293,30 @@ public class ChatHub(
 
     public async Task<List<ChatMessageDto>> LoadSession(Guid sessionId)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
             return new List<ChatMessageDto>();
 
-        var messages = await _sessionService.GetSessionMessagesAsync(sessionId, userId, tenantId);
+        var messages = await _sessionService.GetSessionMessagesAsync(sessionId, userId, CurrentTenantId);
         return messages.Select(m => new ChatMessageDto(m.Role, m.Content, m.CreatedAt)).ToList();
     }
 
     public async Task<Guid> CreateNewSession()
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
-            throw new HubException("User ID not found");
+            throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-        var session = await _sessionService.CreateNewSessionAsync(userId, tenantId);
+        var session = await _sessionService.CreateNewSessionAsync(userId, CurrentTenantId);
         return session.Id;
     }
 
     public async Task DeleteSession(Guid sessionId)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var tenantId = _tenantService.TenantId;
-
+        var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
-            throw new HubException("User ID not found");
+            throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-        await _sessionService.DeleteSessionAsync(sessionId, userId, tenantId);
+        await _sessionService.DeleteSessionAsync(sessionId, userId, CurrentTenantId);
     }
 }

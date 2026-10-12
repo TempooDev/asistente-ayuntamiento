@@ -23,7 +23,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                 .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.AiConfig.AiConfiguration", b =>
@@ -102,6 +101,16 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("UserQuery")
                         .IsRequired()
                         .HasColumnType("text");
@@ -110,6 +119,8 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .HasColumnType("smallint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UserId", "SessionId");
 
                     b.ToTable("ArenaBattles", "arena");
                 });

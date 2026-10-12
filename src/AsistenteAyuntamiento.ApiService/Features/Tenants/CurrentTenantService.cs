@@ -2,20 +2,32 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Tenants;
 
-public class CurrentTenantService(IHttpContextAccessor httpContextAccessor) : ICurrentTenantService
+/// <summary>
+/// Resolves the current tenant (Auth0 Organization ID) from the <c>org_id</c> claim.
+/// Returns <c>null</c> when there is no organization, except in Development, where
+/// <c>Tenancy:DevelopmentFallbackTenant</c> (default <c>"default"</c>) is used.
+/// Background work must call <see cref="SetTenant"/> explicitly before touching tenant-scoped data.
+/// </summary>
+public class CurrentTenantService(
+    IHttpContextAccessor httpContextAccessor,
+    IHostEnvironment environment,
+    IConfiguration configuration) : ICurrentTenantService
 {
-    /// <summary>
-    /// Gets the current TenantId (Auth0 Organization ID) from the JWT token.
-    /// Returns "default" if not present (useful for local development or system admins).
-    /// </summary>
+    public const string OrgIdClaim = "org_id";
 
     private readonly AsyncLocal<string?> _tenantIdOverride = new();
 
-    public string TenantId => _tenantIdOverride.Value ?? httpContextAccessor.HttpContext?.User.FindFirst("org_id")?.Value ?? "default";
+    private readonly string? _developmentFallbackTenant = environment.IsDevelopment()
+        ? configuration["Tenancy:DevelopmentFallbackTenant"] ?? "default"
+        : null;
+
+    public string? TenantId =>
+        _tenantIdOverride.Value
+        ?? httpContextAccessor.HttpContext?.User.FindFirst(OrgIdClaim)?.Value
+        ?? _developmentFallbackTenant;
 
     public void SetTenant(string tenantId)
     {
         _tenantIdOverride.Value = tenantId;
     }
-
 }

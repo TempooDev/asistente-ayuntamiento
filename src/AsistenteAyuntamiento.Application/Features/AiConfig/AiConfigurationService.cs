@@ -125,7 +125,8 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
 
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto)
     {
-        var tenantId = tenantService.TenantId;
+        var tenantId = tenantService.TenantId
+            ?? throw new InvalidOperationException("A tenant is required to save the AI configuration.");
         var config = await dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null)
