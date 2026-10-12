@@ -1,0 +1,133 @@
+# Tasks: Audit Remediation (October 2026)
+
+Each top-level section is one phase and one PR. Phases 1–3 are ordered. Phases 4–7 can run in parallel once phase 3 is merged, except that 5.x depends on 4.4–4.5 (central packages and the warning policy). Section 8 closes the change.
+
+Source of every finding: `docs/auditoria-codigo-2026-10.md`.
+
+## Execution Order Across Open Changes (agreed 2026-10-13)
+
+| # | Step | Why here |
+|---|------|----------|
+| 1 | ~~Archive `migrate-embeddings-qdrant`~~ ✅ done 2026-10-13 | Implemented. Specs synced to `qdrant-vector-store` and `hierarchical-retrieval`. The missing test (4.5) moved to 5.16, and the missing collection bootstrap to 3.14. |
+| 2 | **This change, phases 1–2** (security and critical bugs) | Blocking security issues. Phase 2 also delivers the SignalR hub factory (2.6) that the next step relies on. |
+| 3 | **`mobile-session-ux`** | Small, user-visible fix (the mobile menu does not work). Its reconnection task reuses the hub factory from 2.6 instead of duplicating it. |
+| 4 | **This change, phase 3** (messaging and ingestion reliability) | Defines `docs/messaging-contract.md` and the consumer base class, which observability extends with `traceparent`. |
+| 5 | **`observability-grafana-tempooanalytics`** (revised) | Builds on the messaging contract and the typed LLM error codes. LLM telemetry level 1 can go before audit 5.9; it moves with the refactor. TempooAnalytics stays blocked until its SDK is available. |
+| 6 | **This change, phases 4–8** | Hygiene, CI, architecture, the Go and Angular restructuring, and spec close-out. 4.x can start in parallel with step 5. |
+
+## 1. Security and Tenant Hardening
+
+- [ ] 1.1 Create `ApiService/Security/AuthorizationPolicies.cs` and an `AddAppAuthorization()` extension with the `Admin` (`RequireRole("administrador")`) and `TenantMember` policies. Replace `builder.Services.AddAuthorization()` in `ApiService/Program.cs:92`.
+- [ ] 1.2 Convert `IngestionEndpoints.cs`, `ScraperFilterEndpoints.cs`, `AiConfigEndpoints.cs` (write operations), `AiMetricsEndpoints.cs` and the analytics part of `ArenaEndpoints.cs` to `MapGroup(...).RequireAuthorization(Policies.Admin)`. Unify the `Map*Endpoints` call style in `Program.cs:200-206`.
+- [ ] 1.3 Add `roleGuardFn` to the admin views of the `arena` route in `Angular/src/app/app.routes.ts:32`. Move `ROLES` from `services/auth/user.service.ts` to `core/auth/roles.ts`.
+- [ ] 1.4 `CurrentTenantService.cs:14`: return `null` without `org_id`. Add `TenantRequiredMiddleware` (403 outside Development) and the `Tenancy:DevelopmentFallbackTenant` setting. Make `ChatHub` and `UserEndpoints` inject `ICurrentTenantService` instead of the concrete class.
+- [ ] 1.5 Domain `ArenaBattle.cs`: add `TenantId` and `UserId`. `AppDbContext.cs:108-111`: add the query filter. Create the migration that backfills `legacy` / `unknown`.
+- [ ] 1.6 Enforce ownership in `ArenaService.VoteAsync` (`ArenaService.cs:97`) and in `ChatHub.cs:205-235`. Return not found for non-owners.
+- [ ] 1.7 `UserPreferenceService.cs:11-66`: add an explicit `TenantId` predicate next to `IgnoreQueryFilters()`, and fix the nullable assignments at `:39` and `:66`.
+- [ ] 1.8 Remove `ex.Message` and `ex.GetType().Name` from `ChatHub.cs:75,120,184` and `IngestionEndpoints.cs`. Add typed hub error codes and rely on `UseExceptionHandler`.
+- [ ] 1.9 Startup secret validation (`ValidateOnStart` options) for Auth0, Blob, RabbitMQ, Qdrant and the internal gRPC key. Remove the default credentials in `Infrastructure/DependencyInjection.cs:24-25`, `docker-compose.yml` and `.env.example`. Remove `mc anonymous set public` and the literal MinIO credentials from `AppHost.cs`.
+- [ ] 1.10 Protect `FilterConfigServiceImpl` with an `x-internal-key` interceptor (`ApiService/Features/Scraper`). Send the header from Go in `internal/filterclient/client.go`, and wire the secret through `AppHost.cs` and `docker-compose.yml`.
+- [ ] 1.11 Integration test project setup: `tests/AsistenteAyuntamiento.ApiService.Tests` with WebApplicationFactory, a fake JWT handler and Testcontainers Postgres. Delete `UnitTest1.cs`.
+- [ ] 1.12 Authorization matrix tests (anonymous, user, admin for each admin route), plus a test that enumerates all endpoints under admin prefixes. Tenant isolation tests for ChatSessions, AiConfiguration and ArenaBattle.
+- [ ] 1.13 Set the log level for `Microsoft.SemanticKernel` and `AsistenteAyuntamiento` to `Information` in `ApiService/appsettings.Production.json:8-10`. Upgrade `Microsoft.OpenApi` past GHSA-v5pm-xwqc-g5wc.
+
+## 2. Critical Functional Bugs
+
+- [ ] 2.1 Fix the shadowed `kernel` in `AiChatService.cs:139,587`. Resolve `IEmbeddingGenerator` from the injected platform service at `:161,607,933`. Add a unit test for `GetCompletionAsync` with a user message.
+- [ ] 2.2 Replace the fallback blocks at `AiChatService.cs:260-300` and `:690-720` with `Ai:Fallback:*` configuration and status-code-based detection (429), so the tenant key is never forwarded. Add unit tests for the three fallback scenarios.
+- [ ] 2.3 Remove `ServerCertificateCustomValidationCallback` at `AiChatService.cs:110,558`. Guard `CertificateRevocationCheckMode.NoCheck` in `Infrastructure/DependencyInjection.cs:61,90,132` behind the Development flag.
+- [ ] 2.4 `SignalRNotificationService.cs:12`: send a single `DocumentStatusNotification` record. Align `notification.service.ts:41`.
+- [ ] 2.5 `Program.cs:83`: accept `access_token` for `StartsWithSegments("/hubs")`. Hubs join the `tenant:{id}` and `role:admin` groups in `OnConnectedAsync`. Replace `Clients.All` in `SignalRNotificationService.cs` and `ScraperFilterEndpoints.cs:94,111`.
+- [ ] 2.6 Angular: create `core/realtime/hub-connection.factory.ts` with a dynamic `accessTokenFactory` and an idempotent `connect()`. Use it from `chat.service.ts` and `notification.service.ts`. Stop the hubs on logout in `app.ts:40`.
+- [ ] 2.7 Go: replace `contains()` at `main.go:208-210` with normalized substring matching. Separate configuration rules (`BojaFeed`) from content rules in `matchesFilters` (`main.go:184-206`). Add table tests.
+- [ ] 2.8 .NET `FilterConfigServiceImpl.cs:31-35`: throw `RpcException(StatusCode.Internal)` instead of returning an empty list. Go: abort the job when `GetActiveFilters` fails. `ScraperFilterEndpoints.cs:24-28`: stop returning 200 with an empty list on error.
+- [ ] 2.9 Go: remove `InsecureSkipVerify` in `internal/filterclient/client.go:35` and use `grpc.NewClient` with the system certificate pool.
+- [ ] 2.10 Add a `NullNotificationService`, and stop using `INotificationService? = null` in `DocumentIngestionService.cs:46,182,213`. Replace `catch { }` at `:215` and in `HierarchicalRabbitMqConsumerService.cs:142` with logging.
+- [ ] 2.11 Make `BoeIngestionService.cs:16` and `BojaIngestionService.cs:16` read the bucket from configuration. Parse the real publication date (replace `DateTime.UtcNow // Stub`).
+- [ ] 2.12 Replace `Task.Run` in `UserEndpoints.cs:99` and `ScraperFilterEndpoints.cs:97` with `BackgroundWorkQueue` (`Channel` + hosted service, carrying `TenantId`). Make `ScraperStateService` use `Interlocked.CompareExchange`.
+- [ ] 2.13 Fix the 25 current build warnings (nullable warnings in `UserEndpoints.cs:166`, `AiConfigurationService.cs:135`, `AppDbContext.cs:17`, and the `NU1608` from the Npgsql EF version).
+
+## 3. Messaging and Ingestion Reliability
+
+- [ ] 3.1 Write `docs/messaging-contract.md` (queue names, arguments, headers, message schemas). Create `Infrastructure/Messaging/RabbitMqTopology.cs`, and move the queue constants from `RabbitMqConstants.cs` and the inline strings in `IngestionAdminService.cs` into it.
+- [ ] 3.2 Create `Infrastructure/Messaging/RabbitMqConsumerBase<TMessage>` with reconnection, QoS, a retry queue with `x-retry-count`, a DLQ and a health check.
+- [ ] 3.3 Migrate `Infrastructure/Features/Ingestion/RabbitMqConsumerService.cs` → `BaselineIngestionConsumer`, and `Worker/Services/HierarchicalRabbitMqConsumerService.cs` → `Infrastructure/.../HierarchicalIngestionConsumer` (resolve `IAppDbContext`, not `AppDbContext`). Update the registration in `Worker/Program.cs:39-58`.
+- [ ] 3.4 Migrate `ApiService/Features/Notifications/RabbitMqNotificationConsumer.cs` to the base class.
+- [ ] 3.5 Create an `IMessagePublisher` port and an Infrastructure implementation with `Persistent = true` and publisher confirms. Use it in `IngestionAdminService.cs:201-371`, and collapse the duplicated `EnqueueBulkAsync` / `ReprocessAllAsync` publish code into one private method.
+- [ ] 3.6 `IngestionAdminService`: save the `Queued` state before publishing, revert it on publish failure, and send one notification per batch.
+- [ ] 3.7 `DocumentIngestionService.cs:134-159`: commit to Postgres first, then delete the document's points in Qdrant by filter, then upsert. Add a `VectorSyncFailed` state.
+- [ ] 3.8 `BaseHierarchicalIngestionProcessor.cs:69-70`: upsert `ParentDocument` by `(DocumentId, PipelineType)`, with a unique index migration and a transaction around parent and children.
+- [ ] 3.9 Add a `JobStatus` enum in Domain (stored as a string) and replace the magic status strings across Application, Infrastructure and Worker.
+- [ ] 3.10 `ChatPersistenceWorker.cs`: use a `ConcurrentDictionary` for the retry counts, and log and dead-letter (to a table or log) instead of silently dropping messages after 3 retries.
+- [ ] 3.11 Go `internal/messaging/rabbitmq.go`: persistent delivery, publisher confirms, reconnection on `NotifyClose`, a mutex-guarded channel, and declaration of the same topology. Log and count publish errors (`main.go:434`).
+- [ ] 3.12 Integration tests with Testcontainers RabbitMQ: a transient failure is retried and succeeds, poison messages go to the DLQ, and messages survive a broker restart.
+- [ ] 3.13 Deploy runbook in `docs/deploy-dokploy.md`: drain the queues, delete them, deploy the new topology, and deploy the scraper and the workers together.
+- [ ] 3.14 Qdrant collection bootstrap (found while archiving `migrate-embeddings-qdrant`). The collection creation lived only in the migration endpoint removed in `97a02c5`, so fresh environments have no collections. Add a startup initializer in Infrastructure that ensures `document_chunks` and `child_fragments` exist with size `Ai:Embeddings:Dimensions` and Cosine distance, and fails on a dimension mismatch (spec `openspec/specs/qdrant-vector-store`). Use it from the ApiService, the Worker and the integration tests.
+
+## 4. Repository Hygiene and Quality Gates
+
+- [ ] 4.1 `git rm --cached src/go-scraper/go-scraper`. Add `/go-scraper` and `/tmp/` to `src/go-scraper/.gitignore`. Fix the root `.gitignore`: remove the inline comments on the `!.vscode/settings.json` and `.dockerignore` lines, re-save it as UTF-8, and resolve the `appsettings.Development.json` rule against the tracked Gateway file.
+- [ ] 4.2 Delete `patch_ingestion.patch`, `fix_docker.sh`, `src/go-scraper/protos/`, `src/go-scraper/cmd/validator/`, `src/go-scraper/scrape-history.ps1`, the `weather-route` in `Gateway/appsettings.json:32`, and `/weatherforecast` in `ApiService.http`.
+- [ ] 4.3 Unify the agent skills: keep `.claude/skills` and `.agents/skills` as canonical, and remove the duplicates in `agent/` and `.github/skills/auth0` (keep `.github/skills/aspire` if it is used). Update `skills-lock.json`.
+- [ ] 4.4 Create `Directory.Packages.props` and remove `Version` from every csproj. Align EF Core, OpenApi, Scalar, Semantic Kernel (Qdrant connector), OpenTelemetry and `Aspire.Hosting.NodeJs`. Remove the unused `Azure.Storage.Blobs` / `Aspire.Azure.Storage.Blobs` (ApiService) and `Pgvector` (Shared).
+- [ ] 4.5 `Directory.Build.props`: `Nullable`, `ImplicitUsings`, `AnalysisLevel=latest-recommended`, and `WarningsAsErrors` for `nullable` and `NU1901-NU1904`. Add an `.editorconfig` at the root with the C# naming and `CA2254`/`CA2016` severities.
+- [ ] 4.6 Fix the Angular specs: correct the imports in `pages/*/*.spec.ts` and `services/*/*.spec.ts`, add the `AuthService` and `HttpClient` test providers, and remove the title test in `app.spec.ts:21`.
+- [ ] 4.7 `ci.yml`: a `dotnet` job (adding `dotnet format --verify-no-changes`); an `angular` job (`npm ci`, `ng test --watch=false`, build; Node 22); a `go` job (`go vet`, `go test ./...`, build); a `protos` job (regenerate and `git diff --exit-code`); and a hygiene step that rejects tracked files over 5 MB outside the allow-list.
+- [ ] 4.8 `deploy.yml`: run only after CI succeeds (`workflow_run`), tag images `sha-<short>` + `latest`, and normalize the image names to match `docker-compose.yml:26,67,153`. First verify the current names in GHCR.
+- [ ] 4.9 Dockerfiles: delete `ApiService/Dockerfile`, `Worker/Dockerfile` and `Gateway/Dockerfile` if `PublishContainer` stays the deploy path, or fix them (copy every referenced csproj and `Directory.*.props`). Go `Dockerfile`: pinned `golang:1.25-alpine`, distroless `nonroot`, `-trimpath -ldflags="-s -w"`, and a `.dockerignore`.
+- [ ] 4.10 Optional, a team decision: purge the binary from history with `git filter-repo`, and document the force-push procedure.
+
+## 5. Clean Architecture Boundaries (.NET)
+
+- [ ] 5.1 Create `tests/AsistenteAyuntamiento.ArchitectureTests` (NetArchTest) with the dependency rules, the `IgnoreQueryFilters` allow-list, and the class size limits for `Features/Chat`. Add it to `AsistenteAyuntamiento.slnx`.
+- [ ] 5.2 Port `IVectorStore`, with a Qdrant implementation in `Infrastructure/VectorStore`. Migrate `DocumentIngestionService`, `BaseHierarchicalIngestionProcessor`, `HybridRetrievalService`, `AiChatService` and `IngestionAdminService`. Move the collection names into options.
+- [ ] 5.3 Port `IBlobStorage`, with an S3 implementation. Migrate `BoeIngestionService`, `BojaIngestionService`, `DocumentIngestionService` and `IngestionAdminService`.
+- [ ] 5.4 Port `IFullTextSearch`, moving the raw SQL from `HybridRetrievalService.cs:70-87` to Infrastructure. Remove `DatabaseFacade` from `IAppDbContext.cs:28`, and move the `TRUNCATE` and the `DbContext` cast from `IngestionAdminService.cs:196,363` to an Infrastructure `IIngestionMaintenance`.
+- [ ] 5.5 Port `IChatModelFactory`, implemented in `Infrastructure/Ai/ChatModelFactory.cs` with named `HttpClient`s and the `Ai:Http:AllowInsecureTls` guard. Remove the provider connectors and `AWSSDK.S3`, `Qdrant.Client`, `RabbitMQ.Client` and `Pgvector.EntityFrameworkCore` from `Application.csproj`.
+- [ ] 5.6 Domain: remove `Pgvector` from `Domain.csproj` and its unused import in `DocumentChunk.cs:1`. Replace `NpgsqlTsVector` in `ChildFragment.cs:26` with an EF shadow property. Move `[Table]` from `DocumentJobState.cs:6` to `IEntityTypeConfiguration` classes.
+- [ ] 5.7 Create `PromptCatalog` in `Application/Common/Prompts`. Merge `Features/Chat/Prompts.cs`, move the inline prompts out of `AiChatService.cs:639,965,968`, `ArenaService.cs:134-137` and `ChatHub.cs:244`, and remove the duplicated user-context block.
+- [ ] 5.8 Split `AiChatService` (part 1): extract `BaselineRagPipeline` and `HierarchicalRagPipeline`, which removes the three copies of the RAG code. Delete the dead `EnrichHistoryWithContextAsync`, the unused parameters, and the no-op `Pgvector.Vector` round trips.
+- [ ] 5.9 Split `AiChatService` (part 2): extract `ChatStreamingService` (fallback) and `IAiCallRecorder`. Remove the `as AiChatService` casts at `:432,1029,1067`. Add a namespace declaration.
+- [ ] 5.10 Split `AiChatService` (part 3): extract `ShadowTestScheduler` (using `BackgroundWorkQueue`) and `ArenaStreamingService`, with concurrent reads and per-side `Stopwatch`/tokens. Move `DetermineWinningPipelineAsync` to a cached SQL aggregate.
+- [ ] 5.11 Move the business logic out of the endpoints: `AiMetricsEndpoints.cs:23-72` → an `IAiMetricsQueryService` that aggregates in SQL per tenant; `UserEndpoints.GetOrCreateProfile` → `IUserProfileService`; `ChatHub.cs:221` DB access → `IArenaService`.
+- [ ] 5.12 Add an `AddApplicationServices()` extension in Application and remove the duplicate registrations in `ApiService/Program.cs:39-131` and `Worker/Program.cs:31-37`. Move `CurrentTenantService` to Infrastructure (or `Web.Common`), and `FilterConfigServiceImpl` to its own `Grpc/` folder.
+- [ ] 5.13 Move `Infrastructure/Infrastructure/Data` → `Infrastructure/Data`, and update the embedded SQL resource names in `AddRagQuestionArena.cs:144,154`.
+- [ ] 5.14 Migrations: confirm the open question about production data. Then either consolidate into a baseline and write the reset procedure in `docs/setup.md`, or keep the history. Remove `PendingModelChangesWarning` suppression in `Program.cs:59`. Read the design-time connection string in `AppDbContextFactory.cs:13` from the environment.
+- [ ] 5.15 Conventions pass: one type per file (`IIngestionAdminService.cs`, `AiMetricsService.cs`, `ClearLanguageGenerationService.cs`, `HistoryAnalyzerService.cs`), `DTOs/` folders, records for DTOs, English identifiers (`FiltroMunicipio`, `QueryLexica`), structured logging, no `Console.WriteLine`, `CancellationToken` in `AiConfigurationService`, `ChatSessionService` and `ScraperFilterService`.
+- [ ] 5.16 Unit tests: `HybridRetrievalService` (RRF fusion), `QueryExpansionService` (JSON parsing), `ArenaAnalyticsService`, `ReadabilityService`, `UserPreferenceService.MergePreferencesAsync`, `ChatStreamingService` fallback, and ingestion idempotency with fakes.
+
+## 6. Go Scraper Restructuring
+
+- [ ] 6.1 Characterization tests with saved fixtures for the BOE JSON and XML parsers, the BOJA title and ID parsing, and the BOJA binary search (`internal/boe`, `internal/boja`), using `httptest.Server`.
+- [ ] 6.2 Create `internal/config` (load and validate every environment variable) and `internal/httpx` (timeout, rate limit, exponential backoff with jitter that respects `ctx`, body close and drain). Migrate `boe/client.go:175-210` and `boja/client.go:81-91`.
+- [ ] 6.3 Stateless providers: `FetchSummary(ctx, date, Options)`. Remove `SetSections`/`UpdateFeeds`, and protect or remove `dateCache` with a `sync.Mutex`. Compile the regular expressions at package level (`boja:193,239,251`). Return the bulletin date instead of `time.Now()` (`boja:169`).
+- [ ] 6.4 Create `internal/pipeline.Orchestrator` with the storage, publisher, filters and providers injected. Add a single job lock shared by cron, HTTP and gRPC, and async jobs with an ID. Validate dates and the maximum range. Merge `scrapeDateRange` and `scrapeProviderDateRange`, and delete `forceScrapeProvider`.
+- [ ] 6.5 Graceful shutdown: `signal.NotifyContext`, `http.Server` with timeouts and `Shutdown`, `grpcServer.GracefulStop`, and OTel flush. Replace the `log.Fatalf` in `commandserver/server.go:52,60` with returned errors.
+- [ ] 6.6 Move `main.go` to `cmd/scraper/main.go` (wiring only). Fix `go_package` in `src/Protos/scraper.proto` and add `//go:generate`. Make `.air.toml` cross-platform with `send_interrupt = true`.
+- [ ] 6.7 Observability: `slog` JSON with `trace_id`, package-level counters, properly nested spans (propagate `ctx`), and count extracted items only after they are saved.
+- [ ] 6.8 Storage: `SaveRaw` with the real extension and MIME type (`storage/cloud.go:79-81`), explicit S3 credentials instead of `os.Setenv`. Remove BOPMA from the active provider registry until it is implemented.
+
+## 7. Angular Restructuring
+
+- [ ] 7.1 Move to the `core/ shared/ features/` layout (design D10), with lazy `loadComponent` routes. Move the DTOs out of the services into `features/*/models`.
+- [ ] 7.2 `core/auth/auth-facade.service.ts`: `roles`, `isAdmin` (computed), `orgId`, `loginWithOrg()` and `logout()`. Remove the duplicated logic in `app.ts:25-31`, `role.guard.ts:24-25`, `custom-auth.guard.ts`, `login.ts` and `error.ts`. Specs for the guards.
+- [ ] 7.3 `auth0.provider.ts`: `provideAppInitializer` with an injectable `AUTH_RUNTIME_CONFIG`. Do not mutate `environment`. On a config load failure, redirect to `/error`. Move the password change in `perfil.ts:156-190` to the backend or the facade.
+- [ ] 7.4 Create a `MarkdownService` and `markdown` pipe (DOMPurify hook registered once), throttle the streaming render with `requestAnimationFrame`, and add specs.
+- [ ] 7.5 Create a `ChatStore` (immutable signals, stream lifecycle, `mapStreamError()` with typed backend codes). Make `chat-panel` read only from the store.
+- [ ] 7.6 Split `chat-panel` into `session-sidebar`, `message-list`, `arena-message` and `chat-input`.
+- [ ] 7.7 Split `documentos` (filters, table, stats) and `configuracion` (ai-config form, scraper filters, manual scrape).
+- [ ] 7.8 Fix the subscription and interval leaks:
+  - `perfil.ts:53-82`: `take(1)` + `takeUntilDestroyed`.
+  - `error.ts:20,26`: `toSignal`.
+  - `arena.ts:40-56`: `clearInterval` + `DestroyRef`.
+  - `configuracion.ts:146-153`: `finalize`.
+  - `documentos`: debounce + `switchMap` search.
+  - `analytics-dashboard.ts:30,44`: `catchError`.
+- [ ] 7.9 Modernize: run the control-flow migration, `OnPush` everywhere, `output()`/`viewChild()`, remove `CommonModule` and `standalone: true`, use the `*.component.ts` naming, delete the empty `.scss` files, remove `any` (typed forms, `TriggerScrapeDto.sections`), and unify the services on `Observable`.
+- [ ] 7.10 Accessibility and UX: `lang="es"`, `aria-label` on icon buttons, `role="dialog"` with focus management on modals, keyboard-accessible vote bubbles, replace `alert`/`confirm` with toast and dialog, restore the theme from storage, a local default avatar, and error codes instead of free text in `/error?message=`.
+
+## 8. Specs Drift and Close-out
+
+- [ ] 8.1 Update the stale main specs: `signalr-integration` (Blazor → Angular), `user-api-keys-vault` (document the actual DataProtection-based `AiConfiguration`, or open a follow-up change for Infisical), and the `go-scraper` queue name and BOPMA status.
+- [ ] 8.2 Update `openspec/config.yaml` context to the real stack (Qdrant, AiConfiguration and DataProtection, BOPMA disabled). Re-save it as UTF-8 (it currently shows mojibake).
+- [ ] 8.3 Update `docs/architecture.md` and `docs/setup.md` with the new layers, ports, messaging topology and CI. Mark the audit findings as resolved in `docs/auditoria-codigo-2026-10.md`.

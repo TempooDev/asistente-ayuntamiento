@@ -30,15 +30,24 @@ Currently, the Angular SPA has usability and session management issues on mobile
 - *Rationale:* Provides the same modern functionality as native applications like ChatGPT, without relying on third-party libraries.
 
 **3. InactivityService**
-- *Decision:* A root-level `Injectable` that subscribes to native events (`mousemove`, `touchstart`, `keydown`) using RxJS `fromEvent`, and resets a Subject timer.
-- *Rationale:* It is the standard pattern in Angular for inactivity detection, avoiding memory leaks or excessive calls to change detection (NgZone).
+- *Decision:* A root-level `Injectable` in `core/auth/inactivity.service.ts` that subscribes to native events (`mousemove`, `touchstart`, `keydown`, `visibilitychange`) using RxJS `fromEvent` + `throttleTime(1000)`, and resets a timer.
+- *Logout:* through `AuthFacade.logout()`, created in `audit-remediation-2026-10` task 7.2. If that task is not done yet, call `AuthService.logout()` directly and stop the SignalR hubs first.
+- *Rationale:* The app is **zoneless** (no zone.js), so DOM listeners do not trigger change detection, and `runOutsideAngular` is not needed. Only the logout path touches signals.
+- *Timeout:* configured in `environment` (`sessionTimeoutMinutes`, default 30), not hardcoded.
+
+**5. Dependency on audit-remediation-2026-10 (revised 2026-10-13)**
+- This change is implemented **after phase 2** of `audit-remediation-2026-10`.
+- Task 2.6 of that change creates `core/realtime/hub-connection.factory.ts`, with an idempotent `connect()`, a token refreshed on every reconnection, and hubs stopped on logout.
+- Decision 1 (auto-reconnect in `sendMessage`) therefore reduces to calling `chatService.ensureConnected()` from the factory before sending. No custom reconnection logic is added here.
 
 **4. Dynamic Loading Feedback**
 - *Decision:* We will use an interval in Angular (via the Signals API or a managed `setInterval`) to iterate over predefined messages while `isWaitingForResponse()` is true.
 
 ## Risks / Trade-offs
 
-- **Risk:** `fromEvent` in the `InactivityService` could degrade performance if it triggers Angular change detection continuously.
-  - *Mitigation:* We will use `runOutsideAngular` for listeners and RxJS operators like `throttleTime` or `debounceTime` to reduce events to a maximum of 1 per second.
+- **Risk:** high-frequency `fromEvent` listeners (`mousemove`) waste CPU.
+  - *Mitigation:* `throttleTime(1000)`. The app is zoneless, so there is no change-detection cost.
+- **Risk:** logout while a chat stream is in progress loses the partial answer.
+  - *Mitigation:* the timer only counts while there is no active stream (`ChatStore.isGenerating()` / `chat-panel.isGenerating()`).
 - **Risk:** SignalR reconnection might take a few seconds.
   - *Mitigation:* The UI will indicate that the reconnection action is in progress before reactivating the stream.

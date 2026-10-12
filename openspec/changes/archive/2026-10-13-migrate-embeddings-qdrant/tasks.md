@@ -20,4 +20,12 @@
 - [x] 4.2 Update `HybridRetrievalService.cs` to execute the sparse search (GIN tsvector) against PostgreSQL.
 - [x] 4.3 Implement in-memory Reciprocal Rank Fusion (RRF) in C# to combine the results from Qdrant and PostgreSQL.
 - [x] 4.4 Modify `AppDbContext.cs` to explicitly drop or stop querying the `Embedding` column from `ChildFragments` for dense search.
-- [x] 4.5 Update all corresponding unit/integration tests for the retrieval service.
+- [ ] 4.5 Update all corresponding unit/integration tests for the retrieval service. **Not done** (no retrieval tests exist). Moved to `audit-remediation-2026-10` task 5.16.
+
+## Archive Notes (2026-10-13)
+
+- **Synced to main specs:**
+  - `qdrant-vector-store` (new main spec). It was extended to cover the baseline `document_chunks` collection and the collection bootstrap.
+  - `hierarchical-retrieval` (the "Hybrid Search with Reciprocal Rank Fusion" requirement).
+- **Not synced:** `vector-data-migration`. It was a one-off utility, and its endpoint was removed in `97a02c5` together with the Postgres embedding columns.
+- **Gap found while archiving:** the creation of the Qdrant collections lived only in the removed migration endpoint, so fresh environments have no collections. Tracked in `audit-remediation-2026-10` task 3.14.

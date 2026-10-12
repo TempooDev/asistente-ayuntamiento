@@ -6,7 +6,10 @@ Currently, the application lacks visibility into production errors, persistent w
 
 - Integrate **OpenTelemetry / Grafana Faro** across the stack (Angular Frontend, .NET Backend/Worker, Go Scraper) for error tracking and performance monitoring.
 - Enable **Distributed Tracing** via OpenTelemetry to propagate trace IDs across HTTP, gRPC, and RabbitMQ boundaries, allowing full visibility into PostgreSQL and Cloudflare R2 queries.
-- Track token consumption metrics using OpenTelemetry Meters (Prometheus).
+- Track LLM usage on our own infrastructure (revised 2026-10-13):
+  - token usage, estimated cost, latency and time to first token per tenant, model and pipeline, following the OpenTelemetry GenAI semantic conventions and visualized in Grafana;
+  - an optional self-hosted LLM observability UI (Arize Phoenix or Langfuse), chosen through a spike;
+  - no prompt content captured by default.
 - Integrate **TempooAnalytics** into the Angular Frontend to capture UX events.
 - Implement telemetry for specific UX interactions: chat reaction time, session duration, and link clicks.
 
