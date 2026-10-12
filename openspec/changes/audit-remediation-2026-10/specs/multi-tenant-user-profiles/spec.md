@@ -36,9 +36,9 @@ Any work executed outside the HTTP request scope (background queues, hosted serv
 - **AND** SHALL produce the same results as if it ran inside the request
 
 #### Scenario: Background item without tenant
-- **WHEN** a background work item is enqueued without a tenant identifier
-- **THEN** the queue SHALL reject it with an `ArgumentException`
-- **AND** SHALL log the rejection
+- **WHEN** a tenant-scoped background work item is created without a tenant identifier
+- **THEN** creation SHALL fail with an `ArgumentException`
+- **AND** platform-wide work (e.g. a manual scrape) SHALL be declared explicitly as such, never by omitting the tenant
 
 ### Requirement: Explicit Tenant Predicate When Ignoring Query Filters
 Any query that calls `IgnoreQueryFilters()` SHALL add an explicit `TenantId` predicate, unless it appears in an allow-list of documented exceptions. An architecture test SHALL enforce this rule. The allow-list SHALL contain only:

@@ -13,7 +13,6 @@ using System.Diagnostics;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.EntityFrameworkCore;
-using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using AsistenteAyuntamiento.Application.Features.Users;
 
@@ -37,7 +36,8 @@ public sealed record AiCompletionResult(
     double DurationMs,
     string? ErrorMessage,
     TokenUsageInfo TokenUsage,
-    List<DocumentSource>? Sources = null);
+    List<DocumentSource>? Sources = null,
+    string? ErrorCode = null);
 
 /// <summary>
 /// Token consumption breakdown for a single AI request.
@@ -56,7 +56,6 @@ public sealed record TokenUsageInfo(
 /// </summary>
 public sealed class AiChatService(
     IAiConfigurationService aiConfigurationService,
-    IConfiguration configuration,
     IAiMetricsService metricsService,
     ILogger<AiChatService> logger,
     IAppDbContext dbContext,
@@ -65,7 +64,8 @@ public sealed class AiChatService(
     Microsoft.Extensions.DependencyInjection.IServiceScopeFactory serviceScopeFactory,
     IClearLanguageGenerationService generationService,
     IUserPreferenceService userPreferenceService,
-    Qdrant.Client.QdrantClient qdrantClient) : IAiChatService
+    Qdrant.Client.QdrantClient qdrantClient,
+    IChatModelFactory chatModelFactory) : IAiChatService
 {
 
     /// <summary>
@@ -97,47 +97,17 @@ public sealed class AiChatService(
         activity?.SetTag("ai.prompt.length", promptLength);
         activity?.SetTag("ai.history.count", history.Count);
 
+        var executionSettings = new PromptExecutionSettings
+        {
+            ExtensionData = new Dictionary<string, object>
+            {
+                { "Temperature", config.Temperature }
+            }
+        };
+
         try
         {
-            if ((config.Provider == "google" || config.Provider == "openai" || config.Provider == "openrouter") && string.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException($"No se ha configurado la API Key para el proveedor {config.Provider}. Por favor, configúrala en los ajustes de IA.");
-            }
-
-            var kernelBuilder = Kernel.CreateBuilder();
-            if (config.Provider == "google")
-            {
-                var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
-                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
-            }
-            else if (config.Provider == "openai" || config.Provider == "openrouter")
-            {
-                var endpointUrl = config.EndpointUrl;
-                if (config.Provider == "openrouter" && string.IsNullOrEmpty(endpointUrl))
-                {
-                    endpointUrl = "https://openrouter.ai/api/v1";
-                }
-
-                if (!string.IsNullOrEmpty(endpointUrl))
-                {
-                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
-                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-                }
-                else
-                {
-                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
-                }
-            }
-            else
-            {
-                var ollamaConnString = configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
-                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
-                    : ollamaConnString;
-                kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-            }
-            var kernel = kernelBuilder.Build();
-            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            var chatCompletionService = chatModelFactory.Create(config, apiKey);
 
             // --- RAG VECTOR SEARCH ---
             var documentSources = new List<DocumentSource>();
@@ -158,18 +128,19 @@ public sealed class AiChatService(
 
             if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
             {
+                // Embeddings always come from the platform embedding model (injected kernel),
+                // never from the per-tenant chat client.
                 var embeddingGenerator = kernel.GetRequiredService<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>>();
 
                 var searchTexts = history.Where(m => m.Role == AuthorRole.User).TakeLast(3).Select(m => m.Content);
                 var searchQuery = string.Join("\n", searchTexts);
 
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
-                var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+                var queryVector = embeddings[0].Vector.ToArray();
 
-                // Find top 20 closest chunks
                 var searchResult = await qdrantClient.QueryAsync(
                     "document_chunks",
-                    queryVector.ToArray(),
+                    queryVector,
                     limit: 5,
                     cancellationToken: cancellationToken);
 
@@ -192,18 +163,31 @@ public sealed class AiChatService(
             }
             // -------------------------
 
-            var executionSettings = new PromptExecutionSettings
+            ChatMessageContent response;
+            var usedModelId = modelId;
+            try
             {
-                ExtensionData = new Dictionary<string, object>
+                response = await chatCompletionService.GetChatMessageContentAsync(
+                    history,
+                    executionSettings: executionSettings,
+                    cancellationToken: cancellationToken);
+            }
+            catch (Exception ex) when (LlmErrorClassifier.IsQuotaExceeded(ex))
+            {
+                var fallback = chatModelFactory.CreateFallback();
+                if (fallback is null)
                 {
-                    { "Temperature", config.Temperature }
+                    throw;
                 }
-            };
 
-            var response = await chatCompletionService.GetChatMessageContentAsync(
-                history,
-                executionSettings: executionSettings,
-                cancellationToken: cancellationToken);
+                logger.LogWarning(ex, "Quota exceeded for tenant {TenantId}; using platform fallback model {FallbackModel}", tenantId, fallback.ModelId);
+                usedModelId = fallback.ModelId;
+                response = await fallback.Service.GetChatMessageContentAsync(
+                    history,
+                    executionSettings: executionSettings,
+                    cancellationToken: cancellationToken);
+                response.Content += FallbackNotice;
+            }
 
             stopwatch.Stop();
             var content = response.Content ?? string.Empty;
@@ -217,7 +201,7 @@ public sealed class AiChatService(
             // ── Guardar métrica en base de datos ────────────────────────────────
             var callLog = new AiCallLog
             {
-                ModelId = modelId,
+                ModelId = usedModelId,
                 TenantId = tenantId,
                 UserId = userId,
                 Success = true,
@@ -231,7 +215,7 @@ public sealed class AiChatService(
 
             metricsService.RecordCall(new AiCallRecord
             {
-                ModelId = modelId,
+                ModelId = usedModelId,
                 TenantId = tenantId,
                 UserId = userId,
                 Success = true,
@@ -257,55 +241,12 @@ public sealed class AiChatService(
                 TokenUsage: tokenUsage,
                 Sources: documentSources);
         }
-        catch (Exception ex) when (ex.Message.Contains("429") || ex.Message.ToLower().Contains("quota") || ex.Message.ToLower().Contains("limit") || ex.Message.ToLower().Contains("insufficient"))
-        {
-            logger.LogWarning(ex, "Limit reached in GetCompletionAsync. Falling back to minimax/minimax-m3:free.");
-            try
-            {
-                var fallbackModelId = "minimax/minimax-m3:free";
-                var fallbackKernelBuilder = Kernel.CreateBuilder();
-                var endpointUrl = "https://openrouter.ai/api/v1";
-                var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
-                fallbackKernelBuilder.AddOpenAIChatCompletion(fallbackModelId, apiKey ?? string.Empty, httpClient: httpClient);
-                
-                var fallbackKernel = fallbackKernelBuilder.Build();
-                var fallbackService = fallbackKernel.GetRequiredService<IChatCompletionService>();
-                
-                var executionSettings = new PromptExecutionSettings { ExtensionData = new Dictionary<string, object> { { "Temperature", config.Temperature } } };
-                var fallbackResponse = await fallbackService.GetChatMessageContentAsync(history, executionSettings: executionSettings, cancellationToken: cancellationToken);
-                
-                stopwatch.Stop();
-                var content = fallbackResponse.Content ?? string.Empty;
-                var fallbackMessage = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*";
-                content += fallbackMessage;
-                
-                return new AiCompletionResult(
-                    Success: true,
-                    Content: content,
-                    DurationMs: stopwatch.Elapsed.TotalMilliseconds,
-                    ErrorMessage: null,
-                    TokenUsage: TokenUsageInfo.Empty); // Simplified for fallback
-            }
-            catch (Exception fallbackEx)
-            {
-                logger.LogError(fallbackEx, "Fallback also failed.");
-                // If fallback fails, just let the original error flow below, or throw?
-                // Actually, if we throw, it won't be caught by the catch block below because we are in a catch block!
-                // So we have to handle the original error recording here.
-                stopwatch.Stop();
-                var errorMessage = $"Error de comunicación con el modelo de IA y el modelo de respaldo ({config.Provider}): {ex.Message} (Fallback: {fallbackEx.Message})";
-                return new AiCompletionResult(
-                    Success: false,
-                    Content: errorMessage,
-                    DurationMs: stopwatch.Elapsed.TotalMilliseconds,
-                    ErrorMessage: errorMessage,
-                    TokenUsage: TokenUsageInfo.Empty);
-            }
-        }
         catch (Exception ex)
         {
             stopwatch.Stop();
+            var errorCode = LlmErrorClassifier.Classify(ex);
 
+            // Provider details stay server-side (logs, AiCallLogs); the user only gets the typed message.
             var callLog = new AiCallLog
             {
                 ModelId = config.Model,
@@ -313,7 +254,7 @@ public sealed class AiChatService(
                 UserId = userId,
                 Success = false,
                 DurationMs = stopwatch.Elapsed.TotalMilliseconds,
-                ErrorMessage = ex.Message
+                ErrorMessage = $"{errorCode}: {ex.Message}"
             };
             dbContext.AiCallLogs.Add(callLog);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -327,30 +268,33 @@ public sealed class AiChatService(
                 DurationMs = stopwatch.Elapsed.TotalMilliseconds,
                 PromptLength = promptLength,
                 ResponseLength = 0,
-                ErrorMessage = ex.Message,
+                ErrorMessage = errorCode,
                 HistoryMessageCount = history.Count,
                 InputTokens = 0,
                 OutputTokens = 0,
                 TotalTokens = 0
             });
 
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, errorCode);
 
             logger.LogError(
                 ex,
-                "AI completion failed for tenant {TenantId}, user {UserId} after {DurationMs:F1} ms",
-                tenantId, userId, stopwatch.Elapsed.TotalMilliseconds);
+                "AI completion failed ({ErrorCode}) for tenant {TenantId}, user {UserId} after {DurationMs:F1} ms",
+                errorCode, tenantId, userId, stopwatch.Elapsed.TotalMilliseconds);
 
-            var errorMessage = $"Error de comunicación con el modelo de IA ({config.Provider}): {ex.Message}";
+            var userMessage = LlmErrorCodes.UserMessage(errorCode);
 
             return new AiCompletionResult(
                 Success: false,
-                Content: errorMessage,
+                Content: userMessage,
                 DurationMs: stopwatch.Elapsed.TotalMilliseconds,
-                ErrorMessage: errorMessage,
-                TokenUsage: TokenUsageInfo.Empty);
+                ErrorMessage: userMessage,
+                TokenUsage: TokenUsageInfo.Empty,
+                ErrorCode: errorCode);
         }
     }
+
+    private const string FallbackNotice = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*";
 
     /// <summary>
     /// Streams the completion response back to the caller chunk by chunk.
@@ -552,50 +496,13 @@ public sealed class AiChatService(
 
         try
         {
-            if ((config.Provider == "google" || config.Provider == "openai" || config.Provider == "openrouter") && string.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException($"No se ha configurado la API Key para el proveedor {config.Provider}. Por favor, configúrala en los ajustes de IA.");
-            }
-
-            var kernelBuilder = Kernel.CreateBuilder();
-            if (config.Provider == "google")
-            {
-                var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) => true };
-                kernelBuilder.AddGoogleAIGeminiChatCompletion(modelId, apiKey ?? string.Empty, httpClient: new HttpClient(handler));
-            }
-            else if (config.Provider == "openai" || config.Provider == "openrouter")
-            {
-                var endpointUrl = config.EndpointUrl;
-                if (config.Provider == "openrouter" && string.IsNullOrEmpty(endpointUrl))
-                {
-                    endpointUrl = "https://openrouter.ai/api/v1";
-                }
-
-                if (!string.IsNullOrEmpty(endpointUrl))
-                {
-                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
-                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty, httpClient: httpClient);
-                }
-                else
-                {
-                    kernelBuilder.AddOpenAIChatCompletion(modelId, apiKey ?? string.Empty);
-                }
-            }
-            else
-            {
-                var ollamaConnString = configuration.GetConnectionString("ollama") ?? "http://localhost:11434";
-                var ollamaEndpoint = ollamaConnString.StartsWith("Endpoint=")
-                    ? ollamaConnString.Split(';').First(p => p.StartsWith("Endpoint=")).Substring("Endpoint=".Length)
-                    : ollamaConnString;
-                kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(ollamaEndpoint));
-            }
-            var kernel = kernelBuilder.Build();
-            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            chatCompletionService = chatModelFactory.Create(config, apiKey);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize kernel for streaming.");
-            initError = $"Error de inicialización de IA: {ex.Message}";
+            var errorCode = LlmErrorClassifier.Classify(ex);
+            logger.LogError(ex, "Failed to initialize the chat model for streaming ({ErrorCode})", errorCode);
+            initError = LlmErrorCodes.UserMessage(errorCode);
         }
 
         if (initError != null)
@@ -615,11 +522,11 @@ public sealed class AiChatService(
                 var searchQuery = string.Join("\n", searchTexts);
 
                 var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
-                var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+                var queryVector = embeddings[0].Vector.ToArray();
 
                 var searchResult = await qdrantClient.QueryAsync(
                     "document_chunks",
-                    queryVector.ToArray(),
+                    queryVector,
                     limit: 3,
                     scoreThreshold: 0.65f,
                     cancellationToken: cancellationToken);
@@ -666,7 +573,7 @@ public sealed class AiChatService(
             }
         };
 
-        bool success = true;
+        bool usedFallback = false;
 
         var responseStream = chatCompletionService!.GetStreamingChatMessageContentsAsync(
             history,
@@ -693,31 +600,32 @@ public sealed class AiChatService(
                         break;
                     chunk = enumerator.Current;
                 }
-                catch (Exception ex) when (!hasYieldedChunks && (ex.Message.Contains("429") || ex.Message.ToLower().Contains("quota") || ex.Message.ToLower().Contains("limit") || ex.Message.ToLower().Contains("insufficient")))
+                catch (Exception ex) when (!hasYieldedChunks && !usedFallback && LlmErrorClassifier.IsQuotaExceeded(ex))
                 {
-                    logger.LogWarning(ex, "Limit reached. Falling back to minimax/minimax-m3:free.");
-                    var fallbackModelId = "minimax/minimax-m3:free";
-                    var fallbackKernelBuilder = Kernel.CreateBuilder();
-                    
-                    var endpointUrl = "https://openrouter.ai/api/v1";
-                    var httpClient = new HttpClient { BaseAddress = new Uri(endpointUrl) };
-                    // Asumiendo que usamos la misma API Key de OpenRouter
-                    fallbackKernelBuilder.AddOpenAIChatCompletion(fallbackModelId, apiKey ?? string.Empty, httpClient: httpClient);
-                    
-                    var fallbackKernel = fallbackKernelBuilder.Build();
-                    var fallbackService = fallbackKernel.GetRequiredService<IChatCompletionService>();
-                    
-                    responseStream = fallbackService.GetStreamingChatMessageContentsAsync(
+                    var fallback = chatModelFactory.CreateFallback();
+                    if (fallback is null)
+                    {
+                        logger.LogWarning(ex, "Quota exceeded for tenant {TenantId} and no fallback model is configured", tenantId);
+                        errorToYield = LlmErrorCodes.UserMessage(LlmErrorCodes.QuotaExceeded);
+                        fullContent += errorToYield;
+                        break;
+                    }
+
+                    logger.LogWarning(ex, "Quota exceeded for tenant {TenantId}; streaming from platform fallback model {FallbackModel}", tenantId, fallback.ModelId);
+                    usedFallback = true;
+                    modelId = fallback.ModelId;
+
+                    responseStream = fallback.Service.GetStreamingChatMessageContentsAsync(
                         history,
                         executionSettings: executionSettings,
                         cancellationToken: cancellationToken);
-                        
+
                     await enumerator.DisposeAsync();
                     enumerator = responseStream.GetAsyncEnumerator(cancellationToken);
-                    
-                    messageToYield = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo gratuito de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*\n\n";
+
+                    messageToYield = FallbackNotice + "\n\n";
                     fullContent += messageToYield;
-                    
+
                     hasYieldedChunks = true;
                     shouldContinue = true;
                 }
@@ -734,7 +642,7 @@ public sealed class AiChatService(
                     
                     if (!hasYieldedChunks)
                     {
-                        errorToYield = $"\n\n[Error de conexión con la IA ({config.Provider}): {ex.Message}]";
+                        errorToYield = "\n\n" + LlmErrorCodes.UserMessage(LlmErrorClassifier.Classify(ex));
                         fullContent += errorToYield;
                     }
                     break;
@@ -778,6 +686,8 @@ public sealed class AiChatService(
         {
             yield return errorToYield;
         }
+
+        var success = errorToYield == null;
 
         stopwatch.Stop();
 
@@ -941,12 +851,12 @@ public sealed class AiChatService(
         var searchQuery = string.Join("\n", searchTexts);
 
         var embeddings = await embeddingGenerator.GenerateAsync(new[] { searchQuery }, cancellationToken: cancellationToken);
-        var queryVector = new Pgvector.Vector(embeddings[0].Vector.ToArray());
+        var queryVector = embeddings[0].Vector.ToArray();
 
         // 1. Get Top 3 using HNSW Index
         var searchResult = await qdrantClient.QueryAsync(
             "document_chunks",
-            queryVector.ToArray(),
+            queryVector,
             limit: 3,
             scoreThreshold: 0.65f,
             cancellationToken: cancellationToken);

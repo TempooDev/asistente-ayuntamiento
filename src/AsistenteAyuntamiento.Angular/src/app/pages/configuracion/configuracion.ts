@@ -256,7 +256,8 @@ export class ConfiguracionComponent implements OnInit, OnDestroy {
       error: (e) => {
         this.scrapeResultMessage.set({
           type: 'error',
-          text: `Error al iniciar el scrape: ${e.error || e.message}`
+          // 409 → { message }, 503 → ProblemDetails { detail }
+          text: `Error al iniciar el scrape: ${e.error?.message ?? e.error?.detail ?? e.message}`
         });
         this.isTriggeringScrape.set(false);
         this.scrapeMessage.set('');

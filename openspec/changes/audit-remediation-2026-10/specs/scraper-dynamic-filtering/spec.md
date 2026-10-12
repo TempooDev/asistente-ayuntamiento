@@ -47,7 +47,7 @@ The system SHALL support triggering a scrape job from the UI using gRPC. The job
 ## ADDED Requirements
 
 ### Requirement: Keyword Filter Semantics
-A `Keyword` rule SHALL match a document when its normalized value (case-insensitive, accent-insensitive) is a substring of the document's normalized title or summary. Rules of configuration types (e.g. `BojaFeed`) SHALL NOT count as content filters.
+A `Keyword` rule SHALL match a document when its normalized value (case-insensitive, accent-insensitive) is a substring of the document's normalized title or summary. Rules of configuration types (`BojaFeed`, `Section`: documents carry no feed or section metadata) and rules with an empty value SHALL NOT count as content filters.
 
 #### Scenario: Keyword matches
 - **GIVEN** an active rule `Keyword = "subvención"`

@@ -7,7 +7,6 @@ using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using AsistenteAyuntamiento.Application.Common;
 using Microsoft.EntityFrameworkCore;
-using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;

@@ -33,6 +33,14 @@ Bulk enqueue and reprocess operations SHALL persist the `Queued` job states befo
 ### Requirement: Correct Document Metadata
 Ingested documents SHALL carry the official publication date parsed from the source, never the ingestion time. The hierarchical pipeline SHALL read from the configured bucket (`Blob:BucketName` / `CLOUDFLARE_R2_BUCKET_NAME`).
 
+#### Scenario: BOE date format
+- **WHEN** a BOE document carries `fecha_publicacion = 20260915`
+- **THEN** its `PublicationDate` SHALL be 2026-09-15 (the `yyyyMMdd` format of the BOE XML SHALL be accepted)
+
+#### Scenario: Scraper JSON contract
+- **WHEN** the hierarchical pipeline reads a document written by the Go scraper
+- **THEN** it SHALL read the title, department and publication date from `metadata.*` and the text from `text`
+
 #### Scenario: BOJA document publication date
 - **WHEN** a BOJA document from the bulletin dated 2026-09-15 is ingested on 2026-10-13
 - **THEN** its `PublicationDate` SHALL be 2026-09-15
