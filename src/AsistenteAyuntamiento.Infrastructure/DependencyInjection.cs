@@ -1,11 +1,16 @@
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using AsistenteAyuntamiento.Application.Common.Notifications;
+using AsistenteAyuntamiento.Application.Common.Background;
+using AsistenteAyuntamiento.Infrastructure.Background;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Amazon.S3;
 using Amazon.Runtime;
-using System.Security.Cryptography.X509Certificates;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Infrastructure.Ai;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 
@@ -16,6 +21,14 @@ public static class DependencyInjection
     public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+
+        // Hosts with a real transport (SignalR in ApiService, RabbitMQ in Worker) register their own.
+        builder.Services.TryAddSingleton<INotificationService, NullNotificationService>();
+
+        // Tracked background work (replaces fire-and-forget Task.Run); items carry their tenant.
+        builder.Services.AddSingleton<BackgroundWorkQueue>();
+        builder.Services.AddSingleton<IBackgroundWorkQueue>(sp => sp.GetRequiredService<BackgroundWorkQueue>());
+        builder.Services.AddHostedService<BackgroundWorkProcessor>();
 
         // Blob Storage
         var blobEndpoint = builder.Configuration["Blob:Endpoint"];
@@ -70,12 +83,18 @@ public static class DependencyInjection
         var chatModel = builder.Configuration["Ai:Chat:Model"] ?? "llama3.2";
         var chatApiKey = builder.Configuration["Ai:Chat:ApiKey"] ?? "";
 
+        var allowInsecureTls = AllowInsecureTls(builder);
+
+        // Per-tenant chat clients (and the platform fallback) are built over this pooled client.
+        builder.Services.AddHttpClient(ChatModelFactory.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => CreateLlmHandler(allowInsecureTls));
+        builder.Services.AddSingleton<IChatModelFactory, ChatModelFactory>();
+
         var kernelBuilder = builder.Services.AddKernel();
 
         if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
         {
-            var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
-            if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+            var handler = CreateLlmHandler(allowInsecureTls);
             kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
         }
         else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || chatProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -103,8 +122,7 @@ public static class DependencyInjection
 
         if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
         {
-            var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
-            if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+            var handler = CreateLlmHandler(allowInsecureTls);
             kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
         }
         else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || embProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -145,7 +163,7 @@ public static class DependencyInjection
             
             if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
             {
-                var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
+                var handler = CreateLlmHandler(allowInsecureTls);
                 kBuilder.AddGoogleAIGeminiChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient(handler));
             }
             else if (ingestionProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -170,5 +188,29 @@ public static class DependencyInjection
 
             return kBuilder.Build();
         });
+    }
+
+    /// <summary>
+    /// <c>Ai:Http:AllowInsecureTls</c> disables certificate validation for LLM calls. It is only honoured in
+    /// Development (e.g. behind a TLS-intercepting proxy) and refuses to start anywhere else.
+    /// </summary>
+    private static bool AllowInsecureTls(IHostApplicationBuilder builder)
+    {
+        var allow = builder.Configuration.GetValue("Ai:Http:AllowInsecureTls", false);
+        if (allow && !builder.Environment.IsDevelopment())
+        {
+            throw new InvalidOperationException("Ai:Http:AllowInsecureTls can only be enabled in Development.");
+        }
+        return allow;
+    }
+
+    private static SocketsHttpHandler CreateLlmHandler(bool allowInsecureTls)
+    {
+        var handler = new SocketsHttpHandler();
+        if (allowInsecureTls)
+        {
+            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        }
+        return handler;
     }
 }

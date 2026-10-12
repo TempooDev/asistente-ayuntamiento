@@ -1,5 +1,6 @@
 import { environment } from "../environments/environment";
 import { ROLES } from "./core/auth/roles";
+import { HubConnectionFactory } from "./core/realtime/hub-connection.factory";
 
 
 import { Component, inject } from '@angular/core';
@@ -17,6 +18,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 export class App {
   public auth = inject(AuthService);
   private document = inject(DOCUMENT);
+  private hubs = inject(HubConnectionFactory);
 
   // Using signals for reactive state
   isAuthenticated = toSignal(this.auth.isAuthenticated$, { initialValue: false });
@@ -37,7 +39,9 @@ export class App {
     });
   }
 
-  logout() {
+  async logout() {
+    // Close SignalR connections first so no hub keeps running with the old session.
+    await this.hubs.stopAll();
     this.auth.logout({ logoutParams: { returnTo: this.document.location.origin } });
   }
 

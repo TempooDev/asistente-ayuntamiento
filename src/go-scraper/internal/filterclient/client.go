@@ -31,18 +31,19 @@ func NewClient() (*Client, error) {
 
 	useTLS := strings.HasPrefix(target, "https://")
 
-	// grpc.Dial expects host:port without the scheme
+	// The gRPC target is host:port without the scheme
 	target = strings.TrimPrefix(target, "http://")
 	target = strings.TrimPrefix(target, "https://")
 
 	var creds credentials.TransportCredentials
 	if useTLS {
-		creds = credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
+		// Certificates are verified against the system trust store.
+		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
 	} else {
 		creds = insecure.NewCredentials()
 	}
 
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}

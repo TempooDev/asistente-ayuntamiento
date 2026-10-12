@@ -12,7 +12,7 @@ using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService? notificationService = null) : IDocumentIngestionService
+public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
 {
     private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
@@ -43,7 +43,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
             });
         }
         await dbContext.SaveChangesAsync(cancellationToken);
-        await notificationService?.NotifyDocumentStatusChangedAsync(docIdFromPath, "Processing");
+        await notificationService.NotifyDocumentStatusChangedAsync(docIdFromPath, "Processing");
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
@@ -122,7 +122,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                     Department = document.Metadata?.Department ?? string.Empty,
                     Content = p,
                     ChunkIndex = i,
-                    PublicationDate = DateTime.TryParse(document.Metadata?.PublicationDate, out var date) ? date.ToUniversalTime() : DateTime.UtcNow
+                    PublicationDate = PublicationDateParser.TryParse(document.Metadata?.PublicationDate, out var date) ? date : DateTime.UtcNow
                 };
                 chunks.Add(chunk);
                 qdrantPoints.Add((chunk, embedding.ToArray()));
@@ -179,7 +179,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
                 await transaction.CommitAsync(cancellationToken);
 
-                await notificationService?.NotifyDocumentStatusChangedAsync(document.DocumentId, "Completed");
+                await notificationService.NotifyDocumentStatusChangedAsync(document.DocumentId, "Completed");
 
                 logger.LogInformation($"Documento {document.DocumentId} vectorizado exitosamente con {chunks.Count} chunks.");
             }
@@ -210,9 +210,13 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
                         await dbContext.SaveChangesAsync(cancellationToken);
                     }
 
-                    await notificationService?.NotifyDocumentStatusChangedAsync(fallbackDocId, "Failed");
+                    await notificationService.NotifyDocumentStatusChangedAsync(fallbackDocId, "Failed");
                 }
-                catch { /* Ignore inner failure */ }
+                catch (Exception stateEx)
+                {
+                    // Keep the original exception as the one that propagates; just record this secondary failure.
+                    logger.LogError(stateEx, "Could not mark document {BlobPath} as Failed after an ingestion error", blobPath);
+                }
 
                 throw;
             }

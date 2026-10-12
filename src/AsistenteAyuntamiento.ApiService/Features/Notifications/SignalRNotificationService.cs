@@ -7,8 +7,12 @@ public class SignalRNotificationService(IHubContext<NotificationHub> hubContext)
 {
     private readonly IHubContext<NotificationHub> _hubContext = hubContext;
 
+    /// <summary>
+    /// Document ingestion works on the shared knowledge base, so only administrators (who manage it) are notified.
+    /// </summary>
     public async Task NotifyDocumentStatusChangedAsync(string documentId, string newStatus)
     {
-        await _hubContext.Clients.All.SendAsync("DocumentStatusChanged", documentId, newStatus);
+        await _hubContext.Clients.Group(NotificationGroups.Admins)
+            .SendAsync("DocumentStatusChanged", new DocumentStatusNotification(documentId, newStatus));
     }
 }

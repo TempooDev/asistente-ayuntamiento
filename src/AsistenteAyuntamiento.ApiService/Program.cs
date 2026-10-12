@@ -75,14 +75,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             RoleClaimType = $"{builder.Configuration["Auth0:CustomClaimsNamespace"]}/roles"
         };
 
-        // SignalR sends the access token in the query string for WebSockets
+        // SignalR sends the access token in the query string for WebSockets/SSE (every hub under /hubs)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
                 {
                     context.Token = accessToken;
                 }

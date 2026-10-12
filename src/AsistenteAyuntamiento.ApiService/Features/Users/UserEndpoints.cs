@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Shared.Features.Users;
 using Microsoft.AspNetCore.Mvc;
@@ -91,33 +92,21 @@ public static class UserEndpoints
 
         // Trigger history analysis
         group.MapPost("/me/preferences/analyze", (
-            IServiceScopeFactory scopeFactory,
+            IBackgroundWorkQueue workQueue,
             ICurrentTenantService tenantService,
-            ILoggerFactory loggerFactory,
             ClaimsPrincipal user) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var tenantId = tenantService.TenantId;
             if (string.IsNullOrEmpty(auth0Id) || string.IsNullOrEmpty(tenantId)) return Results.Unauthorized();
 
-            // Runs after the request ends, when HttpContext is gone: the tenant must be set explicitly.
-            // TODO(audit-remediation 2.12): move to BackgroundWorkQueue.
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    tenantService.SetTenant(tenantId);
-                    using var scope = scopeFactory.CreateScope();
-                    var service = scope.ServiceProvider.GetRequiredService<IHistoryAnalyzerService>();
-                    await service.AnalyzeAndMergeUserHistoryAsync(auth0Id);
-                }
-                catch (Exception ex)
-                {
-                    loggerFactory.CreateLogger("UserEndpoints").LogError(ex, "History analysis failed for {User}", auth0Id);
-                }
-            });
+            // Runs after the request ends, when HttpContext is gone: the work item carries the tenant.
+            var queued = workQueue.TryEnqueue(BackgroundWorkItem.ForTenant("analyze-user-history", tenantId, (services, cancellationToken) =>
+                services.GetRequiredService<IHistoryAnalyzerService>().AnalyzeAndMergeUserHistoryAsync(auth0Id, cancellationToken)));
 
-            return Results.Accepted();
+            return queued
+                ? Results.Accepted()
+                : Results.Problem(detail: "La cola de trabajos está llena. Inténtalo más tarde.", statusCode: StatusCodes.Status503ServiceUnavailable);
         });
     }
 

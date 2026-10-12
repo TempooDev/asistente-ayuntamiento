@@ -4,15 +4,17 @@ using Grpc.Core;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
-public class FilterConfigServiceImpl(IScraperFilterService filterService) : FilterConfigService.FilterConfigServiceBase
+/// <summary>
+/// Serves the active filter rules to the Go scraper. Fails closed: on error it returns a gRPC error,
+/// never an empty list, because the scraper reads "no rules" as "download everything".
+/// </summary>
+public class FilterConfigServiceImpl(IScraperFilterService filterService, ILogger<FilterConfigServiceImpl> logger) : FilterConfigService.FilterConfigServiceBase
 {
-    private readonly IScraperFilterService _filterService = filterService;
-
     public override async Task<FilterRulesResponse> GetActiveFilters(EmptyRequest request, ServerCallContext context)
     {
         try
         {
-            var activeRules = await _filterService.GetActiveRulesAsync(context.CancellationToken);
+            var activeRules = await filterService.GetActiveRulesAsync(context.CancellationToken);
             var response = new FilterRulesResponse();
 
             foreach (var rule in activeRules)
@@ -28,10 +30,10 @@ public class FilterConfigServiceImpl(IScraperFilterService filterService) : Filt
 
             return response;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not RpcException and not OperationCanceledException)
         {
-            Console.WriteLine($"Error fetching active filters for gRPC: {ex.Message}");
-            return new FilterRulesResponse();
+            logger.LogError(ex, "Error fetching active scraper filters for gRPC");
+            throw new RpcException(new Status(StatusCode.Internal, "Could not load scraper filters."));
         }
     }
 }

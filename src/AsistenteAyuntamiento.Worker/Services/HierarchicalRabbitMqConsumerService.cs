@@ -138,8 +138,11 @@ public class HierarchicalRabbitMqConsumerService(IServiceProvider serviceProvide
                             await dbContext.SaveChangesAsync(stoppingToken);
                         }
                     }
-                } 
-                catch { /* Ignore inner exceptions */ }
+                }
+                catch (Exception stateEx)
+                {
+                    _logger.LogError(stateEx, "Could not mark hierarchical document as Failed after a processing error");
+                }
 
                 await _channel.BasicNackAsync(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: stoppingToken);
             }
