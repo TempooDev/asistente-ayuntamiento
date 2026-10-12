@@ -10,6 +10,16 @@ public class ArenaBattle
 
     public Guid SessionId { get; set; } = Guid.NewGuid();
 
+    /// <summary>Tenant (Auth0 Organization) of the user who started the battle.</summary>
+    [Required]
+    [MaxLength(50)]
+    public string TenantId { get; set; } = string.Empty;
+
+    /// <summary>Auth0 <c>sub</c> of the user who started the battle. Only this user can vote on it.</summary>
+    [Required]
+    [MaxLength(100)]
+    public string UserId { get; set; } = string.Empty;
+
     [Required]
     public string UserQuery { get; set; } = string.Empty;
 

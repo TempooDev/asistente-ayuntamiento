@@ -11,11 +11,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
+// internalKeyHeader must match InternalApiKeyInterceptor.HeaderName in the .NET API.
+const internalKeyHeader = "x-internal-key"
+
 type Client struct {
-	conn *grpc.ClientConn
-	svc  pb.FilterConfigServiceClient
+	conn        *grpc.ClientConn
+	svc         pb.FilterConfigServiceClient
+	internalKey string
 }
 
 func NewClient() (*Client, error) {
@@ -23,7 +28,7 @@ func NewClient() (*Client, error) {
 	if target == "" {
 		target = "localhost:5001" // fallback for local dev
 	}
-	
+
 	useTLS := strings.HasPrefix(target, "https://")
 
 	// grpc.Dial expects host:port without the scheme
@@ -42,9 +47,15 @@ func NewClient() (*Client, error) {
 		return nil, err
 	}
 
+	internalKey := os.Getenv("INTERNAL_GRPC_KEY")
+	if internalKey == "" {
+		log.Printf("Aviso: INTERNAL_GRPC_KEY no configurada; la API rechazará las llamadas fuera de Development")
+	}
+
 	return &Client{
-		conn: conn,
-		svc:  pb.NewFilterConfigServiceClient(conn),
+		conn:        conn,
+		svc:         pb.NewFilterConfigServiceClient(conn),
+		internalKey: internalKey,
 	}, nil
 }
 
@@ -55,6 +66,9 @@ func (c *Client) Close() {
 }
 
 func (c *Client) GetFilters(ctx context.Context) ([]*pb.FilterRule, error) {
+	if c.internalKey != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, internalKeyHeader, c.internalKey)
+	}
 	resp, err := c.svc.GetActiveFilters(ctx, &pb.EmptyRequest{})
 	if err != nil {
 		log.Printf("Error fetching filters from .NET API: %v", err)

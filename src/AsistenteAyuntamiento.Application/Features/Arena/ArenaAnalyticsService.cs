@@ -10,9 +10,9 @@ public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsSer
 {
     public async Task<ArenaAnalyticsResponse> GetAnalyticsAsync(ArenaAnalyticsRequest? request = null, CancellationToken cancellationToken = default)
     {
-        
-
-        var query = dbContext.ArenaBattles.AsNoTracking();
+        // Cross-tenant on purpose: the endpoint is admin-only and returns aggregates only
+        // (win rates, latency, tokens), never battle content.
+        var query = dbContext.ArenaBattles.IgnoreQueryFilters().AsNoTracking();
 
         if (request != null)
         {

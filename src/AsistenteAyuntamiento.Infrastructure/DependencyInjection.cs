@@ -21,13 +21,29 @@ public static class DependencyInjection
         var blobEndpoint = builder.Configuration["Blob:Endpoint"];
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
-            var accessKeyId = builder.Configuration["Blob:AccessKeyId"] ?? "admin";
-            var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"] ?? "password123";
+            var accessKeyId = builder.Configuration["Blob:AccessKeyId"];
+            var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
+            if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey))
+            {
+                throw new InvalidOperationException("Blob:Endpoint is configured but Blob:AccessKeyId or Blob:SecretAccessKey is missing.");
+            }
+
             var s3Config = new AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
             var credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
             builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(credentials, s3Config));
         }
 
+
+        if (builder.Environment.IsProduction())
+        {
+            var qdrantConnection = builder.Configuration.GetConnectionString("qdrant") ?? string.Empty;
+            var hasApiKey = qdrantConnection.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Any(part => part.StartsWith("Key=", StringComparison.OrdinalIgnoreCase) && part.Length > "Key=".Length);
+            if (!hasApiKey)
+            {
+                throw new InvalidOperationException("ConnectionStrings:qdrant must include an API key (Key=...) in Production.");
+            }
+        }
 
         builder.AddQdrantClient("qdrant");
         builder.Services.AddQdrantVectorStore();

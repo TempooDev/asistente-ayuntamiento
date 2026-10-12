@@ -1,5 +1,5 @@
 import { environment } from "../environments/environment";
-import { ROLES } from "./services/auth/user.service";
+import { ROLES } from "./core/auth/roles";
 
 
 import { Component, inject } from '@angular/core';

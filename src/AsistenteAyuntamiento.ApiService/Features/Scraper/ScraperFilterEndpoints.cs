@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using AsistenteAyuntamiento.ApiService.Protos;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
+using AsistenteAyuntamiento.ApiService.Security;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
@@ -11,7 +12,7 @@ public static class ScraperFilterEndpoints
 {
     public static void MapScraperFilterEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization();
+        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization(Policies.Admin);
 
         // 1. Get all active rules
         group.MapGet("/", async (IScraperFilterService service) =>

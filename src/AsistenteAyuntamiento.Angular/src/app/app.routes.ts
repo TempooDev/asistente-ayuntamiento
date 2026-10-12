@@ -10,7 +10,7 @@ import { ErrorComponent } from './pages/error/error';
 import { LoginComponent } from './pages/login/login';
 import { customAuthGuardFn } from './guards/custom-auth.guard';
 import { roleGuardFn } from './guards/role.guard';
-import { ROLES } from './services/auth/user.service';
+import { ROLES } from './core/auth/roles';
 
 export const routes: Routes = [
     { path: 'login', component: LoginComponent },
@@ -29,7 +29,12 @@ export const routes: Routes = [
         canActivate: [customAuthGuardFn, roleGuardFn],
         data: { roles: [ROLES.ADMIN] }
     },
-    { path: 'arena', component: Arena, canActivate: [customAuthGuardFn] },
+    {
+        path: 'arena',
+        component: Arena,
+        canActivate: [customAuthGuardFn, roleGuardFn],
+        data: { roles: [ROLES.ADMIN] }
+    },
     { 
         path: 'admin/analytics', 
         component: AnalyticsDashboardComponent, 

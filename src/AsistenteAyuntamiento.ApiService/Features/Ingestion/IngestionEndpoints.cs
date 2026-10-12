@@ -1,15 +1,20 @@
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.ApiService.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Ingestion;
 
+/// <summary>
+/// Administrative ingestion endpoints. Unhandled errors are turned into generic ProblemDetails
+/// by <c>UseExceptionHandler</c>, so no exception details reach the client.
+/// </summary>
 public static class IngestionEndpoints
 {
     public static void MapIngestionEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ingestion")
-            .RequireAuthorization()
+            .RequireAuthorization(Policies.Admin)
             .WithTags("Ingestion");
 
         group.MapPost("/process-blob", async (
@@ -18,17 +23,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                logger.LogInformation($"Iniciando proceso manual de {request.BlobPath} (Source: {request.Source})");
-                await ingestionService.ProcessBlobAsync(request.BlobPath, request.Source, cancellationToken);
-                return Results.Ok(new { message = $"Blob {request.BlobPath} procesado y vectorizado correctamente." });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error procesando blob manualmente");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            logger.LogInformation("Iniciando proceso manual de {BlobPath} (Source: {Source})", request.BlobPath, request.Source);
+            await ingestionService.ProcessBlobAsync(request.BlobPath, request.Source, cancellationToken);
+            return Results.Ok(new { message = $"Blob {request.BlobPath} procesado y vectorizado correctamente." });
         })
         .WithName("ProcessBlobManually");
 
@@ -41,20 +38,10 @@ public static class IngestionEndpoints
             [FromQuery] DateTime? dateTo,
             [FromQuery] int? minSizeKb,
             [FromQuery] int? maxSizeKb,
-            [FromServices] IIngestionAdminService adminService,
-            [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
+            [FromServices] IIngestionAdminService adminService, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb, cancellationToken);
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error fetching blobs");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb, cancellationToken);
+            return Results.Ok(result);
         })
         .WithName("ListBlobs");
 
@@ -64,17 +51,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                logger.LogInformation($"Restableciendo estado del documento {documentId} a Pending...");
-                await adminService.ResetDocumentStatusAsync(documentId, cancellationToken);
-                return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, $"Error al reiniciar el estado del documento {documentId}");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            logger.LogInformation("Restableciendo estado del documento {DocumentId} a Pending", documentId);
+            await adminService.ResetDocumentStatusAsync(documentId, cancellationToken);
+            return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
         })
         .WithName("ResetDocumentStatus");
 
@@ -83,17 +62,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                logger.LogInformation("Corrigiendo documentos atascados en 'Processing'...");
-                var (completedCount, pendingCount) = await adminService.ResetStuckProcessingDocumentsAsync(cancellationToken);
-                return Results.Ok(new { message = $"Se han marcado {completedCount} documentos como 'Completed' (ya vectorizados) y reiniciado {pendingCount} a 'Pending'." });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error al reiniciar documentos atascados");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            logger.LogInformation("Corrigiendo documentos atascados en 'Processing'");
+            var (completedCount, pendingCount) = await adminService.ResetStuckProcessingDocumentsAsync(cancellationToken);
+            return Results.Ok(new { message = $"Se han marcado {completedCount} documentos como 'Completed' (ya vectorizados) y reiniciado {pendingCount} a 'Pending'." });
         })
         .WithName("ResetStuckProcessingDocuments");
 
@@ -102,17 +73,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                logger.LogInformation("Restableciendo la base de datos de vectores y estados...");
-                await adminService.ResetIngestionAsync(cancellationToken);
-                return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error al reiniciar la base de datos de documentos");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            logger.LogWarning("Restableciendo la base de datos de vectores y estados");
+            await adminService.ResetIngestionAsync(cancellationToken);
+            return Results.Ok(new { message = "Todos los documentos han sido eliminados de la base de datos de vectores. RabbitMQ los volverá a procesar al reiniciar o reenviar los mensajes." });
         })
         .WithName("ResetIngestion");
 
@@ -123,17 +86,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
-            {
-                logger.LogInformation($"Encolando {requests.Count} documentos... (Mode: {pipelineMode ?? "BOTH"})");
-                var count = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
-                return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error al encolar documentos");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+            logger.LogInformation("Encolando {Count} documentos (Mode: {PipelineMode})", requests.Count, pipelineMode ?? "BOTH");
+            var count = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
+            return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
         })
         .WithName("EnqueueBulkBlobs");
 
@@ -143,23 +98,15 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            try
+            logger.LogInformation("Iniciando reprocesado masivo de todos los documentos en S3 (Mode: {PipelineMode})", pipelineMode ?? "BOTH");
+            var count = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
+
+            if (count == 0)
             {
-                logger.LogInformation($"Iniciando reprocesado masivo de todos los documentos en S3... (Mode: {pipelineMode ?? "BOTH"})");
-                var count = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
-                
-                if (count == 0)
-                {
-                    return Results.Ok(new { message = "No se encontraron documentos en S3." });
-                }
-                
-                return Results.Ok(new { message = $"Se han encolado {count} documentos en las colas seleccionadas para reprocesado masivo." });
+                return Results.Ok(new { message = "No se encontraron documentos en S3." });
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error al encolar el reprocesado masivo");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-            }
+
+            return Results.Ok(new { message = $"Se han encolado {count} documentos en las colas seleccionadas para reprocesado masivo." });
         })
         .WithName("ReprocessAllBlobs");
     }

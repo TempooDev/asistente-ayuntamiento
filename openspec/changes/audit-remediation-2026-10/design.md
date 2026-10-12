@@ -27,8 +27,8 @@ Current state relevant to the decisions:
 
 ### D1. Authorization: named policies in a single place
 - **Decision:** add `AuthorizationPolicies` (constants) and an `AddAppAuthorization()` extension in ApiService.
-  - It defines `Policies.Admin` as `RequireRole("administrador")`, using the role claim that is already configured.
-  - It defines `Policies.TenantMember` as an authenticated user who has a tenant.
+  - It defines `Policies.Admin`: an authenticated user whose role claim contains `administrador`. The comparison is case-insensitive, to match the SPA guard.
+  - Implemented: the "has a tenant" rule is enforced by `TenantRequiredMiddleware` (D2) for every authenticated request, so no separate `TenantMember` policy is needed.
 - **Usage:** endpoint groups are created with `app.MapGroup("/api/ingestion").RequireAuthorization(Policies.Admin)`. Admin hub methods use `[Authorize(Policy = Policies.Admin)]`.
 - **Angular:** role constants move to `core/auth/roles.ts`. The route guard stays as a UX convenience only.
 - **Alternatives considered:**

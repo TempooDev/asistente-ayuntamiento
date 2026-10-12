@@ -32,10 +32,18 @@ Every `ArenaBattle` SHALL store the `TenantId` and `UserId` of its creator, and 
 - **WHEN** an authenticated user starts an arena comparison
 - **THEN** the persisted `ArenaBattle` SHALL contain the current `TenantId` and the user's `sub` as `UserId`
 
-#### Scenario: Listing analytics as a tenant admin
-- **WHEN** an administrator of tenant `org_A` requests arena analytics
-- **THEN** only battles of `org_A` SHALL be aggregated
-- **AND** the aggregation SHALL be computed in the database, without loading all battles into memory
+#### Scenario: Reading another tenant's battle content
+- **GIVEN** a battle of tenant `org_A`
+- **WHEN** any query runs in the context of tenant `org_B`
+- **THEN** the tenant query filter SHALL exclude that battle (its query and responses are never returned)
+
+#### Scenario: Platform-wide aggregates
+- **WHEN** an administrator requests arena analytics, or the chat decides the winning pipeline for shadow testing
+- **THEN** the system MAY aggregate battles across tenants (an allow-listed `IgnoreQueryFilters` use)
+- **AND** it SHALL return only aggregates (counts, win rates, latency, tokens), never battle content
+- **AND** analytics SHALL be restricted to the `Admin` policy
+
+Moving the aggregation into the database, instead of loading all battles into memory, is tracked by audit task 5.10.
 
 ### Requirement: Accurate Arena Metrics
 Arena battles SHALL record the real latency and token usage of each side, measured independently while both pipelines run concurrently.

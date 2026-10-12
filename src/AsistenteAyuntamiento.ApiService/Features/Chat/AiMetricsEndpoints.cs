@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.ApiService.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
@@ -8,7 +9,7 @@ public static class AiMetricsEndpoints
 {
     public static void MapAiMetricsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/ai").RequireAuthorization();
+        var group = app.MapGroup("/api/ai").RequireAuthorization(Policies.Admin);
 
         // GET /api/ai/metrics — Full metrics snapshot (aggregates + recent calls)
         group.MapGet("/metrics", (IAiMetricsService metricsService) =>
