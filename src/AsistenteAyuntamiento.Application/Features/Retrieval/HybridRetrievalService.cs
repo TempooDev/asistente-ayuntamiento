@@ -46,38 +46,13 @@ public class HybridRetrievalService(
             // 3. Sparse (full-text) search
             var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.LexicalQuery ?? string.Empty, queryInfo.MunicipalityFilter, limit, cancellationToken);
 
-            // 4. In-memory Reciprocal Rank Fusion (RRF)
-            var scores = new Dictionary<long, double>();
-
-            // Add vector ranks
-            for (int i = 0; i < vectorHits.Count; i++)
-            {
-                long id = vectorHits[i].Id;
-                scores[id] = 1.0 / (60.0 + i + 1); // RRF formula: 1 / (k + rank), rank is 1-based
-            }
-
-            // Add Postgres ranks
-            for (int i = 0; i < pgResults.Count; i++)
-            {
-                long id = pgResults[i];
-                if (scores.ContainsKey(id))
-                {
-                    scores[id] += 1.0 / (60.0 + i + 1);
-                }
-                else
-                {
-                    scores[id] = 1.0 / (60.0 + i + 1);
-                }
-            }
-
-            if (!scores.Any())
+            // 4. Reciprocal Rank Fusion
+            var fused = Fuse(vectorHits.Select(h => h.Id).ToList(), pgResults, limit);
+            if (fused.Count == 0)
                 return new List<RetrievalResult>();
 
-            // Get top combined results
-            var topIds = scores.OrderByDescending(kvp => kvp.Value)
-                               .Take(limit)
-                               .Select(kvp => kvp.Key)
-                               .ToList();
+            var scores = fused.ToDictionary(f => f.Id, f => f.Score);
+            var topIds = fused.Select(f => f.Id).ToList();
 
             // 5. Fetch full entities
             var fragmentsWithParents = await dbContext.ChildFragments
@@ -110,15 +85,29 @@ public class HybridRetrievalService(
             throw;
         }
     }
+
+    /// <summary>RRF constant: dampens the weight of the top ranks (Cormack et al. use 60).</summary>
+    internal const int RrfK = 60;
+
+    /// <summary>
+    /// Reciprocal Rank Fusion: each list adds <c>1 / (k + rank)</c> (1-based rank) to an id's score; the best
+    /// <paramref name="limit"/> ids are returned, highest score first (ties keep dense-search order).
+    /// </summary>
+    internal static IReadOnlyList<(long Id, double Score)> Fuse(IReadOnlyList<long> denseRanking, IReadOnlyList<long> sparseRanking, int limit)
+    {
+        var scores = new Dictionary<long, double>();
+        foreach (var ranking in new[] { denseRanking, sparseRanking })
+        {
+            for (var i = 0; i < ranking.Count; i++)
+            {
+                scores[ranking[i]] = scores.GetValueOrDefault(ranking[i]) + 1.0 / (RrfK + i + 1);
+            }
+        }
+
+        return scores
+            .OrderByDescending(kvp => kvp.Value)
+            .Take(limit)
+            .Select(kvp => (kvp.Key, kvp.Value))
+            .ToList();
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
