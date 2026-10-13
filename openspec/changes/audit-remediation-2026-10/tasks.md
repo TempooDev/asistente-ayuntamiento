@@ -150,6 +150,6 @@ Source of every finding: `docs/auditoria-codigo-2026-10.md`.
 
 ## 8. Specs Drift and Close-out
 
-- [ ] 8.1 Update the stale main specs: `signalr-integration` (Blazor → Angular), `user-api-keys-vault` (document the actual DataProtection-based `AiConfiguration`, or open a follow-up change for Infisical), and the `go-scraper` queue name and BOPMA status.
-- [ ] 8.2 Update `openspec/config.yaml` context to the real stack (Qdrant, AiConfiguration and DataProtection, BOPMA disabled). Re-save it as UTF-8 (it currently shows mojibake).
-- [ ] 8.3 Update `docs/architecture.md` and `docs/setup.md` with the new layers, ports, messaging topology and CI. Mark the audit findings as resolved in `docs/auditoria-codigo-2026-10.md`.
+- [x] 8.1 Update the stale main specs: `signalr-integration` (Blazor → Angular), `user-api-keys-vault` (document the actual DataProtection-based `AiConfiguration`, or open a follow-up change for Infisical), and the `go-scraper` queue name and BOPMA status.
+- [x] 8.2 Update `openspec/config.yaml` context to the real stack (Qdrant, AiConfiguration and DataProtection, BOPMA disabled). Re-save it as UTF-8 (it currently shows mojibake).
+- [x] 8.3 Update `docs/architecture.md` and `docs/setup.md` with the new layers, ports, messaging topology and CI. Mark the audit findings as resolved in `docs/auditoria-codigo-2026-10.md`. **Done:** specs rewritten to the implemented behaviour (`user-api-keys-vault` now documents the per-tenant `AiConfiguration`; Infisical stays out of scope), Blazor specs marked as superseded, and a status section in the audit maps each finding to its phase and PR.

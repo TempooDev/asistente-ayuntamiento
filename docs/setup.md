@@ -13,6 +13,8 @@ Guía completa de dependencias externas y arranque del proyecto **AsistenteAyunt
 | [.NET SDK](https://dotnet.microsoft.com/download) | **10.0** | `dotnet --version` debe mostrar `10.x.x` |
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | cualquier versión reciente | Requerido por Aspire para lanzar los contenedores |
 | [.NET Aspire workload](https://learn.microsoft.com/aspire/fundamentals/setup-tooling) | 13.x | `dotnet workload install aspire` |
+| [Node.js](https://nodejs.org) + npm | **22** / npm **11.6.2** | Frontend Angular (`packageManager` de `package.json`) |
+| [Go](https://go.dev/dl/) | **1.25** | Scraper (`src/go-scraper`) |
 
 > [!IMPORTANT]
 > Docker Desktop debe estar **en ejecución** antes de arrancar la aplicación. Sin él, Aspire no puede levantar los contenedores de infraestructura.
@@ -25,9 +27,10 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 
 | Servicio | Imagen Docker | Propósito |
 |---|---|---|
-| **PostgreSQL + pgvector** | `pgvector/pgvector:pg16` | Base de datos principal + búsqueda vectorial |
+| **PostgreSQL** | `pgvector/pgvector:pg16` | Base de datos principal y búsqueda de texto completo |
+| **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks` y `child_fragments`) |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
-| **MinIO** | `minio/minio` | Almacenamiento S3 local para PDFs y documentos |
+| **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (bucket privado creado por `minio-init`) |
 | **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`nomic-embed-text`) y LLM de fallback (`llama3.2`) |
 
 > [!TIP]
@@ -44,15 +47,11 @@ Estos servicios **no se emulan localmente** (o tienen emulación opcional) y req
 Gestiona la autenticación OIDC/OAuth2. Se necesita una aplicación Auth0 configurada.
 
 1. Crear una cuenta en [auth0.com](https://auth0.com) (plan gratuito válido para dev)
-2. Crear una **Regular Web Application**
-3. En *Settings* de la aplicación, añadir a *Allowed Callback URLs*:
-   ```
-   https://localhost:<puerto>/callback
-   ```
-4. Añadir a *Allowed Logout URLs*:
-   ```
-   https://localhost:<puerto>/
-   ```
+2. Crear una **Single Page Application** para el frontend y una **API** (su *Identifier* es el `audience`)
+3. Activar **Organizations** (cada organización es un tenant) y una Action que añada los roles en `https://asistente.antoniobermudez.dev/roles` (rol de administración: `administrador`)
+4. En *Settings* de la SPA, añadir a *Allowed Callback URLs* `http://localhost:<puerto>/callback` y a *Allowed Logout URLs* / *Allowed Web Origins* `http://localhost:<puerto>`
+
+El frontend no lleva la configuración compilada: la pide al arrancar a `GET /api/config/auth0`.
 
 Credenciales a configurar (ver sección de secrets más abajo):
 
@@ -61,10 +60,11 @@ Credenciales a configurar (ver sección de secrets más abajo):
 | `Auth0:Domain` | Settings → Domain (ej. `mi-app.eu.auth0.com`) |
 | `Auth0:ClientId` | Settings → Client ID |
 | `Auth0:ClientSecret` | Settings → Client Secret |
+| `Auth0:Audience` | APIs → Identifier |
 
 #### Cloudflare R2 — Blob Storage (solo producción)
 
-En **desarrollo**, Azurite emula el blob storage. R2 solo se necesita en producción.
+En **desarrollo**, Aspire arranca MinIO y genera sus credenciales. R2 solo se necesita en producción (o si quieres probar contra él).
 
 Para producción, crear un bucket en [Cloudflare R2](https://developers.cloudflare.com/r2/) y configurar:
 
@@ -75,9 +75,9 @@ Para producción, crear un bucket en [Cloudflare R2](https://developers.cloudfla
 | `Blob:SecretAccessKey` | Secret del API token |
 | `Blob:BucketName` | Nombre del bucket |
 
-#### Infisical — Secrets Vault (solo producción)
+#### Modelos de IA
 
-En desarrollo se usa `InMemoryApiKeyVault` (sin contenedor adicional). En producción, Infisical almacena las API keys de los usuarios (OpenAI, Gemini, Anthropic, DeepSeek).
+Por defecto todo funciona con Ollama local (`llama3.2` para chat y `nomic-embed-text` para embeddings). Los parámetros `ai-chat-*` fijan el modelo por defecto de la plataforma. Cada tenant puede elegir el suyo en *Configuración → IA*; su clave se guarda cifrada con Data Protection. Los embeddings son siempre los de la plataforma (`ai-embeddings-*`). Para el modelo de respaldo ante cuota agotada se usa `Ai:Fallback:{Provider,Endpoint,ModelId,ApiKey}`.
 
 ---
 
@@ -101,23 +101,24 @@ dotnet user-secrets set "Parameters:auth0-client-secret" "tu-client-secret" \
 dotnet user-secrets set "Parameters:auth0-audience" "tu-api-audience" \
   --project src/AsistenteAyuntamiento.AppHost
 
-# ── Cloudflare R2 (opcional en dev — sin esto se usa Azurite automáticamente) ──
-dotnet user-secrets set "Parameters:blob-endpoint"          "https://<accountId>.r2.cloudflarestorage.com" \
-  --project src/AsistenteAyuntamiento.AppHost
+# ── Modelos de IA (valores de ejemplo para Ollama local) ───────────────────────
+dotnet user-secrets set "Parameters:ai-chat-provider"       "ollama"           --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-chat-model"          "llama3.2"         --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-chat-api-key"        ""                 --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-embeddings-provider" "ollama"           --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-embeddings-model"    "nomic-embed-text" --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-embeddings-api-key"  ""                 --project src/AsistenteAyuntamiento.AppHost
 
-dotnet user-secrets set "Parameters:blob-access-key-id"     "tu-r2-access-key" \
-  --project src/AsistenteAyuntamiento.AppHost
-
-dotnet user-secrets set "Parameters:blob-secret-access-key" "tu-r2-secret-key" \
-  --project src/AsistenteAyuntamiento.AppHost
-
-dotnet user-secrets set "Parameters:blob-bucket-name"       "nombre-del-bucket" \
-  --project src/AsistenteAyuntamiento.AppHost
+# ── Cloudflare R2 (opcional en dev — sin esto se usa MinIO) ─────────────────────
+dotnet user-secrets set "Blob:Endpoint"        "https://<accountId>.r2.cloudflarestorage.com" --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Blob:AccessKeyId"     "tu-r2-access-key"  --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Blob:SecretAccessKey" "tu-r2-secret-key"  --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Blob:BucketName"      "nombre-del-bucket" --project src/AsistenteAyuntamiento.AppHost
 ```
 
 > [!NOTE]
 > El formato `Parameters:<nombre>` es el estándar de Aspire para parámetros declarados con `builder.AddParameter("nombre")` en el AppHost.
-> Si `blob-endpoint` no se configura, el sistema usa Azurite automáticamente — ideal para desarrollo sin credenciales de R2.
+> Las credenciales de MinIO (`minio-root-*`) y la clave interna de gRPC (`internal-grpc-key`) las genera Aspire la primera vez y las guarda en los user-secrets; no hay que configurarlas.
 
 > [!CAUTION]
 > **Nunca** añadas secrets en `appsettings.json` ni en archivos que se suban al repositorio. `dotnet user-secrets` los guarda en `~/.microsoft/usersecrets/<id>/secrets.json`, fuera del árbol del proyecto.
@@ -164,26 +165,29 @@ Una vez que el dashboard muestre todos los servicios en verde:
 | Servicio | URL |
 |---|---|
 | **Aspire Dashboard** | URL que aparece en el terminal al arrancar |
-| **Frontend (Blazor)** | Enlace `webfrontend` en el dashboard |
+| **Frontend (Angular, vía Gateway)** | Enlace `gateway` en el dashboard |
 | **API Service** | Enlace `apiservice` en el dashboard |
-| **RabbitMQ Management** | Enlace `rabbitmq` en el dashboard |
+| **RabbitMQ Management** | Enlace `messaging` en el dashboard |
+| **Scraper Go** | Enlace `go-scraper` (`/health`, `/api/scrape`, `/api/jobs/{id}`) |
 
 ---
 
 ## Comandos útiles
 
 ```bash
-# Compilar todos los proyectos
-dotnet build
+# .NET: compilar, comprobar formato y ejecutar tests (los de integración usan Docker vía Testcontainers)
+dotnet build AsistenteAyuntamiento.slnx
+dotnet format whitespace AsistenteAyuntamiento.slnx --verify-no-changes
+dotnet test AsistenteAyuntamiento.slnx
 
-# Compilar solo el cliente WASM (verificar que no faltan servicios)
-dotnet build src/AsistenteAyuntamiento.Web.Client/
+# Angular
+cd src/AsistenteAyuntamiento.Angular && npm ci && npx ng test --watch=false && npm run build
 
-# Ejecutar tests (cuando existan)
-dotnet test
+# Go (incluye la regeneración de protos con las versiones fijadas en CI)
+cd src/go-scraper && go vet ./... && go test -race ./... && go generate ./internal/protos
 
 # Ver los user-secrets configurados
-dotnet user-secrets list --project src/AsistenteAyuntamiento.Web
+dotnet user-secrets list --project src/AsistenteAyuntamiento.AppHost
 ```
 
 ---
@@ -207,16 +211,24 @@ dotnet ef migrations add <Nombre> --project src/AsistenteAyuntamiento.Infrastruc
 ```
 asistente-ayuntamiento/
 ├── src/
-│   ├── AsistenteAyuntamiento.AppHost/        # Orquestador Aspire
-│   ├── AsistenteAyuntamiento.ApiService/     # Backend REST API (ASP.NET Core)
-│   ├── AsistenteAyuntamiento.Web/            # Frontend Blazor Auto (servidor)
-│   ├── AsistenteAyuntamiento.Web.Client/     # Proyecto compañero WASM (Blazor Auto)
-│   └── AsistenteAyuntamiento.ServiceDefaults/ # OpenTelemetry, health checks, service discovery
-├── openspec/                                  # Planificación de cambios (OpenSpec)
-│   ├── specs/                                 # Especificaciones por capacidad
-│   └── changes/                               # Cambios en progreso
-└── docs/                                      # Esta documentación
+│   ├── AsistenteAyuntamiento.AppHost/         # Orquestador Aspire
+│   ├── AsistenteAyuntamiento.Gateway/         # YARP: SPA + /api + /hubs
+│   ├── AsistenteAyuntamiento.ApiService/      # Minimal APIs, SignalR, gRPC
+│   ├── AsistenteAyuntamiento.Worker/          # Consumidores de ingesta (BASELINE / HIERARCHICAL)
+│   ├── AsistenteAyuntamiento.Application/     # Casos de uso y puertos
+│   ├── AsistenteAyuntamiento.Domain/          # Entidades (sin paquetes)
+│   ├── AsistenteAyuntamiento.Infrastructure/  # EF Core, Qdrant, S3, RabbitMQ, Semantic Kernel
+│   ├── AsistenteAyuntamiento.ServiceDefaults/ # OpenTelemetry, health checks, service discovery
+│   ├── AsistenteAyuntamiento.Shared/          # Contratos compartidos
+│   ├── AsistenteAyuntamiento.Angular/         # Frontend (core/ shared/ features/)
+│   ├── go-scraper/                            # Scraper BOE/BOJA (cmd/scraper, internal/…)
+│   └── Protos/                                # Contratos gRPC (C# y Go)
+├── tests/                                     # Application, Infrastructure, ApiService, Architecture, Domain
+├── openspec/                                  # Especificaciones (specs/) y cambios (changes/)
+└── docs/                                      # Arquitectura, contratos, despliegue, auditoría
 ```
+
+Más detalle en [architecture.md](architecture.md).
 
 ---
 
@@ -228,4 +240,6 @@ asistente-ayuntamiento/
 | `Auth0:Domain configuration is missing` | Secrets no configurados | Ejecutar los `dotnet user-secrets set` del paso 3 |
 | El modelo de Ollama no descarga | Sin conexión a internet o poco espacio | Verificar conexión; Ollama necesita ~2-4 GB por modelo |
 | Puerto en uso al arrancar Aspire | Otro proceso ocupa el puerto | Cambiar el puerto en `Properties/launchSettings.json` del AppHost |
-| Build error en `Web.Client` | Servicio server-only referenciado desde WASM | El cliente solo puede referenciar código WASM-compatible |
+| La SPA muestra «No se ha podido cargar la configuración de inicio de sesión» | La API no responde en `/api/config/auth0` o faltan `auth0-*` | Revisar que `apiservice` está en verde y los parámetros de Auth0 |
+| 403 en todas las llamadas a la API | El usuario no tiene organización (`org_id`) | Invitarle a una organización de Auth0 |
+| `PRECONDITION_FAILED` al arrancar consumidores | Colas declaradas con otros argumentos | Borrar y recrear las colas (ver `docs/deploy-dokploy.md`) |

@@ -1,5 +1,7 @@
 # Specification: Blazor Auto Migration (Server → Auto)
 
+> **Superseded.** The Blazor frontend was replaced by the Angular SPA (`src/AsistenteAyuntamiento.Angular`); this spec is kept for history and no longer describes the system.
+
 ## Purpose
 Migrate the Blazor Web frontend from Interactive Server render mode to Blazor Auto, enabling SSR on first load and WASM in subsequent visits, supporting client-side localStorage access for ephemeral state and reducing server-side circuit overhead for a public deployment.
 
