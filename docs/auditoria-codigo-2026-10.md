@@ -27,7 +27,7 @@ Todos los hallazgos se corrigieron en el cambio `openspec/changes/audit-remediat
 
 **Pendiente (fuera de alcance, registrado en `tasks.md`):**
 - Purgar el binario de Go del historial con `git filter-repo` (reescribe la historia de `main`).
-- BOPMA sigue sin activar por Cloudflare Turnstile.
+- ~~BOPMA sigue sin activar por Cloudflare Turnstile.~~ Fuera del alcance: el proyecto cubre solo BOE y BOJA, y el borrador de BOPMA se ha eliminado.
 - ~~Tests del hub de chat con cliente SignalR, reinicio del broker e idempotencia Postgres + Qdrant con Testcontainers.~~ Hechos. El test del hub destapó que, sin WebSockets (long polling o SSE), las llamadas al hub perdían el tenant; lo corrige `TenantHubFilter`.
 - ~~Tabla de dead-letter persistente para `ChatPersistenceWorker` y notificación de estado por lote.~~ Hechas: `chat.FailedChatMessages` (con reintento mensaje a mensaje y sin perder mensajes mientras la base de datos está caída) y el evento `DocumentStatusesChanged`.
 - ~~El bundle inicial de Angular supera el presupuesto de 500 kB.~~ Resuelto: SignalR, Faro, Markdown y las features se cargan bajo demanda; el inicial queda en ~579 kB (Angular + Auth0 son ~450 kB), con aviso en 600 kB y error en 750 kB.

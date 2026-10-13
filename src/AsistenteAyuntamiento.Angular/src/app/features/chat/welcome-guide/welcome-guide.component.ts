@@ -26,7 +26,7 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
               <h3 class="text-lg font-semibold text-gray-900 m-0">¿Qué es este Asistente?</h3>
             </div>
             <p class="text-gray-600 leading-relaxed ml-8">
-              Esta herramienta es un asistente inteligente diseñado para ayudarte a consultar documentos oficiales del ayuntamiento, incluyendo boletines como el BOE, BOJA y BOPMA. Simplemente escribe tu pregunta en el chat y el asistente buscará la información relevante en la base documental.
+              Esta herramienta es un asistente inteligente diseñado para ayudarte a consultar documentos oficiales del ayuntamiento, incluyendo boletines como el BOE y el BOJA. Simplemente escribe tu pregunta en el chat y el asistente buscará la información relevante en la base documental.
             </p>
           </section>
 

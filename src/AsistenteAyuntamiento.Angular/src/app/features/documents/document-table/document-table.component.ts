@@ -34,10 +34,6 @@ export function publicUrlOf(blobName: string): string | null {
         ? `https://www.juntadeandalucia.es/boja/${year}/${number}/${rest.join('-')}.html`
         : null;
     }
-    case DocumentSource.BOPMA: {
-      const file = id.split(`${DocumentSource.BOPMA}-`).slice(1).join(`${DocumentSource.BOPMA}-`).split('verificacion.php?archivo=').at(-1);
-      return file ? `https://www.bopmalaga.es/verificacion.php?archivo=${file}.pdf` : null;
-    }
     default:
       return null;
   }

@@ -26,13 +26,13 @@ The system SHALL provide an abstraction `IChunkingStrategy` in `Application.Feat
 - **WHEN** plain text and optional metadata are supplied to an `IChunkingStrategy` implementation (e.g., `FixedOverlapChunkingStrategy`)
 - **THEN** it SHALL return a list of `DocumentChunkResult` records containing chunk text, chunk index, and strategy-specific metadata.
 
-### Requirement: Discard BOPMA Documents in Classic Pipeline
-The classic baseline pipeline SHALL discard any document with source `BOPMA`.
+### Requirement: Only Bulletins in Scope
+The baseline pipeline SHALL only ingest documents whose source is one of the bulletins in the project's scope (BOE, BOJA).
 
-#### Scenario: Processing a BOPMA document in baseline pipeline
-- **WHEN** a document with source `BOPMA` is received by `DocumentIngestionService`
-- **THEN** the service SHALL log an informative warning stating that BOPMA ingestion is discarded
-- **AND** skip chunking, embedding generation, and database insertion without failing.
+#### Scenario: Document from another source
+- **WHEN** `DocumentIngestionService` receives a document whose source is not BOE or BOJA
+- **THEN** it SHALL log a warning naming the source and the document
+- **AND** skip chunking, embedding generation and database insertion without failing.
 
 ### Requirement: Embedding Generation and Storage
 The system SHALL batch-generate embedding vectors for all paragraphs and save them.

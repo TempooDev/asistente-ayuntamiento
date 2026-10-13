@@ -36,7 +36,7 @@ The scraper is a single Go binary (`cmd/scraper`, wiring only) built from these 
 |---|---|
 | `internal/config` | Loads and validates every environment variable; reports all problems at once. |
 | `internal/httpx` | Shared HTTP client: per-site rate limit, timeout, retries with exponential backoff and jitter that stop when the context is cancelled. |
-| `internal/provider/{boe,boja}` | Stateless bulletin providers: `FetchSummary(ctx, date, Options)` and `FetchDocument(ctx, ref)`. BOPMA (`internal/bopma`) is a draft and is not registered. |
+| `internal/provider/{boe,boja}` | Stateless bulletin providers: `FetchSummary(ctx, date, Options)` and `FetchDocument(ctx, ref)`. BOE and BOJA are the only bulletins in scope. |
 | `internal/pipeline` | `Orchestrator`: one job at a time (schedule, HTTP and gRPC share the lock), filter rules (fail closed), storage, queueing, metrics and spans. |
 | `internal/storage` | S3-compatible bucket with explicit credentials: `json/<source>/<id>.json` and the original as `raw-<ext>/<source>/<id>.<ext>`. |
 | `internal/messaging` | Persistent publishing with confirms to both ingestion queues (`docs/messaging-contract.md`). |

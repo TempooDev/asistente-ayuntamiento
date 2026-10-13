@@ -35,7 +35,7 @@ message FilterRulesResponse {
 }
 
 message ForceScrapeRequest {
-  string provider = 1; // "BOE", "BOJA", "BOPMA"
+  string provider = 1; // "BOE" or "BOJA"
   string start_date = 2; // YYYY-MM-DD
   string end_date = 3;   // YYYY-MM-DD
   repeated string sections = 4;

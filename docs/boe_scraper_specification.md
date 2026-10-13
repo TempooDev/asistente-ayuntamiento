@@ -14,7 +14,7 @@ El presente documento define la arquitectura y especificaciones técnicas para e
 
 **Fuera de alcance:**
 * Extracción mediante scraping de HTML o procesamiento de PDFs.
-* Procesamiento de otros boletines en esta fase inicial (BOJA, BOPMA).
+* Procesamiento de otros boletines en esta fase inicial (BOJA). El proyecto solo cubre BOE y BOJA.
 * Procesos de Chunking semántico o generación de embeddings (estas tareas se delegan al orquestador .NET con Semantic Kernel en un proceso batch y guardado en pgvector).
 
 ## 3. Diseño de la Solución
@@ -79,10 +79,9 @@ La salida del módulo deberá ser un documento JSON con la siguiente estructura 
 - [ ] Los archivos producidos (XML en crudo y JSON estructurado) son guardados correctamente en la solución de Blob Storage designada.
 - [ ] El proceso puede fallar gracefully ante XMLs corruptos, registrando el error sin detener el flujo general de los demás documentos.
 
-## 8. Extensibilidad: Integración con BOJA y BOPMA
-Aunque la fase inicial pone foco en el BOE, el diseño del software (mediante interfaces como `BoletinProvider`) debe estar preparado para integrar los siguientes boletines que también disponen de iniciativas de Datos Abiertos:
+## 8. Extensibilidad: Integración con BOJA
+Aunque la fase inicial pone foco en el BOE, el diseño del software (mediante interfaces como `BoletinProvider`) debe estar preparado para integrar el BOJA, el otro boletín del alcance del proyecto:
 
-* **BOPMA (Boletín Oficial de la Provincia de Málaga):** A través del portal de Datos Abiertos de la Diputación, filtrando por formato XML. [Catálogo BOPMA OpenData](https://opendata.malaga.es/tl/dataset/?_tags_limit=0&organization=diputacion&res_format=XML).
 * **BOJA (Boletín Oficial de la Junta de Andalucía):** A través del buscador de APIs del portal de Datos Abiertos de la Junta de Andalucía. [Buscador APIs BOJA](https://www.juntadeandalucia.es/datosabiertos/portal/aplicaciones/buscador-apis).
 
 El módulo de Go deberá estructurarse de tal forma que añadir un nuevo scraper de estas plataformas solo requiera implementar los métodos de obtención y parseo específicos, reutilizando todo el pipeline de *chunking* y almacenamiento en Blobs.

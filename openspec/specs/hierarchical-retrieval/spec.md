@@ -26,13 +26,13 @@ The system SHALL provide a reusable abstract base processor (`BaseHierarchicalIn
 - **THEN** it SHALL extract the parent entity and fragment list using gazette-specific parsers
 - **AND** execute the common pipeline for synthetic enrichment via LLM, embedding generation, `ChildFragment` persistence in PostgreSQL, vector upsert in Qdrant, and telemetry metric recording in `IngestionMetrics`.
 
-### Requirement: Discard BOPMA Data Ingestion
-The hierarchical ingestion pipeline SHALL explicitly discard and ignore data insertion requests for BOPMA (Boletín Oficial de la Provincia de Málaga).
+### Requirement: Only Bulletins in Scope
+The hierarchical ingestion pipeline SHALL have a processor only for the bulletins in the project's scope (BOE, BOJA).
 
-#### Scenario: Ingestion request received for BOPMA
-- **WHEN** a document with source `BOPMA` is received by the hierarchical ingestion system
-- **THEN** the system SHALL log an informative warning indicating that BOPMA data insertion is discarded
-- **AND** mark the job state as skipped/unsupported without raising an unhandled exception or inserting records into the database.
+#### Scenario: Message from another source
+- **WHEN** a message whose source has no processor reaches the hierarchical consumer
+- **THEN** it SHALL be sent to the dead-letter queue without retries and the job marked as failed
+- **AND** nothing SHALL be inserted into the database or the vector store.
 
 ### Requirement: Child Fragment Contextual Enrichment
 The system SHALL enrich each child fragment with a contextual breadcrumb and synthetic citizen questions before embedding.

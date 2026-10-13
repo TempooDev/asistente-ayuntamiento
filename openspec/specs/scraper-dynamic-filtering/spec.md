@@ -1,14 +1,14 @@
 # Specification: Dynamic Scraper Filtering and gRPC Administration
 
 ## Purpose
-Migrate from static/hardcoded scraping rules to a dynamic, database-driven filtering configuration. This allows system administrators to control exactly which departments, sections, and keywords are scraped from BOE, BOJA, and BOPMA directly from the Angular UI. Additionally, it implements a high-performance gRPC architecture between .NET and Go for instantaneous configuration fetching and on-demand scraping triggers.
+Migrate from static/hardcoded scraping rules to a dynamic, database-driven filtering configuration. This allows system administrators to control exactly which departments, sections, and keywords are scraped from BOE and BOJA directly from the Angular UI. Additionally, it implements a high-performance gRPC architecture between .NET and Go for instantaneous configuration fetching and on-demand scraping triggers.
 ## Requirements
 ### Requirement: Database-Driven Filtering Configuration
 The .NET backend SHALL persist scraping filter rules in the PostgreSQL database using Entity Framework Core.
 
 #### Scenario: Defining Filter Entities
 - **WHEN** the system initializes
-- **THEN** it SHALL include a `ScraperFilterRule` entity with properties such as: `Id`, `Provider` (BOE/BOJA/BOPMA), `FilterType` (Department, Section, Keyword), `Value` (e.g., "Ministerio de Hacienda"), and `IsActive`.
+- **THEN** it SHALL include a `ScraperFilterRule` entity with properties such as: `Id`, `Provider` (BOE/BOJA), `FilterType` (Department, Section, Keyword), `Value` (e.g., "Ministerio de Hacienda"), and `IsActive`.
 
 #### Scenario: API Management of Filters
 - **WHEN** an administrator uses the Angular UI
