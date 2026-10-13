@@ -122,17 +122,8 @@ services:
     volumes:
       - minio_data:/data
 
-  minio-setup:
-    image: minio/mc:latest
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10;
-      mc alias set myminio http://minio:9000 admin SECRETO_MINIO123!;
-      mc mb myminio/boletines || true;
-      mc anonymous set public myminio/boletines || true;
-      "
+  # Sin contenedor de inicialización: la API crea el bucket privado al arrancar.
+  # (La imagen minio/mc ya no se puede descargar de Docker Hub.)
 
   apiservice:
     image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest

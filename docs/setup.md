@@ -30,7 +30,7 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 | **PostgreSQL** | `pgvector/pgvector:pg16` | Base de datos principal y búsqueda de texto completo |
 | **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks` y `child_fragments`) |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
-| **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (bucket privado creado por `minio-init`) |
+| **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (la API crea el bucket privado al arrancar) |
 | **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`nomic-embed-text`) y LLM de fallback (`llama3.2`) |
 
 > [!TIP]
