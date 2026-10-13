@@ -36,17 +36,24 @@ Any work executed outside the HTTP request scope (background queues, hosted serv
 - **AND** SHALL produce the same results as if it ran inside the request
 
 #### Scenario: Background item without tenant
-- **WHEN** a background work item is enqueued without a tenant identifier
-- **THEN** the queue SHALL reject it with an `ArgumentException`
-- **AND** SHALL log the rejection
+- **WHEN** a tenant-scoped background work item is created without a tenant identifier
+- **THEN** creation SHALL fail with an `ArgumentException`
+- **AND** platform-wide work (e.g. a manual scrape) SHALL be declared explicitly as such, never by omitting the tenant
 
 ### Requirement: Explicit Tenant Predicate When Ignoring Query Filters
-Any query that calls `IgnoreQueryFilters()` SHALL add an explicit `TenantId` predicate, unless it appears in an allow-list of documented cross-tenant administrative queries. An architecture test SHALL enforce this rule.
+Any query that calls `IgnoreQueryFilters()` SHALL add an explicit `TenantId` predicate, unless it appears in an allow-list of documented exceptions. An architecture test SHALL enforce this rule. The allow-list SHALL contain only:
+- **identity-scoped lookups:** `UserProfile` and `UserPreference` are unique per `Auth0UserId`, so the lookup key is the authenticated subject itself;
+- **aggregate-only reads:** for example, arena win counts.
 
-#### Scenario: User preferences lookup
-- **WHEN** `UserPreferenceService` loads preferences for `Auth0UserId = u1` in tenant `org_A`
-- **THEN** the query SHALL filter by both `Auth0UserId == u1` and `TenantId == org_A`
-- **AND** a preference row of `u1` stored under `org_B` SHALL NOT be returned
+#### Scenario: Identity-scoped profile lookup
+- **WHEN** `GET /api/users/me` loads the profile of the authenticated subject `u1`
+- **THEN** the lookup MAY ignore the tenant filter, because the row is keyed by `u1`'s own identity
+- **AND** it SHALL NOT be possible to load the profile of any other subject through that query
+
+#### Scenario: Tenant-owned data lookup
+- **WHEN** `AiConfigurationService` loads the configuration with `IgnoreQueryFilters()`
+- **THEN** the query SHALL filter by `TenantId == CurrentTenantId`
+- **AND** the configuration of another tenant SHALL NOT be returned
 
 #### Scenario: New unreviewed IgnoreQueryFilters usage
 - **WHEN** a developer adds `IgnoreQueryFilters()` in a file outside the allow-list

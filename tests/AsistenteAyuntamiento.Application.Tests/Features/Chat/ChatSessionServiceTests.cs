@@ -77,7 +77,7 @@ public class ChatSessionServiceTests
         message.Role.Should().Be("user");
         message.Content.Should().Be(content);
         message.SessionId.Should().Be(session.Id);
-        
+
         session.Messages.Should().Contain(message);
         _dbContextMock.Verify(x => x.ChatMessages.Add(message), Times.Once);
     }
@@ -113,7 +113,7 @@ public class ChatSessionServiceTests
         // The first message should be Message 6 (since 1-5 are trimmed)
         result.First().Content.Should().Be("Message 6");
         result.Last().Content.Should().Be("Message 25");
-        
+
         // Ensure chronological order
         result.Should().BeInAscendingOrder(x => x.CreatedAt);
     }

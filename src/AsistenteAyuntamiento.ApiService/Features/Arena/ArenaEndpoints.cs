@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
+using AsistenteAyuntamiento.ApiService.Security;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Arena;
 
@@ -9,25 +12,54 @@ public static class ArenaEndpoints
     {
         var group = app.MapGroup("/api/arena").WithTags("Arena").RequireAuthorization();
 
-        group.MapPost("/compare", async (ArenaCompareRequest request, IArenaService arenaService, CancellationToken ct) =>
+        // Side-by-side comparison runs both pipelines (two LLM calls): admin-only, like the Arena page.
+        group.MapPost("/compare", async (
+            ArenaCompareRequest request,
+            ClaimsPrincipal user,
+            ICurrentTenantService tenantService,
+            IArenaService arenaService,
+            CancellationToken ct) =>
         {
-            var response = await arenaService.CompareAsync(request, ct);
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(tenantService.TenantId)) return Results.Unauthorized();
+
+            var response = await arenaService.CompareAsync(request, tenantService.TenantId, userId, ct);
             return Results.Ok(response);
         })
+        .RequireAuthorization(Policies.Admin)
         .WithName("CompareArena");
 
-        group.MapPost("/vote", async (ArenaVoteRequest request, IArenaService arenaService, CancellationToken ct) =>
+        // Any authenticated user can vote, but only on battles they own.
+        group.MapPost("/vote", async (
+            ArenaVoteRequest request,
+            ClaimsPrincipal user,
+            IArenaService arenaService,
+            CancellationToken ct) =>
         {
-            var response = await arenaService.VoteAsync(request, ct);
-            return Results.Ok(response);
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+
+            try
+            {
+                var response = await arenaService.VoteAsync(request, userId, ct);
+                return response is null ? Results.NotFound() : Results.Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    [ex.ParamName ?? nameof(request.Winner)] = ["Valor de voto no válido."]
+                });
+            }
         })
         .WithName("VoteArena");
 
-        group.MapGet("/analytics", async ([Microsoft.AspNetCore.Http.AsParameters] ArenaAnalyticsRequest request, IArenaAnalyticsService analyticsService, CancellationToken ct) =>
+        group.MapGet("/analytics", async ([AsParameters] ArenaAnalyticsRequest request, IArenaAnalyticsService analyticsService, CancellationToken ct) =>
         {
             var response = await analyticsService.GetAnalyticsAsync(request, ct);
             return Results.Ok(response);
         })
+        .RequireAuthorization(Policies.Admin)
         .WithName("GetArenaAnalytics");
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 
 namespace AsistenteAyuntamiento.Application.Features.AiConfig;

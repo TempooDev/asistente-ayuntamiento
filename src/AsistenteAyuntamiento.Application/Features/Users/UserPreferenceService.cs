@@ -4,8 +4,15 @@ using AsistenteAyuntamiento.Domain.Features.Users;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
 
+/// <summary>
+/// Preferences are unique per identity (<c>Auth0UserId</c>), so lookups are by the authenticated
+/// subject and ignore the tenant filter on purpose (allow-listed cross-tenant query).
+/// </summary>
 public class UserPreferenceService(IAppDbContext context, ICurrentTenantService tenantService) : IUserPreferenceService
 {
+    private string RequireTenant() => tenantService.TenantId
+        ?? throw new InvalidOperationException("A tenant is required to create user preferences.");
+
     public async Task<UserPreferenceDto> GetPreferencesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
         var preference = await context.UserPreferences
@@ -36,7 +43,7 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
             preference = new UserPreference
             {
                 Auth0UserId = auth0UserId,
-                TenantId = tenantService.TenantId,
+                TenantId = RequireTenant(),
                 Topics = dto.Topics ?? new List<string>(),
                 Locations = dto.Locations ?? new List<string>()
             };
@@ -63,7 +70,7 @@ public class UserPreferenceService(IAppDbContext context, ICurrentTenantService 
             preference = new UserPreference
             {
                 Auth0UserId = auth0UserId,
-                TenantId = tenantService.TenantId,
+                TenantId = RequireTenant(),
                 Topics = extracted.Topics ?? new List<string>(),
                 Locations = extracted.Locations ?? new List<string>()
             };

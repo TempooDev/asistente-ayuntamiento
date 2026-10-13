@@ -23,7 +23,7 @@ Ingestion SHALL commit the relational changes before writing vectors. If the vec
 - **THEN** no new vectors for that document SHALL have been written to Qdrant
 
 ### Requirement: State Saved Before Publish in Bulk Operations
-Bulk enqueue and reprocess operations SHALL persist the `Queued` job states before publishing messages. They SHALL revert to `Pending` the documents whose publish failed, and SHALL emit one aggregated notification per batch.
+Bulk enqueue and reprocess operations SHALL persist the `Queued` job states before publishing messages. They SHALL revert to `Pending` the documents whose publish failed, and SHALL emit status notifications only after the final state is persisted.
 
 #### Scenario: Partial publish failure
 - **WHEN** 100 documents are enqueued and publishing fails for 10 of them
@@ -32,6 +32,14 @@ Bulk enqueue and reprocess operations SHALL persist the `Queued` job states befo
 
 ### Requirement: Correct Document Metadata
 Ingested documents SHALL carry the official publication date parsed from the source, never the ingestion time. The hierarchical pipeline SHALL read from the configured bucket (`Blob:BucketName` / `CLOUDFLARE_R2_BUCKET_NAME`).
+
+#### Scenario: BOE date format
+- **WHEN** a BOE document carries `fecha_publicacion = 20260915`
+- **THEN** its `PublicationDate` SHALL be 2026-09-15 (the `yyyyMMdd` format of the BOE XML SHALL be accepted)
+
+#### Scenario: Scraper JSON contract
+- **WHEN** the hierarchical pipeline reads a document written by the Go scraper
+- **THEN** it SHALL read the title, department and publication date from `metadata.*` and the text from `text`
 
 #### Scenario: BOJA document publication date
 - **WHEN** a BOJA document from the bulletin dated 2026-09-15 is ingested on 2026-10-13

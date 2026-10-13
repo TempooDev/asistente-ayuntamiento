@@ -24,7 +24,8 @@ public interface IAppDbContext
     DbSet<ParentDocument> ParentDocuments { get; set; }
     DbSet<ChildFragment> ChildFragments { get; set; }
     DbSet<IngestionMetric> IngestionMetrics { get; set; }
-    
+
     DatabaseFacade Database { get; }
+    Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

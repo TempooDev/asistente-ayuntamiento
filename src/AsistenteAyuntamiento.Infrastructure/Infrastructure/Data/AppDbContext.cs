@@ -14,7 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
 {
     private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService = tenantService;
 
-    public string CurrentTenantId => _tenantService.TenantId;
+    public string? CurrentTenantId => _tenantService.TenantId;
 
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<UserPreference> UserPreferences { get; set; }
@@ -94,20 +94,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
             entity.ToTable("ParentDocuments", "ingestion");
             entity.Property(e => e.Metadata).HasColumnType("jsonb");
             entity.HasMany(e => e.Children).WithOne(e => e.Parent).HasForeignKey(e => e.ParentId).OnDelete(DeleteBehavior.Cascade);
+            // One version per document: re-ingestion replaces it (BaseHierarchicalIngestionProcessor).
+            entity.HasIndex(e => e.DocumentId).IsUnique();
+        });
+
+        modelBuilder.Entity<DocumentJobState>(entity =>
+        {
+            // Stored as text: same values as the former string constants, so no data migration is needed.
+            entity.Property(e => e.Status).HasConversion<string>();
         });
 
         modelBuilder.Entity<ChildFragment>(entity =>
         {
             entity.ToTable("ChildFragments", "ingestion");
-            entity.Property(e => e.TsvContent).HasColumnType("tsvector");
-
             entity.HasIndex(e => e.ParentId);
-            entity.HasIndex(e => e.TsvContent).HasMethod("gin");
+
+            // TsvContent is filled by a database trigger and only exists on PostgreSQL. Non-relational
+            // providers (EF InMemory in API tests) cannot map NpgsqlTsVector, so the column is skipped there.
+            // TODO(audit-remediation 5.6): turn it into a shadow property and drop Npgsql from Domain.
+            if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                entity.Property(e => e.TsvContent).HasColumnType("tsvector");
+                entity.HasIndex(e => e.TsvContent).HasMethod("gin");
+            }
+            else
+            {
+                entity.Ignore(e => e.TsvContent);
+            }
         });
 
         modelBuilder.Entity<ArenaBattle>(entity =>
         {
             entity.ToTable("ArenaBattles", "arena");
+            entity.HasQueryFilter(b => b.TenantId == CurrentTenantId);
+            entity.HasIndex(b => new { b.TenantId, b.UserId, b.SessionId });
         });
 
         modelBuilder.Entity<IngestionMetric>(entity =>

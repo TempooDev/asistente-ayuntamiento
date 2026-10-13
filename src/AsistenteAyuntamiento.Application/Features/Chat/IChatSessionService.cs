@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;

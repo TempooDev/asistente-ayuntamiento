@@ -54,18 +54,18 @@ public class RabbitMqNotificationPublisherTests
 
         // Verify exchange declaration
         _channelMock.Verify(c => c.ExchangeDeclareAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange, 
-            ExchangeType.Fanout, 
-            true, 
-            false, 
-            null, 
-            It.IsAny<bool>(), 
-            It.IsAny<bool>(), 
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
+            ExchangeType.Fanout,
+            true,
+            false,
+            null,
+            It.IsAny<bool>(),
+            It.IsAny<bool>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify publish
         _channelMock.Verify(c => c.BasicPublishAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange,
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
             string.Empty,
             false,
             It.Is<BasicProperties>(p => p.Persistent == true),
@@ -82,17 +82,17 @@ public class RabbitMqNotificationPublisherTests
 
         // Act - first call
         await _sut.NotifyDocumentStatusChangedAsync(documentId, status);
-        
+
         // Act - second call
         await _sut.NotifyDocumentStatusChangedAsync(documentId, "Failed");
 
         // Assert
         // Connection factory should only be called once
         _connectionFactoryMock.Verify(f => f.CreateConnectionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        
+
         // Channel should publish twice
         _channelMock.Verify(c => c.BasicPublishAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange,
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
             string.Empty,
             false,
             It.IsAny<BasicProperties>(),

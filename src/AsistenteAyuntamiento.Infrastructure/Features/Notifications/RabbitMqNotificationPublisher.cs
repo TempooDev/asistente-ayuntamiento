@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.Infrastructure.Common;
+using AsistenteAyuntamiento.Infrastructure.Messaging;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
@@ -37,7 +37,7 @@ public class RabbitMqNotificationPublisher(IConnectionFactory connectionFactory,
             if (_channel == null || !_channel.IsOpen)
             {
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
-                await _channel.ExchangeDeclareAsync(exchange: RabbitMqConstants.DocumentNotificationsExchange, type: ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(exchange: RabbitMqTopology.DocumentNotificationsExchange, type: ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
             }
         }
         finally
@@ -63,7 +63,7 @@ public class RabbitMqNotificationPublisher(IConnectionFactory connectionFactory,
                 if (_channel != null)
                 {
                     await _channel.BasicPublishAsync(
-                        exchange: RabbitMqConstants.DocumentNotificationsExchange,
+                        exchange: RabbitMqTopology.DocumentNotificationsExchange,
                         routingKey: string.Empty,
                         mandatory: false,
                         basicProperties: props,

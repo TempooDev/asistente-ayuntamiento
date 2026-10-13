@@ -1,22 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestDependencies } from '../../../testing/test-providers';
+import { PerfilComponent } from './perfil';
 
-import { Perfil } from './perfil';
-
-describe('Perfil', () => {
-  let component: Perfil;
-  let fixture: ComponentFixture<Perfil>;
+describe('PerfilComponent', () => {
+  let fixture: ComponentFixture<PerfilComponent>;
 
   beforeEach(async () => {
+    localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [Perfil],
+      imports: [PerfilComponent],
+      providers: provideTestDependencies(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Perfil);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture = TestBed.createComponent(PerfilComponent);
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

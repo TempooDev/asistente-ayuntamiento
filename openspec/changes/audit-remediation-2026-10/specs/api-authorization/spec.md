@@ -26,6 +26,10 @@ Administrative endpoints include, at minimum:
 - **WHEN** a request without a bearer token calls any administrative endpoint
 - **THEN** the API SHALL respond `401 Unauthorized`
 
+#### Scenario: Role casing
+- **WHEN** the roles claim contains `Administrador` (different casing)
+- **THEN** the server SHALL treat it as `administrador`, exactly like the SPA guard, which lowercases roles
+
 ### Requirement: Policies Declared Once and Applied per Route Group
 Authorization policies SHALL be defined in a single registration (`AddAppAuthorization()`) and applied at the route group level, so that new endpoints added to an admin group inherit the policy automatically.
 

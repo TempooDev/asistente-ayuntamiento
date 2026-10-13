@@ -41,7 +41,8 @@ $RECYCLE.BIN/
 ## Visual Studio / VS Code
 .vscode/
 !.vscode/extensions.json
-!.vscode/settings.json        # keep shared settings if you want
+# keep shared settings
+!.vscode/settings.json
 *.suo
 *.user
 *.userosscache
@@ -101,6 +102,8 @@ PublishOutput/
 
 ## Secrets & local config
 appsettings.Development.json
+# Gateway dev config holds no secrets (only local routing)
+!src/AsistenteAyuntamiento.Gateway/appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
 secrets.json
@@ -149,7 +152,6 @@ tmp/
 # ─────────────────────────────────────────────
 # Docker
 # ─────────────────────────────────────────────
-.dockerignore          # usually fine to commit, but listed for awareness
 docker-compose.override.yml
 
 # ─────────────────────────────────────────────

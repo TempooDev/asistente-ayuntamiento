@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Shared.Features.Users;
 using Microsoft.AspNetCore.Mvc;
@@ -18,13 +19,14 @@ public static class UserEndpoints
         group.MapGet("/me", async (
             IAppDbContext db,
             ClaimsPrincipal user,
-            Tenants.CurrentTenantService tenantService,
+            ICurrentTenantService tenantService,
             IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
+            var tenantId = tenantService.TenantId;
+            if (string.IsNullOrEmpty(auth0Id) || string.IsNullOrEmpty(tenantId)) return Results.Unauthorized();
 
-            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService, config);
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, tenantId, user, config);
 
             return Results.Ok(new UserProfileDto
             {
@@ -42,13 +44,14 @@ public static class UserEndpoints
             IAppDbContext db,
             ClaimsPrincipal user,
             [FromBody] UserProfileDto dto,
-            Tenants.CurrentTenantService tenantService,
+            ICurrentTenantService tenantService,
             IConfiguration config) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
+            var tenantId = tenantService.TenantId;
+            if (string.IsNullOrEmpty(auth0Id) || string.IsNullOrEmpty(tenantId)) return Results.Unauthorized();
 
-            var profile = await GetOrCreateProfileAsync(db, auth0Id, user, tenantService, config);
+            var profile = await GetOrCreateProfileAsync(db, auth0Id, tenantId, user, config);
 
             profile.FullName = dto.FullName;
             profile.Department = dto.Department;
@@ -89,91 +92,82 @@ public static class UserEndpoints
 
         // Trigger history analysis
         group.MapPost("/me/preferences/analyze", (
-            IServiceScopeFactory scopeFactory,
+            IBackgroundWorkQueue workQueue,
+            ICurrentTenantService tenantService,
             ClaimsPrincipal user) =>
         {
             var auth0Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(auth0Id)) return Results.Unauthorized();
+            var tenantId = tenantService.TenantId;
+            if (string.IsNullOrEmpty(auth0Id) || string.IsNullOrEmpty(tenantId)) return Results.Unauthorized();
 
-            // Run in background
-            _ = Task.Run(async () =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<IHistoryAnalyzerService>();
-                await service.AnalyzeAndMergeUserHistoryAsync(auth0Id);
-            });
+            // Runs after the request ends, when HttpContext is gone: the work item carries the tenant.
+            var queued = workQueue.TryEnqueue(BackgroundWorkItem.ForTenant("analyze-user-history", tenantId, (services, cancellationToken) =>
+                services.GetRequiredService<IHistoryAnalyzerService>().AnalyzeAndMergeUserHistoryAsync(auth0Id, cancellationToken)));
 
-            return Results.Accepted();
+            return queued
+                ? Results.Accepted()
+                : Results.Problem(detail: "La cola de trabajos está llena. Inténtalo más tarde.", statusCode: StatusCodes.Status503ServiceUnavailable);
         });
     }
 
+    /// <summary>
+    /// Profiles are unique per identity (<c>Auth0UserId</c>), so the lookup is by the authenticated
+    /// subject and ignores the tenant filter on purpose (allow-listed cross-tenant query).
+    /// </summary>
     private static async Task<UserProfile> GetOrCreateProfileAsync(
         IAppDbContext db,
         string auth0Id,
+        string tenantId,
         ClaimsPrincipal user,
-        Tenants.CurrentTenantService tenantService,
         IConfiguration config,
         bool asNoTracking = true)
     {
+        var query = db.UserProfiles.IgnoreQueryFilters().AsQueryable();
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        var profile = await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
+        if (profile != null)
+        {
+            return profile;
+        }
+
+        // Try to get name from standard claims or custom namespaced claims
+        var namespacePrefix = config["Auth0:CustomClaimsNamespace"];
+        var nameClaim = user.FindFirst("name")?.Value
+                     ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
+                     ?? user.FindFirst($"{namespacePrefix}/name")?.Value;
+
+        // Create empty profile on first access
+        profile = new UserProfile
+        {
+            Auth0UserId = auth0Id,
+            TenantId = tenantId,
+            FullName = nameClaim ?? string.Empty
+        };
+
         try
         {
-            var query = db.UserProfiles.IgnoreQueryFilters().AsQueryable();
+            db.UserProfiles.Add(profile);
+            await db.SaveChangesAsync();
+
             if (asNoTracking)
             {
-                query = query.AsNoTracking();
-            }
-            
-            var profile = await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
-
-            if (profile == null)
-            {
-                // Try to get name from standard claims or custom namespaced claims
-                var namespacePrefix = config["Auth0:CustomClaimsNamespace"];
-                var nameClaim = user.FindFirst("name")?.Value
-                             ?? user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
-                             ?? user.FindFirst($"{namespacePrefix}/name")?.Value;
-
-                // Create empty profile on first access
-                profile = new UserProfile
-                {
-                    Auth0UserId = auth0Id,
-                    TenantId = tenantService.TenantId,
-                    FullName = nameClaim ?? string.Empty
-                };
-                
-                try 
-                {
-                    db.UserProfiles.Add(profile);
-                    await db.SaveChangesAsync();
-                    
-                    if (asNoTracking)
-                    {
-                        // Detach so it behaves like AsNoTracking
-                        db.UserProfiles.Entry(profile).State = EntityState.Detached;
-                    }
-                }
-                catch (DbUpdateException)
-                {
-                    // A race condition occurred, another thread already created the profile.
-                    // Remove the failed addition to keep the DbContext clean.
-                    try { db.UserProfiles.Remove(profile); } catch { /* ignore */ }
-                    
-                    // Fetch the profile created by the other thread
-                    profile = await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id);
-                }
+                // Detach so it behaves like AsNoTracking
+                db.UserProfiles.Entry(profile).State = EntityState.Detached;
             }
 
             return profile;
         }
-        catch (Exception ex)
+        catch (DbUpdateException)
         {
-            Console.WriteLine($"Error getting/creating user profile: {ex.Message}");
-            return new UserProfile
-            {
-                Auth0UserId = auth0Id,
-                TenantId = tenantService.TenantId,
-                FullName = string.Empty
-            };
+            // A race condition occurred: another request already created the profile.
+            db.UserProfiles.Entry(profile).State = EntityState.Detached;
+
+            return await query.FirstOrDefaultAsync(u => u.Auth0UserId == auth0Id)
+                ?? throw new InvalidOperationException("User profile could not be created or loaded.");
         }
     }
 }

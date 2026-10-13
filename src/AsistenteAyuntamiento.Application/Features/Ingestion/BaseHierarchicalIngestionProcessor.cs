@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.Extensions.AI;
 using Qdrant.Client;
+using Qdrant.Client.Grpc;
+using Microsoft.EntityFrameworkCore;
+using static Qdrant.Client.Grpc.Conditions;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -24,6 +27,7 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
     protected readonly QdrantClient _qdrantClient;
     protected readonly ILogger _logger;
     protected readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService;
+    protected readonly IVectorCollections _vectorCollections;
 
     protected BaseHierarchicalIngestionProcessor(
         IAppDbContext dbContext,
@@ -31,7 +35,8 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
         IIngestionMetricsService metricsService,
         QdrantClient qdrantClient,
         ILogger logger,
-        Kernel kernel)
+        Kernel kernel,
+        IVectorCollections vectorCollections)
     {
         _dbContext = dbContext;
         _enrichmentService = enrichmentService;
@@ -39,14 +44,21 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
         _qdrantClient = qdrantClient;
         _logger = logger;
         _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+        _vectorCollections = vectorCollections;
     }
 
     protected abstract BulletinType Bulletin { get; }
-    
+
     protected abstract Task<ParentDocument?> ExtractParentDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken);
-    
+
     protected abstract Task<IEnumerable<RawFragment>> ExtractFragmentsAsync(string blobPath, string documentId, ParentDocument parentDoc, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Idempotent per <c>documentId</c>:
+    /// 1. LLM work (enrichment, embeddings) runs first and writes nothing.
+    /// 2. PostgreSQL replaces any previous version of the document in one transaction (unique DocumentId).
+    /// 3. After the commit, the vectors of previous versions are deleted and the new ones upserted.
+    /// </summary>
     public async Task ProcessDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken)
     {
         if (Bulletin == BulletinType.BOPMA)
@@ -59,31 +71,23 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
         int totalLlmCalls = 0;
         int totalLlmTokens = 0;
         int totalTokensEmbedded = 0;
-        int chunksGenerated = 0;
 
         try
         {
             var parentDoc = await ExtractParentDocumentAsync(blobPath, documentId, cancellationToken);
             if (parentDoc == null) return;
 
-            _dbContext.ParentDocuments.Add(parentDoc);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            var fragments = (await ExtractFragmentsAsync(blobPath, documentId, parentDoc, cancellationToken)).ToList();
 
-            var fragments = await ExtractFragmentsAsync(blobPath, documentId, parentDoc, cancellationToken);
-
-            var qdrantPoints = new List<(ChildFragment Fragment, float[] Vector)>();
-
-            int fragmentCount = fragments.Count();
+            // 1. Enrichment + embeddings (no side effects).
+            var children = new List<ChildFragment>();
             int current = 0;
-
-            var childFragmentsToEmbed = new List<ChildFragment>();
-
             foreach (var frag in fragments)
             {
                 current++;
-                if (current % 10 == 0 || current == fragmentCount)
+                if (current % 10 == 0 || current == fragments.Count)
                 {
-                    _logger.LogInformation("[{Bulletin} {DocumentId}] Procesando fragmento {Current}/{Total} de la sección '{Section}'...", Bulletin, documentId, current, fragmentCount, frag.Section);
+                    _logger.LogInformation("[{Bulletin} {DocumentId}] Procesando fragmento {Current}/{Total} de la sección '{Section}'", Bulletin, documentId, current, fragments.Count, frag.Section);
                 }
 
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
@@ -100,59 +104,67 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
                 if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
 
-                var childFragment = new ChildFragment
+                children.Add(new ChildFragment
                 {
-                    ParentId = parentDoc.Id,
                     Bulletin = Bulletin,
                     SubSection = frag.Section,
                     ChunkText = enrichmentResult.EnrichedText
-                };
-                
-                _dbContext.ChildFragments.Add(childFragment);
-                childFragmentsToEmbed.Add(childFragment);
+                });
             }
 
-            // Batch embeddings to avoid N+1 problem
-            var batchSize = 100;
-            for (int i = 0; i < childFragmentsToEmbed.Count; i += batchSize)
+            var vectors = new List<float[]>(children.Count);
+            const int batchSize = 100;
+            for (int i = 0; i < children.Count; i += batchSize)
             {
-                var batch = childFragmentsToEmbed.Skip(i).Take(batchSize).ToList();
-                var batchTexts = batch.Select(x => x.ChunkText).ToList();
-                
-                var embeddings = await _embeddingService.GenerateAsync(batchTexts, cancellationToken: cancellationToken);
-                
+                var batch = children.Skip(i).Take(batchSize).ToList();
+                var embeddings = await _embeddingService.GenerateAsync(batch.Select(x => x.ChunkText).ToList(), cancellationToken: cancellationToken);
                 for (int j = 0; j < batch.Count; j++)
                 {
-                    var rawVector = embeddings[j].Vector.ToArray();
+                    vectors.Add(embeddings[j].Vector.ToArray());
                     totalTokensEmbedded += batch[j].ChunkText.Length / 4; // Estimate
-                    qdrantPoints.Add((batch[j], rawVector));
-                    chunksGenerated++;
                 }
             }
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            if (qdrantPoints.Any())
+            // 2. Replace the previous version of the document atomically.
+            var previousParentIds = new List<long>();
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                var points = qdrantPoints.Select(p => new Qdrant.Client.Grpc.PointStruct
+                // The execution strategy may re-run this block: start each attempt from a clean state.
+                _dbContext.ChangeTracker.Clear();
+                parentDoc.Id = 0;
+                parentDoc.Children.Clear();
+                foreach (var child in children)
                 {
-                    Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)p.Fragment.Id },
-                    Vectors = p.Vector,
-                    Payload =
-                    {
-                        ["ParentId"] = p.Fragment.ParentId,
-                        ["Bulletin"] = (int)p.Fragment.Bulletin,
-                        ["Municipality"] = p.Fragment.Municipality ?? "",
-                        ["SubSection"] = p.Fragment.SubSection ?? "",
-                        ["ChunkText"] = p.Fragment.ChunkText ?? ""
-                    }
-                }).ToList();
+                    child.Id = 0;
+                    parentDoc.Children.Add(child);
+                }
 
-                await _qdrantClient.UpsertAsync("child_fragments", points, cancellationToken: cancellationToken);
-            }
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+                previousParentIds = await _dbContext.ParentDocuments
+                    .Where(p => p.DocumentId == documentId)
+                    .Select(p => p.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (previousParentIds.Count > 0)
+                {
+                    // Child fragments are removed by the ON DELETE CASCADE foreign key.
+                    await _dbContext.ParentDocuments
+                        .Where(p => p.DocumentId == documentId)
+                        .ExecuteDeleteAsync(cancellationToken);
+                }
+
+                _dbContext.ParentDocuments.Add(parentDoc);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            });
+
+            // 3. Vector store, after the commit.
+            await SyncVectorsAsync(documentId, previousParentIds, children, vectors, cancellationToken);
 
             sw.Stop();
-            await _metricsService.TrackIngestionAsync(PipelineType.Hierarchical, Bulletin, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, chunksGenerated, sw.ElapsedMilliseconds, cancellationToken);
+            await _metricsService.TrackIngestionAsync(PipelineType.Hierarchical, Bulletin, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, children.Count, sw.ElapsedMilliseconds, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -160,6 +172,49 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
             throw;
         }
     }
+
+    private async Task SyncVectorsAsync(string documentId, IReadOnlyCollection<long> previousParentIds, IReadOnlyList<ChildFragment> children, IReadOnlyList<float[]> vectors, CancellationToken cancellationToken)
+    {
+        var collection = VectorCollectionNames.ChildFragments;
+
+        if (vectors.Count > 0)
+        {
+            await _vectorCollections.EnsureAsync(collection, vectors[0].Length, cancellationToken);
+        }
+        else if (!await _qdrantClient.CollectionExistsAsync(collection, cancellationToken))
+        {
+            return;
+        }
+
+        // Points of previous versions: matched by DocumentId (new payload) or by their old ParentId.
+        var stale = new Filter();
+        stale.Should.Add(MatchKeyword("DocumentId", documentId));
+        foreach (var parentId in previousParentIds)
+        {
+            stale.Should.Add(Match("ParentId", parentId));
+        }
+        await _qdrantClient.DeleteAsync(collection, stale, cancellationToken: cancellationToken);
+
+        if (vectors.Count == 0)
+        {
+            return;
+        }
+
+        var points = children.Select((fragment, i) => new PointStruct
+        {
+            Id = new PointId { Num = (ulong)fragment.Id },
+            Vectors = vectors[i],
+            Payload =
+            {
+                ["DocumentId"] = documentId,
+                ["ParentId"] = fragment.ParentId,
+                ["Bulletin"] = (int)fragment.Bulletin,
+                ["Municipality"] = fragment.Municipality ?? "",
+                ["SubSection"] = fragment.SubSection ?? "",
+                ["ChunkText"] = fragment.ChunkText ?? ""
+            }
+        }).ToList();
+
+        await _qdrantClient.UpsertAsync(collection, points, cancellationToken: cancellationToken);
+    }
 }
-
-

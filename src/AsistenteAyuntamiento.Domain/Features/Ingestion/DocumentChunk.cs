@@ -7,7 +7,7 @@ public class DocumentChunk
 {
     [Key]
     public int Id { get; set; }
-    
+
     public string DocumentId { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;

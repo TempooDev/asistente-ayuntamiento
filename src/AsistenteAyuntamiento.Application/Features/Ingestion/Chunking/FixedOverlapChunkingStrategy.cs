@@ -24,7 +24,7 @@ public class FixedOverlapChunkingStrategy : IChunkingStrategy
 
         var lines = TextChunker.SplitPlainTextLines(text, 200);
         var rawChunks = TextChunker.SplitPlainTextParagraphs(lines, _maxTokens, _overlapTokens);
-        
+
         return rawChunks.Select((c, i) => new DocumentChunkResult
         {
             Text = c,

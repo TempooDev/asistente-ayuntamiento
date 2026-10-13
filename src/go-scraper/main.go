@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/asistente-ayuntamiento/go-scraper/internal/commandserver"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/filterclient"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/messaging"
-	pb "github.com/asistente-ayuntamiento/go-scraper/internal/protos"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/scraper"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/storage"
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
@@ -52,18 +52,12 @@ func main() {
 	}
 	defer blobStorage.Close()
 
-	for i := 0; i < 10; i++ {
-		msgPublisher, err = messaging.NewPublisher()
-		if err == nil {
-			log.Println("Conectado a RabbitMQ exitosamente.")
-			defer msgPublisher.Close()
-			break
-		}
-		log.Printf("Aviso: no se pudo inicializar RabbitMQ (intento %d/10): %v\n", i+1, err)
-		time.Sleep(5 * time.Second)
-	}
+	// The publisher reconnects on its own; it only fails here when the connection string is missing.
+	msgPublisher, err = messaging.NewPublisher()
 	if err != nil {
-		log.Printf("No se pudo conectar a RabbitMQ después de 10 intentos: %v. Continuando sin RabbitMQ.", err)
+		log.Printf("RabbitMQ no configurado: %v. Los documentos se guardarán pero no se encolarán.", err)
+	} else {
+		defer msgPublisher.Close()
 	}
 
 	bojaFeeds := []string{}
@@ -101,7 +95,7 @@ func main() {
 		if p == nil {
 			return 0, fmt.Errorf("provider %s not found", providerName)
 		}
-		
+
 		targetStart := time.Now()
 		targetEnd := targetStart
 
@@ -116,11 +110,10 @@ func main() {
 				targetEnd = t
 			}
 		}
-		
+
 		log.Printf("ForceScrape triggered for %s from %s to %s, sections: %v", providerName, targetStart.Format("2006-01-02"), targetEnd.Format("2006-01-02"), sections)
-		
-		itemsExtracted := scrapeProviderDateRange(context.Background(), p, targetStart, targetEnd, filterClient, sections)
-		return itemsExtracted, nil
+
+		return scrapeProviderDateRange(context.Background(), p, targetStart, targetEnd, filterClient, sections)
 	})
 
 	// Ejecutar el scraping automático por defecto si hay env vars
@@ -166,7 +159,7 @@ func main() {
 			defer scrapeMutex.Unlock()
 			scrapeDateRange(context.Background(), startDate, endDate, filterClient)
 		}()
-		
+
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte(fmt.Sprintf("Scraping encolado desde %s hasta %s\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))))
 	})
@@ -179,34 +172,6 @@ func main() {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Error al iniciar el servidor: %v", err)
 	}
-}
-
-func matchesFilters(doc *scraper.Document, rules []*pb.FilterRule) bool {
-	if len(rules) == 0 {
-		return true // No rules means accept all
-	}
-
-	for _, rule := range rules {
-		if rule.Provider != "" && rule.Provider != doc.Metadata.Source {
-			continue // rule is for a different provider
-		}
-
-		if rule.FilterType == "Department" && doc.Metadata.Departamento == rule.Value {
-			return true
-		}
-		if rule.FilterType == "Keyword" {
-			// very naive check
-			if doc.Metadata.Titulo != "" && (contains(doc.Metadata.Titulo, rule.Value) || contains(doc.Text, rule.Value)) {
-				return true
-			}
-		}
-	}
-	
-	return false // if rules are defined but none matched, reject
-}
-
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || true) // Simplified for the example (could import strings and use strings.Contains)
 }
 
 func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.Client) {
@@ -232,7 +197,7 @@ func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.C
 
 		// Ejecutar scraping para el día anterior
 		scrapeDate := time.Now().AddDate(0, 0, -1)
-		
+
 		// Buscar únicamente el proveedor BOE
 		var provider scraper.BoletinProvider
 		for _, prv := range providers {
@@ -244,7 +209,9 @@ func runDefaultScraperWorkflow(ctx context.Context, filterClient *filterclient.C
 
 		if provider != nil {
 			if scrapeMutex.TryLock() {
-				scrapeProviderDateRange(ctx, provider, scrapeDate, scrapeDate, filterClient, nil)
+				if _, err := scrapeProviderDateRange(ctx, provider, scrapeDate, scrapeDate, filterClient, nil); err != nil {
+					log.Printf("Scraping programado abortado: %v", err)
+				}
 				scrapeMutex.Unlock()
 			} else {
 				log.Println("Ya hay un proceso de scraping en curso, saltando ejecución programada")
@@ -277,19 +244,9 @@ func configureProviderFromRules(ctx context.Context, provider scraper.BoletinPro
 	}
 }
 
-func forceScrapeProvider(ctx context.Context, provider scraper.BoletinProvider, target time.Time, filterClient *filterclient.Client) int {
+func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvider, startDate, endDate time.Time, filterClient *filterclient.Client, sections []string) (int, error) {
 	configureProviderFromRules(ctx, provider, filterClient)
-	ids, err := provider.FetchSummary(ctx, target)
-	if err != nil || len(ids) == 0 {
-		return 0
-	}
-	
-	return processDocumentsWithFilter(ctx, provider, ids, filterClient)
-}
 
-func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvider, startDate, endDate time.Time, filterClient *filterclient.Client, sections []string) int {
-	configureProviderFromRules(ctx, provider, filterClient)
-	
 	// Si el provider es BOE y se especificaron secciones, las aplicamos
 	if boeProv, ok := provider.(*boe.Provider); ok && len(sections) > 0 {
 		boeProv.SetSections(sections)
@@ -312,11 +269,15 @@ func scrapeProviderDateRange(ctx context.Context, provider scraper.BoletinProvid
 			continue
 		}
 
-		totalItems += processDocumentsWithFilter(ctx, provider, ids, filterClient)
+		processed, err := processDocumentsWithFilter(ctx, provider, ids, filterClient)
+		if err != nil {
+			return totalItems, err
+		}
+		totalItems += processed
 	}
-	
+
 	log.Printf("=== Scraping de la fuente %s completado. Total: %d ===", provider.Name(), totalItems)
-	return totalItems
+	return totalItems, nil
 }
 
 func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterClient *filterclient.Client) {
@@ -340,30 +301,37 @@ func scrapeDateRange(ctx context.Context, startDate, endDate time.Time, filterCl
 				continue
 			}
 
-			processDocumentsWithFilter(ctx, provider, ids, filterClient)
+			if _, err := processDocumentsWithFilter(ctx, provider, ids, filterClient); err != nil {
+				log.Printf("Abortando el scraping global: %v", err)
+				return
+			}
 		}
-		
+
 		log.Printf("=== Scraping de la fuente %s completado ===", provider.Name())
 	}
 
 	log.Println("Proceso global de scraping completado exitosamente.")
 }
 
-func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinProvider, ids []string, filterClient *filterclient.Client) int {
+func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinProvider, ids []string, filterClient *filterclient.Client) (int, error) {
 	meter := otel.Meter("go-scraper")
-	docCounter, _ := meter.Int64Counter("docs_processed", 
+	docCounter, _ := meter.Int64Counter("docs_processed",
 		metric.WithDescription("Number of documents processed"),
 	)
-	errCounter, _ := meter.Int64Counter("docs_errors", 
+	errCounter, _ := meter.Int64Counter("docs_errors",
 		metric.WithDescription("Number of documents failed to process"),
 	)
 
-	var rules []*pb.FilterRule
-	if filterClient != nil {
-		fetchedRules, err := filterClient.GetFilters(ctx)
-		if err == nil {
-			rules = fetchedRules
-		}
+	// Fail closed: without the filter rules we cannot know what to discard, and "no rules"
+	// would mean downloading everything. Abort instead of guessing.
+	if filterClient == nil {
+		return 0, errors.New("filter service client is not available; aborting scrape")
+	}
+	rulesCtx, cancelRules := context.WithTimeout(ctx, 30*time.Second)
+	rules, err := filterClient.GetFilters(rulesCtx)
+	cancelRules()
+	if err != nil {
+		return 0, fmt.Errorf("loading filter rules: %w", err)
 	}
 
 	log.Printf("Encontrados %d documentos en el sumario.\n", len(ids))
@@ -434,12 +402,14 @@ func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinPro
 				if errPub != nil {
 					pubSpan.RecordError(errPub)
 					pubSpan.SetStatus(codes.Error, errPub.Error())
+					errCounter.Add(spanCtx, 1)
+					log.Printf("Error encolando %s en RabbitMQ: %v", docID, errPub)
 				}
 				pubSpan.End()
 			}
 		}(id)
 	}
-	
+
 	wg.Wait()
-	return itemsExtracted
+	return itemsExtracted, nil
 }

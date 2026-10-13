@@ -1,22 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestDependencies } from '../../../testing/test-providers';
+import { ConfiguracionComponent } from './configuracion';
 
-import { Configuracion } from './configuracion';
-
-describe('Configuracion', () => {
-  let component: Configuracion;
-  let fixture: ComponentFixture<Configuracion>;
+describe('ConfiguracionComponent', () => {
+  let fixture: ComponentFixture<ConfiguracionComponent>;
 
   beforeEach(async () => {
+    localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [Configuracion],
+      imports: [ConfiguracionComponent],
+      providers: provideTestDependencies(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Configuracion);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture = TestBed.createComponent(ConfiguracionComponent);
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

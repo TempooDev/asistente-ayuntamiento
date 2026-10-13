@@ -9,11 +9,6 @@ export interface UserProfileDto {
   phoneNumber: string;
 }
 
-export const ROLES = {
-  ADMIN: 'administrador',
-  FUNCIONARIO: 'Funcionario',
-};
-
 @Injectable({
   providedIn: 'root'
 })

@@ -1,11 +1,19 @@
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using AsistenteAyuntamiento.Application.Common.Notifications;
+using AsistenteAyuntamiento.Application.Common.Background;
+using AsistenteAyuntamiento.Infrastructure.Background;
+using AsistenteAyuntamiento.Infrastructure.Messaging;
+using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Amazon.S3;
 using Amazon.Runtime;
-using System.Security.Cryptography.X509Certificates;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Infrastructure.Ai;
 using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 
@@ -17,23 +25,67 @@ public static class DependencyInjection
     {
         builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
+        // Hosts with a real transport (SignalR in ApiService, RabbitMQ in Worker) register their own.
+        builder.Services.TryAddSingleton<INotificationService, NullNotificationService>();
+
+        // Tracked background work (replaces fire-and-forget Task.Run); items carry their tenant.
+        builder.Services.AddSingleton<BackgroundWorkQueue>();
+        builder.Services.AddSingleton<IBackgroundWorkQueue>(sp => sp.GetRequiredService<BackgroundWorkQueue>());
+        builder.Services.AddHostedService<BackgroundWorkProcessor>();
+
         // Blob Storage
         var blobEndpoint = builder.Configuration["Blob:Endpoint"];
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
-            var accessKeyId = builder.Configuration["Blob:AccessKeyId"] ?? "admin";
-            var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"] ?? "password123";
+            var accessKeyId = builder.Configuration["Blob:AccessKeyId"];
+            var secretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
+            if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey))
+            {
+                throw new InvalidOperationException("Blob:Endpoint is configured but Blob:AccessKeyId or Blob:SecretAccessKey is missing.");
+            }
+
             var s3Config = new AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
             var credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
             builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(credentials, s3Config));
         }
 
 
+        if (builder.Environment.IsProduction())
+        {
+            var qdrantConnection = builder.Configuration.GetConnectionString("qdrant") ?? string.Empty;
+            var hasApiKey = qdrantConnection.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Any(part => part.StartsWith("Key=", StringComparison.OrdinalIgnoreCase) && part.Length > "Key=".Length);
+            if (!hasApiKey)
+            {
+                throw new InvalidOperationException("ConnectionStrings:qdrant must include an API key (Key=...) in Production.");
+            }
+        }
+
         builder.AddQdrantClient("qdrant");
         builder.Services.AddQdrantVectorStore();
+        builder.Services.AddSingleton<IVectorCollections, QdrantVectorCollections>();
 
+        AddMessaging(builder);
         AddSemanticKernelServices(builder);
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Durable ingestion publishing and consumer health. Consumers themselves are registered by the
+    /// hosts that run them (<see cref="AddIngestionConsumer{TConsumer}"/>).
+    /// </summary>
+    private static void AddMessaging(IHostApplicationBuilder builder)
+    {
+        builder.Services.AddSingleton<IIngestionQueuePublisher, RabbitMqIngestionPublisher>();
+        builder.Services.AddSingleton<RabbitMqConsumerHealth>();
+        builder.Services.AddHealthChecks().AddCheck<RabbitMqConsumerHealth>("rabbitmq-consumers");
+    }
+
+    public static IHostApplicationBuilder AddIngestionConsumer<TConsumer>(this IHostApplicationBuilder builder)
+        where TConsumer : class, IHostedService
+    {
+        builder.Services.AddHostedService<TConsumer>();
         return builder;
     }
 
@@ -54,12 +106,18 @@ public static class DependencyInjection
         var chatModel = builder.Configuration["Ai:Chat:Model"] ?? "llama3.2";
         var chatApiKey = builder.Configuration["Ai:Chat:ApiKey"] ?? "";
 
+        var allowInsecureTls = AllowInsecureTls(builder);
+
+        // Per-tenant chat clients (and the platform fallback) are built over this pooled client.
+        builder.Services.AddHttpClient(ChatModelFactory.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => CreateLlmHandler(allowInsecureTls));
+        builder.Services.AddSingleton<IChatModelFactory, ChatModelFactory>();
+
         var kernelBuilder = builder.Services.AddKernel();
 
         if (chatProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
         {
-            var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
-            if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+            var handler = CreateLlmHandler(allowInsecureTls);
             kernelBuilder.AddGoogleAIGeminiChatCompletion(chatModel, chatApiKey, httpClient: new HttpClient(handler));
         }
         else if (chatProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || chatProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -87,8 +145,7 @@ public static class DependencyInjection
 
         if (embProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
         {
-            var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
-            if (builder.Environment.IsDevelopment()) handler.SslOptions.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+            var handler = CreateLlmHandler(allowInsecureTls);
             kernelBuilder.AddGoogleAIEmbeddingGenerator(embModel, embApiKey, httpClient: new HttpClient(handler));
         }
         else if (embProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || embProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -119,17 +176,17 @@ public static class DependencyInjection
         var ingestionProvider = builder.Configuration["Ai:Ingestion:Provider"] ?? chatProvider;
         var ingestionModel = builder.Configuration["Ai:Ingestion:Model"] ?? chatModel;
         var ingestionApiKey = builder.Configuration["Ai:Ingestion:ApiKey"] ?? chatApiKey;
-        
+
         builder.Services.AddHttpClient("IngestionClient");
 
         builder.Services.AddKeyedTransient<Kernel>("IngestionKernel", (sp, key) =>
         {
             var kBuilder = Kernel.CreateBuilder();
             var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            
+
             if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
             {
-                var handler = new SocketsHttpHandler { SslOptions = new System.Net.Security.SslClientAuthenticationOptions { CertificateRevocationCheckMode = X509RevocationMode.NoCheck } };
+                var handler = CreateLlmHandler(allowInsecureTls);
                 kBuilder.AddGoogleAIGeminiChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient(handler));
             }
             else if (ingestionProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
@@ -154,5 +211,32 @@ public static class DependencyInjection
 
             return kBuilder.Build();
         });
+    }
+
+    /// <summary>
+    /// <c>Ai:Http:AllowInsecureTls</c> disables certificate validation for LLM calls. It is only honoured in
+    /// Development (e.g. behind a TLS-intercepting proxy) and refuses to start anywhere else.
+    /// </summary>
+    private static bool AllowInsecureTls(IHostApplicationBuilder builder)
+    {
+        var allow = builder.Configuration.GetValue("Ai:Http:AllowInsecureTls", false);
+        if (allow && !builder.Environment.IsDevelopment())
+        {
+            throw new InvalidOperationException("Ai:Http:AllowInsecureTls can only be enabled in Development.");
+        }
+        return allow;
+    }
+
+    private static SocketsHttpHandler CreateLlmHandler(bool allowInsecureTls)
+    {
+        var handler = new SocketsHttpHandler();
+        if (allowInsecureTls)
+        {
+            // Only reachable in Development (guarded by AllowInsecureTls above).
+#pragma warning disable CA5359
+            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+#pragma warning restore CA5359
+        }
+        return handler;
     }
 }

@@ -1,9 +1,11 @@
+using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
 using AsistenteAyuntamiento.Application.Features.Scraper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using AsistenteAyuntamiento.ApiService.Protos;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
+using AsistenteAyuntamiento.ApiService.Security;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 
@@ -11,21 +13,13 @@ public static class ScraperFilterEndpoints
 {
     public static void MapScraperFilterEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization();
+        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization(Policies.Admin);
 
-        // 1. Get all active rules
+        // 1. Get all rules. Errors propagate as 500 (never an empty list that looks like "no filters").
         group.MapGet("/", async (IScraperFilterService service) =>
         {
-            try 
-            {
-                var rules = await service.GetAllRulesAsync();
-                return Results.Ok(rules);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching filter rules: {ex.Message}");
-                return Results.Ok(new List<AsistenteAyuntamiento.Domain.Features.Scraper.ScraperFilterRule>());
-            }
+            var rules = await service.GetAllRulesAsync();
+            return Results.Ok(rules);
         });
 
         // 2. Get rule by id
@@ -63,19 +57,20 @@ public static class ScraperFilterEndpoints
             return Results.NoContent();
         });
 
-        // 6. Force scrape (manual trigger)
+        // 6. Force scrape (manual trigger). The gRPC call can take minutes, so it runs as tracked background work.
         group.MapPost("/trigger", async (
             [FromBody] TriggerScrapeDto dto,
-            ScraperCommandService.ScraperCommandServiceClient client,
             ScraperStateService stateService,
+            IBackgroundWorkQueue workQueue,
             IHubContext<NotificationHub> hubContext) =>
         {
-            if (stateService.IsScraping)
+            var message = $"Extrayendo {dto.Provider}...";
+            if (!stateService.TryStart(message))
             {
-                return Results.BadRequest("El scraper ya está en ejecución.");
+                return Results.Conflict(new { message = "El scraper ya está en ejecución." });
             }
 
-            var req = new ForceScrapeRequest
+            var request = new ForceScrapeRequest
             {
                 Provider = dto.Provider,
                 StartDate = dto.StartDate ?? "",
@@ -84,33 +79,22 @@ public static class ScraperFilterEndpoints
 
             if (dto.Sections != null && dto.Sections.Any())
             {
-                req.Sections.AddRange(dto.Sections);
+                request.Sections.AddRange(dto.Sections);
             }
 
-            stateService.IsScraping = true;
-            stateService.ScrapeMessage = $"Extrayendo {dto.Provider}...";
-            
-            // Broadcast start
-            await hubContext.Clients.All.SendAsync("ScraperStateChanged", new { isScraping = true, message = stateService.ScrapeMessage });
+            var queued = workQueue.TryEnqueue(BackgroundWorkItem.PlatformWide("force-scrape", (services, cancellationToken) =>
+                RunForceScrapeAsync(request, services, cancellationToken)));
 
-            // Run in background so we don't block the HTTP response or timeout
-            _ = Task.Run(async () =>
+            if (!queued)
             {
-                try
-                {
-                    await client.ForceScrapeAsync(req);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error en scrape background: {ex.Message}");
-                }
-                finally
-                {
-                    stateService.IsScraping = false;
-                    stateService.ScrapeMessage = "";
-                    await hubContext.Clients.All.SendAsync("ScraperStateChanged", new { isScraping = false, message = "" });
-                }
-            });
+                stateService.Finish();
+                return Results.Problem(
+                    detail: "La cola de trabajos en segundo plano está llena. Inténtalo más tarde.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            await hubContext.Clients.Group(NotificationGroups.Admins)
+                .SendAsync("ScraperStateChanged", new ScraperStateNotification(true, message));
 
             return Results.Accepted();
         });
@@ -118,7 +102,30 @@ public static class ScraperFilterEndpoints
         // 7. Get current state
         group.MapGet("/state", (ScraperStateService stateService) =>
         {
-            return Results.Ok(new { isScraping = stateService.IsScraping, message = stateService.ScrapeMessage });
+            return Results.Ok(new ScraperStateNotification(stateService.IsScraping, stateService.ScrapeMessage));
         });
+    }
+
+    private static async Task RunForceScrapeAsync(ForceScrapeRequest request, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var client = services.GetRequiredService<ScraperCommandService.ScraperCommandServiceClient>();
+        var stateService = services.GetRequiredService<ScraperStateService>();
+        var hubContext = services.GetRequiredService<IHubContext<NotificationHub>>();
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ScraperFilterEndpoints));
+
+        try
+        {
+            await client.ForceScrapeAsync(request, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Manual scrape of {Provider} failed", request.Provider);
+        }
+        finally
+        {
+            stateService.Finish();
+            await hubContext.Clients.Group(NotificationGroups.Admins)
+                .SendAsync("ScraperStateChanged", new ScraperStateNotification(false, string.Empty), CancellationToken.None);
+        }
     }
 }

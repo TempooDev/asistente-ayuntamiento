@@ -26,8 +26,11 @@ using AsistenteAyuntamiento.ApiService.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Config;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
+using AsistenteAyuntamiento.ApiService.Security;
 
 var builder = WebApplication.CreateBuilder(args);
+
+RequiredConfiguration.Validate(builder.Configuration, builder.Environment);
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -36,8 +39,7 @@ builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddSingleton<CurrentTenantService>();
-builder.Services.AddSingleton<ICurrentTenantService>(sp => sp.GetRequiredService<CurrentTenantService>());
+builder.Services.AddSingleton<ICurrentTenantService, CurrentTenantService>();
 builder.Services.AddSingleton<IAiMetricsService, AiMetricsService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IAiChatService, AiChatService>();
@@ -73,14 +75,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             RoleClaimType = $"{builder.Configuration["Auth0:CustomClaimsNamespace"]}/roles"
         };
 
-        // SignalR sends the access token in the query string for WebSockets
+        // SignalR sends the access token in the query string for WebSockets/SSE (every hub under /hubs)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
                 {
                     context.Token = accessToken;
                 }
@@ -89,11 +91,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAppAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, SignalRNotificationService>();
 builder.Services.AddHostedService<RabbitMqNotificationConsumer>();
 builder.Services.AddGrpc();
+builder.Services.AddSingleton<InternalApiKeyInterceptor>();
+builder.Services.AddGrpc().AddServiceOptions<FilterConfigServiceImpl>(options =>
+    options.Interceptors.Add<InternalApiKeyInterceptor>());
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
     var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
@@ -110,7 +115,7 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 builder.AddInfrastructureServices();
 builder.AddRabbitMQClient("messaging");
 
-builder.Services.AddSingleton<IChunkingStrategy>(sp => 
+builder.Services.AddSingleton<IChunkingStrategy>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
@@ -157,8 +162,11 @@ if (app.Environment.IsDevelopment())
 // Apply database migrations and ensure S3 bucket on startup
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
-    dbContext.Database.Migrate();
+    if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        dbContext.Database.Migrate();
+    }
 
     var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();
     if (s3Client != null)
@@ -191,21 +199,24 @@ using (var scope = app.Services.CreateScope())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<TenantRequiredMiddleware>();
 
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.MapGrpcService<FilterConfigServiceImpl>();
 
-UserEndpoints.MapUserEndpoints(app);
-AiConfigEndpoints.MapAiConfigEndpoints(app);
-ConfigEndpoints.MapConfigEndpoints(app);
-IngestionEndpoints.MapIngestionEndpoints(app);
-ScraperFilterEndpoints.MapScraperFilterEndpoints(app);
-ArenaEndpoints.MapArenaEndpoints(app);
+app.MapUserEndpoints();
+app.MapAiConfigEndpoints();
+app.MapConfigEndpoints();
+app.MapIngestionEndpoints();
+app.MapScraperFilterEndpoints();
+app.MapArenaEndpoints();
 app.MapAiMetricsEndpoints();
 
 app.MapDefaultEndpoints();
 
-
 app.Run();
+
+// Exposed for WebApplicationFactory-based integration tests.
+public partial class Program;

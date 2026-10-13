@@ -9,7 +9,7 @@ namespace AsistenteAyuntamiento.Application.Features.AiConfig;
 
 public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration) : IAiConfigurationService
 {
-                private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
+    private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {
@@ -125,7 +125,8 @@ public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantServi
 
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto)
     {
-        var tenantId = tenantService.TenantId;
+        var tenantId = tenantService.TenantId
+            ?? throw new InvalidOperationException("A tenant is required to save the AI configuration.");
         var config = await dbContext.AiConfigurations.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.TenantId == tenantId);
 
         if (config == null)

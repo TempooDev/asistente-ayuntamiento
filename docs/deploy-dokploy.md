@@ -45,6 +45,31 @@ Asegúrate de reemplazar las siguientes palabras clave antes de desplegar:
 - Credenciales como `SECRETO_RABBIT` o `SECRETO_MINIO123!` por contraseñas seguras.
 - Las variables de Auth0 y Gemini (`${GEMINI_API_KEY}`). En Dokploy puedes añadir estas variables directamente en la pestaña **Environment** de tu aplicación Compose.
 
+> **Variables obligatorias (desde la fase 1 de `audit-remediation-2026-10`).** El `docker-compose.yml` del repositorio usa `${VAR:?}`, así que el despliegue falla si falta alguna. Ya no hay valores por defecto.
+> - `RABBITMQ_PASS`: contraseña de RabbitMQ.
+> - `QDRANT_API_KEY`: API key de Qdrant. La API y los workers no arrancan en Production sin ella.
+> - `INTERNAL_GRPC_KEY`: clave compartida entre el scraper Go y el gRPC interno de la API. Por ejemplo, `openssl rand -hex 32`.
+> - `CLOUDFLARE_R2_*`: endpoint, credenciales y bucket. La API valida al arrancar que estén definidas.
+>
+> Además, las APIs de administración exigen el rol `administrador` en Auth0, y los usuarios deben pertenecer a una Organization: sin `org_id` reciben 403.
+>
+> El ejemplo de esta página es anterior y todavía usa valores por defecto (`CLAVE_QDRANT`, `SECRETO_RABBIT`). Toma como referencia el `docker-compose.yml` del repositorio.
+
+### Despliegue de la nueva topología de RabbitMQ (fase 3 de `audit-remediation-2026-10`)
+
+Las colas `documents_to_process_baseline` y `documents_to_process_hierarchical` pasan a declararse con argumentos de dead-letter, y se añaden las colas `.retry` y `.dlq` (ver `docs/messaging-contract.md`). RabbitMQ no permite cambiar los argumentos de una cola que ya existe: si se despliega sin recrearlas, los servicios fallan con `PRECONDITION_FAILED`. Hay que hacerlo **una sola vez**, en este orden:
+
+1. **Parar la producción de mensajes:** detén el contenedor `go-scraper` y no lances encolados ni reprocesados desde la pantalla de Documentos.
+2. **Vaciar las colas:** deja que los workers terminen y comprueba en la consola de RabbitMQ (pestaña *Queues*) que `Ready` y `Unacked` están a 0 en las dos colas. Si hay mensajes que no te importa perder, puedes purgarlas.
+3. **Borrar las colas antiguas** (desde la consola, o con `rabbitmqadmin delete queue name=...`):
+   - `documents_to_process_baseline`
+   - `documents_to_process_hierarchical`
+4. **Desplegar a la vez** las nuevas imágenes de `apiservice`, `worker-baseline`, `worker-hierarchical` y `go-scraper`. El primero que arranque declara la topología nueva, y los demás la declaran con los mismos argumentos.
+5. **Comprobar** que existen `Q`, `Q.retry` y `Q.dlq` para las dos colas, y lanzar un encolado de prueba desde Documentos.
+6. **Vigilar las colas `.dlq`:** contienen los documentos que agotaron los reintentos. Para reintentarlos, usa la acción *Move messages* de la consola hacia la cola original, o vuelve a encolarlos desde Documentos.
+
+Si hay que volver atrás: despliega las imágenes anteriores después de borrar las colas otra vez. Las versiones anteriores las declaran sin argumentos.
+
 ```yaml
 services:
   qdrant:

@@ -1,22 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestDependencies } from '../../../testing/test-providers';
+import { CallbackComponent } from './callback';
 
-import { Callback } from './callback';
-
-describe('Callback', () => {
-  let component: Callback;
-  let fixture: ComponentFixture<Callback>;
+describe('CallbackComponent', () => {
+  let fixture: ComponentFixture<CallbackComponent>;
 
   beforeEach(async () => {
+    localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [Callback],
+      imports: [CallbackComponent],
+      providers: provideTestDependencies(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Callback);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture = TestBed.createComponent(CallbackComponent);
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
