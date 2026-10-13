@@ -56,7 +56,7 @@ Policies SHALL be applied at route-group level where a prefix belongs to a singl
 - **THEN** the enumeration test SHALL NOT check it, and the developer SHALL set its policy explicitly
 
 ### Requirement: Internal gRPC Service Protection
-The ApiService `FilterConfigService` SHALL only accept calls that present the configured `Internal:GrpcApiKey` in the `x-internal-key` metadata header, compared in constant time, and SHALL NOT be routed through the public gateway (the gateway only proxies `/api`, `/openapi` and `/hubs`). The ApiService SHALL send the same key on its calls to the Go scraper's `ScraperCommandService`, which SHALL require it when `INTERNAL_GRPC_KEY` is set.
+The ApiService `FilterConfigService` SHALL only accept calls that present the configured `Internal:GrpcApiKey` in the `x-internal-key` metadata header, compared in constant time, and SHALL NOT be routed through the public gateway (the gateway only proxies `/api`, `/openapi` and `/hubs`). The ApiService SHALL send the same key on its calls to the Go scraper's `ScraperCommandService`, which SHALL require it.
 
 #### Scenario: Go scraper requests filters with a valid key
 - **WHEN** the Go scraper calls `GetActiveFilters` with the correct `x-internal-key`
@@ -109,7 +109,7 @@ The ApiService SHALL validate configuration at startup (`RequiredConfiguration.V
 - in every environment: `Auth0:Domain`, `Auth0:Audience`;
 - in Production only: `Auth0:CustomClaimsNamespace`, `Blob:Endpoint`, `Blob:AccessKeyId`, `Blob:SecretAccessKey`, `Internal:GrpcApiKey`.
 
-The shared Infrastructure registration (ApiService and Worker) SHALL also fail when `Blob:Endpoint` is set without its access keys, and, in Production only, when `ConnectionStrings:qdrant` has no `Key=`. In `docker-compose.yml`, `QDRANT_API_KEY`, `RABBITMQ_PASS` and `INTERNAL_GRPC_KEY` SHALL be mandatory (`${VAR:?}`), and `.env.example` SHALL contain no secret values. The Go scraper SHALL only log a warning when `INTERNAL_GRPC_KEY` is missing.
+The shared Infrastructure registration (ApiService and Worker) SHALL also fail when `Blob:Endpoint` is set without its access keys, and, in Production only, when `ConnectionStrings:qdrant` has no `Key=`. In `docker-compose.yml`, `QDRANT_API_KEY`, `RABBITMQ_PASS` and `INTERNAL_GRPC_KEY` SHALL be mandatory (`${VAR:?}`), and `.env.example` SHALL contain no secret values. The Go scraper SHALL refuse to start when `INTERNAL_GRPC_KEY` is missing.
 
 #### Scenario: Missing blob credentials in production
 - **GIVEN** `ASPNETCORE_ENVIRONMENT=Production` and an empty `Blob:SecretAccessKey`

@@ -14,6 +14,7 @@ func validEnv() map[string]string {
 		"Blob__Endpoint":        "http://minio:9000",
 		"Blob__AccessKeyId":     "id",
 		"Blob__SecretAccessKey": "secret",
+		"INTERNAL_GRPC_KEY":     "0123456789abcdef0123456789abcdef",
 	}
 }
 
@@ -52,7 +53,7 @@ func TestAllProblemsAreReportedTogether(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected errors")
 	}
-	for _, want := range []string{"PORT", "SCRAPE_SCHEDULE_HOUR", "DOTNET_API_GRPC_URL", "LOG_LEVEL", "Blob__Endpoint"} {
+	for _, want := range []string{"PORT", "SCRAPE_SCHEDULE_HOUR", "DOTNET_API_GRPC_URL", "LOG_LEVEL", "Blob__Endpoint", "INTERNAL_GRPC_KEY"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error does not mention %s: %v", want, err)
 		}
@@ -65,5 +66,15 @@ func TestBlobCredentialsAreRequiredWithAnEndpoint(t *testing.T) {
 
 	if _, err := Load(env(values)); err == nil || !strings.Contains(err.Error(), "Blob__SecretAccessKey") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTheInternalKeyIsRequired(t *testing.T) {
+	for _, key := range []string{"", "   ", "short"} {
+		values := validEnv()
+		values["INTERNAL_GRPC_KEY"] = key
+		if _, err := Load(env(values)); err == nil || !strings.Contains(err.Error(), "INTERNAL_GRPC_KEY") {
+			t.Fatalf("key %q: err = %v", key, err)
+		}
 	}
 }

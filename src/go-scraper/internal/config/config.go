@@ -46,6 +46,9 @@ type BlobConfig struct {
 
 const DefaultBucket = "boletines"
 
+// MinInternalKeyLength is the shortest accepted INTERNAL_GRPC_KEY (AppHost generates 32 characters).
+const MinInternalKeyLength = 16
+
 // Load reads the configuration through getenv (os.Getenv in production) and returns every problem at once.
 func Load(getenv func(string) string) (Config, error) {
 	var problems []error
@@ -94,6 +97,10 @@ func Load(getenv func(string) string) (Config, error) {
 		},
 	}
 
+	// AppHost generates the key and compose requires it: without it anyone on the network could start scrapes.
+	if len(cfg.InternalKey) < MinInternalKeyLength {
+		problems = append(problems, fmt.Errorf("INTERNAL_GRPC_KEY is required (at least %d characters)", MinInternalKeyLength))
+	}
 	if cfg.Blob.Endpoint == "" {
 		problems = append(problems, errors.New("Blob__Endpoint is required"))
 	} else if cfg.Blob.AccessKeyID == "" || cfg.Blob.SecretAccessKey == "" {

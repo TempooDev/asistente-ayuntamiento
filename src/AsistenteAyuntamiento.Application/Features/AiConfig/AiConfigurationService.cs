@@ -41,16 +41,33 @@ public class AiConfigurationService(
         return TryUnprotect(config?.EncryptedApiKey);
     }
 
+    /// <summary>
+    /// The tenant's settings with its own key, or the platform's provider, model, endpoint and key together. The
+    /// platform key is never paired with a tenant-chosen provider or endpoint, so an organization administrator
+    /// cannot point it at a server of their own. Ollama needs no key (and always uses the platform's Ollama).
+    /// </summary>
     public async Task<(AiConfigurationDto Config, string? DecryptedApiKey)> GetFullConfigurationAsync(string? explicitTenantId = null, CancellationToken cancellationToken = default)
     {
-        var config = await FindAsync(explicitTenantId ?? tenantService.TenantId, cancellationToken);
+        var tenantId = explicitTenantId ?? tenantService.TenantId;
+        var config = await FindAsync(tenantId, cancellationToken);
         if (config is null)
         {
             return (PlatformDefaults(), configuration["Ai:Chat:ApiKey"]);
         }
 
         var apiKey = TryUnprotect(config.EncryptedApiKey);
-        return (ToDto(config), string.IsNullOrEmpty(apiKey) ? configuration["Ai:Chat:ApiKey"] : apiKey);
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            return (ToDto(config), apiKey);
+        }
+
+        if (IsKeyless(config.Provider))
+        {
+            return (ToDto(config), null);
+        }
+
+        logger.LogWarning("Tenant {TenantId} chose provider {Provider} without a usable API key; using the platform model", tenantId, config.Provider);
+        return (PlatformDefaults(), configuration["Ai:Chat:ApiKey"]);
     }
 
     public async Task SaveConfigurationAsync(SaveAiConfigurationDto dto, CancellationToken cancellationToken = default)
@@ -81,6 +98,9 @@ public class AiConfigurationService(
 
     private Task<AiConfiguration?> FindAsync(string? tenantId, CancellationToken cancellationToken) =>
         dbContext.AiConfigurations.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.TenantId == tenantId, cancellationToken);
+
+    private static bool IsKeyless(string? provider) =>
+        string.IsNullOrEmpty(provider) || provider.Equals("ollama", StringComparison.OrdinalIgnoreCase);
 
     private AiConfigurationDto PlatformDefaults() => new()
     {

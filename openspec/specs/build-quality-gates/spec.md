@@ -25,7 +25,7 @@ The CI workflow (`.github/workflows/ci.yml`) SHALL run on pushes to `main`, `fea
 - **THEN** the `protos` job SHALL fail
 
 ### Requirement: Automatic Deployment Gated on CI with Commit Tags
-The deploy workflow (`.github/workflows/deploy.yml`) SHALL run automatically only through `workflow_run` after the CI workflow completes successfully for a push to `main`, and SHALL build the commit CI tested (`workflow_run.head_sha`). It SHALL build only the images whose sources changed in that commit, push them tagged `sha-<7-char short sha>` and `latest` to `ghcr.io/tempoodev/asistente-ayuntamiento-*` (the names referenced in `docker-compose.yml`), and then call the Dokploy webhook. A manual `workflow_dispatch` SHALL build the selected services from the chosen ref without requiring a CI run. `docker-compose.yml` SHALL reference the `:latest` tag of every application image.
+The deploy workflow (`.github/workflows/deploy.yml`) SHALL run automatically only through `workflow_run` after the CI workflow completes successfully for a push to `main`, and SHALL build the commit CI tested (`workflow_run.head_sha`). It SHALL build only the images whose sources changed in that commit, push them tagged `sha-<7-char short sha>` and `latest` to `ghcr.io/tempoodev/asistente-ayuntamiento-*` (the names referenced in `docker-compose.yml`), and then call the Dokploy webhook. A manual `workflow_dispatch` SHALL only run from `main` and only for a commit with a successful CI run on push; it then builds the selected services. `docker-compose.yml` SHALL reference the `:latest` tag of every application image.
 
 #### Scenario: CI fails
 - **WHEN** CI fails for a push of commit `abc1234` to `main`
@@ -38,7 +38,11 @@ The deploy workflow (`.github/workflows/deploy.yml`) SHALL run automatically onl
 
 #### Scenario: Manual run
 - **WHEN** an operator runs the workflow manually with `force_api`
-- **THEN** the ApiService image SHALL be built and deployed from the selected ref, whether or not CI ran for it
+- **THEN** the ApiService image SHALL be built and deployed only if the run is on `main` and CI succeeded on push for that commit
+
+#### Scenario: Manual run without a green CI
+- **WHEN** an operator runs the workflow manually from another branch, or for a `main` commit whose CI failed or is still running
+- **THEN** the workflow SHALL fail before building anything
 
 ### Requirement: Central Package Management and Warning Policy
 NuGet versions SHALL be defined once in `Directory.Packages.props` (`ManagePackageVersionsCentrally`, with transitive pinning). `Directory.Build.props` SHALL enable nullable reference types and `AnalysisLevel=latest-recommended`, and SHALL treat nullable warnings and known-vulnerability warnings (`NU1901`–`NU1904`) as errors. Other analyzer and `.editorconfig` diagnostics (naming, `CA2254`, `CA2016`) are warnings and SHALL NOT fail the build.

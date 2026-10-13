@@ -2,9 +2,9 @@
 
 ## 1. Security
 
-- [ ] 1.1 A tenant without its own API key (or whose key cannot be decrypted) uses the platform key `Ai:Chat:ApiKey` against the tenant's provider and `EndpointUrl`, so an organization admin can send the platform key to their own server (`AiConfigurationService.cs:49-53`). Without a tenant key, use the platform provider, model and endpoint too.
-- [ ] 1.2 The Go command service accepts unauthenticated calls when `INTERNAL_GRPC_KEY` is unset, in any environment (`commandserver/server.go:80-81`). Fail fast outside Development.
-- [ ] 1.3 A manual `workflow_dispatch` deploy builds and deploys any ref without a green CI (`deploy.yml:9,45`).
+- [x] 1.1 A tenant without its own API key (or whose key cannot be decrypted) uses the platform key `Ai:Chat:ApiKey` against the tenant's provider and `EndpointUrl`, so an organization admin can send the platform key to their own server (`AiConfigurationService.cs:49-53`). Without a tenant key, use the platform provider, model and endpoint too.
+- [x] 1.2 The Go command service accepts unauthenticated calls when `INTERNAL_GRPC_KEY` is unset, in any environment (`commandserver/server.go:80-81`). Fail fast outside Development.
+- [x] 1.3 A manual `workflow_dispatch` deploy builds and deploys any ref without a green CI (`deploy.yml:9,45`).
 
 ## 2. Correctness
 
