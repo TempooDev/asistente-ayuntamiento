@@ -71,7 +71,7 @@ Nothing is exported unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. In development,
 
 ## LLM telemetry
 
-Every chat model call, whether in the baseline, hierarchical, Arena or shadow path, records these metrics:
+Every LLM call records these metrics. That covers the chat (baseline, hierarchical, Arena, shadow) and the platform model calls: query expansion, fragment enrichment during ingestion, chat history analysis and the Arena comparison. All of them go through `ChatStreamingService`, the hierarchical generation or `MeteredChatCompletion`:
 
 | Metric | Type | Unit | Notes |
 |---|---|---|---|
@@ -83,7 +83,11 @@ Every chat model call, whether in the baseline, hierarchical, Arena or shadow pa
 
 - **Attributes:**
   - GenAI conventions: `gen_ai.operation.name=chat`, `gen_ai.provider.name` (`openai`, `gcp.gemini`, `openrouter`, `ollama`) and `gen_ai.request.model`.
-  - Ours: `app.tenant_id`, `app.pipeline` (`baseline`, `hierarchical`, `arena_alfa`, `arena_beta`, `shadow`) and `app.fallback`.
+  - Ours:
+    - `app.tenant_id`, with `platform` for ingestion, whose bulletins are shared;
+    - `app.pipeline`: `baseline`, `hierarchical`, `arena_alfa`, `arena_beta`, `shadow`, `ingestion` or `profile`;
+    - `app.llm.operation`: `answer`, `query_expansion`, `enrichment` or `history_analysis`;
+    - `app.fallback`.
   - User and session ids are never metric labels.
 - **Naming:** the names follow `open-telemetry/semantic-conventions-genai` as of October 2026; they are kept in `GenAiTelemetry`. That spec has no client time-to-first-token metric yet, hence `app.llm.time_to_first_token`.
 - **Legacy `ai.*` metrics:** the old metrics (`ai.calls.*`, `ai.tokens.*`, `ai.call.duration`) and the `/api/ai/metrics` snapshot remain for one release.
@@ -101,7 +105,7 @@ Every chat model call, whether in the baseline, hierarchical, Arena or shadow pa
 ### Dashboard
 
 Import `docs/grafana/llm-dashboard.json` in Grafana and choose the Mimir/Prometheus data source. It shows:
-- cost per tenant and model;
+- cost per tenant, model and operation;
 - tokens per pipeline;
 - p50/p95 latency and time to first token;
 - fallback rate;

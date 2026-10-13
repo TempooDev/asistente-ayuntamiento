@@ -11,4 +11,5 @@ public sealed record LlmCallMetrics(
     long InputTokens,
     long OutputTokens,
     TimeSpan? TimeToFirstToken = null,
-    string? ErrorType = null);
+    string? ErrorType = null,
+    string Operation = LlmOperations.Answer);

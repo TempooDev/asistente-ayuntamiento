@@ -47,6 +47,7 @@ public sealed class LlmUsageMetrics(IConfiguration configuration, ILogger<LlmUsa
             { GenAiTelemetry.Attributes.TenantId, call.TenantId },
             { GenAiTelemetry.Attributes.Pipeline, call.Pipeline },
             { GenAiTelemetry.Attributes.Fallback, call.Fallback },
+            { GenAiTelemetry.Attributes.Operation, call.Operation },
         };
 
         var durationTags = tags;

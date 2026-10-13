@@ -33,6 +33,7 @@ public static class GenAiTelemetry
         public const string TenantId = "app.tenant_id";
         public const string Pipeline = "app.pipeline";
         public const string Fallback = "app.fallback";
+        public const string Operation = "app.llm.operation";
     }
 
     public const string ChatOperation = "chat";

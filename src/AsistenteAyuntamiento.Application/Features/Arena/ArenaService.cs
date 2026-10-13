@@ -2,10 +2,12 @@ using AsistenteAyuntamiento.Application.Common.Prompts;
 using System.Diagnostics;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -23,9 +25,12 @@ public class ArenaService(
     IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
     IVectorStore vectorStore,
+    IConfiguration configuration,
+    ILlmUsageMetrics usageMetrics,
     ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly (string Provider, string Model) _model = PlatformModels.Chat(configuration);
     private readonly IVectorStore _vectorStore = vectorStore;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -35,7 +40,7 @@ public class ArenaService(
         var sessionId = Guid.NewGuid();
 
         // Start baseline pipeline in the current scope
-        var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
+        var baselineTask = RunBaselinePipelineAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Baseline), cancellationToken);
 
         // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
         var hierarchicalTask = RunHierarchicalInOwnScopeAsync();
@@ -48,7 +53,7 @@ public class ArenaService(
             var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
 
-            return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
+            return await RunHierarchicalPipelineScopedAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Hierarchical), scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
         }
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
@@ -125,7 +130,7 @@ public class ArenaService(
         };
     }
 
-    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunBaselinePipelineAsync(string query, CancellationToken cancellationToken)
+    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunBaselinePipelineAsync(string query, LlmCallScope llmScope, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -142,7 +147,7 @@ public class ArenaService(
             var contextText = string.Join("\n\n", sources);
             var prompt = string.Format(PromptCatalog.ArenaBaselineTemplate, query, contextText);
 
-            var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(prompt, _model, llmScope, usageMetrics, cancellationToken);
             sw.Stop();
 
             int estimatedTokens = (prompt.Length + (result.Content?.Length ?? 0)) / 4;
@@ -158,6 +163,7 @@ public class ArenaService(
 
     private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineScopedAsync(
         string query,
+        LlmCallScope llmScope,
         IQueryExpansionService scopedExpansion,
         IHybridRetrievalService scopedRetrieval,
         IClearLanguageGenerationService scopedGeneration,
@@ -166,10 +172,10 @@ public class ArenaService(
         var sw = Stopwatch.StartNew();
         try
         {
-            var expandedQuery = await scopedExpansion.ExpandQueryAsync(query, cancellationToken);
+            var expandedQuery = await scopedExpansion.ExpandQueryAsync(query, llmScope, cancellationToken);
             var retrievalResults = await scopedRetrieval.RetrieveAsync(expandedQuery, 5, cancellationToken);
             var sources = retrievalResults.Select(r => r.ChunkText).ToArray();
-            var response = await scopedGeneration.GenerateResponseAsync(query, retrievalResults, cancellationToken);
+            var response = await scopedGeneration.GenerateResponseAsync(query, retrievalResults, llmScope, cancellationToken);
             sw.Stop();
 
             // Rough estimation for hierarchical (expanded query, retrieval, generation)
