@@ -12,7 +12,7 @@ public class TenantIsolationTests
         "src/AsistenteAyuntamiento.Application/Features/Arena/ArenaAnalyticsService.cs",
         "src/AsistenteAyuntamiento.Application/Features/Chat/WinningPipelineSelector.cs",
         "src/AsistenteAyuntamiento.Application/Features/Users/UserPreferenceService.cs",
-        "src/AsistenteAyuntamiento.ApiService/Features/Users/UserEndpoints.cs",
+        "src/AsistenteAyuntamiento.Application/Features/Users/UserProfileService.cs",
     ];
 
     [Fact]

@@ -118,7 +118,13 @@ public class ArenaService(
         return new ArenaVoteResponse
         {
             AlfaSystem = battle.LeftSystem.ToString(),
-            BetaSystem = battle.RightSystem.ToString()
+            BetaSystem = battle.RightSystem.ToString(),
+            WinningResponse = w switch
+            {
+                BattleWinner.Alfa => battle.LeftResponse,
+                BattleWinner.Beta => battle.RightResponse,
+                _ => null
+            }
         };
     }
 

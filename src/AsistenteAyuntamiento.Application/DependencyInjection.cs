@@ -58,9 +58,11 @@ public static class DependencyInjection
         services.AddScoped<IArenaService, ArenaService>();
         services.AddScoped<IArenaAnalyticsService, ArenaAnalyticsService>();
         services.AddScoped<IReadabilityService, ReadabilityService>();
+        services.AddScoped<IAiMetricsQueryService, AiMetricsQueryService>();
 
         // Users and scraper administration
         services.AddScoped<IUserPreferenceService, UserPreferenceService>();
+        services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IHistoryAnalyzerService, HistoryAnalyzerService>();
         services.AddSingleton<ScraperStateService>();
         services.AddScoped<IScraperFilterService, ScraperFilterService>();
