@@ -26,5 +26,6 @@ public interface IAppDbContext
     DbSet<IngestionMetric> IngestionMetrics { get; set; }
     
     DatabaseFacade Database { get; }
+    Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

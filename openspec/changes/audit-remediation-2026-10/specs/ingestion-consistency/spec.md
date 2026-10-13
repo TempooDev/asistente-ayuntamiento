@@ -23,7 +23,7 @@ Ingestion SHALL commit the relational changes before writing vectors. If the vec
 - **THEN** no new vectors for that document SHALL have been written to Qdrant
 
 ### Requirement: State Saved Before Publish in Bulk Operations
-Bulk enqueue and reprocess operations SHALL persist the `Queued` job states before publishing messages. They SHALL revert to `Pending` the documents whose publish failed, and SHALL emit one aggregated notification per batch.
+Bulk enqueue and reprocess operations SHALL persist the `Queued` job states before publishing messages. They SHALL revert to `Pending` the documents whose publish failed, and SHALL emit status notifications only after the final state is persisted.
 
 #### Scenario: Partial publish failure
 - **WHEN** 100 documents are enqueued and publishing fails for 10 of them

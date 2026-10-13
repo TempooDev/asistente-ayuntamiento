@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
-using System.Text.Json;
+using AsistenteAyuntamiento.Application.Common.Messaging;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -18,7 +18,8 @@ public class IngestionAdminService : IIngestionAdminService
     private readonly IConfiguration _config;
     private readonly IAppDbContext _dbContext;
     private readonly IMemoryCache _cache;
-    private readonly IConnectionFactory _connectionFactory;
+    private readonly IIngestionQueuePublisher _publisher;
+    private readonly IVectorCollections _vectorCollections;
     private readonly INotificationService _notificationService;
     private readonly ILogger<IngestionAdminService> _logger;
     private readonly string _bucketName;
@@ -29,7 +30,8 @@ public class IngestionAdminService : IIngestionAdminService
         IConfiguration config,
         IAppDbContext dbContext,
         IMemoryCache cache,
-        IConnectionFactory connectionFactory,
+        IIngestionQueuePublisher publisher,
+        IVectorCollections vectorCollections,
         INotificationService notificationService,
         ILogger<IngestionAdminService> logger)
     {
@@ -37,7 +39,8 @@ public class IngestionAdminService : IIngestionAdminService
         _config = config;
         _dbContext = dbContext;
         _cache = cache;
-        _connectionFactory = connectionFactory;
+        _publisher = publisher;
+        _vectorCollections = vectorCollections;
         _notificationService = notificationService;
         _logger = logger;
         _bucketName = _config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
@@ -57,7 +60,7 @@ public class IngestionAdminService : IIngestionAdminService
                     var jobStates = await _dbContext.DocumentJobStates
                         .AsNoTracking()
                         .Select(j => new { j.DocumentId, j.Status })
-                        .ToDictionaryAsync(j => j.DocumentId, j => j.Status, cancellationToken);
+                        .ToDictionaryAsync(j => j.DocumentId, j => j.Status.ToString(), cancellationToken);
 
                     try
                     {
@@ -72,9 +75,9 @@ public class IngestionAdminService : IIngestionAdminService
                                 {
                                     if (s3Obj?.Key == null) continue;
                                     var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-                                    var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : "Pending";
+                                    var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : nameof(JobStatus.Pending);
 
-                                    allBlobs.Add(new BlobItemDto(s3Obj.Key, s3Obj.Size, s3Obj.LastModified, objStatus == "Completed", objStatus));
+                                    allBlobs.Add(new BlobItemDto(s3Obj.Key, s3Obj.Size, s3Obj.LastModified, objStatus == nameof(JobStatus.Completed), objStatus));
                                 }
                             }
                             request.ContinuationToken = response?.NextContinuationToken;
@@ -104,9 +107,9 @@ public class IngestionAdminService : IIngestionAdminService
 
         if (!string.IsNullOrEmpty(status) && status != "Todos")
         {
-            if (status == "Procesados") filteredBlobs = filteredBlobs.Where(b => b.Status == "Completed");
-            else if (status == "Pendientes") filteredBlobs = filteredBlobs.Where(b => b.Status == "Pending" || b.Status == "Failed");
-            else if (status == "Encolados") filteredBlobs = filteredBlobs.Where(b => b.Status == "Queued" || b.Status == "Processing");
+            if (status == "Procesados") filteredBlobs = filteredBlobs.Where(b => b.Status == nameof(JobStatus.Completed));
+            else if (status == "Pendientes") filteredBlobs = filteredBlobs.Where(b => b.Status is nameof(JobStatus.Pending) or nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed));
+            else if (status == "Encolados") filteredBlobs = filteredBlobs.Where(b => b.Status == nameof(JobStatus.Queued) || b.Status == nameof(JobStatus.Processing));
         }
 
         if (dateFrom.HasValue)
@@ -146,10 +149,10 @@ public class IngestionAdminService : IIngestionAdminService
             Stats = new BlobListStats
             {
                 Total = allBlobs.Count,
-                Pending = allBlobs.Count(b => b.Status == "Pending" || b.Status == "Failed"),
-                Queued = allBlobs.Count(b => b.Status == "Queued"),
-                Completed = allBlobs.Count(b => b.Status == "Completed"),
-                Processing = allBlobs.Count(b => b.Status == "Processing")
+                Pending = allBlobs.Count(b => b.Status is nameof(JobStatus.Pending) or nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed)),
+                Queued = allBlobs.Count(b => b.Status == nameof(JobStatus.Queued)),
+                Completed = allBlobs.Count(b => b.Status == nameof(JobStatus.Completed)),
+                Processing = allBlobs.Count(b => b.Status == nameof(JobStatus.Processing))
             }
         };
     }
@@ -159,13 +162,13 @@ public class IngestionAdminService : IIngestionAdminService
         var jobState = await _dbContext.DocumentJobStates.FindAsync(new object[] { documentId }, cancellationToken);
         if (jobState != null)
         {
-            jobState.Status = "Pending";
+            jobState.Status = JobStatus.Pending;
             jobState.LastUpdatedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
         else
         {
-            throw new Exception($"Documento {documentId} no encontrado.");
+            throw new KeyNotFoundException($"Documento {documentId} no encontrado.");
         }
     }
 
@@ -177,196 +180,170 @@ public class IngestionAdminService : IIngestionAdminService
             .AsNoTracking().ToListAsync(cancellationToken);
 
         var completedCount = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == "Processing" && processedDocIds.Contains(j.DocumentId))
+            .Where(j => j.Status == JobStatus.Processing && processedDocIds.Contains(j.DocumentId))
             .ExecuteUpdateAsync(s => s
-                .SetProperty(j => j.Status, "Completed")
+                .SetProperty(j => j.Status, JobStatus.Completed)
                 .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
 
         var pendingCount = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == "Processing" && !processedDocIds.Contains(j.DocumentId))
+            .Where(j => j.Status == JobStatus.Processing && !processedDocIds.Contains(j.DocumentId))
             .ExecuteUpdateAsync(s => s
-                .SetProperty(j => j.Status, "Pending")
+                .SetProperty(j => j.Status, JobStatus.Pending)
                 .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
 
         return (completedCount, pendingCount);
     }
 
+    /// <summary>
+    /// Removes the baseline pipeline data (chunks, job states) and its vector collection, which is
+    /// recreated on the next ingestion. Previously this truncated <c>identity."DocumentChunks"</c>,
+    /// a table that does not exist (the chunks live in the <c>ingestion</c> schema), so it always failed.
+    /// </summary>
     public async Task ResetIngestionAsync(CancellationToken cancellationToken = default)
     {
+        // TODO(audit-remediation 5.4): move the raw SQL behind an Infrastructure port.
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
             _dbContext.Database,
-            "TRUNCATE TABLE identity.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
+            "TRUNCATE TABLE ingestion.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
+
+        await _vectorCollections.DropAsync(VectorCollectionNames.DocumentChunks, cancellationToken);
+        _cache.Remove($"blobs_list_{_bucketName}");
     }
 
-    public async Task<int> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default)
+    public Task<EnqueueResult> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default)
     {
-        var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
-        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-        if (mode == "BASELINE" || mode == "BOTH")
-            await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
-        if (mode == "HIERARCHICAL" || mode == "BOTH")
-            await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
-
-        var docIds = requests
-            .Select(r => r.BlobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
-            .Where(id => !string.IsNullOrEmpty(id))
+        var documents = requests
+            .Select(r => ToMessage(r.BlobPath, r.Source))
+            .OfType<DocumentMessage>()
             .ToList();
 
-        var existingJobStates = await _dbContext.DocumentJobStates
-            .Where(j => docIds.Contains(j.DocumentId))
-            .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
-
-        int count = 0;
-        foreach (var req in requests)
-        {
-            var parts = req.BlobPath.Split('/');
-            var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-            if (string.IsNullOrEmpty(docId)) continue;
-
-            var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
-            if (req.BlobPath.StartsWith("json/") && parts.Length >= 3)
-            {
-                inferredSource = parts[1];
-            }
-
-            var message = new
-            {
-                source = !string.IsNullOrEmpty(req.Source) ? req.Source : inferredSource,
-                document_id = docId,
-                blob_path = req.BlobPath
-            };
-
-            var json = JsonSerializer.Serialize(message);
-            var body = System.Text.Encoding.UTF8.GetBytes(json);
-
-            if (mode == "BASELINE" || mode == "BOTH")
-            {
-                await channel.BasicPublishAsync(string.Empty, "documents_to_process_baseline", false, new RabbitMQ.Client.BasicProperties(), body);
-            }
-            if (mode == "HIERARCHICAL" || mode == "BOTH")
-            {
-                await channel.BasicPublishAsync(string.Empty, "documents_to_process_hierarchical", false, new RabbitMQ.Client.BasicProperties(), body);
-            }
-
-            if (existingJobStates.TryGetValue(docId, out var jobState))
-            {
-                jobState.Status = "Queued";
-                jobState.LastUpdatedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                _dbContext.DocumentJobStates.Add(new DocumentJobState
-                {
-                    DocumentId = docId,
-                    Status = "Queued",
-                    CreatedAt = DateTime.UtcNow,
-                    LastUpdatedAt = DateTime.UtcNow
-                });
-            }
-
-            await _notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
-            count++;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return count;
+        return EnqueueAsync(documents, IngestionPipelinesParser.Parse(pipelineMode), cancellationToken);
     }
 
-    public async Task<int> ReprocessAllAsync(string? pipelineMode, CancellationToken cancellationToken = default)
+    public async Task<EnqueueResult> ReprocessAllAsync(string? pipelineMode, CancellationToken cancellationToken = default)
     {
-        var mode = string.IsNullOrEmpty(pipelineMode) ? "BOTH" : pipelineMode.ToUpper();
-        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-        if (mode == "BASELINE" || mode == "BOTH")
-            await channel.QueueDeclareAsync("documents_to_process_baseline", durable: true, exclusive: false, autoDelete: false, arguments: null);
-        if (mode == "HIERARCHICAL" || mode == "BOTH")
-            await channel.QueueDeclareAsync("documents_to_process_hierarchical", durable: true, exclusive: false, autoDelete: false, arguments: null);
-
-        int count = 0;
+        var pipelines = IngestionPipelinesParser.Parse(pipelineMode);
+        var total = new EnqueueResult(0, 0);
         string? continuationToken = null;
 
         do
         {
-            var request = new ListObjectsV2Request
+            var response = await _s3Client.ListObjectsV2Async(new ListObjectsV2Request
             {
                 BucketName = _bucketName,
                 Prefix = "json/",
                 ContinuationToken = continuationToken
-            };
+            }, cancellationToken);
 
-            var response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
-
-            if (response?.S3Objects != null && response.S3Objects.Count > 0)
+            if (response?.S3Objects is { Count: > 0 } objects)
             {
-                var batchDocIds = response.S3Objects
-                    .Select(o => o.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "")
-                    .Where(id => !string.IsNullOrEmpty(id))
+                var documents = objects
+                    .Select(o => ToMessage(o.Key, source: null))
+                    .OfType<DocumentMessage>()
                     .ToList();
 
-                var existingJobStates = await _dbContext.DocumentJobStates
-                    .Where(j => batchDocIds.Contains(j.DocumentId))
-                    .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
-
-                foreach (var s3Obj in response.S3Objects)
-                {
-                    if (string.IsNullOrEmpty(s3Obj.Key)) continue;
-
-                    var parts = s3Obj.Key.Split('/');
-                    var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
-                    if (string.IsNullOrEmpty(docId)) continue;
-
-                    var inferredSource = parts.Length > 2 ? parts[parts.Length - 2] : (parts.Length == 2 ? parts[0] : "S3");
-                    if (s3Obj.Key.StartsWith("json/") && parts.Length >= 3)
-                    {
-                        inferredSource = parts[1];
-                    }
-
-                    var message = new
-                    {
-                        source = inferredSource,
-                        document_id = docId,
-                        blob_path = s3Obj.Key
-                    };
-
-                    var json = JsonSerializer.Serialize(message);
-                    var body = System.Text.Encoding.UTF8.GetBytes(json);
-
-                    if (mode == "BASELINE" || mode == "BOTH")
-                        await channel.BasicPublishAsync(string.Empty, "documents_to_process_baseline", false, new RabbitMQ.Client.BasicProperties(), body);
-                    if (mode == "HIERARCHICAL" || mode == "BOTH")
-                        await channel.BasicPublishAsync(string.Empty, "documents_to_process_hierarchical", false, new RabbitMQ.Client.BasicProperties(), body);
-
-                    if (existingJobStates.TryGetValue(docId, out var jobState))
-                    {
-                        jobState.Status = "Queued";
-                        jobState.LastUpdatedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _dbContext.DocumentJobStates.Add(new DocumentJobState
-                        {
-                            DocumentId = docId,
-                            Status = "Queued",
-                            CreatedAt = DateTime.UtcNow,
-                            LastUpdatedAt = DateTime.UtcNow
-                        });
-                    }
-
-                    await _notificationService.NotifyDocumentStatusChangedAsync(docId, "Queued");
-                    count++;
-                }
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                ((Microsoft.EntityFrameworkCore.DbContext)_dbContext).ChangeTracker.Clear();
+                var page = await EnqueueAsync(documents, pipelines, cancellationToken);
+                total = new EnqueueResult(total.Enqueued + page.Enqueued, total.Failed + page.Failed);
             }
 
             continuationToken = response?.NextContinuationToken;
-
         } while (!string.IsNullOrEmpty(continuationToken));
 
-        return count;
+        return total;
+    }
+
+    /// <summary>
+    /// Persists <see cref="JobStatus.Queued"/> first, then publishes (confirmed by the broker). Documents whose
+    /// publish fails go back to <see cref="JobStatus.Pending"/>, so the state never claims work that is not queued.
+    /// </summary>
+    private async Task<EnqueueResult> EnqueueAsync(IReadOnlyList<DocumentMessage> documents, IngestionPipelines pipelines, CancellationToken cancellationToken)
+    {
+        if (documents.Count == 0)
+        {
+            return new EnqueueResult(0, 0);
+        }
+
+        var docIds = documents.Select(d => d.DocumentId).Distinct().ToList();
+        var jobStates = await _dbContext.DocumentJobStates
+            .Where(j => docIds.Contains(j.DocumentId))
+            .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
+
+        foreach (var docId in docIds)
+        {
+            if (!jobStates.TryGetValue(docId, out var jobState))
+            {
+                jobState = new DocumentJobState { DocumentId = docId, CreatedAt = DateTime.UtcNow };
+                _dbContext.DocumentJobStates.Add(jobState);
+                jobStates[docId] = jobState;
+            }
+
+            jobState.Status = JobStatus.Queued;
+            jobState.ErrorMessage = null;
+            jobState.LastUpdatedAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var failed = new List<string>();
+        foreach (var document in documents)
+        {
+            try
+            {
+                await _publisher.PublishAsync(document, pipelines, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Publish failed for document {DocumentId}; reverting it to Pending", document.DocumentId);
+                failed.Add(document.DocumentId);
+            }
+        }
+
+        foreach (var docId in failed.Distinct())
+        {
+            var jobState = jobStates[docId];
+            jobState.Status = JobStatus.Pending;
+            jobState.ErrorMessage = "No se pudo encolar el documento.";
+            jobState.LastUpdatedAt = DateTime.UtcNow;
+        }
+
+        if (failed.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // Notify after the state is persisted, so the UI never shows a state that was rolled back.
+        foreach (var docId in docIds)
+        {
+            await _notificationService.NotifyDocumentStatusChangedAsync(docId, jobStates[docId].Status.ToString());
+        }
+
+        _cache.Remove($"blobs_list_{_bucketName}");
+        _dbContext.ChangeTracker.Clear();
+
+        var failedCount = failed.Distinct().Count();
+        return new EnqueueResult(docIds.Count - failedCount, failedCount);
+    }
+
+    /// <summary>Builds the queue message for a blob under <c>json/{SOURCE}/{documentId}.json</c>.</summary>
+    private static DocumentMessage? ToMessage(string? blobPath, string? source)
+    {
+        if (string.IsNullOrEmpty(blobPath)) return null;
+
+        var parts = blobPath.Split('/');
+        var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
+        if (string.IsNullOrEmpty(docId)) return null;
+
+        var inferredSource = parts.Length > 2 ? parts[^2] : (parts.Length == 2 ? parts[0] : "S3");
+        if (blobPath.StartsWith("json/") && parts.Length >= 3)
+        {
+            inferredSource = parts[1];
+        }
+
+        return new DocumentMessage
+        {
+            Source = !string.IsNullOrEmpty(source) ? source : inferredSource,
+            DocumentId = docId,
+            BlobPath = blobPath
+        };
     }
 }

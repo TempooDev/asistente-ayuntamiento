@@ -52,18 +52,12 @@ func main() {
 	}
 	defer blobStorage.Close()
 
-	for i := 0; i < 10; i++ {
-		msgPublisher, err = messaging.NewPublisher()
-		if err == nil {
-			log.Println("Conectado a RabbitMQ exitosamente.")
-			defer msgPublisher.Close()
-			break
-		}
-		log.Printf("Aviso: no se pudo inicializar RabbitMQ (intento %d/10): %v\n", i+1, err)
-		time.Sleep(5 * time.Second)
-	}
+	// The publisher reconnects on its own; it only fails here when the connection string is missing.
+	msgPublisher, err = messaging.NewPublisher()
 	if err != nil {
-		log.Printf("No se pudo conectar a RabbitMQ después de 10 intentos: %v. Continuando sin RabbitMQ.", err)
+		log.Printf("RabbitMQ no configurado: %v. Los documentos se guardarán pero no se encolarán.", err)
+	} else {
+		defer msgPublisher.Close()
 	}
 
 	bojaFeeds := []string{}
@@ -408,6 +402,8 @@ func processDocumentsWithFilter(ctx context.Context, provider scraper.BoletinPro
 				if errPub != nil {
 					pubSpan.RecordError(errPub)
 					pubSpan.SetStatus(codes.Error, errPub.Error())
+					errCounter.Add(spanCtx, 1)
+					log.Printf("Error encolando %s en RabbitMQ: %v", docID, errPub)
 				}
 				pubSpan.End()
 			}

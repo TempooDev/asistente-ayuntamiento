@@ -21,18 +21,18 @@ PostgreSQL SHALL NOT store embedding columns for these entities.
 - **THEN** the system SHALL upsert the vector into `document_chunks`, with a payload that contains at least `DocumentId`, the chunk identifier and the publication metadata used for citations
 
 ### Requirement: Collection Bootstrap
-The system SHALL ensure, at startup of every service that writes vectors, that the required collections exist with the configured vector size and distance. Startup SHALL fail with a clear error if an existing collection has a different vector size.
+Before the first write to a collection, the system SHALL ensure that the collection exists, using the vector size produced by the embedding model and Cosine distance. If an existing collection has a different vector size, the write SHALL fail with a clear error. No manual setup or dimension setting is required.
 
 #### Scenario: Fresh environment
 - **GIVEN** an empty Qdrant instance (new developer machine, CI integration test, new deployment)
-- **WHEN** the Worker or the ApiService starts
-- **THEN** `document_chunks` and `child_fragments` SHALL be created with size `Ai:Embeddings:Dimensions` and Cosine distance
-- **AND** the first ingestion SHALL succeed without manual steps
+- **WHEN** the first document is ingested by each pipeline
+- **THEN** `document_chunks` or `child_fragments` SHALL be created with the embedding size and Cosine distance
+- **AND** the ingestion SHALL succeed without manual steps
 
 #### Scenario: Dimension mismatch
-- **GIVEN** `child_fragments` exists with size 768 and the configured dimension is 4096
-- **WHEN** the service starts
-- **THEN** startup SHALL fail with an error that names the collection, the existing size and the expected size
+- **GIVEN** `child_fragments` exists with size 768 and the embedding model produces 4096 dimensions
+- **WHEN** a document is ingested
+- **THEN** the ingestion SHALL fail with an error that names the collection, the existing size and the expected size
 
 ### Requirement: Authenticated Access
 Outside Development, Qdrant SHALL require an API key, and clients SHALL be configured with it. Qdrant SHALL NOT expose ports outside the internal network.

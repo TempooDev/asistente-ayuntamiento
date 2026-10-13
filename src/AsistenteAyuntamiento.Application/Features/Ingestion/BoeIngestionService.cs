@@ -29,8 +29,9 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
         QdrantClient qdrantClient,
         ILogger<BoeIngestionService> logger,
         Kernel kernel,
-        IConfiguration configuration)
-        : base(dbContext, enrichmentService, metricsService, qdrantClient, logger, kernel)
+        IConfiguration configuration,
+        IVectorCollections vectorCollections)
+        : base(dbContext, enrichmentService, metricsService, qdrantClient, logger, kernel, vectorCollections)
     {
         _s3Client = s3Client;
         _bucketName = configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
