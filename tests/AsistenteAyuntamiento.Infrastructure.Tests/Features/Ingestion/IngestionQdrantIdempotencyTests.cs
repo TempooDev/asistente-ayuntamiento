@@ -7,6 +7,7 @@ using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Data.Search;
 using AsistenteAyuntamiento.Infrastructure.Tests.Features.Messaging;
 using AsistenteAyuntamiento.Infrastructure.VectorStore;
 using FluentAssertions;
@@ -140,6 +141,21 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
 
         var page = await _client.ScrollAsync(_options.ChildFragmentsCollection, limit: 1000);
         page.Result.Select(p => p.Id.Num).Should().BeEquivalentTo(children, "no vectors of the first version are left behind");
+    }
+
+    [DockerFact]
+    public async Task A_municipality_filter_keeps_fragments_without_municipality_in_both_searches()
+    {
+        // Bulletins are not tagged with a municipality: a question about one must still find them.
+        await IngestBojaAsync("BOJA-2026-10-2", Paragraphs(3, "subvencion"));
+
+        var dense = await _vectors.SearchAsync(VectorCollection.ChildFragments,
+            new VectorSearchRequest([0.1f, 0.2f, 0.3f], Limit: 10, TextFilter: (VectorPayloadKeys.Municipality, "Sedella")));
+        dense.Should().NotBeEmpty();
+
+        await using var db = NewContext();
+        var sparse = await new PostgresFullTextSearch(db).SearchChildFragmentsAsync("subvencion1", "Sedella", 10);
+        sparse.Should().NotBeEmpty();
     }
 
     private async Task IngestBojaAsync(string documentId, string text)

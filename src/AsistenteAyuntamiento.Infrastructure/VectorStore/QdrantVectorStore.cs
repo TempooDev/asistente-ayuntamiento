@@ -95,8 +95,12 @@ public sealed class QdrantVectorStore(
         Filter? filter = null;
         if (request.TextFilter is { } textFilter)
         {
+            // Match or no value at all: untagged points must not disappear from filtered searches.
             filter = new Filter();
-            filter.Must.Add(MatchText(textFilter.Field, textFilter.Text));
+            filter.Should.Add(MatchText(textFilter.Field, textFilter.Text));
+            filter.Should.Add(MatchKeyword(textFilter.Field, string.Empty)); // written as "" by the ingestion
+            filter.Should.Add(IsEmpty(textFilter.Field));
+            filter.Should.Add(IsNull(textFilter.Field));
         }
 
         var points = await client.QueryAsync(

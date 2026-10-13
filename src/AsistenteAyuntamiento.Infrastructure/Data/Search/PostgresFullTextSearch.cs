@@ -5,14 +5,17 @@ using NpgsqlTypes;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data.Search;
 
-/// <summary>Full-text search over <c>ingestion."ChildFragments"."TsvContent"</c> (Spanish configuration, GIN index).</summary>
+/// <summary>
+/// Full-text search over <c>ingestion."ChildFragments"."TsvContent"</c> (Spanish configuration, GIN index). A municipality
+/// keeps the fragments of that municipality and those without one (most bulletins are not tagged).
+/// </summary>
 public sealed class PostgresFullTextSearch(AppDbContext dbContext) : IFullTextSearch
 {
     private const string ChildFragmentsSql = """
         SELECT "Id" AS "Value"
         FROM ingestion."ChildFragments"
         WHERE "TsvContent" @@ websearch_to_tsquery('spanish', @tsquery)
-          AND (@municipio IS NULL OR "Municipality" ILIKE '%' || @municipio || '%')
+          AND (@municipio IS NULL OR COALESCE("Municipality", '') = '' OR "Municipality" ILIKE '%' || @municipio || '%')
         ORDER BY ts_rank_cd("TsvContent", websearch_to_tsquery('spanish', @tsquery)) DESC
         LIMIT @limit
         """;
