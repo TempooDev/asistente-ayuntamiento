@@ -16,6 +16,10 @@ Both hubs SHALL require an authenticated user with a tenant (Auth0 organization)
 - **WHEN** the connection drops and SignalR reconnects automatically
 - **THEN** the client SHALL request a fresh access token from Auth0 (`accessTokenFactory` in `HubConnectionFactory`) instead of reusing the original one
 
+#### Scenario: Fallback transport
+- **WHEN** WebSockets are blocked (a corporate proxy) and SignalR falls back to server-sent events or long polling
+- **THEN** every hub call and stream SHALL still run in the caller's tenant (`TenantHubFilter` binds it from the connection user, not from the HTTP context)
+
 #### Scenario: Unauthenticated connection
 - **WHEN** a client connects without a token, with an expired token, or without an organization
 - **THEN** the hub SHALL reject the connection (401, or 403 without tenant)
@@ -34,8 +38,9 @@ The chat hub SHALL stream the assistant's answer as it is generated, using `IAsy
 - **AND** the client SHALL be able to vote with `VoteArenaMessage({ chatSessionId, battleId, winner })`
 
 #### Scenario: Session that belongs to another user
-- **WHEN** the client streams into, loads or deletes a session it does not own
-- **THEN** the hub SHALL fail the call with the typed message `Error [NOT_FOUND]: …` without revealing whether the session exists
+- **WHEN** the client uses a session it does not own (another user, or the same user in another organization)
+- **THEN** streaming into it SHALL return the single message `Error [NOT_FOUND]: …`, loading it SHALL return no messages, deleting it SHALL change nothing, and it SHALL NOT appear in `GetSessions`
+- **AND** none of these SHALL reveal whether the session exists
 
 ### Requirement: Typed Errors Without Details
 Hub failures SHALL reach the client as a stable code (`UNAUTHORIZED`, `NOT_FOUND`, `INVALID_REQUEST`, `INTERNAL`) and never include exception details; model failures inside a stream SHALL arrive as `[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]` or `[LLM_UNAVAILABLE]` messages.

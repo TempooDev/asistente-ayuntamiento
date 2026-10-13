@@ -11,6 +11,7 @@ using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
+using Microsoft.AspNetCore.SignalR;
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -85,7 +86,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAppAuthorization();
-builder.Services.AddSignalR();
+// The tenant comes from the connection user, so hub calls work with every SignalR transport.
+builder.Services.AddSignalR(options => options.AddFilter<TenantHubFilter>());
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, SignalRNotificationService>();
 builder.Services.AddHostedService<RabbitMqNotificationConsumer>();
 builder.Services.AddGrpc();
