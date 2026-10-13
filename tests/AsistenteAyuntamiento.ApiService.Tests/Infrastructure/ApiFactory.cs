@@ -36,6 +36,10 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:asistente-ayuntamiento-db", "Host=localhost;Database=unused;Username=unused;Password=unused");
         builder.UseSetting("ConnectionStrings:qdrant", "Endpoint=http://localhost:6334;Key=unused");
         builder.UseSetting("ConnectionStrings:messaging", "amqp://guest:guest@localhost:5672");
+        // S3 client is created but never called (no network in these tests).
+        builder.UseSetting("Blob:Endpoint", "http://localhost:9000");
+        builder.UseSetting("Blob:AccessKeyId", "test");
+        builder.UseSetting("Blob:SecretAccessKey", "test");
 
         builder.ConfigureTestServices(services =>
         {

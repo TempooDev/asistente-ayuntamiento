@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -38,7 +39,7 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
 
         // 2. Extract using LLM
         var chatCompletion = kernel.GetRequiredService<IChatCompletionService>();
-        var systemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.HistoryAnalyzerSystemPrompt;
+        var systemPrompt = PromptCatalog.HistoryAnalyzerSystem;
 
         var history = new ChatHistory(systemPrompt);
         history.AddUserMessage(messagesContext);

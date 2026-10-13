@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
@@ -24,16 +25,9 @@ builder.AddNpgsqlDbContext<AppDbContext>(
 // Configure RabbitMQ
 builder.AddRabbitMQClient("messaging");
 
-// Configure S3 & Semantic Kernel (Infrastructure)
+// Application services, then their ports (S3, Qdrant, Semantic Kernel, RabbitMQ)
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.AddInfrastructureServices();
-
-builder.Services.AddSingleton<IChunkingStrategy>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
-    var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
-    return new FixedOverlapChunkingStrategy(maxTokens, overlapTokens);
-});
 
 var pipelineModeStr = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
 var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p) ? p : PipelineType.Baseline;
@@ -41,17 +35,11 @@ var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p)
 if (pipelineMode == PipelineType.Hierarchical)
 {
     // New Hierarchical Pipeline (Phase 2)
-    builder.Services.AddScoped<IFragmentEnrichmentService, FragmentEnrichmentService>();
-    builder.Services.AddScoped<IIngestionMetricsService, IngestionMetricsService>();
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(BulletinType.BOE.ToString());
-    builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(BulletinType.BOJA.ToString());
-
     builder.AddIngestionConsumer<HierarchicalIngestionConsumer>();
 }
 else
 {
     // Default Baseline Pipeline
-    builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
     builder.AddIngestionConsumer<BaselineIngestionConsumer>();
 }
 

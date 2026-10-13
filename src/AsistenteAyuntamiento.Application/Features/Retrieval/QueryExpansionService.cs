@@ -17,7 +17,7 @@ public class QueryExpansionService(
     {
         try
         {
-            var prompt = string.Format(SystemPrompts.QueryExpansion, userQuery);
+            var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
 
             var result = await chatCompletionService.GetChatMessageContentAsync(
                 prompt,

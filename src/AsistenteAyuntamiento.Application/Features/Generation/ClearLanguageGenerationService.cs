@@ -90,7 +90,7 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
             contextBuilder.AppendLine("--- FIN DE DOCUMENTO LEGAL ---\n");
         }
 
-        var systemPrompt = string.Format(SystemPrompts.ClearLanguageGeneration, contextBuilder.ToString());
+        var systemPrompt = string.Format(PromptCatalog.ClearLanguageGeneration, contextBuilder.ToString());
         var chatHistory = new ChatHistory(systemPrompt);
         chatHistory.AddUserMessage(userQuery);
 

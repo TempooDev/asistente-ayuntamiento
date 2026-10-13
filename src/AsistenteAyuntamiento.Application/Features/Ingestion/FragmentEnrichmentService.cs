@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
@@ -33,7 +34,7 @@ public class FragmentEnrichmentService(
 
         try
         {
-            var prompt = string.Format(AsistenteAyuntamiento.Application.Common.Prompts.SystemPrompts.FragmentEnrichment, originalText);
+            var prompt = string.Format(PromptCatalog.FragmentEnrichment, originalText);
 
             var result = await _chatCompletionService.GetChatMessageContentAsync(
                 prompt,

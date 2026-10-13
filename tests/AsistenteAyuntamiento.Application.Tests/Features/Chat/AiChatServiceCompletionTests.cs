@@ -3,6 +3,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
@@ -52,18 +53,25 @@ public class AiChatServiceCompletionTests
 
         _modelFactory.Setup(f => f.Create(It.IsAny<AiConfigurationDto>(), It.IsAny<string?>())).Returns(_primary.Object);
 
-        return new AiChatService(
+        var streaming = new ChatStreamingService(
             configService.Object,
-            Mock.Of<IAiMetricsService>(),
-            NullLogger<AiChatService>.Instance,
-            db.Object,
+            _modelFactory.Object,
+            new AiCallRecorder(db.Object, Mock.Of<IAiMetricsService>(), NullLogger<AiCallRecorder>.Instance),
+            NullLogger<ChatStreamingService>.Instance);
+
+        var baseline = new BaselineRagPipeline(
             kernelBuilder.Build(),
-            Mock.Of<IHybridRetrievalService>(),
-            Mock.Of<IServiceScopeFactory>(),
-            Mock.Of<IClearLanguageGenerationService>(),
-            preferences.Object,
             EmptyVectorStore(),
-            _modelFactory.Object);
+            preferences.Object,
+            streaming,
+            NullLogger<BaselineRagPipeline>.Instance);
+
+        return new AiChatService(
+            baseline,
+            [baseline],
+            Mock.Of<IWinningPipelineSelector>(),
+            Mock.Of<IShadowTestScheduler>(),
+            Mock.Of<IArenaStreamingService>());
     }
 
     private static ChatHistory History()

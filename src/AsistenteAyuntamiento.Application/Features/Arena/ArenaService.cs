@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using System.Diagnostics;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
@@ -40,15 +41,18 @@ public class ArenaService(
         var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
 
         // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
-        var hierarchicalTask = Task.Run(async () =>
+        var hierarchicalTask = RunHierarchicalInOwnScopeAsync();
+
+        async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalInOwnScopeAsync()
         {
+            await Task.Yield();
             using var scope = serviceScopeFactory.CreateScope();
             var scopedExpansion = scope.ServiceProvider.GetRequiredService<IQueryExpansionService>();
             var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
 
             return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
-        }, cancellationToken);
+        }
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
         var baselineResult = baselineTask.Result;
@@ -70,10 +74,11 @@ public class ArenaService(
             RightSystem = isHierarchicalAlfa ? PipelineType.Baseline : PipelineType.Hierarchical,
             LeftResponse = alfaResult.Response,
             RightResponse = betaResult.Response,
-            LeftLatencyMs = (int)(isHierarchicalAlfa ? alfaResult.Latency : betaResult.Latency),
-            RightLatencyMs = (int)(isHierarchicalAlfa ? betaResult.Latency : alfaResult.Latency),
-            LeftTokens = isHierarchicalAlfa ? alfaResult.Tokens : betaResult.Tokens,
-            RightTokens = isHierarchicalAlfa ? betaResult.Tokens : alfaResult.Tokens,
+            // Left is always Alfa and right is always Beta.
+            LeftLatencyMs = (int)alfaResult.Latency,
+            RightLatencyMs = (int)betaResult.Latency,
+            LeftTokens = alfaResult.Tokens,
+            RightTokens = betaResult.Tokens,
             Winner = BattleWinner.Pending
         };
 
@@ -132,10 +137,7 @@ public class ArenaService(
 
             var sources = searchResult.Select(p => p.GetString(VectorPayloadKeys.Content)).ToArray();
             var contextText = string.Join("\n\n", sources);
-            var prompt = $@"Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
-Consulta: {query}
-Documentos:
-{contextText}";
+            var prompt = string.Format(PromptCatalog.ArenaBaselineTemplate, query, contextText);
 
             var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
             sw.Stop();
