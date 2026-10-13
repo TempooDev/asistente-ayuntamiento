@@ -105,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         {
             entity.ToTable("AiCallLogs", "chat");
             entity.HasQueryFilter(c => c.TenantId == CurrentTenantId);
+            entity.Property(c => c.Operation).HasDefaultValue("answer");
         });
 
         modelBuilder.Entity<AiConfiguration>(entity =>
@@ -160,6 +161,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         {
             entity.ToTable("ArenaBattles", "arena");
             entity.HasQueryFilter(b => b.TenantId == CurrentTenantId);
+            // xmin: two simultaneous votes on the same battle cannot both be saved.
+            entity.Property<uint>("Version").IsRowVersion();
             entity.HasIndex(b => new { b.TenantId, b.UserId, b.SessionId });
         });
 

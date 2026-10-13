@@ -42,7 +42,7 @@ The system SHALL randomly assign (50/50) which pipeline is "Alfa" and which is "
 - **THEN** the battle SHALL be saved with the battle id sent first in the stream and the trace id of the request
 
 ### Requirement: Vote Capture
-A vote SHALL only be accepted from the user who owns the battle, within the owner's tenant. The winner SHALL be one of `Alfa`, `Beta`, `Tie` or `BothBad`, read case-insensitively with underscores ignored (so the Arena page's `ALFA`, `BETA`, `TIE`, `BOTH_BAD` are valid); any other value SHALL be rejected. Votes SHALL be final: a battle that already has a winner SHALL NOT accept another vote. A vote without a comment SHALL NOT clear a stored comment.
+A vote SHALL only be accepted from the user who owns the battle, within the owner's tenant. The winner SHALL be one of `Alfa`, `Beta`, `Tie` or `BothBad`, read case-insensitively with underscores ignored (so the Arena page's `ALFA`, `BETA`, `TIE`, `BOTH_BAD` are valid); any other value SHALL be rejected. Votes SHALL be final: a battle that already has a winner SHALL NOT accept another vote, also when two votes arrive at the same time (row version `xmin`: the later save fails and is reported as already voted). A vote without a comment SHALL NOT clear a stored comment.
 
 #### Scenario: Voting in the chat
 - **WHEN** the user picks "Alfa", "Beta" or "Empate" under a chat Arena answer
@@ -54,6 +54,10 @@ A vote SHALL only be accepted from the user who owns the battle, within the owne
 - **WHEN** a battle that already has a winner receives another vote (chat or Arena page)
 - **THEN** REST SHALL answer `409 Conflict` and the hub SHALL throw `Error [ALREADY_VOTED]`
 - **AND** the winner, preferences and comment SHALL NOT change, and no answer SHALL be added to the conversation
+
+#### Scenario: Two simultaneous votes
+- **WHEN** two votes on the same pending battle are read before either is saved
+- **THEN** only the first save SHALL succeed and the other vote SHALL be rejected as `ALREADY_VOTED` / `409 Conflict`
 
 #### Scenario: Voting on the Arena page
 - **WHEN** the administrator submits a vote with `POST /api/arena/vote`

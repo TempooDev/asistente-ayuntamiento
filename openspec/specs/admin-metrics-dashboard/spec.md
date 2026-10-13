@@ -21,7 +21,7 @@ The route `admin/analytics` SHALL be guarded by `authGuard` and `roleGuard` and 
 - **THEN** they SHALL be sent to the login page
 
 ### Requirement: Organization AI Usage
-For organization administrators the page SHALL show the AI usage summary of `GET /api/ai/metrics/summary` (policy `OrganizationAdmin`): total calls with their success rate, succeeded and failed calls, input, output and total tokens, and a breakdown per model (calls, total tokens, average latency). The summary SHALL be aggregated in the database from the tenant's `AiCallLogs` only (tenant query filter); it MUST NOT include platform-wide data such as `IngestionMetrics`. `successRate` SHALL be a percentage from 0 to 100 and the page SHALL show it as such (95 is "95 %"), never through a pipe that multiplies it by 100.
+For organization administrators the page SHALL show the AI usage summary of `GET /api/ai/metrics/summary` (policy `OrganizationAdmin`): answers (calls) with their success rate, succeeded and failed answers, input, output and total tokens, and a breakdown per model and step (calls, total tokens, average latency). `AiCallLogs` SHALL store each call's pipeline and step (`Operation`: `answer`, `query_expansion`, `history_analysis`); calls made for a user (answers, query expansion, history analysis, both Arena sides) SHALL be stored. Call counts, success rate, average latency and tokens per call SHALL cover answers only; token totals SHALL include every step, and the breakdown SHALL label the step ("Respuesta", "Expansión de consulta", "Análisis de historial"). Ingestion enrichment belongs to no tenant and SHALL NOT be stored in `AiCallLogs`. The summary SHALL be aggregated in the database from the tenant's `AiCallLogs` only (tenant query filter); it MUST NOT include platform-wide data such as `IngestionMetrics`. `successRate` SHALL be a percentage from 0 to 100 and the page SHALL show it as such (95 is "95 %"), never through a pipe that multiplies it by 100.
 
 #### Scenario: Organization administrator
 - **WHEN** a user with `admin-organizacion` opens the page
@@ -30,7 +30,12 @@ For organization administrators the page SHALL show the AI usage summary of `GET
 #### Scenario: Success rate
 - **GIVEN** the tenant made 40 calls and 38 succeeded
 - **WHEN** the summary is shown
-- **THEN** the "Llamadas" card SHALL show 40 calls, "95 % con éxito", 38 succeeded and 2 failed
+- **THEN** the "Respuestas" card SHALL show 40 answers, "95 % con éxito", 38 succeeded and 2 failed
+
+#### Scenario: Other steps
+- **GIVEN** besides its answers the tenant's users caused query expansions and a history analysis
+- **WHEN** the summary is shown
+- **THEN** those calls SHALL add their tokens to the totals and appear in the breakdown with their step, but SHALL NOT change the number of answers, the success rate or the average latency
 
 #### Scenario: Platform administrator without the organization role
 - **WHEN** a user with only `admin-plataforma` opens the page

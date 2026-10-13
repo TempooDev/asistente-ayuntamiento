@@ -3,6 +3,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
+using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
@@ -25,6 +26,7 @@ public class ArenaService(
     IVectorStore vectorStore,
     IConfiguration configuration,
     ILlmUsageMetrics usageMetrics,
+    IAiCallRecorder callRecorder,
     ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -38,7 +40,7 @@ public class ArenaService(
         var sessionId = Guid.NewGuid();
 
         // Start baseline pipeline in the current scope
-        var baselineTask = RunBaselinePipelineAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Baseline), cancellationToken);
+        var baselineTask = RunBaselinePipelineAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Baseline) { UserId = userId }, cancellationToken);
 
         // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
         var hierarchicalTask = RunHierarchicalInOwnScopeAsync();
@@ -51,7 +53,7 @@ public class ArenaService(
             var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
 
-            return await RunHierarchicalPipelineScopedAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Hierarchical), scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
+            return await RunHierarchicalPipelineScopedAsync(request.Query, new LlmCallScope(tenantId, LlmPipelines.Hierarchical) { UserId = userId }, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
         }
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
@@ -119,7 +121,15 @@ public class ArenaService(
         // The chat vote sends no comment; never overwrite one with null.
         if (request.OptionalComment is not null) battle.OptionalComment = request.OptionalComment;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another vote on this battle was saved between the read and this write (row version).
+            throw new ArenaVoteConflictException(battle.SessionId);
+        }
 
         return new ArenaVoteResponse
         {
@@ -155,7 +165,7 @@ public class ArenaService(
             var contextText = string.Join("\n\n", sources);
             var prompt = string.Format(PromptCatalog.ArenaBaselineTemplate, query, contextText);
 
-            var result = await _chatCompletionService.CompleteMeteredAsync(prompt, _model, llmScope, usageMetrics, cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(prompt, _model, llmScope, usageMetrics, cancellationToken, callRecorder);
             sw.Stop();
 
             int estimatedTokens = (prompt.Length + (result.Content?.Length ?? 0)) / 4;
