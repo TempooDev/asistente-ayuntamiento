@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
-import { ArenaStreamChunk, ArenaMessage, AssistantMessage } from '../models/chat.models';
+import { InactivityService } from '../../../core/auth/inactivity.service';
+import { ArenaStreamChunk, ArenaMessage, AssistantMessage, ConnectionState } from '../models/chat.models';
 import { ChatService } from './chat.service';
 import { ChatStore } from './chat.store';
-import { STREAM_ERROR_MESSAGES } from './stream-errors';
+import { RECONNECT_FAILED_MESSAGE, STREAM_ERROR_MESSAGES } from './stream-errors';
 
 /** Stream double: the test pushes chunks, completes or fails it. */
 class FakeStream<T> {
@@ -18,6 +19,8 @@ class FakeStream<T> {
 class FakeChatService {
   readonly received = new Subject<string>();
   readonly messageReceived$ = this.received.asObservable();
+  readonly connectionChanges = new Subject<ConnectionState>();
+  readonly connectionChanges$ = this.connectionChanges.asObservable();
   isConnected = true;
   sessions = [{ id: 's1', createdAt: '2026-10-13T10:00:00Z', preview: 'Hola', messageCount: 2 }];
   textStream = new FakeStream<string>();
@@ -39,15 +42,34 @@ class FakeChatService {
   });
 }
 
+class FakeInactivityService {
+  activeHolds = 0;
+  hold() {
+    this.activeHolds++;
+    let released = false;
+    return () => {
+      if (!released) this.activeHolds--;
+      released = true;
+    };
+  }
+}
+
 const frame = () => new Promise(resolve => setTimeout(resolve, 20));
 
 describe('ChatStore', () => {
   let hub: FakeChatService;
   let store: ChatStore;
+  let inactivity: FakeInactivityService;
 
   beforeEach(() => {
     hub = new FakeChatService();
-    TestBed.configureTestingModule({ providers: [{ provide: ChatService, useValue: hub }] });
+    inactivity = new FakeInactivityService();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ChatService, useValue: hub },
+        { provide: InactivityService, useValue: inactivity },
+      ],
+    });
     store = TestBed.inject(ChatStore);
     store.arenaMode.set(false);
   });
@@ -172,5 +194,57 @@ describe('ChatStore', () => {
     hub.received.next('Mensaje del servidor');
 
     expect(store.messages().at(-1)).toEqual(expect.objectContaining({ kind: 'assistant', text: 'Mensaje del servidor' }));
+  });
+
+  it('reconnects before sending when the connection was lost', async () => {
+    await store.init();
+    hub.isConnected = false;
+    hub.connectionChanges.next('disconnected');
+    expect(store.connection()).toBe('disconnected');
+
+    await store.send('¿Sigues ahí?');
+
+    expect(hub.connect).toHaveBeenCalledTimes(2);
+    expect(store.connection()).toBe('connected');
+    expect(hub.streamMessage).toHaveBeenCalledWith('s1', '¿Sigues ahí?');
+  });
+
+  it('shows the message and a notice when the reconnection fails', async () => {
+    await store.init();
+    hub.isConnected = false;
+    hub.connect.mockRejectedValueOnce(new Error('offline'));
+
+    await store.send('hola');
+
+    expect(store.connection()).toBe('disconnected');
+    expect(hub.streamMessage).not.toHaveBeenCalled();
+    expect(store.messages().at(-2)).toEqual(expect.objectContaining({ kind: 'user', text: 'hola' }));
+    expect((store.messages().at(-1) as AssistantMessage).text).toContain(RECONNECT_FAILED_MESSAGE);
+  });
+
+  it('follows the automatic reconnection state of the hub', async () => {
+    await store.init();
+
+    hub.connectionChanges.next('reconnecting');
+    expect(store.connection()).toBe('reconnecting');
+    hub.connectionChanges.next('connected');
+    expect(store.connection()).toBe('connected');
+  });
+
+  it('holds the inactivity timeout while an answer is streaming', async () => {
+    await store.init();
+    await store.send('hola');
+    expect(inactivity.activeHolds).toBe(1);
+
+    hub.textStream.observer!.complete();
+    expect(inactivity.activeHolds).toBe(0);
+  });
+
+  it('releases the inactivity hold when the stream fails', async () => {
+    await store.init();
+    await store.send('hola');
+
+    hub.textStream.observer!.error(new Error('boom'));
+    expect(inactivity.activeHolds).toBe(0);
   });
 });
