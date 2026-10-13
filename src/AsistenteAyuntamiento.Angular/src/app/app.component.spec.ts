@@ -85,4 +85,20 @@ describe('AppComponent', () => {
     expect(labels(regular.menu())).toContain('Documentos');
     expect(labels(regular.el.querySelector('aside'))).toContain('Métricas');
   });
+
+  it('shows each admin scope only its own pages', () => {
+    const { fixture, el } = render();
+    const links = () => Array.from(el.querySelector('aside')!.querySelectorAll('a')).map(a => a.querySelector('span:last-child')!.textContent!.trim());
+
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-plataforma'] });
+    fixture.detectChanges();
+    expect(links()).toContain('Documentos');
+    expect(links()).not.toContain('Arena (A/B)');
+
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-organizacion'] });
+    fixture.detectChanges();
+    expect(links()).toContain('Arena (A/B)');
+    expect(links()).not.toContain('Documentos');
+    expect(links()).toContain('Configuración');
+  });
 });

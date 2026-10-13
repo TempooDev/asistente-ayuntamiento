@@ -26,7 +26,7 @@ public static class ArenaEndpoints
             var response = await arenaService.CompareAsync(request, tenantService.TenantId, userId, ct);
             return Results.Ok(response);
         })
-        .RequireAuthorization(Policies.Admin)
+        .RequireAuthorization(Policies.OrganizationAdmin)
         .WithName("CompareArena");
 
         // Any authenticated user can vote, but only on battles they own.
@@ -59,7 +59,7 @@ public static class ArenaEndpoints
             var response = await analyticsService.GetAnalyticsAsync(request, ct);
             return Results.Ok(response);
         })
-        .RequireAuthorization(Policies.Admin)
+        .RequireAuthorization(Policies.PlatformAdmin)
         .WithName("GetArenaAnalytics");
     }
 }

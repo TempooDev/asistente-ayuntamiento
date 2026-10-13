@@ -6,7 +6,17 @@ namespace AsistenteAyuntamiento.ApiService.Security;
 /// </summary>
 public static class Roles
 {
-    public const string Admin = "administrador";
+    /// <summary>Manages the shared knowledge base: ingestion, scraper, cross-tenant metrics and Arena analytics.</summary>
+    public const string PlatformAdmin = "admin-plataforma";
+
+    /// <summary>Manages one organization: its AI model settings, its usage metrics and the Arena comparison.</summary>
+    public const string OrganizationAdmin = "admin-organizacion";
+
+    /// <summary>
+    /// Role used before the split; it still grants both scopes so nobody loses access while the new roles are
+    /// assigned in Auth0. Remove it from the policies once no user has it.
+    /// </summary>
+    public const string LegacyAdmin = "administrador";
 }
 
 /// <summary>
@@ -14,7 +24,12 @@ public static class Roles
 /// </summary>
 public static class Policies
 {
-    public const string Admin = "Admin";
+    public const string PlatformAdmin = "PlatformAdmin";
+    public const string OrganizationAdmin = "OrganizationAdmin";
+
+    /// <summary>Roles accepted by each policy (the legacy role is accepted by both).</summary>
+    public static readonly IReadOnlyList<string> PlatformAdminRoles = [Roles.PlatformAdmin, Roles.LegacyAdmin];
+    public static readonly IReadOnlyList<string> OrganizationAdminRoles = [Roles.OrganizationAdmin, Roles.LegacyAdmin];
 }
 
 public static class AuthorizationExtensions
@@ -22,12 +37,17 @@ public static class AuthorizationExtensions
     public static IServiceCollection AddAppAuthorization(this IServiceCollection services)
     {
         services.AddAuthorizationBuilder()
-            .AddPolicy(Policies.Admin, policy => policy
+            .AddPolicy(Policies.PlatformAdmin, policy => policy
                 .RequireAuthenticatedUser()
-                .RequireAssertion(context => HasRole(context.User, Roles.Admin)));
+                .RequireAssertion(context => HasAnyRole(context.User, Policies.PlatformAdminRoles)))
+            .AddPolicy(Policies.OrganizationAdmin, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => HasAnyRole(context.User, Policies.OrganizationAdminRoles)));
 
         return services;
     }
+
+    public static bool IsPlatformAdmin(System.Security.Claims.ClaimsPrincipal user) => HasAnyRole(user, Policies.PlatformAdminRoles);
 
     /// <summary>
     /// Case-insensitive role check, matching the SPA guard (which lowercases roles), so the client
@@ -36,4 +56,7 @@ public static class AuthorizationExtensions
     public static bool HasRole(System.Security.Claims.ClaimsPrincipal user, string role) =>
         user.Identities.Any(identity => identity.FindAll(identity.RoleClaimType)
             .Any(claim => string.Equals(claim.Value, role, StringComparison.OrdinalIgnoreCase)));
+
+    public static bool HasAnyRole(System.Security.Claims.ClaimsPrincipal user, IEnumerable<string> roles) =>
+        roles.Any(role => HasRole(user, role));
 }

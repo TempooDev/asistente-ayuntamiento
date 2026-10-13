@@ -8,12 +8,12 @@ namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 /// </summary>
 public static class NotificationGroups
 {
-    /// <summary>Administrators of any tenant: ingestion and scraper events concern the shared (global) knowledge base.</summary>
-    public const string Admins = "role:admin";
+    /// <summary>Platform administrators: ingestion and scraper events concern the shared (global) knowledge base.</summary>
+    public const string PlatformAdmins = "role:platform-admin";
 
     public static string Tenant(string tenantId) => $"tenant:{tenantId}";
 
-    public static bool IsAdmin(ClaimsPrincipal? user) => user is not null && AuthorizationExtensions.HasRole(user, Roles.Admin);
+    public static bool IsPlatformAdmin(ClaimsPrincipal? user) => user is not null && AuthorizationExtensions.IsPlatformAdmin(user);
 }
 
 /// <summary>Payload of the <c>DocumentStatusChanged</c> event (one object, camelCase on the wire).</summary>

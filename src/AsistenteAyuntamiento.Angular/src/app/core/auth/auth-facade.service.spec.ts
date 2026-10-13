@@ -27,6 +27,24 @@ describe('AuthFacade', () => {
     expect(facade.isAdmin()).toBe(true);
   });
 
+  it('separates platform and organization administrators, and the legacy role grants both', () => {
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-plataforma'] });
+    TestBed.tick();
+    expect([facade.isPlatformAdmin(), facade.isOrganizationAdmin(), facade.isAdmin()]).toEqual([true, false, true]);
+
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-organizacion'] });
+    TestBed.tick();
+    expect([facade.isPlatformAdmin(), facade.isOrganizationAdmin(), facade.isAdmin()]).toEqual([false, true, true]);
+
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['administrador'] });
+    TestBed.tick();
+    expect([facade.isPlatformAdmin(), facade.isOrganizationAdmin()]).toEqual([true, true]);
+
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['Funcionario'] });
+    TestBed.tick();
+    expect(facade.isAdmin()).toBe(false);
+  });
+
   it('logs in with an explicit organization and remembers it', () => {
     facade.loginWithOrg({ organization: 'org_X', invitation: 'inv_1' });
 

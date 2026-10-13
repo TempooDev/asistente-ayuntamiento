@@ -37,7 +37,7 @@ public class TenantIsolationTests(ApiFactory factory) : IClassFixture<ApiFactory
             return Task.CompletedTask;
         });
 
-        var client = factory.CreateClientAs("auth0|admin-a", "org_hist_A", Roles.Admin);
+        var client = factory.CreateClientAs("auth0|admin-a", "org_hist_A", Roles.OrganizationAdmin);
 
         var json = await client.GetFromJsonAsync<JsonElement>("/api/ai/metrics/history");
 
@@ -54,7 +54,7 @@ public class TenantIsolationTests(ApiFactory factory) : IClassFixture<ApiFactory
             return Task.CompletedTask;
         });
 
-        var client = factory.CreateClientAs("auth0|admin-b", "org_cfg_B", Roles.Admin);
+        var client = factory.CreateClientAs("auth0|admin-b", "org_cfg_B", Roles.OrganizationAdmin);
 
         var json = await client.GetFromJsonAsync<JsonElement>("/api/settings/ai");
 

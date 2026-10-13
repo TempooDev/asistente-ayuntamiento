@@ -19,9 +19,9 @@ public class NotificationHub(ICurrentTenantService tenantService) : Hub
             await Groups.AddToGroupAsync(Context.ConnectionId, NotificationGroups.Tenant(tenantId));
         }
 
-        if (NotificationGroups.IsAdmin(Context.User))
+        if (NotificationGroups.IsPlatformAdmin(Context.User))
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, NotificationGroups.Admins);
+            await Groups.AddToGroupAsync(Context.ConnectionId, NotificationGroups.PlatformAdmins);
         }
 
         await base.OnConnectedAsync();

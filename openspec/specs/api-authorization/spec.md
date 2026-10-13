@@ -1,26 +1,38 @@
 # api-authorization Specification
 
 ## Purpose
-Enforce on the server, not only in the Angular guards, that administrative APIs (ingestion, scraper, filters, AI settings, metrics) require the `administrador` role and that every request runs inside a tenant.
+Enforce on the server, not only in the Angular guards, that administrative APIs require the right administrator role (platform or organization) and that every request runs inside a tenant.
 ## Requirements
 ### Requirement: Server-Side Role Enforcement for Administrative APIs
-The API SHALL enforce, through named authorization policies on the server, that only users with the `administrador` role (claim `{CustomClaimsNamespace}/roles`) can call administrative endpoints. Client-side route guards SHALL be treated as UX only and SHALL NOT be relied upon for security.
+The API SHALL enforce, through named authorization policies on the server, two administrator scopes (roles in the claim `{CustomClaimsNamespace}/roles`). Client-side route guards SHALL be treated as UX only and SHALL NOT be relied upon for security.
 
-Administrative endpoints include, at minimum:
-- `/api/ingestion/**`
-- `/api/scraper/**`
-- `/api/settings/ai` (write operations)
-- `/api/ai/metrics`
-- `/api/ai/health`
-- `/api/arena/analytics`
+- **Platform administrators** (`admin-plataforma`, policy `PlatformAdmin`) manage the shared knowledge base and data that spans tenants:
+  - `/api/ingestion/**`;
+  - `/api/scraper/**`;
+  - `/api/ai/metrics` and `/api/ai/health` (in-memory snapshot of every tenant's calls);
+  - `/api/arena/analytics` (aggregates across tenants).
+- **Organization administrators** (`admin-organizacion`, policy `OrganizationAdmin`) manage their own tenant:
+  - `/api/settings/ai`;
+  - `/api/ai/metrics/summary` and `/api/ai/metrics/history`;
+  - `/api/arena/compare`.
+- The role from before the split, `administrador`, SHALL be accepted by both policies until it is no longer assigned in Auth0.
 
-#### Scenario: Administrator calls an admin endpoint
-- **GIVEN** a user whose JWT contains the role `administrador` and a valid `org_id`
+#### Scenario: Platform administrator calls a platform endpoint
+- **GIVEN** a user whose JWT contains the role `admin-plataforma` and a valid `org_id`
 - **WHEN** they call `POST /api/ingestion/reset`
 - **THEN** the API SHALL authorize the request and execute the operation
 
+#### Scenario: Administrator of the other scope
+- **WHEN** an organization administrator calls a platform endpoint, or a platform administrator calls an organization endpoint
+- **THEN** the API SHALL respond `403 Forbidden`
+
+#### Scenario: Legacy role during the transition
+- **GIVEN** a user with the role `administrador`
+- **WHEN** they call a platform or an organization endpoint
+- **THEN** the API SHALL authorize the request
+
 #### Scenario: Authenticated non-admin calls an admin endpoint
-- **GIVEN** a user with a valid JWT but without the `administrador` role
+- **GIVEN** a user with a valid JWT but without an administrator role
 - **WHEN** they call any administrative endpoint (e.g. `PUT /api/settings/ai`, `POST /api/scraper/filters/trigger`)
 - **THEN** the API SHALL respond `403 Forbidden`
 - **AND** SHALL NOT execute any side effect
@@ -30,16 +42,16 @@ Administrative endpoints include, at minimum:
 - **THEN** the API SHALL respond `401 Unauthorized`
 
 #### Scenario: Role casing
-- **WHEN** the roles claim contains `Administrador` (different casing)
-- **THEN** the server SHALL treat it as `administrador`, exactly like the SPA guard, which lowercases roles
+- **WHEN** the roles claim contains `Admin-Plataforma` (different casing)
+- **THEN** the server SHALL treat it as `admin-plataforma`, exactly like the SPA guard, which lowercases roles
 
 ### Requirement: Policies Declared Once and Applied per Route Group
 Authorization policies SHALL be defined in a single registration (`AddAppAuthorization()`) and applied at the route group level, so that new endpoints added to an admin group inherit the policy automatically.
 
 #### Scenario: Adding a new endpoint to an admin group
 - **WHEN** a developer maps a new endpoint inside the `/api/ingestion` route group
-- **THEN** the endpoint SHALL require the `Admin` policy without any per-endpoint attribute
-- **AND** an integration test SHALL enumerate all mapped endpoints and fail if an endpoint under an admin prefix allows a non-admin principal
+- **THEN** the endpoint SHALL require the group's policy (`PlatformAdmin` for ingestion) without any per-endpoint attribute
+- **AND** an integration test SHALL enumerate all mapped endpoints and fail if an endpoint under an admin prefix does not require its expected policy
 
 ### Requirement: Internal gRPC Service Protection
 The `FilterConfigService` gRPC service SHALL only accept calls that present the configured internal shared secret in the `x-internal-key` metadata header, and SHALL NOT be routed through the public gateway.
@@ -54,10 +66,13 @@ The `FilterConfigService` gRPC service SHALL only accept calls that present the 
 - **AND** SHALL NOT return any rule
 
 ### Requirement: Client Route Guards Mirror Server Policies
-The Angular router SHALL apply the role guard to every route whose backing API requires the `Admin` policy, including `arena` admin views and `admin/analytics`, using role constants from a single `core/auth/roles.ts`.
+The Angular router SHALL apply the role guard to every route whose backing API requires an admin policy, using role constants from a single `core/auth/roles.ts`:
+- `/documentos` requires a platform administrator;
+- `/arena` requires an organization administrator;
+- `/configuracion` and `/admin/analytics` require either, and show only the sections of the user's scope (AI settings and usage for organization administrators; scraper filters and Arena results for platform administrators).
 
 #### Scenario: Non-admin navigates to an admin route
-- **GIVEN** an authenticated user without the `administrador` role
+- **GIVEN** an authenticated user without an administrator role
 - **WHEN** they navigate to `/configuracion`, `/documentos` or `/admin/analytics`
 - **THEN** the router SHALL redirect them to the chat page
 - **AND** no administrative API call SHALL be issued

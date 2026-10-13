@@ -25,11 +25,11 @@ The API SHALL accept the `access_token` query-string parameter for every hub pat
 - **THEN** the negotiation SHALL fail with `401 Unauthorized`
 
 ### Requirement: Tenant- and Role-Scoped Delivery
-Hubs SHALL add each connection to the group `tenant:{tenantId}`, and to `role:admin` when the user has the `administrador` role. Notifications SHALL be sent to groups and SHALL NOT be broadcast with `Clients.All`.
+Hubs SHALL add each connection to the group `tenant:{tenantId}`, and to `role:platform-admin` when the user is a platform administrator (`admin-plataforma`, or the legacy `administrador`). Notifications SHALL be sent to groups and SHALL NOT be broadcast with `Clients.All`.
 
 #### Scenario: Scraper state change
-- **WHEN** an administrator of `org_A` triggers a scrape
-- **THEN** `ScraperStateChanged` SHALL be delivered only to the `role:admin` group
+- **WHEN** a platform administrator triggers a scrape
+- **THEN** `ScraperStateChanged` SHALL be delivered only to the `role:platform-admin` group
 
 #### Scenario: Tenant-specific event
 - **WHEN** an event concerns tenant `org_A`

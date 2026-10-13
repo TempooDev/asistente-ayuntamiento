@@ -13,7 +13,7 @@ public static class ScraperFilterEndpoints
 {
     public static void MapScraperFilterEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization(Policies.Admin);
+        var group = app.MapGroup("/api/scraper/filters").RequireAuthorization(Policies.PlatformAdmin);
 
         // 1. Get all rules. Errors propagate as 500 (never an empty list that looks like "no filters").
         group.MapGet("/", async (IScraperFilterService service, CancellationToken cancellationToken) =>
@@ -95,7 +95,7 @@ public static class ScraperFilterEndpoints
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
 
-            await hubContext.Clients.Group(NotificationGroups.Admins)
+            await hubContext.Clients.Group(NotificationGroups.PlatformAdmins)
                 .SendAsync("ScraperStateChanged", new ScraperStateNotification(true, message));
 
             return Results.Accepted();
@@ -126,7 +126,7 @@ public static class ScraperFilterEndpoints
         finally
         {
             stateService.Finish();
-            await hubContext.Clients.Group(NotificationGroups.Admins)
+            await hubContext.Clients.Group(NotificationGroups.PlatformAdmins)
                 .SendAsync("ScraperStateChanged", new ScraperStateNotification(false, string.Empty), CancellationToken.None);
         }
     }

@@ -9,19 +9,22 @@ import { ConfirmDialogComponent } from './shared/ui/confirm-dialog.component';
 import { DialogFocusDirective } from './shared/ui/dialog-focus.directive';
 import { ToastContainerComponent } from './shared/ui/toast-container.component';
 
+type Scope = 'platform' | 'organization' | 'anyAdmin';
+
 interface NavItem {
   path: string;
   label: string;
   icon: string;
-  adminOnly?: boolean;
+  /** Admin scope required to see the link; none means every signed-in user. */
+  scope?: Scope;
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
   { path: '/chat', label: 'Chat', icon: 'chat' },
-  { path: '/documentos', label: 'Documentos', icon: 'description', adminOnly: true },
-  { path: '/configuracion', label: 'Configuración IA', icon: 'settings_input_component', adminOnly: true },
-  { path: '/arena', label: 'Arena (A/B)', icon: 'compare_arrows', adminOnly: true },
-  { path: '/admin/analytics', label: 'Métricas', icon: 'bar_chart', adminOnly: true },
+  { path: '/documentos', label: 'Documentos', icon: 'description', scope: 'platform' },
+  { path: '/configuracion', label: 'Configuración', icon: 'settings_input_component', scope: 'anyAdmin' },
+  { path: '/arena', label: 'Arena (A/B)', icon: 'compare_arrows', scope: 'organization' },
+  { path: '/admin/analytics', label: 'Métricas', icon: 'bar_chart', scope: 'anyAdmin' },
   { path: '/perfil', label: 'Perfil', icon: 'account_circle' },
 ];
 
@@ -38,7 +41,7 @@ export class AppComponent {
   protected readonly defaultAvatar = '/default-avatar.svg';
 
   /** Links shown in both the desktop sidebar and the mobile menu, filtered by role once. */
-  protected readonly navItems = computed(() => NAV_ITEMS.filter(item => !item.adminOnly || this.auth.isAdmin()));
+  protected readonly navItems = computed(() => NAV_ITEMS.filter(item => this.allowed(item.scope)));
   protected readonly mobileMenuOpen = signal(false);
 
   constructor() {
@@ -58,6 +61,19 @@ export class AppComponent {
         takeUntilDestroyed(),
       )
       .subscribe(() => this.closeMobileMenu());
+  }
+
+  private allowed(scope: Scope | undefined): boolean {
+    switch (scope) {
+      case 'platform':
+        return this.auth.isPlatformAdmin();
+      case 'organization':
+        return this.auth.isOrganizationAdmin();
+      case 'anyAdmin':
+        return this.auth.isAdmin();
+      default:
+        return true;
+    }
   }
 
   toggleMobileMenu(): void {

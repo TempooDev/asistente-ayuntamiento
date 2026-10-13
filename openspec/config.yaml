@@ -28,9 +28,9 @@ context: |
   - Embeddings: platform-wide (Ai:Embeddings:*, default Ollama nomic-embed-text), never per tenant
 
   ### Auth & Identity
-  - Auth0 B2B: organizations are tenants (org_id claim); roles in {namespace}/roles ('administrador' = admin)
+  - Auth0 B2B: organizations are tenants (org_id claim); roles in {namespace}/roles ('admin-plataforma' = shared knowledge base, 'admin-organizacion' = own tenant; legacy 'administrador' = both)
   - SPA: Auth0 Angular SDK with runtime config from /api/config/auth0; API: JWT bearer; hubs accept access_token in the query
-  - Server-side authorization: named policies (Policies.Admin) on every admin endpoint; client guards are UX only
+  - Server-side authorization: named policies (Policies.PlatformAdmin / Policies.OrganizationAdmin) on every admin endpoint; client guards are UX only
   - Service-to-service gRPC (API <-> scraper) authenticated with a shared x-internal-key
 
   ## Domain Rules
