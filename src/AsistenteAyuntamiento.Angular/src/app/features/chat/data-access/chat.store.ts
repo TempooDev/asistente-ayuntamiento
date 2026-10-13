@@ -1,6 +1,6 @@
 import { Injectable, WritableSignal, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ISubscription } from '@microsoft/signalr';
+import type { ISubscription } from '@microsoft/signalr';
 import { environment } from '../../../../environments/environment';
 import { InactivityService } from '../../../core/auth/inactivity.service';
 import {
