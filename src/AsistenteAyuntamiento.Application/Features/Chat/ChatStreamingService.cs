@@ -133,6 +133,7 @@ public sealed class ChatStreamingService(
         var usedFallback = false;
         string? errorText = null;
         string? errorCode = null;
+        Exception? interruption = null;
 
         var enumerator = service.GetStreamingChatMessageContentsAsync(history, settings, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
         try
@@ -174,6 +175,12 @@ public sealed class ChatStreamingService(
                         errorCode = LlmErrorClassifier.Classify(error);
                         errorText = "\n\n" + LlmErrorCodes.UserMessage(errorCode);
                     }
+                    else if (!cancellationToken.IsCancellationRequested)
+                    {
+                        // Text already sent cannot be replaced by a message: the stream ends with a typed error.
+                        errorCode = LlmErrorClassifier.Classify(error);
+                        interruption = error;
+                    }
                     break;
                 }
 
@@ -213,7 +220,7 @@ public sealed class ChatStreamingService(
         }
 
         stopwatch.Stop();
-        if (errorText is not null)
+        if (errorCode is not null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, errorCode);
         }
@@ -221,7 +228,7 @@ public sealed class ChatStreamingService(
         activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
 
         await callRecorder.RecordAsync(
-            new AiCallOutcome(modelId, tenantId, userId, errorText is null, stopwatch.Elapsed.TotalMilliseconds, usage,
+            new AiCallOutcome(modelId, tenantId, userId, errorCode is null, stopwatch.Elapsed.TotalMilliseconds, usage,
                 LastUserMessageLength(history), content.Length, history.Count, errorCode)
             {
                 Provider = provider,
@@ -230,6 +237,11 @@ public sealed class ChatStreamingService(
                 TimeToFirstToken = timeToFirstToken,
             },
             CancellationToken.None);
+
+        if (interruption is not null)
+        {
+            throw new LlmStreamInterruptedException(errorCode!, interruption);
+        }
     }
 
     private bool TryCreateModel(AiConfigurationDto config, string? apiKey, out IChatCompletionService service, out string userError)

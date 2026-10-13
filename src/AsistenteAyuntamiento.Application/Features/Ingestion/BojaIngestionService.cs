@@ -76,7 +76,6 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
             .Select(chunk => new RawFragment
             {
                 Section = $"Sección {chunk.ChunkIndex + 1}",
-                ElementType = "Párrafo",
                 OriginalText = chunk.Text
             })
             .ToList();

@@ -117,6 +117,32 @@ public class ArenaStreamingServiceTests
     }
 
     [Fact]
+    public async Task A_failing_side_is_reported_after_its_text_and_the_battle_is_not_stored()
+    {
+        _hierarchical.Failure = new InvalidOperationException("retrieval down");
+
+        var chunks = await CreateSut().StreamAsync(Turn()).ToListAsync();
+
+        var failed = chunks.Where(c => c.Content.StartsWith('H') || c.ErrorCode is not null).ToList();
+        failed.Select(c => c.Option).Distinct().Should().ContainSingle();
+        failed.Select(c => c.Content).Should().Equal("H1", "H2", "H3", string.Empty);
+        failed[^1].ErrorCode.Should().Be(ArenaStreamingService.SideFailedCode);
+        chunks.Where(c => c.Content.StartsWith('B')).Should().OnlyContain(c => c.ErrorCode == null).And.HaveCount(2);
+        _saved.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_model_interruption_reports_its_typed_code()
+    {
+        _baseline.Failure = new LlmStreamInterruptedException(LlmErrorCodes.QuotaExceeded, new IOException("429"));
+
+        var chunks = await CreateSut().StreamAsync(Turn()).ToListAsync();
+
+        chunks.Where(c => c.ErrorCode is not null).Should().ContainSingle().Which.ErrorCode.Should().Be(LlmErrorCodes.QuotaExceeded);
+        _saved.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Stores_the_trace_id_so_a_vote_can_be_linked_to_its_traces()
     {
         using var activity = new Activity("chat").Start();

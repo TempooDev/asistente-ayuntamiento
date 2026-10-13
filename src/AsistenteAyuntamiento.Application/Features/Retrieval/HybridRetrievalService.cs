@@ -72,7 +72,12 @@ public class HybridRetrievalService(
                         frag.ChunkText ?? "",
                         frag.Parent.Id,
                         frag.Parent.FullText ?? "",
-                        scores[id]
+                        scores[id],
+                        frag.Parent.DocumentId,
+                        frag.Parent.NormTitle,
+                        frag.Parent.Bulletin,
+                        frag.Parent.IssuingBody,
+                        frag.Parent.PublicationDate
                     ));
                 }
             }

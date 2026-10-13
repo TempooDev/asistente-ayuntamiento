@@ -110,14 +110,54 @@ public class ChatStreamingServiceTests
     }
 
     [Fact]
-    public async Task A_failure_after_content_keeps_the_partial_answer_without_an_error_message()
+    public async Task A_failure_after_content_ends_the_stream_with_a_typed_error_and_records_a_failure()
     {
         Streams(_primary, () => ChunksThenThrow(new IOException("connection reset"), "Parte"));
+        var chunks = new List<string>();
 
-        var chunks = await CollectAsync();
+        var act = async () =>
+        {
+            await foreach (var chunk in CreateSut().StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline))
+            {
+                chunks.Add(chunk);
+            }
+        };
+
+        var error = (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which;
+        error.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        error.Message.Should().Be(LlmErrorCodes.UserMessage(LlmErrorCodes.Unavailable)).And.NotContain("connection reset");
+        chunks.Should().Equal("Parte");
+        _recorded.Single().Should().Match<AiCallOutcome>(o =>
+            !o.Success && o.ErrorCode == LlmErrorCodes.Unavailable && o.ResponseLength == "Parte".Length);
+        _modelFactory.Verify(f => f.CreateFallback(), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_quota_error_after_content_does_not_switch_to_the_fallback_model()
+    {
+        Streams(_primary, () => ChunksThenThrow(QuotaExceeded(), "Parte"));
+
+        var act = () => CollectAsync();
+
+        (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which.ErrorCode.Should().Be(LlmErrorCodes.QuotaExceeded);
+        _modelFactory.Verify(f => f.CreateFallback(), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_stream_cancelled_by_the_caller_after_content_just_ends()
+    {
+        using var cancellation = new CancellationTokenSource();
+        Streams(_primary, () => ChunksThenThrow(new OperationCanceledException(), "Parte"));
+        var chunks = new List<string>();
+
+        await foreach (var chunk in CreateSut().StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline, cancellation.Token))
+        {
+            chunks.Add(chunk);
+            await cancellation.CancelAsync();
+        }
 
         chunks.Should().Equal("Parte");
-        _modelFactory.Verify(f => f.CreateFallback(), Times.Never);
+        _recorded.Single().Should().Match<AiCallOutcome>(o => o.Success && o.ErrorCode == null);
     }
 
     [Fact]

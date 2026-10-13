@@ -23,6 +23,9 @@ public sealed class ArenaStreamingService(
     public const string AlfaOption = "Alfa";
     public const string BetaOption = "Beta";
 
+    /// <summary>Code of a side that failed for a reason other than the model (same code as the hub's internal error).</summary>
+    public const string SideFailedCode = "INTERNAL";
+
     public async IAsyncEnumerable<ArenaStreamChunk> StreamAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var sessionId = Guid.NewGuid();
@@ -55,7 +58,12 @@ public sealed class ArenaStreamingService(
 
             if (!await ready)
             {
-                continue; // This side has finished.
+                // This side has finished; a failure is reported after its text so the client can block the vote.
+                if (side.ErrorCode is not null)
+                {
+                    yield return new ArenaStreamChunk(side.Option, string.Empty) { ErrorCode = side.ErrorCode };
+                }
+                continue;
             }
 
             while (side.Output.Reader.TryRead(out var text))
@@ -67,6 +75,14 @@ public sealed class ArenaStreamingService(
         }
 
         await runs;
+
+        // A battle with a failed side is not a fair comparison: it is not stored, so it cannot be voted on.
+        if (alfa.ErrorCode is not null || beta.ErrorCode is not null)
+        {
+            logger.LogWarning("Arena battle {SessionId} not stored: a side failed", sessionId);
+            yield break;
+        }
+
         await SaveBattleAsync(sessionId, turn, alfa, beta, cancellationToken);
     }
 
@@ -91,6 +107,7 @@ public sealed class ArenaStreamingService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Arena side {Option} ({Pipeline}) failed", side.Option, side.Pipeline);
+            side.ErrorCode = ex is LlmStreamInterruptedException interrupted ? interrupted.ErrorCode : SideFailedCode;
         }
         finally
         {
@@ -143,5 +160,6 @@ public sealed class ArenaStreamingService(
         public Channel<string> Output { get; } = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         public StringBuilder Answer { get; } = new();
         public int LatencyMs { get; set; }
+        public string? ErrorCode { get; set; }
     }
 }

@@ -208,8 +208,8 @@ public class IngestionAdminService : IIngestionAdminService
     }
 
     /// <summary>
-    /// Removes the baseline pipeline data (chunks, job states) and its vector collection, which is
-    /// recreated on the next ingestion. Previously this truncated <c>identity."DocumentChunks"</c>,
+    /// Removes the baseline pipeline data (chunks, baseline job statuses) and its vector collection, which is
+    /// recreated on the next ingestion. Hierarchical data and statuses are kept. Previously this truncated <c>identity."DocumentChunks"</c>,
     /// a table that does not exist (the chunks live in the <c>ingestion</c> schema), so it always failed.
     /// </summary>
     public async Task ResetIngestionAsync(CancellationToken cancellationToken = default)
@@ -344,15 +344,9 @@ public class IngestionAdminService : IIngestionAdminService
         var docId = parts.LastOrDefault()?.Replace(".json", "") ?? "";
         if (string.IsNullOrEmpty(docId)) return null;
 
-        var inferredSource = parts.Length > 2 ? parts[^2] : (parts.Length == 2 ? parts[0] : "S3");
-        if (blobPath.StartsWith("json/") && parts.Length >= 3)
-        {
-            inferredSource = parts[1];
-        }
-
         return new DocumentMessage
         {
-            Source = !string.IsNullOrEmpty(source) ? source : inferredSource,
+            Source = !string.IsNullOrWhiteSpace(source) ? source : DocumentMessage.InferSource(blobPath),
             DocumentId = docId,
             BlobPath = blobPath
         };

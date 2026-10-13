@@ -23,17 +23,19 @@ public class DocumentIngestionService(
 {
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
-        var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
+        // The id from the path (json/{SOURCE}/{id}.json) is the key of the job state, the chunks and the vectors, as in
+        // the queue message and the hierarchical pipeline, so every state of this run lands on the same row.
+        var documentId = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
 
         // Only the bulletins in scope (BOE, BOJA) are ingested.
         if (!Enum.GetNames<BulletinType>().Contains(source, StringComparer.OrdinalIgnoreCase))
         {
-            logger.LogWarning("Unsupported source {Source}; document {DocumentId} is discarded", source, docIdFromPath);
+            logger.LogWarning("Unsupported source {Source}; document {DocumentId} is discarded", source, documentId);
             return;
         }
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        await SetJobStateAsync(docIdFromPath, JobStatus.Processing, null, cancellationToken);
+        await SetJobStateAsync(documentId, JobStatus.Processing, null, cancellationToken);
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
@@ -45,15 +47,31 @@ public class DocumentIngestionService(
 
         logger.LogInformation("JSON descargado ({Length} caracteres). Deserializando", jsonContent.Length);
 
-        var document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        ScrapedDocument? document;
+        try
+        {
+            document = JsonSerializer.Deserialize<ScrapedDocument>(jsonContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "El blob {BlobPath} no es un JSON válido", blobPath);
+            document = null;
+        }
 
         if (document == null)
         {
+            // Retrying cannot fix the blob: the run ends Failed instead of leaving the document in Processing.
             logger.LogWarning("El blob {BlobPath} no se pudo deserializar", blobPath);
+            await SetJobStateAsync(documentId, JobStatus.Failed, $"El blob {blobPath} no contiene un documento válido.", cancellationToken);
             return;
         }
 
-        logger.LogInformation("DocumentId deserializado: {DocumentId}, longitud del texto: {Length}", document.DocumentId, document.Content?.Length ?? 0);
+        if (!string.IsNullOrEmpty(document.DocumentId) && !string.Equals(document.DocumentId, documentId, StringComparison.Ordinal))
+        {
+            logger.LogWarning("El blob {BlobPath} declara el id {DeclaredId}; se usa el id de la ruta {DocumentId}", blobPath, document.DocumentId, documentId);
+        }
+
+        logger.LogInformation("DocumentId deserializado: {DocumentId}, longitud del texto: {Length}", documentId, document.Content?.Length ?? 0);
 
         // 2. Chunking
         List<string> paragraphs;
@@ -77,7 +95,7 @@ public class DocumentIngestionService(
         var chunkedParagraphs = paragraphs.Chunk(batchSize).ToList();
         for (int i = 0; i < chunkedParagraphs.Count; i++)
         {
-            logger.LogInformation("[Baseline {DocumentId}] Vectorizando lote {Batch}/{Batches}", document.DocumentId, i + 1, chunkedParagraphs.Count);
+            logger.LogInformation("[Baseline {DocumentId}] Vectorizando lote {Batch}/{Batches}", documentId, i + 1, chunkedParagraphs.Count);
             var batchEmbeddings = await embeddingGenerator.GenerateAsync(chunkedParagraphs[i].ToList(), cancellationToken: cancellationToken);
             allEmbeddings.AddRange(batchEmbeddings);
         }
@@ -86,7 +104,7 @@ public class DocumentIngestionService(
         var publicationDate = PublicationDateParser.TryParse(document.Metadata?.PublicationDate, out var date) ? date : DateTime.UtcNow;
         var chunks = paragraphs.Select((p, i) => new DocumentChunk
         {
-            DocumentId = document.DocumentId,
+            DocumentId = documentId,
             Source = source,
             Title = document.Metadata?.Title ?? string.Empty,
             Department = document.Metadata?.Department ?? string.Empty,
@@ -104,7 +122,7 @@ public class DocumentIngestionService(
                 foreach (var chunk in chunks) chunk.Id = 0;
 
                 await dbContext.DocumentChunks
-                    .Where(c => c.DocumentId == document.DocumentId)
+                    .Where(c => c.DocumentId == documentId)
                     .ExecuteDeleteAsync(ct);
 
                 await dbContext.DocumentChunks.AddRangeAsync(chunks, ct);
@@ -113,7 +131,7 @@ public class DocumentIngestionService(
         }
         catch (Exception ex)
         {
-            await SetJobStateAsync(document.DocumentId, JobStatus.Failed, ex.Message, cancellationToken);
+            await SetJobStateAsync(documentId, JobStatus.Failed, ex.Message, cancellationToken);
             throw;
         }
 
@@ -122,7 +140,7 @@ public class DocumentIngestionService(
         {
             var vectors = allEmbeddings.Select(e => e.Vector.ToArray()).ToList();
             await vectorStore.EnsureCollectionAsync(VectorCollection.DocumentChunks, vectors[0].Length, cancellationToken);
-            await vectorStore.DeleteDocumentAsync(VectorCollection.DocumentChunks, document.DocumentId, cancellationToken: cancellationToken);
+            await vectorStore.DeleteDocumentAsync(VectorCollection.DocumentChunks, documentId, cancellationToken: cancellationToken);
 
             var points = chunks.Select((chunk, i) => new VectorPoint(chunk.Id, vectors[i], new Dictionary<string, object>
             {
@@ -140,19 +158,19 @@ public class DocumentIngestionService(
         catch (Exception ex)
         {
             // A retry of the message re-runs the whole document idempotently and re-syncs the vectors.
-            await SetJobStateAsync(document.DocumentId, JobStatus.VectorSyncFailed, ex.Message, cancellationToken);
+            await SetJobStateAsync(documentId, JobStatus.VectorSyncFailed, ex.Message, cancellationToken);
             throw;
         }
 
-        await SetJobStateAsync(document.DocumentId, JobStatus.Completed, null, cancellationToken);
-        logger.LogInformation("Documento {DocumentId} vectorizado con {ChunkCount} chunks", document.DocumentId, chunks.Count);
+        await SetJobStateAsync(documentId, JobStatus.Completed, null, cancellationToken);
+        logger.LogInformation("Documento {DocumentId} vectorizado con {ChunkCount} chunks", documentId, chunks.Count);
 
         // Same IngestionMetrics as the hierarchical pipeline, so both can be compared (no LLM calls here).
         stopwatch.Stop();
         await metricsService.TrackIngestionAsync(
             PipelineType.Baseline,
             Enum.Parse<BulletinType>(source, ignoreCase: true),
-            document.DocumentId,
+            documentId,
             tokensEmbedded: paragraphs.Sum(p => p.Length) / 4, // estimate, as in the hierarchical pipeline
             llmCalls: 0,
             llmTokens: 0,

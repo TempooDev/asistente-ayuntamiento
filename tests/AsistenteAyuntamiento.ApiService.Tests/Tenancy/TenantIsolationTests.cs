@@ -95,6 +95,21 @@ public class TenantIsolationTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(BattleWinner.Pending, winner);
     }
 
+    [Fact]
+    public async Task A_second_vote_is_a_conflict_and_keeps_the_first_vote_and_its_comment()
+    {
+        var battleId = await SeedBattleAsync("org_arena", "auth0|owner");
+        var client = factory.CreateClientAs("auth0|owner", "org_arena");
+        await client.PostAsJsonAsync("/api/arena/vote", new { sessionId = battleId, winner = "ALFA", optionalComment = "Más clara" });
+
+        var response = await client.PostAsJsonAsync("/api/arena/vote", new { sessionId = battleId, winner = "BETA" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var battle = await factory.QueryAsync(db => db.ArenaBattles.IgnoreQueryFilters().SingleAsync(b => b.SessionId == battleId));
+        Assert.Equal(BattleWinner.Alfa, battle.Winner);
+        Assert.Equal("Más clara", battle.OptionalComment);
+    }
+
     [Theory]
     [InlineData("Pending")]
     [InlineData("42")]

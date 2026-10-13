@@ -12,6 +12,10 @@ public interface IChatStreamingService
     /// <param name="pipeline">Value of <c>app.pipeline</c> for the metrics (see <see cref="Telemetry.LlmPipelines"/>).</param>
     Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 
-    /// <summary>Streams text chunks. Model errors are streamed as a user-facing message, never thrown.</summary>
+    /// <summary>
+    /// Streams text chunks. A model error before any text is streamed as a user-facing message; after some text it is
+    /// recorded as a failure and thrown as <see cref="LlmStreamInterruptedException"/>. A stream the caller cancelled
+    /// just ends.
+    /// </summary>
     IAsyncEnumerable<string> StreamAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 }

@@ -12,6 +12,16 @@ Turn the documents stored by the Go scraper into searchable chunks for the basel
 - **WHEN** the baseline worker receives a message with `blob_path = json/BOE/BOE-A-2026-1234.json`
 - **THEN** it SHALL download that blob, deserialize it as `ScrapedDocument` and chunk its `text`
 
+#### Scenario: One document id per run
+- **WHEN** the baseline ingests `json/BOE/BOE-A-2026-1234.json`
+- **THEN** its job state, chunks and vectors SHALL all use the id from the path (`BOE-A-2026-1234`), as the queue message and the hierarchical pipeline do
+- **AND** a different `document_id` inside the JSON SHALL only be logged as a warning
+
+#### Scenario: Blob that is not a document
+- **WHEN** the blob is the JSON `null` or is not valid JSON
+- **THEN** the document's baseline status SHALL end `Failed` with an error naming the blob (never left in `Processing`)
+- **AND** nothing SHALL be chunked or written to the database or the vector store
+
 #### Scenario: Document without text
 - **WHEN** the document's `text` is empty
 - **THEN** the service SHALL store a single chunk containing the document title (or "Documento sin contenido" when there is no title)
