@@ -7,7 +7,8 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Search;
 
 /// <summary>
 /// Full-text search over <c>ingestion."ChildFragments"."TsvContent"</c> (Spanish configuration, GIN index). A municipality
-/// keeps the fragments of that municipality and those without one (most bulletins are not tagged).
+/// keeps the fragments of that municipality and those without one (only documents issued by an Ayuntamiento are tagged).
+/// Fragments store the municipality as a match key (lower case, no accents) and the caller passes the filter as one too.
 /// </summary>
 public sealed class PostgresFullTextSearch(AppDbContext dbContext) : IFullTextSearch
 {

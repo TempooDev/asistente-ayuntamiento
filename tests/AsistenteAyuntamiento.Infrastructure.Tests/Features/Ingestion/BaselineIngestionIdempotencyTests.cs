@@ -124,6 +124,32 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
         _vectors.Operations.Should().Contain("delete BOE-A-2026-1");
     }
 
+    [DockerFact]
+    public async Task The_chunk_payload_carries_the_municipality_match_key_of_the_issuing_Ayuntamiento()
+    {
+        await IngestWithDepartmentAsync("AYUNTAMIENTO DE VÉLEZ-MÁLAGA");
+
+        _vectors.LastUpsertPayloads.Should().NotBeEmpty()
+            .And.OnlyContain(p => (string)p[VectorPayloadKeys.Municipality] == "velez malaga");
+    }
+
+    [DockerFact]
+    public async Task A_state_norm_has_an_empty_municipality_in_the_chunk_payload()
+    {
+        await IngestWithDepartmentAsync("Ministerio de Vivienda y Agenda Urbana");
+
+        _vectors.LastUpsertPayloads.Should().NotBeEmpty()
+            .And.OnlyContain(p => (string)p[VectorPayloadKeys.Municipality] == "");
+    }
+
+    private Task IngestWithDepartmentAsync(string department) =>
+        IngestAsync(Paragraphs(2, "texto"), json: text => JsonSerializer.Serialize(new
+        {
+            document_id = "BOE-A-2026-1",
+            text,
+            metadata = new { titulo = "Anuncio de licitación del servicio de limpieza viaria", departamento = department, fecha_publicacion = "20261001" }
+        }));
+
     private static Kernel KernelWithFakeEmbeddings()
     {
         var generator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -157,6 +183,7 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
     {
         public List<string> Operations { get; } = [];
         public IReadOnlyList<long> LastUpsertIds { get; private set; } = [];
+        public IReadOnlyList<IReadOnlyDictionary<string, object>> LastUpsertPayloads { get; private set; } = [];
         public bool FailUpserts { get; set; }
 
         public Task EnsureCollectionAsync(VectorCollection collection, int vectorSize, CancellationToken cancellationToken = default)
@@ -173,6 +200,7 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
             if (FailUpserts) throw new InvalidOperationException("qdrant unavailable");
             Operations.Add("upsert");
             LastUpsertIds = points.Select(p => p.Id).ToList();
+            LastUpsertPayloads = points.Select(p => (IReadOnlyDictionary<string, object>)p.Payload).ToList();
             return Task.CompletedTask;
         }
 

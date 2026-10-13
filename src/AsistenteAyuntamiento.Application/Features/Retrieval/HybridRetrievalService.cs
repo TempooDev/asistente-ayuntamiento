@@ -1,6 +1,7 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Search;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -25,13 +26,16 @@ public class HybridRetrievalService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.SemanticQuery }, cancellationToken: cancellationToken);
             var embeddingVector = embeddings[0].Vector.ToArray();
 
+            // Fragments store the municipality as a match key: "MÁLAGA", "Malaga" or "Ayuntamiento de Málaga" all filter alike.
+            var municipalityKey = MunicipalityExtractor.ToMatchKey(queryInfo.MunicipalityFilter);
+
             // 2. Dense vector search
             IReadOnlyList<VectorSearchHit> vectorHits = [];
             try
             {
-                var textFilter = string.IsNullOrWhiteSpace(queryInfo.MunicipalityFilter)
+                var textFilter = municipalityKey is null
                     ? ((string Field, string Text)?)null
-                    : (VectorPayloadKeys.Municipality, queryInfo.MunicipalityFilter);
+                    : (VectorPayloadKeys.Municipality, municipalityKey);
 
                 vectorHits = await vectorStore.SearchAsync(
                     VectorCollection.ChildFragments,
@@ -44,7 +48,7 @@ public class HybridRetrievalService(
             }
 
             // 3. Sparse (full-text) search
-            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.LexicalQuery ?? string.Empty, queryInfo.MunicipalityFilter, limit, cancellationToken);
+            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.LexicalQuery ?? string.Empty, municipalityKey, limit, cancellationToken);
 
             // 4. Reciprocal Rank Fusion
             var fused = Fuse(vectorHits.Select(h => h.Id).ToList(), pgResults, limit);

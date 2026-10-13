@@ -23,6 +23,24 @@ The hierarchical pipeline SHALL store each document as one `ParentDocument` (uni
 - **THEN** it SHALL split the document text with the configured `IChunkingStrategy`, one fragment per chunk with section `Sección N`
 - **AND** use "Junta de Andalucía" as issuing body when the document has no department
 
+### Requirement: Document Municipality
+Both ingestion pipelines SHALL derive the municipality of a document with `MunicipalityExtractor` (Application, no LLM) from the scraper metadata: from `departamento` when it is an Ayuntamiento ("AYUNTAMIENTO DE VÉLEZ-MÁLAGA", the BOE section V-B case) and otherwise from the issuer clause of `titulo`, the one right after the date ("Anuncio de 3 de febrero de 2026, del Ayuntamiento de Sedella, de …") or right after the document type ("Anuncio del Ayuntamiento de Ronda por el que …"). The display name SHALL be in title case with accents kept, connectors ("de", "la", "del", "los"…) in lower case and the province in parentheses removed. A document SHALL get a municipality only when its issuer is a single Ayuntamiento; otherwise (state or regional bodies, Diputación Provincial, Mancomunidad, Consorcio, municipal agencies, several Ayuntamientos, an Ayuntamiento only mentioned in the subject) the municipality MUST stay null, because a document without municipality applies to every municipality while a wrong one would hide it.
+
+The municipality filter compares a match key (`MunicipalityExtractor.ToMatchKey`): lower case, without accents, punctuation as spaces and without a leading "Ayuntamiento de" or a province in parentheses. `ParentDocument.Municipality` SHALL keep the display name; `ChildFragment.Municipality` and the `Municipality` payload of both Qdrant collections SHALL hold the match key. Documents ingested before this behaviour have no municipality until they are re-ingested (admin reprocess).
+
+#### Scenario: BOE document issued by an Ayuntamiento
+- **WHEN** a BOE document with `departamento` "AYUNTAMIENTO DE VÉLEZ-MÁLAGA" is ingested
+- **THEN** its `ParentDocument.Municipality` SHALL be "Vélez-Málaga"
+- **AND** its fragments and the points of both collections SHALL carry the key "velez malaga"
+
+#### Scenario: Ayuntamiento in the title
+- **WHEN** a document titled "Resolución de 3 de marzo de 2026, del Ayuntamiento de Alhaurín de la Torre (Málaga), referente a la convocatoria …" is ingested, or a BOJA document (department "Junta de Andalucía") titled "Anuncio de 3 de febrero de 2026, del Ayuntamiento de Sedella, de aprobación inicial …"
+- **THEN** its municipality SHALL be "Alhaurín de la Torre" or "Sedella" respectively
+
+#### Scenario: Document not issued by one Ayuntamiento
+- **WHEN** the issuer is a ministry, the Junta de Andalucía, a Diputación Provincial, a Mancomunidad or a Consorcio, or the title only mentions an Ayuntamiento after the issuer ("…, de la Dirección General de Administración Local, por la que se admite la inscripción del escudo del Ayuntamiento de Sedella")
+- **THEN** the document's municipality SHALL be null and its payload `Municipality` empty
+
 ### Requirement: Unified Hierarchical Ingestion Pipeline
 The system SHALL run the ingestion of every bulletin through the abstract `BaseHierarchicalIngestionProcessor` (`Application.Features.Ingestion`), whose subclasses only extract the parent and the raw fragments.
 
@@ -56,7 +74,7 @@ Before embedding, `FragmentEnrichmentService` SHALL build each fragment's `Chunk
 
 #### Scenario: Fragment municipality
 - **WHEN** a document's fragments are stored
-- **THEN** each `ChildFragment.Municipality` and the `Municipality` of its Qdrant payload SHALL be the parent document's `Municipality` (null, and an empty payload value, for state and regional norms)
+- **THEN** each `ChildFragment.Municipality` and the `Municipality` of its Qdrant payload SHALL be the match key of the parent document's `Municipality` (null, and an empty payload value, when the document has none)
 
 #### Scenario: Enrichment model fails
 - **WHEN** the LLM call fails
@@ -88,8 +106,12 @@ Before embedding, `FragmentEnrichmentService` SHALL build each fragment's `Chunk
 
 #### Scenario: Filtering by municipality
 - **WHEN** the query expansion returns a municipality
-- **THEN** both searches SHALL keep the fragments whose `Municipality` contains that municipality and the fragments without a municipality
-- **AND** because the BOE and BOJA documents carry no municipality (fragments inherit the parent's, which is null), every fragment currently passes the filter
+- **THEN** both searches SHALL keep the fragments whose `Municipality` contains the match key of that municipality and the fragments without a municipality
+- **AND** the match SHALL NOT depend on case, accents or an "Ayuntamiento de" prefix: "Ayuntamiento de SÉDELLA" SHALL match the fragments of a document of Sedella
+
+#### Scenario: Filtering by another municipality
+- **WHEN** the query expansion returns "Ronda"
+- **THEN** both searches SHALL exclude the fragments of a document of Sedella and SHALL keep the fragments without a municipality
 
 ### Requirement: Parent Resolution for Generation
 The system SHALL resolve the retrieved fragments to their parent documents and give the LLM the full text of each distinct parent once.

@@ -15,8 +15,8 @@ using Moq;
 namespace AsistenteAyuntamiento.Infrastructure.Tests.Features.Ingestion;
 
 /// <summary>
-/// Fragments carry the real sub-section in the breadcrumb (or none) and inherit the document's municipality, in the
-/// database and in the vector payload (spec: hierarchical-retrieval). In-memory database, fake ports.
+/// Fragments carry the real sub-section in the breadcrumb (or none) and inherit the document's municipality as its match
+/// key, in the database and in the vector payload (spec: hierarchical-retrieval). In-memory database, fake ports.
 /// </summary>
 public class HierarchicalFragmentMetadataTests
 {
@@ -45,9 +45,10 @@ public class HierarchicalFragmentMetadataTests
     }
 
     [Theory]
-    [InlineData("Sedella")]
-    [InlineData(null)]
-    public async Task Fragments_get_the_real_sub_section_and_the_document_municipality(string? municipality)
+    [InlineData("Sedella", "sedella")]
+    [InlineData("Vélez-Málaga", "velez malaga")]
+    [InlineData(null, null)]
+    public async Task Fragments_get_the_real_sub_section_and_the_document_municipality(string? municipality, string? key)
     {
         await using var db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase($"fragments-{Guid.NewGuid()}").Options,
@@ -70,12 +71,13 @@ public class HierarchicalFragmentMetadataTests
 
         var children = await db.ChildFragments.AsNoTracking().OrderBy(c => c.Id).ToListAsync();
         children.Select(c => c.SubSection).Should().Equal("a1", "a2 (parte 1)");
-        children.Should().OnlyContain(c => c.Municipality == municipality);
+        children.Should().OnlyContain(c => c.Municipality == key);
+        (await db.ParentDocuments.AsNoTracking().SingleAsync()).Municipality.Should().Be(municipality, "the parent keeps the display name");
         children[0].ChunkText.Should().StartWith("[BOLETÍN: BOE | ORGANISMO: Ayuntamiento | NORMA: Ordenanza | ARTÍCULO: a1]");
         children[1].ChunkText.Should().StartWith("[BOLETÍN: BOE | ORGANISMO: Ayuntamiento | NORMA: Ordenanza | ARTÍCULO: a2 | SUBSECCIÓN: parte 1]");
         children.Should().NotContain(c => c.ChunkText.Contains("General") || c.ChunkText.Contains("Párrafo"));
 
-        upserted.Should().HaveCount(2).And.OnlyContain(p => (string)p.Payload[VectorPayloadKeys.Municipality]! == (municipality ?? ""));
+        upserted.Should().HaveCount(2).And.OnlyContain(p => (string)p.Payload[VectorPayloadKeys.Municipality]! == (key ?? ""));
     }
 
     private static Kernel KernelWithFakeEmbeddings()

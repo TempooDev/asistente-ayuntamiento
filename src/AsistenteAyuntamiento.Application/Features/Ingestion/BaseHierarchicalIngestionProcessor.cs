@@ -86,12 +86,12 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
                 if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
 
-                // Fragments inherit the document's municipality (null for state and regional norms), so the
-                // municipality filter of the retrieval sees the same value on the parent and its fragments.
+                // Fragments inherit the document's municipality (null for state and regional norms) as the match key
+                // the retrieval filter compares (MunicipalityExtractor.ToMatchKey), in PostgreSQL and in the payload.
                 children.Add(new ChildFragment
                 {
                     Bulletin = Bulletin,
-                    Municipality = parentDoc.Municipality,
+                    Municipality = MunicipalityExtractor.ToMatchKey(parentDoc.Municipality),
                     SubSection = frag.Label,
                     ChunkText = enrichmentResult.EnrichedText
                 });
