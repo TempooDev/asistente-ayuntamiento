@@ -116,11 +116,6 @@ builder.AddRabbitMQClient("messaging");
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// Register AI metrics OpenTelemetry instruments
-builder.Services.AddOpenTelemetry()
-    .WithMetrics(metrics => metrics.AddMeter(AiMetricsService.MeterName))
-    .WithTracing(tracing => tracing.AddSource(AiMetricsService.MeterName));
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

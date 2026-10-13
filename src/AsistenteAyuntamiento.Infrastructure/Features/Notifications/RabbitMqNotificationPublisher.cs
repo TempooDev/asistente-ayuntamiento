@@ -54,7 +54,7 @@ public class RabbitMqNotificationPublisher(IConnectionFactory connectionFactory,
 
             var message = new { DocumentId = documentId, NewStatus = newStatus };
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-            var props = new BasicProperties { Persistent = true };
+            var props = new BasicProperties { Persistent = true, Headers = RabbitMqTraceContext.Inject() };
 
             // Channel operations must be thread-safe in RabbitMQ
             await _channelLock.WaitAsync();

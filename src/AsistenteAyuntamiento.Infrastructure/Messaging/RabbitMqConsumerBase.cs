@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -131,6 +132,7 @@ public abstract class RabbitMqConsumerBase<TMessage>(
     private async Task OnReceivedAsync(IChannel channel, string queue, BasicDeliverEventArgs delivery, CancellationToken stoppingToken)
     {
         TMessage? message = null;
+        using var activity = RabbitMqTraceContext.StartProcessActivity(queue, delivery.BasicProperties.Headers);
         try
         {
             message = JsonSerializer.Deserialize<TMessage>(delivery.Body.Span, JsonOptions)
@@ -146,6 +148,7 @@ public abstract class RabbitMqConsumerBase<TMessage>(
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             var retryCount = RabbitMqTopology.GetRetryCount(delivery.BasicProperties);
             var action = Decide(ex, retryCount, MaxRetries, UsesRetryAndDeadLetter);
 
@@ -189,10 +192,11 @@ public abstract class RabbitMqConsumerBase<TMessage>(
             Persistent = true,
             ContentType = delivery.BasicProperties.ContentType ?? "application/json",
             MessageId = delivery.BasicProperties.MessageId,
-            Headers = new Dictionary<string, object?>(delivery.BasicProperties.Headers ?? new Dictionary<string, object?>())
+            // The copied headers keep the producer's trace; the retry continues it from this attempt.
+            Headers = RabbitMqTraceContext.Inject(new Dictionary<string, object?>(delivery.BasicProperties.Headers ?? new Dictionary<string, object?>())
             {
                 [RabbitMqTopology.RetryCountHeader] = retryCount,
-            },
+            }),
         };
 
         await _publishLock.WaitAsync(cancellationToken);
