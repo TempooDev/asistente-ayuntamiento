@@ -40,8 +40,10 @@ export class ManualScrapeComponent {
       const wasScraping = this.isScraping();
       this.isScraping.set(state.isScraping);
       this.progress.set(state.message);
-      if (wasScraping && !state.isScraping && state.message === '') {
-        this.toast.success('Proceso de extracción finalizado correctamente.');
+      if (wasScraping && !state.isScraping) {
+        // An empty message means success; otherwise it is the reason the scrape did not complete.
+        if (state.message === '') this.toast.success('Proceso de extracción finalizado correctamente.');
+        else this.toast.error(state.message);
       }
     });
     this.api

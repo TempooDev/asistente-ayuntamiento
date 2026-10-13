@@ -347,10 +347,16 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Property<string>("DocumentId")
                         .HasColumnType("text");
 
+                    b.Property<string>("BaselineStatus")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HierarchicalStatus")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("LastUpdatedAt")
@@ -359,6 +365,12 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("DocumentId");
 

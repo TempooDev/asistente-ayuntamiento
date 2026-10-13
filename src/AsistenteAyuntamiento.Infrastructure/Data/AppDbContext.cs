@@ -135,6 +135,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         {
             // Stored as text: same values as the former string constants, so no data migration is needed.
             entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.BaselineStatus).HasConversion<string>();
+            entity.Property(e => e.HierarchicalStatus).HasConversion<string>();
+            // Both workers update the same row: PostgreSQL's xmin detects a concurrent change and the update is retried.
+            entity.Property<uint>("Version").IsRowVersion();
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

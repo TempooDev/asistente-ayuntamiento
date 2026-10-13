@@ -59,7 +59,7 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
             _vectors,
             NullLogger<DocumentIngestionService>.Instance,
             new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 0),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>());
         await sut.ProcessBlobAsync(BlobPath, "BOE");
     }
 

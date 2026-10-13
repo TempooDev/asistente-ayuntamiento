@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -36,5 +37,5 @@ public sealed class BaselineIngestionConsumer(
     protected override Task OnDeadLetteredAsync(DocumentMessage? message, Exception exception, IServiceProvider services, CancellationToken cancellationToken) =>
         message is null
             ? Task.CompletedTask
-            : IngestionJobStates.MarkFailedAsync(services, message.DocumentId, exception, cancellationToken);
+            : IngestionJobStates.MarkFailedAsync(services, message.DocumentId, PipelineType.Baseline, exception, cancellationToken);
 }
