@@ -4,8 +4,8 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./tmp/main.exe"
-  cmd = "go build -o ./tmp/main.exe ."
+  bin = "./tmp/scraper"
+  cmd = "go build -o ./tmp/scraper ./cmd/scraper"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
@@ -15,9 +15,9 @@ tmp_dir = "tmp"
   full_bin = ""
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html"]
-  kill_delay = "0s"
+  kill_delay = "5s"
   log = "build-errors.log"
-  send_interrupt = false
+  send_interrupt = true
   stop_on_error = true
 
 [color]

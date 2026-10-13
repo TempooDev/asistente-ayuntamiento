@@ -114,10 +114,17 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
+
+      - name: Formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Run gofmt -w on:"; echo "$unformatted"; exit 1
+          fi
 
       - name: Build
-        run: CGO_ENABLED=0 go build -trimpath -o /dev/null .
+        run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/scraper
 
   protos:
     name: Generated protobuf code is up to date
@@ -143,7 +150,8 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Regenerate Go code
-        run: protoc -I src/Protos --go_out=src/go-scraper/internal --go-grpc_out=src/go-scraper/internal scraper.proto
+        working-directory: src/go-scraper
+        run: go generate ./internal/protos
 
       - name: Fail on drift
         run: git diff --exit-code -- src/go-scraper/internal/protos

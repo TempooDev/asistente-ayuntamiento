@@ -1,13 +1,14 @@
+// Package filterclient reads the scraper filter rules from the .NET API over gRPC.
 package filterclient
 
 import (
 	"context"
 	"crypto/tls"
-	"log"
-	"os"
+	"fmt"
 	"strings"
 
 	pb "github.com/asistente-ayuntamiento/go-scraper/internal/protos"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,12 +24,9 @@ type Client struct {
 	internalKey string
 }
 
-func NewClient() (*Client, error) {
-	target := os.Getenv("DOTNET_API_GRPC_URL")
-	if target == "" {
-		target = "localhost:5001" // fallback for local dev
-	}
-
+// NewClient connects to target (http://host:port or https://host:port). internalKey authenticates the calls;
+// the API rejects calls without it outside Development.
+func NewClient(target, internalKey string) (*Client, error) {
 	useTLS := strings.HasPrefix(target, "https://")
 
 	// The gRPC target is host:port without the scheme
@@ -43,14 +41,9 @@ func NewClient() (*Client, error) {
 		creds = insecure.NewCredentials()
 	}
 
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
 	if err != nil {
 		return nil, err
-	}
-
-	internalKey := os.Getenv("INTERNAL_GRPC_KEY")
-	if internalKey == "" {
-		log.Printf("Aviso: INTERNAL_GRPC_KEY no configurada; la API rechazará las llamadas fuera de Development")
 	}
 
 	return &Client{
@@ -72,8 +65,7 @@ func (c *Client) GetFilters(ctx context.Context) ([]*pb.FilterRule, error) {
 	}
 	resp, err := c.svc.GetActiveFilters(ctx, &pb.EmptyRequest{})
 	if err != nil {
-		log.Printf("Error fetching filters from .NET API: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("fetching filter rules from the API: %w", err)
 	}
 	return resp.Rules, nil
 }

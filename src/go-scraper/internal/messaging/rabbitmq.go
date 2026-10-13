@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -41,21 +40,16 @@ type Publisher struct {
 	channel *amqp.Channel
 }
 
-// NewPublisher validates the configuration and tries to connect. A failed first connection is not fatal:
-// the publisher reconnects on the next publish.
-func NewPublisher() (*Publisher, error) {
-	url := os.Getenv("ConnectionStrings__messaging")
-	if url == "" {
-		return nil, errors.New("no se encontró ConnectionStrings__messaging")
-	}
-
+// NewPublisher tries to connect to url. A failed first connection is not fatal: the publisher reconnects on
+// the next publish.
+func NewPublisher(url string, logger *slog.Logger) *Publisher {
 	p := &Publisher{url: url}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err := p.connectLocked(); err != nil {
-		log.Printf("Aviso: RabbitMQ no disponible al arrancar (se reintentará al publicar): %v", err)
+		logger.Warn("RabbitMQ is not reachable at startup; publishing will retry", "error", err)
 	}
-	return p, nil
+	return p
 }
 
 func (p *Publisher) connectLocked() error {
