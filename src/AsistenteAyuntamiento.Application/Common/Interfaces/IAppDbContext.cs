@@ -14,6 +14,7 @@ public interface IAppDbContext
     DbSet<UserPreference> UserPreferences { get; set; }
     DbSet<ChatSession> ChatSessions { get; set; }
     DbSet<ChatMessage> ChatMessages { get; set; }
+    DbSet<FailedChatMessage> FailedChatMessages { get; set; }
     DbSet<AiCallLog> AiCallLogs { get; set; }
     DbSet<AiConfiguration> AiConfigurations { get; set; }
     DbSet<DocumentChunk> DocumentChunks { get; set; }
