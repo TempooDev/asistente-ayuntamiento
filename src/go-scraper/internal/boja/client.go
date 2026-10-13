@@ -16,6 +16,9 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// baseURL of the Junta de Andalucía site (a variable so tests can point it at a local server).
+var baseURL = "https://www.juntadeandalucia.es"
+
 // Provider implementa scraper.BoletinProvider para el BOJA.
 type Provider struct {
 	httpClient  *http.Client
@@ -36,11 +39,11 @@ func NewProvider(customFeeds ...string) *Provider {
 	feeds := customFeeds
 	if len(feeds) == 0 {
 		feeds = []string{
-			"https://www.juntadeandalucia.es/boja/distribucion/s51.xml",
-			"https://www.juntadeandalucia.es/boja/distribucion/s52.xml",
-			"https://www.juntadeandalucia.es/boja/distribucion/s53.xml",
-			"https://www.juntadeandalucia.es/boja/distribucion/s54.xml",
-			"https://www.juntadeandalucia.es/boja/distribucion/s55.xml",
+			baseURL + "/boja/distribucion/s51.xml",
+			baseURL + "/boja/distribucion/s52.xml",
+			baseURL + "/boja/distribucion/s53.xml",
+			baseURL + "/boja/distribucion/s54.xml",
+			baseURL + "/boja/distribucion/s55.xml",
 		}
 	}
 
@@ -216,7 +219,7 @@ func (p *Provider) fetchFromHTMLSearch(ctx context.Context, targetDate time.Time
 			}
 		}
 		
-		url := fmt.Sprintf("https://www.juntadeandalucia.es/boja/%d/%d/index.html", year, num)
+		url := fmt.Sprintf("%s/boja/%d/%d/index.html", baseURL, year, num)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil { return time.Time{}, nil, err }
 		
@@ -248,7 +251,7 @@ func (p *Provider) fetchFromHTMLSearch(ctx context.Context, targetDate time.Time
 		p.dateCache[year][num] = parsedDate
 		
 		if parsedDate.Equal(targetDate) {
-			reLinks := regexp.MustCompile(fmt.Sprintf(`href="(https?://www\.juntadeandalucia\.es/boja/%d/%d/\d+(?:\.html)?)"`, year, num))
+			reLinks := regexp.MustCompile(fmt.Sprintf(`href="(%s/boja/%d/%d/\d+(?:\.html)?)"`, regexp.QuoteMeta(baseURL), year, num))
 			matches := reLinks.FindAllStringSubmatch(htmlContent, -1)
 			
 			// Try relative links too
@@ -256,7 +259,7 @@ func (p *Provider) fetchFromHTMLSearch(ctx context.Context, targetDate time.Time
 				reLinksRel := regexp.MustCompile(fmt.Sprintf(`href="(/boja/%d/%d/\d+(?:\.html)?)"`, year, num))
 				matchesRel := reLinksRel.FindAllStringSubmatch(htmlContent, -1)
 				for _, m := range matchesRel {
-					bestMatchURLs = append(bestMatchURLs, "https://www.juntadeandalucia.es"+m[1])
+					bestMatchURLs = append(bestMatchURLs, baseURL+m[1])
 				}
 			} else {
 				for _, m := range matches {

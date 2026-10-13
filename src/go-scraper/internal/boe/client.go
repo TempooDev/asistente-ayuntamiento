@@ -16,10 +16,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const (
+const maxRetries = 3
+
+// Endpoints of the BOE open data API (variables so tests can point them at a local server).
+var (
 	summaryURLTemplate  = "https://www.boe.es/datosabiertos/api/boe/sumario/%s"
 	documentURLTemplate = "https://www.boe.es/diario_boe/xml.php?id=%s"
-	maxRetries          = 3
 )
 
 // Provider implementa scraper.BoletinProvider para el BOE.
