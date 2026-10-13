@@ -1,12 +1,12 @@
-using AsistenteAyuntamiento.Domain.Common.Enums;
 using System.Diagnostics;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Microsoft.Extensions.AI;
-using AsistenteAyuntamiento.Application.Common.VectorStore;
-using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 

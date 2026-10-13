@@ -27,12 +27,20 @@ Turn the documents stored by the Go scraper into searchable chunks for the basel
 - **THEN** the service SHALL store a single chunk containing the document title (or "Documento sin contenido" when there is no title)
 
 ### Requirement: Modular Chunking Strategy
-The system SHALL split text through the `IChunkingStrategy` abstraction (`Application.Features.Ingestion.Chunking`), whose `ChunkText(string)` returns `DocumentChunkResult` items (text, zero-based chunk index and strategy metadata). The registered implementation SHALL be `FixedOverlapChunkingStrategy`, a singleton configured with `Ai:Embeddings:ChunkMaxTokens` (default 400) and `Ai:Embeddings:ChunkOverlapTokens` (default 50), which splits the text into lines of at most 200 tokens and groups them into paragraphs with Semantic Kernel's `TextChunker`.
+The system SHALL split text through the `IChunkingStrategy` abstraction (`Application.Features.Ingestion.Chunking`), whose `ChunkText(string)` returns `DocumentChunkResult` items (text, zero-based chunk index and strategy metadata). The registered implementation SHALL be `FixedOverlapChunkingStrategy`, a singleton configured with `Ai:Embeddings:ChunkMaxTokens` (default 400), `Ai:Embeddings:ChunkOverlapTokens` (default 50) and `Ai:Embeddings:ChunkMaxLines` (default 200), which splits the text into lines of at most `ChunkMaxLines` tokens (despite its name, the setting is a token limit per line) and groups them into paragraphs with Semantic Kernel's `TextChunker`. `ChunkMaxTokens` and `ChunkMaxLines` SHALL be greater than 0, and `ChunkOverlapTokens` SHALL be at least 0 and lower than `ChunkMaxTokens`; otherwise registering the services SHALL throw `ArgumentOutOfRangeException`, so the host fails at startup.
 
 #### Scenario: Chunking a long document
 - **WHEN** a text of several thousand tokens is chunked with the default configuration
 - **THEN** it SHALL be split into chunks of at most about 400 tokens with about 50 tokens of overlap
 - **AND** each chunk SHALL carry its index and the metadata `Strategy = FixedOverlap`
+
+#### Scenario: Line length configured
+- **WHEN** `Ai:Embeddings:ChunkMaxLines` is set (for example through `AI_EMBEDDINGS_CHUNK_MAX_LINES` in `docker-compose.yml`)
+- **THEN** the registered strategy SHALL cut lines at that many tokens instead of 200
+
+#### Scenario: Invalid chunking settings
+- **WHEN** `ChunkMaxLines` or `ChunkMaxTokens` is 0 or negative, or `ChunkOverlapTokens` is negative or not lower than `ChunkMaxTokens`
+- **THEN** `AddApplicationServices` SHALL throw `ArgumentOutOfRangeException`
 
 #### Scenario: Empty text
 - **WHEN** `ChunkText` receives an empty or whitespace text

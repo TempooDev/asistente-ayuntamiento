@@ -1,5 +1,5 @@
-using AsistenteAyuntamiento.Domain.Features.Scraper;
 using AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
+using AsistenteAyuntamiento.Domain.Features.Scraper;
 
 namespace AsistenteAyuntamiento.Application.Features.Scraper;
 

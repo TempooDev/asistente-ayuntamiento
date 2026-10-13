@@ -1,8 +1,8 @@
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
-namespace AsistenteAyuntamiento.Application.Features.Chat;
-
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+
+namespace AsistenteAyuntamiento.Application.Features.Chat;
 
 /// <summary>
 /// Singleton buffer for holding chat messages in memory until they are persisted.

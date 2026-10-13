@@ -3,6 +3,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Report the .editorconfig code-style rules (IDE*) during the build too. The naming rules (IDE1006)
+         are not reported by command-line builds; CI enforces them with `dotnet format style` -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- Nullable violations and vulnerable packages (NU1901-NU1904) break the build -->
     <WarningsAsErrors>$(WarningsAsErrors);nullable;NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
     <NoWarn>$(NoWarn);SKEXP0001;SKEXP0010;SKEXP0050;SKEXP0070</NoWarn>

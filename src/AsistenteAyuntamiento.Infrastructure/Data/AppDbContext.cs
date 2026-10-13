@@ -1,13 +1,12 @@
-using NpgsqlTypes;
-using Microsoft.EntityFrameworkCore;
-
-using AsistenteAyuntamiento.Domain.Features.Users;
+using AsistenteAyuntamiento.Domain.Features.AiConfig;
+using AsistenteAyuntamiento.Domain.Features.Arena;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
-using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
-using AsistenteAyuntamiento.Domain.Features.Arena;
+using AsistenteAyuntamiento.Domain.Features.Users;
+using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data;
 

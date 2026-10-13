@@ -131,34 +131,100 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>Route prefixes whose every mapped route must be classified in <see cref="RouteRules"/>.</summary>
+    private static readonly string[] AdminAreas = ["/api/ingestion", "/api/scraper", "/api/settings", "/api/ai", "/api/arena"];
+
+    /// <summary>Expected authorization for routes that only require a signed-in user, not an admin role.</summary>
+    private const string AuthenticatedUser = "(authenticated user)";
+
+    /// <summary>Returned for a route in an admin area that no rule covers: the test fails until it is classified.</summary>
+    private const string Unclassified = "(unclassified)";
+
+    /// <summary>
+    /// Expected authorization per route. An exact rule wins over a prefix rule, and the longest prefix wins. Mixed
+    /// areas (<c>/api/arena</c>) have no prefix rule, so every new route there must be added explicitly.
+    /// </summary>
+    private static readonly (string Route, bool IsPrefix, string Expected)[] RouteRules =
+    [
+        ("/api/ingestion", true, Policies.PlatformAdmin),
+        ("/api/scraper", true, Policies.PlatformAdmin),
+        ("/api/settings", true, Policies.OrganizationAdmin),
+        ("/api/ai", true, Policies.PlatformAdmin),
+        ("/api/ai/metrics/summary", false, Policies.OrganizationAdmin),
+        ("/api/ai/metrics/history", false, Policies.OrganizationAdmin),
+        ("/api/arena/analytics", false, Policies.PlatformAdmin),
+        ("/api/arena/compare", false, Policies.OrganizationAdmin),
+        ("/api/arena/vote", false, AuthenticatedUser),
+    ];
+
+    /// <summary>
+    /// The authorization a route must have: a policy name, <see cref="AuthenticatedUser"/>, <see cref="Unclassified"/>,
+    /// or null when the route is outside the admin areas.
+    /// </summary>
+    private static string? ExpectedAuthorization(string route)
+    {
+        route = route.TrimEnd('/');
+        if (!AdminAreas.Any(area => IsUnder(route, area))) return null;
+
+        var exact = RouteRules.FirstOrDefault(r => !r.IsPrefix && string.Equals(r.Route, route, StringComparison.OrdinalIgnoreCase));
+        if (exact.Route is not null) return exact.Expected;
+
+        var prefix = RouteRules
+            .Where(r => r.IsPrefix && IsUnder(route, r.Route))
+            .OrderByDescending(r => r.Route.Length)
+            .FirstOrDefault();
+        return prefix.Route is not null ? prefix.Expected : Unclassified;
+    }
+
+    private static bool IsUnder(string route, string prefix) =>
+        string.Equals(route, prefix, StringComparison.OrdinalIgnoreCase)
+        || route.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+
+    [Theory]
+    [InlineData("/api/arena/new-admin-thing", Unclassified)]
+    [InlineData("/api/arena", Unclassified)]
+    [InlineData("/api/arena/vote", AuthenticatedUser)]
+    [InlineData("/api/ai/new-thing", Policies.PlatformAdmin)]
+    [InlineData("/api/ai/metrics/history", Policies.OrganizationAdmin)]
+    [InlineData("/api/scraper/filters/{id:int}", Policies.PlatformAdmin)]
+    [InlineData("/api/scraper/filters/", Policies.PlatformAdmin)]
+    [InlineData("/api/arenas", null)]
+    [InlineData("/api/users/me", null)]
+    public void Route_classification_covers_new_routes(string route, string? expected)
+    {
+        Assert.Equal(expected, ExpectedAuthorization(route));
+    }
+
     [Fact]
     public void Every_endpoint_under_an_admin_prefix_requires_its_admin_policy()
     {
-        (string Prefix, string Policy)[] expected =
-        [
-            ("/api/ingestion", Policies.PlatformAdmin),
-            ("/api/scraper", Policies.PlatformAdmin),
-            ("/api/arena/analytics", Policies.PlatformAdmin),
-            ("/api/ai/metrics/summary", Policies.OrganizationAdmin),
-            ("/api/ai/metrics/history", Policies.OrganizationAdmin),
-            ("/api/ai/", Policies.PlatformAdmin),
-            ("/api/settings", Policies.OrganizationAdmin),
-            ("/api/arena/compare", Policies.OrganizationAdmin),
-        ];
-
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Select(e => (Route: e.RoutePattern.RawText ?? string.Empty, Endpoint: e))
-            .Select(e => (e.Route, e.Endpoint, Expected: expected.FirstOrDefault(x => e.Route.StartsWith(x.Prefix, StringComparison.OrdinalIgnoreCase)).Policy))
+            .Select(e => (e.Route, e.Endpoint, Expected: ExpectedAuthorization(e.Route)))
             .Where(e => e.Expected is not null)
             .ToList();
 
-        Assert.NotEmpty(endpoints);
+        // Every admin area is mapped, and every exact rule still matches a real route (no stale entries).
+        Assert.All(AdminAreas, area => Assert.Contains(endpoints, e => IsUnder(e.Route.TrimEnd('/'), area)));
+        Assert.All(RouteRules.Where(r => !r.IsPrefix), rule =>
+            Assert.Contains(endpoints, e => string.Equals(e.Route.TrimEnd('/'), rule.Route, StringComparison.OrdinalIgnoreCase)));
 
-        var wrong = endpoints
-            .Where(e => !e.Endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a => a.Policy == e.Expected))
-            .Select(e => $"{e.Route} (expected {e.Expected})")
-            .ToList();
+        var wrong = new List<string>();
+        foreach (var (route, endpoint, expected) in endpoints)
+        {
+            var authorizeData = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
+            var allowsAnonymous = endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null;
+
+            if (expected == Unclassified)
+                wrong.Add($"{route}: not classified; add it to {nameof(RouteRules)} with its policy");
+            else if (allowsAnonymous)
+                wrong.Add($"{route}: allows anonymous access (expected {expected})");
+            else if (expected == AuthenticatedUser && authorizeData.Count == 0)
+                wrong.Add($"{route}: does not require authentication");
+            else if (expected != AuthenticatedUser && !authorizeData.Any(a => a.Policy == expected))
+                wrong.Add($"{route}: does not require {expected}");
+        }
 
         Assert.Empty(wrong);
     }

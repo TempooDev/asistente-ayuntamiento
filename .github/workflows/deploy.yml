@@ -34,6 +34,11 @@ on:
         required: false
         default: false
 
+# One deploy at a time: the release tagging below reads `latest`, which a concurrent run could move.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   # Image names must match docker-compose.yml (lowercase, no dots).
@@ -219,7 +224,36 @@ jobs:
       (needs.build-go.result == 'success' || needs.build-go.result == 'skipped') &&
       (needs.changes.outputs.any_dotnet == 'true' || needs.changes.outputs.goscraper == 'true' || needs.changes.outputs.compose == 'true')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Only changed images are rebuilt. Give every application image the sha tag of this deploy (retagging the
+      # current `latest` of the unchanged ones, without pulling or rebuilding), so IMAGE_TAG=sha-xxxxxxx in Dokploy
+      # always resolves to a complete, consistent release for rollbacks.
+      - name: Tag the release on unchanged images
+        env:
+          TAG: sha-${{ needs.changes.outputs.short_sha }}
+        run: |
+          for name in asistenteayuntamiento-apiservice asistenteayuntamiento-worker asistenteayuntamiento-gateway go-scraper; do
+            image="$IMAGE_PREFIX-$name"
+            if docker buildx imagetools inspect "$image:$TAG" > /dev/null 2>&1; then
+              echo "$image:$TAG built in this run"
+            else
+              echo "Tagging $image:latest as $TAG"
+              docker buildx imagetools create --tag "$image:$TAG" "$image:latest"
+            fi
+          done
+
       - name: Trigger Dokploy Deployment
         run: |
           echo "Triggering deployment of sha-${{ needs.changes.outputs.short_sha }} in Dokploy..."

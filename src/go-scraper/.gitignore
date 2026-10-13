@@ -4,3 +4,5 @@
 tmp_scraper_bin
 /go-scraper
 /bin/
+# Output of `go build ./cmd/scraper` (anchored, so directories named scraper are not ignored)
+/scraper

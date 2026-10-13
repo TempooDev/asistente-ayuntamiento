@@ -4,15 +4,34 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 public class FixedOverlapChunkingStrategy : IChunkingStrategy
 {
+    public const int DefaultMaxTokens = 400;
+    public const int DefaultOverlapTokens = 50;
+    public const int DefaultMaxLineTokens = 200;
+
     private readonly int _maxTokens;
     private readonly int _overlapTokens;
+    private readonly int _maxLineTokens;
 
     public string StrategyName => "FixedOverlap";
 
-    public FixedOverlapChunkingStrategy(int maxTokens = 400, int overlapTokens = 50)
+    /// <param name="maxTokens">Maximum tokens per chunk (Ai:Embeddings:ChunkMaxTokens).</param>
+    /// <param name="overlapTokens">Tokens shared by consecutive chunks (Ai:Embeddings:ChunkOverlapTokens).</param>
+    /// <param name="maxLineTokens">
+    /// Maximum tokens per line before lines are grouped into chunks (Ai:Embeddings:ChunkMaxLines).
+    /// </param>
+    public FixedOverlapChunkingStrategy(
+        int maxTokens = DefaultMaxTokens,
+        int overlapTokens = DefaultOverlapTokens,
+        int maxLineTokens = DefaultMaxLineTokens)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTokens);
+        ArgumentOutOfRangeException.ThrowIfNegative(overlapTokens);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(overlapTokens, maxTokens);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineTokens);
+
         _maxTokens = maxTokens;
         _overlapTokens = overlapTokens;
+        _maxLineTokens = maxLineTokens;
     }
 
     public IEnumerable<DocumentChunkResult> ChunkText(string text)
@@ -22,7 +41,7 @@ public class FixedOverlapChunkingStrategy : IChunkingStrategy
             return Enumerable.Empty<DocumentChunkResult>();
         }
 
-        var lines = TextChunker.SplitPlainTextLines(text, 200);
+        var lines = TextChunker.SplitPlainTextLines(text, _maxLineTokens);
         var rawChunks = TextChunker.SplitPlainTextParagraphs(lines, _maxTokens, _overlapTokens);
 
         return rawChunks.Select((c, i) => new DocumentChunkResult
