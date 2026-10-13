@@ -115,6 +115,13 @@ var qdrant = builder.AddQdrant("qdrant")
 
 var ollama = builder.AddOllama("ollama")
     .WithDataVolume();
+// On CPU, local ingestion calls time out. With an NVIDIA GPU visible to the container runtime (Docker, or Podman
+// with the NVIDIA Container Toolkit and its CDI spec):
+// dotnet user-secrets set "Ollama:Gpu" "true" --project src/AsistenteAyuntamiento.AppHost
+if (string.Equals(builder.Configuration["Ollama:Gpu"], "true", StringComparison.OrdinalIgnoreCase))
+{
+    ollama.WithGPUSupport();
+}
 ollama.AddModel("llama3.2");
 ollama.AddModel("nomic-embed-text");
 
