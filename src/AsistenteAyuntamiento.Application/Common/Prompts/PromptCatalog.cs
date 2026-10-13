@@ -17,6 +17,11 @@ public static class PromptCatalog
         6. NUNCA TE ESCUDES EN TU IDENTIDAD NI TE DISCULPES: Bajo ningún concepto uses frases derrotistas o excusas como "Como asistente municipal, no dispongo de...", "No tengo acceso en tiempo real" o "No puedo ayudarte con eso". Da siempre la mejor respuesta posible o una estimación basada en tu conocimiento general, advirtiendo de forma objetiva sobre su validez (Punto 2). No adoptes una personalidad limitante.
         """;
 
+    /// <summary>Streaming without retrieved documents (small talk, follow-ups): stays conversational.</summary>
+    public const string ConversationalSystem = """
+        Eres el asistente virtual del ayuntamiento para consultas sobre boletines oficiales (BOE, BOJA). Responde de forma clara y concisa en español.
+        """;
+
     /// <summary>{0} retrieved context, {1} citizen question, {2} current date (dd/MM/yyyy).</summary>
     public const string ChatUserTemplate = """
         FECHA ACTUAL: {2}

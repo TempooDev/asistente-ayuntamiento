@@ -90,11 +90,13 @@ public class BaselineRagPipelineTests
     }
 
     [Fact]
-    public async Task Streaming_without_matches_sends_the_conversation_unchanged()
+    public async Task Streaming_without_matches_keeps_the_question_and_adds_the_conversational_prompt()
     {
         await CreateSut([]).StreamAsync(Turn()).ToListAsync();
 
-        _sentHistory.Should().ContainSingle().Which.Content.Should().Be("¿Ayudas al alquiler?");
+        _sentHistory!.Select(m => m.Role).Should().Equal(AuthorRole.System, AuthorRole.User);
+        _sentHistory![0].Content.Should().Be(PromptCatalog.ConversationalSystem);
+        _sentHistory![1].Content.Should().Be("¿Ayudas al alquiler?");
     }
 
     [Fact]
@@ -117,6 +119,6 @@ public class BaselineRagPipelineTests
         var chunks = await sut.StreamAsync(Turn()).ToListAsync();
 
         chunks.Should().Equal("ok");
-        _sentHistory.Should().ContainSingle();
+        _sentHistory!.Single(m => m.Role == AuthorRole.User).Content.Should().Be("¿Ayudas al alquiler?", "no context was injected");
     }
 }
