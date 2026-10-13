@@ -2,7 +2,7 @@ using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Protos;
 using Grpc.Core;
 
-namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
+namespace AsistenteAyuntamiento.ApiService.Grpc;
 
 /// <summary>
 /// Serves the active filter rules to the Go scraper. Fails closed: on error it returns a gRPC error,

@@ -25,6 +25,7 @@ using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Scraper;
+using AsistenteAyuntamiento.ApiService.Grpc;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Config;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
