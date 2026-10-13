@@ -1,12 +1,14 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, output } from '@angular/core';
+import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive';
 
 @Component({
   selector: 'app-welcome-guide',
-  standalone: true,
+  imports: [DialogFocusDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm">
-      <div class="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-300 relative max-h-[90vh] flex flex-col bg-white">
-        <button (click)="close()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors p-2 rounded-full hover:bg-gray-100">
+      <div class="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-300 relative max-h-[90vh] flex flex-col bg-white" role="dialog" aria-modal="true" aria-labelledby="welcome-title" appDialogFocus (escape)="close()">
+        <button type="button" (click)="close()" aria-label="Cerrar guía" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors p-2 rounded-full hover:bg-gray-100">
           <span class="material-symbols-outlined">close</span>
         </button>
         
@@ -14,7 +16,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
           <div class="bg-primary/10 p-2 rounded-lg">
             <span class="material-symbols-outlined text-[32px]">menu_book</span>
           </div>
-          <h2 class="text-2xl font-bold m-0 text-gray-900">Guía de Uso del Asistente</h2>
+          <h2 id="welcome-title" class="text-2xl font-bold m-0 text-gray-900">Guía de Uso del Asistente</h2>
         </div>
         
         <div class="flex-1 overflow-y-auto pr-2 space-y-6">
@@ -62,7 +64,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
                   <div class="bg-white p-1 rounded-md shadow-sm shrink-0">
                     <span class="material-symbols-outlined text-purple-600 text-lg block">thumb_up</span>
                   </div>
-                  <span class="text-gray-700 text-sm leading-tight mt-1">Vota por la mejor respuesta haciendo <strong>clic en la burbuja</strong> que prefieras, o elige el botón <strong>"Empate"</strong> si ambas son de igual calidad.</span>
+                  <span class="text-gray-700 text-sm leading-tight mt-1">Vota por la mejor respuesta con el botón <strong>"Elegir esta respuesta"</strong> de la burbuja que prefieras, o elige el botón <strong>"Empate"</strong> si ambas son de igual calidad.</span>
                 </li>
               </ul>
             </div>
@@ -70,7 +72,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
         </div>
         
         <div class="mt-6 flex justify-end shrink-0 pt-4 border-t border-gray-100">
-          <button class="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2" (click)="close()">
+          <button type="button" class="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2" (click)="close()">
             <span>¡Entendido, empezar!</span>
             <span class="material-symbols-outlined text-sm">arrow_forward</span>
           </button>
@@ -80,7 +82,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
   `
 })
 export class WelcomeGuideComponent {
-  @Output() dismiss = new EventEmitter<void>();
+  readonly dismiss = output<void>();
 
   close() {
     this.dismiss.emit();
