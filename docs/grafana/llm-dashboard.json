@@ -1,0 +1,376 @@
+{
+  "title": "LLM",
+  "uid": "asistente-llm",
+  "tags": [
+    "asistente-ayuntamiento",
+    "llm",
+    "genai"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "description": "Coste, tokens, latencia, primer token, respaldo y errores de las llamadas al LLM (OpenTelemetry GenAI + app.*).",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Origen",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      },
+      {
+        "name": "tenant",
+        "label": "Tenant",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(gen_ai_client_operation_duration_seconds_count, app_tenant_id)",
+          "refId": "V"
+        },
+        "definition": "label_values(gen_ai_client_operation_duration_seconds_count, app_tenant_id)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "pipeline",
+        "label": "Pipeline",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(gen_ai_client_operation_duration_seconds_count, app_pipeline)",
+          "refId": "V"
+        },
+        "definition": "label_values(gen_ai_client_operation_duration_seconds_count, app_pipeline)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "Coste estimado por tenant (rango)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (app_tenant_id) (increase(app_llm_cost_total{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__range])))",
+          "legendFormat": "{{app_tenant_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      },
+      "description": "Precio de Ai:Pricing; Ollama y los modelos sin precio cuentan 0."
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Coste estimado por modelo",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (gen_ai_request_model) (increase(app_llm_cost_total{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval]))",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Tokens por pipeline",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (app_pipeline) (rate(gen_ai_client_inference_usage_input_tokens_total{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval]))",
+          "legendFormat": "{{app_pipeline}} entrada"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (app_pipeline) (rate(gen_ai_client_inference_usage_output_tokens_total{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval]))",
+          "legendFormat": "{{app_pipeline}} salida"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "Tokens por segundo."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Latencia p50 / p95 por pipeline",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, app_pipeline) (rate(gen_ai_client_operation_duration_seconds_bucket{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{app_pipeline}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, app_pipeline) (rate(gen_ai_client_operation_duration_seconds_bucket{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{app_pipeline}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tiempo hasta el primer token p50 / p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, app_pipeline) (rate(app_llm_time_to_first_token_seconds_bucket{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{app_pipeline}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, app_pipeline) (rate(app_llm_time_to_first_token_seconds_bucket{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{app_pipeline}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "Medido en la API, desde la petición al modelo hasta el primer fragmento."
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Uso del modelo de respaldo",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(gen_ai_client_operation_duration_seconds_count{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\", app_fallback=\"true\"}[$__range])) / clamp_min(sum(rate(gen_ai_client_operation_duration_seconds_count{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__range])), 1e-9)",
+          "legendFormat": "respaldo"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "Llamadas servidas por Ai:Fallback porque el tenant agotó su cuota."
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Llamadas por minuto",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(gen_ai_client_operation_duration_seconds_count{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[5m])) * 60",
+          "legendFormat": "llamadas/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Errores por código",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (error_type) (rate(gen_ai_client_operation_duration_seconds_count{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\", error_type!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{error_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "Códigos tipados (LLM_QUOTA_EXCEEDED, LLM_NOT_CONFIGURED, LLM_UNAVAILABLE) o el tipo de excepción."
+    }
+  ]
+}
