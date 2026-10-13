@@ -119,6 +119,12 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<byte>("Winner")
                         .HasColumnType("smallint");
 
@@ -152,8 +158,19 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("answer");
+
                     b.Property<int>("OutputTokens")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Pipeline")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<bool>("Success")
                         .HasColumnType("boolean");
@@ -374,7 +391,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.HasKey("DocumentId");
 
-                    b.ToTable("DocumentJobStates", "public");
+                    b.ToTable("DocumentJobStates", "ingestion");
                 });
 
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.IngestionMetric", b =>

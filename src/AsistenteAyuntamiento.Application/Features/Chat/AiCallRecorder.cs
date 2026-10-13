@@ -26,7 +26,9 @@ public sealed class AiCallRecorder(
                 InputTokens = outcome.Usage.InputTokens,
                 OutputTokens = outcome.Usage.OutputTokens,
                 TotalTokens = outcome.Usage.TotalTokens,
-                ErrorMessage = outcome.Success ? null : $"{outcome.ErrorCode}: {outcome.ErrorDetail}"
+                ErrorMessage = outcome.Success ? null : $"{outcome.ErrorCode}: {outcome.ErrorDetail}",
+                Pipeline = outcome.Pipeline,
+                Operation = outcome.Operation
             });
             await dbContext.SaveChangesAsync(cancellationToken);
         }

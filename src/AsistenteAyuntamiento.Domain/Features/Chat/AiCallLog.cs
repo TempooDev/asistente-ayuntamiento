@@ -32,4 +32,13 @@ public class AiCallLog
     public int TotalTokens { get; set; }
 
     public string? ErrorMessage { get; set; }
+
+    /// <summary>Pipeline that made the call (<c>baseline</c>, <c>hierarchical</c>, <c>profile</c>…); null for rows written before it was recorded.</summary>
+    [MaxLength(50)]
+    public string? Pipeline { get; set; }
+
+    /// <summary>What the call was for (<c>answer</c>, <c>query_expansion</c>, <c>history_analysis</c>); only answers count as calls in the usage summary.</summary>
+    [Required]
+    [MaxLength(50)]
+    public string Operation { get; set; } = "answer";
 }

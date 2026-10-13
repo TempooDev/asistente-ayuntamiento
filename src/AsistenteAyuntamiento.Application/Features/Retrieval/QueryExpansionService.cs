@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,7 @@ public class QueryExpansionService(
     [FromKeyedServices("IngestionKernel")] Kernel kernel,
     IConfiguration configuration,
     ILlmUsageMetrics usageMetrics,
+    IAiCallRecorder callRecorder,
     ILogger<QueryExpansionService> logger) : IQueryExpansionService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -25,7 +27,7 @@ public class QueryExpansionService(
             var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
 
             var result = await _chatCompletionService.CompleteMeteredAsync(
-                prompt, _model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken);
+                prompt, _model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken, callRecorder);
 
             return Parse(result.Content, userQuery);
         }

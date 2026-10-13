@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +16,8 @@ public class HistoryAnalyzerService(
     Kernel kernel,
     IConfiguration configuration,
     ICurrentTenantService tenantService,
-    ILlmUsageMetrics usageMetrics) : IHistoryAnalyzerService
+    ILlmUsageMetrics usageMetrics,
+    IAiCallRecorder callRecorder) : IHistoryAnalyzerService
 {
     public async Task AnalyzeAndMergeUserHistoryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
@@ -47,8 +49,9 @@ public class HistoryAnalyzerService(
         var history = new ChatHistory(systemPrompt);
         history.AddUserMessage(messagesContext);
 
-        var scope = new LlmCallScope(tenantService.TenantId ?? "unknown", LlmPipelines.Profile, LlmOperations.HistoryAnalysis);
-        var result = await chatCompletion.CompleteMeteredAsync(history, PlatformModels.Chat(configuration), scope, usageMetrics, cancellationToken: cancellationToken);
+        var scope = new LlmCallScope(tenantService.TenantId ?? "unknown", LlmPipelines.Profile, LlmOperations.HistoryAnalysis) { UserId = auth0UserId };
+        var result = await chatCompletion.CompleteMeteredAsync(history, PlatformModels.Chat(configuration), scope, usageMetrics,
+            cancellationToken: cancellationToken, recorder: callRecorder);
         var extracted = Parse(result.Content ?? string.Empty);
 
         if (extracted != null && (extracted.Topics.Count > 0 || extracted.Locations.Count > 0))

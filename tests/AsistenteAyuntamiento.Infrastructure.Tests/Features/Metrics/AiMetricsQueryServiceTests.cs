@@ -47,9 +47,32 @@ public class AiMetricsQueryServiceTests
         summary.TotalInputTokens.Should().Be(11);
         summary.TotalOutputTokens.Should().Be(21);
         summary.Consumptions.Select(c => (c.ModelId, c.Type, c.TotalCalls, c.TotalTokens)).Should().Equal(
-            ("gpt", "Chat", 2, 30L),
-            ("gemini", "Chat", 1, 2L));
+            ("gpt", "Respuesta", 2, 30L),
+            ("gemini", "Respuesta", 1, 2L));
         summary.Consumptions.Single(c => c.ModelId == "gpt").AverageDurationMs.Should().Be(200);
+    }
+
+    [Fact]
+    public async Task Other_steps_add_tokens_but_are_not_counted_as_calls()
+    {
+        await SeedAsync();
+        await using (var db = Context("seed"))
+        {
+            db.AiCallLogs.AddRange(
+                new AiCallLog { TenantId = "org_A", ModelId = "gpt", Operation = "query_expansion", Success = true, DurationMs = 5000, InputTokens = 100, OutputTokens = 10, TotalTokens = 110 },
+                new AiCallLog { TenantId = "org_A", ModelId = "gpt", Operation = "history_analysis", Success = false, DurationMs = 9000 });
+            await db.SaveChangesAsync();
+        }
+        await using var tenant = Context("org_A");
+
+        var summary = await new AiMetricsQueryService(tenant).GetSummaryAsync();
+
+        (summary.TotalCalls, summary.SucceededCalls, summary.FailedCalls).Should().Be((3L, 2L, 1L));
+        summary.AverageDurationMs.Should().Be(150, "only answers count: (100 + 300 + 50) / 3");
+        summary.TotalTokens.Should().Be(32 + 110);
+        summary.AverageTokensPerCall.Should().Be(16, "answer tokens (32) per successful answer (2)");
+        summary.Consumptions.Should().Contain(c => c.ModelId == "gpt" && c.Type == "Expansión de consulta" && c.TotalTokens == 110)
+            .And.Contain(c => c.ModelId == "gpt" && c.Type == "Análisis de historial" && c.TotalCalls == 1);
     }
 
     [Fact]

@@ -32,7 +32,7 @@ public class ClearLanguageGenerationService(
 
         try
         {
-            var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken, recorder: callRecorder);
             return result.Content ?? "Lo siento, hubo un problema al generar la respuesta.";
         }
         catch (Exception ex)

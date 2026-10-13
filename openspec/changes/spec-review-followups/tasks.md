@@ -22,10 +22,10 @@
 - [x] 2.12 Win rates count ties and both-bad votes in the denominator (`ArenaAnalyticsService.cs:54-57`). Decide the definition.
 - [x] 2.13 The fragment breadcrumb passes `ElementType` ("General"/"Párrafo") as SUBSECCIÓN, and fragments never get a municipality (`BaseHierarchicalIngestionProcessor.cs:80,89`).
 - [x] 2.14 The plain-language generation only labels each parent document by its numeric id, so "Fuentes consultadas" cannot cite the bulletin or norm (`ClearLanguageGenerationService.cs:149`).
-- [ ] 2.15 Left over from 2.2: query expansion, ingestion enrichment, history analysis and the non-streaming Arena compare still only reach the `gen_ai.*` metrics, not `AiCallLogs`. Recording them needs a column naming the step (migration) so they are not counted as answers.
+- [x] 2.15 Left over from 2.2: query expansion, ingestion enrichment, history analysis and the non-streaming Arena compare still only reach the `gen_ai.*` metrics, not `AiCallLogs`. Recording them needs a column naming the step (migration) so they are not counted as answers.
 - [ ] 2.16 Left over from 2.4: a model error before any text arrives as a normal `[LLM_*]` message, so that Arena side is not marked as failed and can still be voted on.
 - [ ] 2.17 When a chat stream fails midway, the partial answer is not saved, so a reload shows the question with no answer.
-- [ ] 2.18 The Arena vote reads, checks and writes without a concurrency token: two simultaneous votes could both pass (the client blocks double clicks). Needs a row version (migration).
+- [x] 2.18 The Arena vote reads, checks and writes without a concurrency token: two simultaneous votes could both pass (the client blocks double clicks). Needs a row version (migration).
 - [ ] 2.19 Fragments now inherit `ParentDocument.Municipality`, but neither the scraper JSON nor the baseline fills a municipality, so it is always null and the municipality filter never matches a real value.
 
 ## 3. Robustness and hygiene
@@ -38,7 +38,7 @@
 - [x] 3.6 The admin endpoint test matches `/api/arena` by exact paths, so a new unprotected Arena admin route would not be caught.
 - [x] 3.7 `IngestionMetricsService` resolves `IAppDbContext` from `IServiceProvider` (service locator).
 - [x] 3.8 Minor: `src/go-scraper/.gitignore` does not ignore the `scraper` binary built by `go build ./cmd/scraper`; stale "Azurite" comment in `AppHost.cs:24`; `IReadabilityService` is registered but unused.
-- [ ] 3.9 `DocumentJobStates` lives in the `public` schema (moving it needs a migration).
+- [x] 3.9 `DocumentJobStates` lives in the `public` schema (moving it needs a migration).
 - [x] 3.10 The API → scraper `ForceScrape` client inherited the ServiceDefaults resilience handler (10 s per attempt, 30 s total, retries): a manual scrape was cut off after 30 s and could be sent again.
 
 ## 4. Never implemented (removed from the main specs)

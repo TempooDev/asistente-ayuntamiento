@@ -56,7 +56,7 @@ User preferences SHALL be stored per (`Auth0UserId`, `TenantId`), with a unique 
 - **THEN** the API SHALL NOT return the preferences saved in `org_A`
 
 ### Requirement: Schema Segregation
-The system SHALL separate bounded contexts in PostgreSQL schemas: `identity` (default schema; `UserProfiles`, `UserPreferences`, `AiConfigurations`), `chat`, `ingestion`, `scraper` and `arena`.
+The system SHALL separate bounded contexts in PostgreSQL schemas: `identity` (default schema; `UserProfiles`, `UserPreferences`, `AiConfigurations`), `chat`, `ingestion` (including `DocumentJobStates`), `scraper` and `arena`. No application table SHALL live in `public`.
 
 #### Scenario: Applying the identity schema
 - **WHEN** the EF Core migrations run

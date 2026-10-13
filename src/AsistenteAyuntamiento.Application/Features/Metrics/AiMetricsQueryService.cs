@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Metrics.DTOs;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,12 +13,15 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
 
     public async Task<AiMetricsSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
-        var chatByModel = await dbContext.AiCallLogs
+        // Grouped by model and step: answers are the calls users see; query expansion and history analysis are the
+        // tenant's extra cost (their tokens count, but not as calls).
+        var byModel = await dbContext.AiCallLogs
             .AsNoTracking()
-            .GroupBy(c => c.ModelId)
+            .GroupBy(c => new { c.ModelId, c.Operation })
             .Select(g => new
             {
-                ModelId = g.Key,
+                g.Key.ModelId,
+                g.Key.Operation,
                 Calls = g.Count(),
                 Succeeded = g.Count(x => x.Success),
                 AverageDurationMs = g.Average(x => x.DurationMs),
@@ -28,18 +32,21 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
             .ToListAsync(cancellationToken);
 
         // Only the tenant's own calls: IngestionMetrics is platform-wide and is served by GetIngestionUsageAsync.
-        var consumptions = chatByModel
+        var consumptions = byModel
             .Select(c => new ModelConsumptionDto(
-                string.IsNullOrEmpty(c.ModelId) ? "Unknown" : c.ModelId, "Chat", c.Calls, c.Succeeded, Math.Round(c.AverageDurationMs, 2), c.TotalTokens))
+                string.IsNullOrEmpty(c.ModelId) ? "Unknown" : c.ModelId, OperationLabel(c.Operation), c.Calls, c.Succeeded,
+                Math.Round(c.AverageDurationMs, 2), c.TotalTokens))
             .OrderByDescending(c => c.TotalTokens)
             .ToList();
 
-        var totalCalls = chatByModel.Sum(c => (long)c.Calls);
-        var succeededCalls = chatByModel.Sum(c => (long)c.Succeeded);
+        var answers = byModel.Where(c => c.Operation == LlmOperations.Answer).ToList();
+        var totalCalls = answers.Sum(c => (long)c.Calls);
+        var succeededCalls = answers.Sum(c => (long)c.Succeeded);
         var failedCalls = totalCalls - succeededCalls;
-        var inputTokens = chatByModel.Sum(c => c.InputTokens);
-        var outputTokens = chatByModel.Sum(c => c.OutputTokens);
+        var inputTokens = byModel.Sum(c => c.InputTokens);
+        var outputTokens = byModel.Sum(c => c.OutputTokens);
         var totalTokens = inputTokens + outputTokens;
+        var answerDurationMs = answers.Sum(c => c.AverageDurationMs * c.Calls);
 
         return new AiMetricsSummaryDto(
             GeneratedAtUtc: DateTime.UtcNow,
@@ -47,13 +54,22 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
             SucceededCalls: succeededCalls,
             FailedCalls: failedCalls,
             SuccessRate: totalCalls > 0 ? Math.Round((double)succeededCalls / totalCalls * 100, 2) : 0,
-            AverageDurationMs: consumptions.Count > 0 ? Math.Round(consumptions.Average(c => c.AverageDurationMs), 2) : 0,
+            AverageDurationMs: totalCalls > 0 ? Math.Round(answerDurationMs / totalCalls, 2) : 0,
             TotalInputTokens: inputTokens,
             TotalOutputTokens: outputTokens,
             TotalTokens: totalTokens,
-            AverageTokensPerCall: succeededCalls > 0 ? Math.Round((double)totalTokens / succeededCalls, 1) : 0,
+            AverageTokensPerCall: succeededCalls > 0 ? Math.Round((double)answers.Sum(c => c.TotalTokens) / succeededCalls, 1) : 0,
             Consumptions: consumptions);
     }
+
+    /// <summary>Spanish label of an <see cref="LlmOperations"/> value, shown as the consumption type.</summary>
+    internal static string OperationLabel(string operation) => operation switch
+    {
+        LlmOperations.Answer => "Respuesta",
+        LlmOperations.QueryExpansion => "Expansión de consulta",
+        LlmOperations.HistoryAnalysis => "Análisis de historial",
+        _ => operation
+    };
 
     public async Task<IngestionUsageDto> GetIngestionUsageAsync(CancellationToken cancellationToken = default)
     {

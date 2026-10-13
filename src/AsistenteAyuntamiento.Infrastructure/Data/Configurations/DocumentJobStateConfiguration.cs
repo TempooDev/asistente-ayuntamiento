@@ -8,6 +8,6 @@ public sealed class DocumentJobStateConfiguration : IEntityTypeConfiguration<Doc
 {
     public void Configure(EntityTypeBuilder<DocumentJobState> builder)
     {
-        builder.ToTable("DocumentJobStates", "public");
+        builder.ToTable("DocumentJobStates", "ingestion");
     }
 }
