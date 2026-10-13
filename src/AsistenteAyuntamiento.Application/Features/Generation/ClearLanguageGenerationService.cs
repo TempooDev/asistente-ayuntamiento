@@ -23,16 +23,24 @@ public class ClearLanguageGenerationService(
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
     private readonly string _provider = configuration["Ai:Chat:Provider"] ?? "ollama";
     private readonly string _model = configuration["Ai:Chat:Model"] ?? "llama3.2";
+    private readonly int _maxContextChars = configuration.GetValue("Ai:Hierarchical:MaxContextChars", DefaultMaxContextChars);
+
+    /// <summary>
+    /// Characters of legal text sent per answer (about 6,500 tokens). Parent documents average 14,000 characters
+    /// and reach 100,000: whole, five of them overflow small context windows (Ollama then drops the system prompt,
+    /// documents included, without an error) and cost tens of thousands of tokens per answer elsewhere.
+    /// </summary>
+    internal const int DefaultMaxContextChars = 24_000;
 
     public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope, CancellationToken cancellationToken = default)
     {
-        var chatHistory = BuildChatHistory(userQuery, retrievedContext);
+        var (chatHistory, sources) = BuildChatHistory(userQuery, retrievedContext);
         if (chatHistory == null)
             return "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta.";
 
         // A model failure is recorded and rethrown: the caller (the Arena page) must not present it as an answer.
         var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken, recorder: callRecorder);
-        return result.Content ?? string.Empty;
+        return (result.Content ?? string.Empty) + sources;
     }
 
     public async IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(
@@ -41,7 +49,7 @@ public class ClearLanguageGenerationService(
         LlmCallScope scope,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var chatHistory = BuildChatHistory(userQuery, retrievedContext);
+        var (chatHistory, sources) = BuildChatHistory(userQuery, retrievedContext);
         if (chatHistory == null)
         {
             yield return new StreamingChatMessageContent(AuthorRole.Assistant, "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta.");
@@ -142,39 +150,82 @@ public class ClearLanguageGenerationService(
                     CancellationToken.None);
             }
         }
+
+        // Only after a complete answer: a failed stream throws above and the Arena marks the side as failed.
+        if (sources.Length > 0)
+        {
+            yield return new StreamingChatMessageContent(AuthorRole.Assistant, sources);
+        }
     }
 
-    private ChatHistory? BuildChatHistory(string userQuery, List<RetrievalResult> retrievedContext)
+    /// <summary>The prompt, and the "Fuentes consultadas" of the documents it includes (not of those left out).</summary>
+    private (ChatHistory? History, string Sources) BuildChatHistory(string userQuery, List<RetrievalResult> retrievedContext)
     {
         if (!retrievedContext.Any())
         {
-            return null;
+            return (null, string.Empty);
         }
 
-        var contextBuilder = new StringBuilder();
-        var uniqueParents = retrievedContext
-            .GroupBy(r => r.ParentId)
-            .Select(g => g.First())
-            .ToList();
-
-        foreach (var ctx in uniqueParents)
+        var context = BuildContext(retrievedContext, _maxContextChars);
+        if (context.Excerpted > 0)
         {
-            contextBuilder.AppendLine("--- INICIO DE DOCUMENTO LEGAL ---");
-            contextBuilder.AppendLine(DocumentLabel(ctx));
-            contextBuilder.AppendLine(ctx.ParentFullText);
-            contextBuilder.AppendLine("--- FIN DE DOCUMENTO LEGAL ---\n");
+            logger.LogInformation("Hierarchical context over {MaxChars} characters: {Excerpted} of {Documents} documents sent as their matching fragments",
+                _maxContextChars, context.Excerpted, context.Included.Count);
         }
 
-        var systemPrompt = string.Format(PromptCatalog.ClearLanguageGeneration, contextBuilder.ToString());
+        var systemPrompt = string.Format(PromptCatalog.ClearLanguageGeneration, context.Text);
         var chatHistory = new ChatHistory(systemPrompt);
         chatHistory.AddUserMessage(userQuery);
 
-        return chatHistory;
+        return (chatHistory, SourceCitations.FromRetrieval(context.Included));
+    }
+
+    /// <summary>
+    /// The legal text of the prompt, best-ranked parent first and within <paramref name="maxChars"/>: a parent that
+    /// fits goes whole; one that does not is replaced by its retrieved fragments (the passages that matched the
+    /// query), cut at the budget. The best-ranked document always contributes something. <c>Included</c> holds one
+    /// result per parent sent, for the sources.
+    /// </summary>
+    internal static (string Text, IReadOnlyList<RetrievalResult> Included, int Excerpted) BuildContext(IReadOnlyList<RetrievalResult> retrieved, int maxChars)
+    {
+        var builder = new StringBuilder();
+        var remaining = maxChars;
+        var included = new List<RetrievalResult>();
+        var excerpted = 0;
+
+        // GroupBy keeps the order in which each parent first appears, i.e. its best rank.
+        foreach (var parent in retrieved.GroupBy(r => r.ParentId))
+        {
+            if (remaining <= 0) break;
+
+            var first = parent.First();
+            string body;
+            if (first.ParentFullText.Length <= remaining)
+            {
+                body = first.ParentFullText;
+            }
+            else
+            {
+                var fragments = string.Join("\n[...]\n", parent.Select(r => r.ChunkText).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct());
+                body = "(Extractos relevantes; el texto completo es demasiado extenso)\n" + fragments;
+                if (body.Length > remaining) body = body[..remaining];
+                excerpted++;
+            }
+
+            builder.AppendLine("--- INICIO DE DOCUMENTO LEGAL ---");
+            builder.AppendLine(DocumentLabel(first));
+            builder.AppendLine(body);
+            builder.AppendLine("--- FIN DE DOCUMENTO LEGAL ---\n");
+            remaining -= body.Length;
+            included.Add(first);
+        }
+
+        return (builder.ToString(), included, excerpted);
     }
 
     /// <summary>
     /// Header of a parent document in the prompt: title, bulletin, identifier, issuing body, date and public URL (the
-    /// same link as the baseline pipeline), so the model can cite the norm in "Fuentes consultadas".
+    /// same link as the baseline pipeline), so the model can cite the norm in its answer.
     /// </summary>
     internal static string DocumentLabel(RetrievalResult result)
     {

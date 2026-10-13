@@ -74,6 +74,14 @@ public sealed class BaselineRagPipeline(
         {
             yield return chunk;
         }
+
+        // The documents sent to the model, after its complete answer: a failed stream throws before reaching here,
+        // and a cancelled one just ends, so it is checked.
+        var sources = SourceCitations.FromHits(hits);
+        if (sources.Length > 0 && !cancellationToken.IsCancellationRequested)
+        {
+            yield return sources;
+        }
     }
 
     private static string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? LlmPipelines.Baseline;

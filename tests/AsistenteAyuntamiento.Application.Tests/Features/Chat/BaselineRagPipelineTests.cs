@@ -80,6 +80,23 @@ public class BaselineRagPipelineTests
     }
 
     [Fact]
+    public async Task The_answer_ends_with_the_sources_of_the_documents_found()
+    {
+        var chunks = await CreateSut([Hit("Bono alquiler"), Hit("Bono alquiler")]).StreamAsync(Turn()).ToListAsync();
+
+        string.Concat(chunks).Should().Be("ok\n\n### Fuentes consultadas\n" +
+            "- [Bono alquiler](https://www.boe.es/buscar/doc.php?id=BOE-A-2026-1) (BOE-A-2026-1)");
+    }
+
+    [Fact]
+    public async Task Without_documents_the_answer_has_no_sources()
+    {
+        var chunks = await CreateSut([]).StreamAsync(Turn()).ToListAsync();
+
+        chunks.Should().Equal("ok");
+    }
+
+    [Fact]
     public async Task Labels_the_call_as_baseline_unless_the_caller_set_a_pipeline()
     {
         await CreateSut([]).StreamAsync(Turn()).ToListAsync();
