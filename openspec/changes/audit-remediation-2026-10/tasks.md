@@ -112,14 +112,18 @@ Source of every finding: `docs/auditoria-codigo-2026-10.md`.
 
 ## 6. Go Scraper Restructuring
 
-- [ ] 6.1 Characterization tests with saved fixtures for the BOE JSON and XML parsers, the BOJA title and ID parsing, and the BOJA binary search (`internal/boe`, `internal/boja`), using `httptest.Server`.
-- [ ] 6.2 Create `internal/config` (load and validate every environment variable) and `internal/httpx` (timeout, rate limit, exponential backoff with jitter that respects `ctx`, body close and drain). Migrate `boe/client.go:175-210` and `boja/client.go:81-91`.
-- [ ] 6.3 Stateless providers: `FetchSummary(ctx, date, Options)`. Remove `SetSections`/`UpdateFeeds`, and protect or remove `dateCache` with a `sync.Mutex`. Compile the regular expressions at package level (`boja:193,239,251`). Return the bulletin date instead of `time.Now()` (`boja:169`).
-- [ ] 6.4 Create `internal/pipeline.Orchestrator` with the storage, publisher, filters and providers injected. Add a single job lock shared by cron, HTTP and gRPC, and async jobs with an ID. Validate dates and the maximum range. Merge `scrapeDateRange` and `scrapeProviderDateRange`, and delete `forceScrapeProvider`.
-- [ ] 6.5 Graceful shutdown: `signal.NotifyContext`, `http.Server` with timeouts and `Shutdown`, `grpcServer.GracefulStop`, and OTel flush. Replace the `log.Fatalf` in `commandserver/server.go:52,60` with returned errors.
-- [ ] 6.6 Move `main.go` to `cmd/scraper/main.go` (wiring only). Fix `go_package` in `src/Protos/scraper.proto` and add `//go:generate`. Make `.air.toml` cross-platform with `send_interrupt = true`.
-- [ ] 6.7 Observability: `slog` JSON with `trace_id`, package-level counters, properly nested spans (propagate `ctx`), and count extracted items only after they are saved.
-- [ ] 6.8 Storage: `SaveRaw` with the real extension and MIME type (`storage/cloud.go:79-81`), explicit S3 credentials instead of `os.Setenv`. Remove BOPMA from the active provider registry until it is implemented.
+- [x] 6.1 Characterization tests with saved fixtures for the BOE JSON and XML parsers, the BOJA title and ID parsing, and the BOJA binary search (`internal/boe`, `internal/boja`), using `httptest.Server`.
+- [x] 6.2 Create `internal/config` (load and validate every environment variable) and `internal/httpx` (timeout, rate limit, exponential backoff with jitter that respects `ctx`, body close and drain). Migrate `boe/client.go:175-210` and `boja/client.go:81-91`.
+- [x] 6.3 Stateless providers: `FetchSummary(ctx, date, Options)`. Remove `SetSections`/`UpdateFeeds`, and protect or remove `dateCache` with a `sync.Mutex`. Compile the regular expressions at package level (`boja:193,239,251`). Return the bulletin date instead of `time.Now()` (`boja:169`).
+  - Done: also fixed in BOJA: rate limiter never applied, `defer` inside the feed loop, links accumulated across lookups; URLs are deduplicated across feeds. A 404 BOE summary now means a day without bulletin.
+- [x] 6.4 Create `internal/pipeline.Orchestrator` with the storage, publisher, filters and providers injected. Add a single job lock shared by cron, HTTP and gRPC, and async jobs with an ID. Validate dates and the maximum range. Merge `scrapeDateRange` and `scrapeProviderDateRange`, and delete `forceScrapeProvider`.
+  - Done: the gRPC `ForceScrape` was not covered by the old mutex; now every trigger shares the lock. `Section` filter rules now select the BOE sections (request sections take precedence).
+- [x] 6.5 Graceful shutdown: `signal.NotifyContext`, `http.Server` with timeouts and `Shutdown`, `grpcServer.GracefulStop`, and OTel flush. Replace the `log.Fatalf` in `commandserver/server.go:52,60` with returned errors.
+  - Done: the gRPC command service also requires `x-internal-key` (it accepted unauthenticated calls), and the .NET client now sends it.
+- [x] 6.6 Move `main.go` to `cmd/scraper/main.go` (wiring only). Fix `go_package` in `src/Protos/scraper.proto` and add `//go:generate`. Make `.air.toml` cross-platform with `send_interrupt = true`.
+- [x] 6.7 Observability: `slog` JSON with `trace_id`, package-level counters, properly nested spans (propagate `ctx`), and count extracted items only after they are saved.
+  - Done except the AMQP `traceparent` injection, which belongs to `observability-grafana-tempooanalytics` task 1.5.
+- [x] 6.8 Storage: `SaveRaw` with the real extension and MIME type (`storage/cloud.go:79-81`), explicit S3 credentials instead of `os.Setenv`. Remove BOPMA from the active provider registry until it is implemented.
 
 ## 7. Angular Restructuring
 

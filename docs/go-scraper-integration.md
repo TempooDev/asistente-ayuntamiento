@@ -30,11 +30,21 @@ graph TD
 
 ## 2. Go Scraper Service Overview
 
-The scraper is written in Go to take advantage of its superior concurrency primitives, low memory footprint, and rapid startup.
+The scraper is a single Go binary (`cmd/scraper`, wiring only) built from these packages:
 
-- **Web Framework:** [Echo](https://echo.labstack.com/) for exposing `/health` endpoints and triggerable manual endpoints.
-- **Hot Reload (Dev):** [Air](https://github.com/cosmtrek/air) watches files, recompiles, and restarts the service inside the .NET Aspire environment.
-- **Scraping Libraries:** Pure HTTP clients, `goquery`, or `colly` for parsing gazette index pages.
+| Package | Role |
+|---|---|
+| `internal/config` | Loads and validates every environment variable; reports all problems at once. |
+| `internal/httpx` | Shared HTTP client: per-site rate limit, timeout, retries with exponential backoff and jitter that stop when the context is cancelled. |
+| `internal/provider/{boe,boja}` | Stateless bulletin providers: `FetchSummary(ctx, date, Options)` and `FetchDocument(ctx, ref)`. BOPMA (`internal/bopma`) is a draft and is not registered. |
+| `internal/pipeline` | `Orchestrator`: one job at a time (schedule, HTTP and gRPC share the lock), filter rules (fail closed), storage, queueing, metrics and spans. |
+| `internal/storage` | S3-compatible bucket with explicit credentials: `json/<source>/<id>.json` and the original as `raw-<ext>/<source>/<id>.<ext>`. |
+| `internal/messaging` | Persistent publishing with confirms to both ingestion queues (`docs/messaging-contract.md`). |
+| `internal/commandserver` | gRPC `ScraperCommandService.ForceScrape` for the .NET API; requires `x-internal-key`. |
+| `internal/httpapi` | `GET /health`, `GET|POST /api/scrape?start=&end=&provider=&section=` (202 + job), `GET /api/jobs/{id}`. |
+| `internal/logging` | JSON `slog` with `trace_id`/`span_id` from the active span. |
+
+The daily schedule scrapes the previous day at `SCRAPE_SCHEDULE_HOUR` for `SCRAPE_SCHEDULED_PROVIDERS`. SIGINT/SIGTERM stop the servers gracefully, cancel the running job between documents and flush telemetry.
 
 ---
 
@@ -84,30 +94,23 @@ When the Go Scraper successfully downloads a document from the official gazette 
 
 ## 4. Aspire Integration & Environment Configuration
 
-In the `.NET Aspire AppHost`, the Go resource is registered as a local executable. 
+Aspire runs the module with `AddGoApp("go-scraper", "../go-scraper", "./cmd/scraper")`; Docker builds the same package (`src/go-scraper/Dockerfile`). For hot reload outside Aspire, `air` uses `.air.toml` (sends SIGINT so shutdown runs).
 
-### Development Mode Environment Variables
+### Environment variables
 
-Aspire automatically injects connection strings as environment variables for references defined using `.WithReference(...)`:
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `Blob__Endpoint`, `Blob__AccessKeyId`, `Blob__SecretAccessKey` | yes | | S3-compatible bucket (MinIO, Cloudflare R2). |
+| `Blob__BucketName` | no | `boletines` | Bucket name. |
+| `ConnectionStrings__messaging` | no | | RabbitMQ; without it documents are stored but not queued. |
+| `DOTNET_API_GRPC_URL` | no | `http://localhost:5001` | .NET API gRPC endpoint for the filter rules (`https://` uses TLS). |
+| `INTERNAL_GRPC_KEY` | in production | | Shared key for gRPC calls in both directions (`Internal__GrpcApiKey` in the API). |
+| `PORT`, `GRPC_PORT` | no | `8080`, `50051` | HTTP and gRPC ports. |
+| `BOJA_FEEDS` | no | sections s51–s55 | Comma-separated Atom feeds; `BojaFeed` filter rules take precedence. |
+| `SCRAPE_SCHEDULE_HOUR` | no | `1` | Local hour of the daily run. |
+| `SCRAPE_SCHEDULED_PROVIDERS` | no | `BOE` | Providers of the daily run. |
+| `SCRAPE_MAX_RANGE_DAYS` | no | `31` | Longest manual range. |
+| `LOG_LEVEL` | no | `info` | `debug`, `info`, `warn` or `error`. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | | Enables traces and metrics export. |
 
-- **RabbitMQ Connection:**
-  - Env Var: `ConnectionStrings__messaging`
-  - Value: `amqp://guest:guest@localhost:5672/` (or dynamic Aspire dev port)
-- **Blob Storage Connection:**
-  - Env Var: `ConnectionStrings__storage`
-  - Value: Connection string to local Azurite instance.
-
-### Development Launch Config (`AppHost.cs`)
-
-```csharp
-// AppHost.cs registration logic
-var goScraperPath = Path.Combine("..", "DemoTfg.Scraper");
-var scraperCommand = builder.Environment.IsDevelopment() ? "air" : "go";
-var scraperArgs = builder.Environment.IsDevelopment() ? Array.Empty<string>() : new[] { "run", "main.go" };
-
-var goScraper = builder.AddExecutable("go-scraper", scraperCommand, goScraperPath, scraperArgs)
-    .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
-    .WithHttpHealthCheck("/health")
-    .WithReference(messaging)
-    .WithReference(storage);
-```
+Filter rules of type `Section` (BOE) and `BojaFeed` (BOJA) configure what is fetched; `Keyword` and `Department` rules filter documents. Sections passed in a request override the `Section` rules.

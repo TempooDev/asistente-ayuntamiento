@@ -325,7 +325,7 @@ const file_scraper_proto_rawDesc = "" +
 	"\x13FilterConfigService\x12G\n" +
 	"\x10GetActiveFilters\x12\x15.scraper.EmptyRequest\x1a\x1c.scraper.FilterRulesResponse2a\n" +
 	"\x15ScraperCommandService\x12H\n" +
-	"\vForceScrape\x12\x1b.scraper.ForceScrapeRequest\x1a\x1c.scraper.ForceScrapeResponseB4Z\b./protos\xaa\x02'AsistenteAyuntamiento.ApiService.Protosb\x06proto3"
+	"\vForceScrape\x12\x1b.scraper.ForceScrapeRequest\x1a\x1c.scraper.ForceScrapeResponseBoZCgithub.com/asistente-ayuntamiento/go-scraper/internal/protos;protos\xaa\x02'AsistenteAyuntamiento.ApiService.Protosb\x06proto3"
 
 var (
 	file_scraper_proto_rawDescOnce sync.Once

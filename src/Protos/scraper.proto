@@ -3,7 +3,7 @@ syntax = "proto3";
 package scraper;
 
 option csharp_namespace = "AsistenteAyuntamiento.ApiService.Protos";
-option go_package = "./protos";
+option go_package = "github.com/asistente-ayuntamiento/go-scraper/internal/protos;protos";
 
 // ------------------------------------
 // Service hosted by .NET API

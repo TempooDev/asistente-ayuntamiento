@@ -1,0 +1,73 @@
+{
+  "status": { "code": "200", "text": "ok" },
+  "data": {
+    "sumario": {
+      "metadatos": { "publicacion": "BOE", "fecha_publicacion": "20261001" },
+      "diario": [
+        {
+          "numero": "236",
+          "seccion": [
+            {
+              "codigo": "1",
+              "nombre": "I. Disposiciones generales",
+              "departamento": [
+                {
+                  "codigo": "7723",
+                  "nombre": "MINISTERIO DE VIVIENDA",
+                  "epigrafe": [
+                    {
+                      "nombre": "Ayudas",
+                      "item": [
+                        { "identificador": "BOE-A-2026-1001", "titulo": "Real Decreto de ayudas al alquiler" },
+                        { "identificador": "BOE-A-2026-1002", "titulo": "Orden de bases" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "codigo": "2A",
+              "nombre": "II. Autoridades y personal - A. Nombramientos",
+              "departamento": [
+                {
+                  "codigo": "1000",
+                  "nombre": "MINISTERIO DEL INTERIOR",
+                  "item": { "identificador": "BOE-A-2026-2001", "titulo": "Nombramiento" }
+                }
+              ]
+            },
+            {
+              "codigo": "3",
+              "nombre": "III. Otras disposiciones",
+              "departamento": [
+                {
+                  "codigo": "5000",
+                  "nombre": "AYUNTAMIENTO DE RONDA",
+                  "epigrafe": {
+                    "nombre": "Subvenciones",
+                    "item": { "identificador": "BOE-A-2026-3001", "titulo": "Convocatoria de subvenciones" }
+                  }
+                }
+              ]
+            },
+            {
+              "codigo": "5A",
+              "nombre": "V. Anuncios - A. Contratación",
+              "departamento": [
+                {
+                  "codigo": "6000",
+                  "nombre": "AYUNTAMIENTO DE MÁLAGA",
+                  "item": [
+                    { "identificador": "BOE-B-2026-9001", "titulo": "Anuncio de licitación (no es BOE-A)" },
+                    { "identificador": "BOE-A-2026-5001", "titulo": "Anuncio" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

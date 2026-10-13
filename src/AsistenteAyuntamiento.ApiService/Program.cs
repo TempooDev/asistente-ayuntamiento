@@ -92,11 +92,13 @@ builder.Services.AddGrpc();
 builder.Services.AddSingleton<InternalApiKeyInterceptor>();
 builder.Services.AddGrpc().AddServiceOptions<FilterConfigServiceImpl>(options =>
     options.Interceptors.Add<InternalApiKeyInterceptor>());
+builder.Services.AddSingleton<InternalApiKeyClientInterceptor>();
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
     var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
     o.Address = new Uri(goScraperUrl);
 })
+.AddInterceptor<InternalApiKeyClientInterceptor>()
 .AddStandardResilienceHandler(options =>
 {
     options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(30);

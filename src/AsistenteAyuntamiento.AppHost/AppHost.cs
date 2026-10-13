@@ -138,7 +138,7 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
-var goScraper = builder.AddGoApp("go-scraper", "../go-scraper")
+var goScraper = builder.AddGoApp("go-scraper", "../go-scraper", "./cmd/scraper")
     .WithModTidy()
     .WithModVendor()
     .WithModDownload()

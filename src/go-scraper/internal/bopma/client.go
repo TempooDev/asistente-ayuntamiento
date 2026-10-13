@@ -1,3 +1,5 @@
+// Package bopma is a draft provider for the Boletín Oficial de la Provincia de Málaga. It is not registered
+// in cmd/scraper until FetchSummary is implemented.
 package bopma
 
 import (
@@ -89,7 +91,7 @@ func (p *Provider) FetchDocument(ctx context.Context, id string) (*scraper.Docum
 		textBuilder.WriteString(pageText)
 		textBuilder.WriteString("\n")
 	}
-	
+
 	cleanText := strings.TrimSpace(textBuilder.String())
 
 	// Basic document ID extraction
