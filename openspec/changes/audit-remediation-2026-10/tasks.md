@@ -127,22 +127,26 @@ Source of every finding: `docs/auditoria-codigo-2026-10.md`.
 
 ## 7. Angular Restructuring
 
-- [ ] 7.1 Move to the `core/ shared/ features/` layout (design D10), with lazy `loadComponent` routes. Move the DTOs out of the services into `features/*/models`.
-- [ ] 7.2 `core/auth/auth-facade.service.ts`: `roles`, `isAdmin` (computed), `orgId`, `loginWithOrg()` and `logout()`. Remove the duplicated logic in `app.ts:25-31`, `role.guard.ts:24-25`, `custom-auth.guard.ts`, `login.ts` and `error.ts`. Specs for the guards.
-- [ ] 7.3 `auth0.provider.ts`: `provideAppInitializer` with an injectable `AUTH_RUNTIME_CONFIG`. Do not mutate `environment`. On a config load failure, redirect to `/error`. Move the password change in `perfil.ts:156-190` to the backend or the facade.
-- [ ] 7.4 Create a `MarkdownService` and `markdown` pipe (DOMPurify hook registered once), throttle the streaming render with `requestAnimationFrame`, and add specs.
-- [ ] 7.5 Create a `ChatStore` (immutable signals, stream lifecycle, `mapStreamError()` with typed backend codes). Make `chat-panel` read only from the store.
-- [ ] 7.6 Split `chat-panel` into `session-sidebar`, `message-list`, `arena-message` and `chat-input`.
-- [ ] 7.7 Split `documentos` (filters, table, stats) and `configuracion` (ai-config form, scraper filters, manual scrape).
-- [ ] 7.8 Fix the subscription and interval leaks:
+- [x] 7.1 Move to the `core/ shared/ features/` layout (design D10), with lazy `loadComponent` routes. Move the DTOs out of the services into `features/*/models`.
+- [x] 7.2 `core/auth/auth-facade.service.ts`: `roles`, `isAdmin` (computed), `orgId`, `loginWithOrg()` and `logout()`. Remove the duplicated logic in `app.ts:25-31`, `role.guard.ts:24-25`, `custom-auth.guard.ts`, `login.ts` and `error.ts`. Specs for the guards.
+- [x] 7.3 `auth0.provider.ts`: `provideAppInitializer` with an injectable `AUTH_RUNTIME_CONFIG`. Do not mutate `environment`. On a config load failure, redirect to `/error`. Move the password change in `perfil.ts:156-190` to the backend or the facade.
+  - Done: the password change moved to `AuthFacade.requestPasswordReset` (Auth0 called through `HttpBackend`). If the config fails to load the app still starts and `authGuard` sends users to `/error?code=AUTH_CONFIG_UNAVAILABLE`.
+- [x] 7.4 Create a `MarkdownService` and `markdown` pipe (DOMPurify hook registered once), throttle the streaming render with `requestAnimationFrame`, and add specs.
+- [x] 7.5 Create a `ChatStore` (immutable signals, stream lifecycle, `mapStreamError()` with typed backend codes). Make `chat-panel` read only from the store.
+  - Done: chunks are buffered and flushed once per animation frame in the store (the throttled render of 7.4).
+- [x] 7.6 Split `chat-panel` into `session-sidebar`, `message-list`, `arena-message` and `chat-input`.
+- [x] 7.7 Split `documentos` (filters, table, stats) and `configuracion` (ai-config form, scraper filters, manual scrape).
+  - Done: BOPMA is no longer offered in manual scrape (the scraper does not register it since phase 6).
+- [x] 7.8 Fix the subscription and interval leaks:
   - `perfil.ts:53-82`: `take(1)` + `takeUntilDestroyed`.
   - `error.ts:20,26`: `toSignal`.
   - `arena.ts:40-56`: `clearInterval` + `DestroyRef`.
   - `configuracion.ts:146-153`: `finalize`.
   - `documentos`: debounce + `switchMap` search.
   - `analytics-dashboard.ts:30,44`: `catchError`.
-- [ ] 7.9 Modernize: run the control-flow migration, `OnPush` everywhere, `output()`/`viewChild()`, remove `CommonModule` and `standalone: true`, use the `*.component.ts` naming, delete the empty `.scss` files, remove `any` (typed forms, `TriggerScrapeDto.sections`), and unify the services on `Observable`.
-- [ ] 7.10 Accessibility and UX: `lang="es"`, `aria-label` on icon buttons, `role="dialog"` with focus management on modals, keyboard-accessible vote bubbles, replace `alert`/`confirm` with toast and dialog, restore the theme from storage, a local default avatar, and error codes instead of free text in `/error?message=`.
+- [x] 7.9 Modernize: run the control-flow migration, `OnPush` everywhere, `output()`/`viewChild()`, remove `CommonModule` and `standalone: true`, use the `*.component.ts` naming, delete the empty `.scss` files, remove `any` (typed forms, `TriggerScrapeDto.sections`), and unify the services on `Observable`.
+  - Done: the SignalR hub client keeps Promises (native to SignalR); all HTTP services return Observables. Follow-up: the initial bundle (≈616 kB) still exceeds the 500 kB budget, mostly SignalR and Auth0 loaded by the shell.
+- [x] 7.10 Accessibility and UX: `lang="es"`, `aria-label` on icon buttons, `role="dialog"` with focus management on modals, keyboard-accessible vote bubbles, replace `alert`/`confirm` with toast and dialog, restore the theme from storage, a local default avatar, and error codes instead of free text in `/error?message=`.
 
 ## 8. Specs Drift and Close-out
 

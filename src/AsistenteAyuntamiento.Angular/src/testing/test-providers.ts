@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
 import { BehaviorSubject, of } from 'rxjs';
 import { HubConnectionFactory } from '../app/core/realtime/hub-connection.factory';
+import { AUTH_RUNTIME_CONFIG } from '../app/core/auth/auth-runtime-config';
 
 export const TEST_USER = {
   sub: 'auth0|test-user',
@@ -16,16 +17,20 @@ export const TEST_USER = {
 export class FakeAuthService {
   readonly isLoading$ = of(false);
   readonly isAuthenticated$ = new BehaviorSubject(true);
-  readonly user$ = new BehaviorSubject<typeof TEST_USER | null>(TEST_USER);
-  readonly idTokenClaims$ = of(null);
+  readonly user$ = new BehaviorSubject<Record<string, unknown> | null>(TEST_USER);
+  readonly idTokenClaims$ = new BehaviorSubject<Record<string, unknown> | null>({ org_id: 'org_test' });
   readonly error$ = of();
+  readonly loginCalls: unknown[] = [];
+  readonly logoutCalls: unknown[] = [];
   getAccessTokenSilently() {
     return of('test-token');
   }
-  loginWithRedirect() {
+  loginWithRedirect(options?: unknown) {
+    this.loginCalls.push(options);
     return of(undefined);
   }
-  logout() {
+  logout(options?: unknown) {
+    this.logoutCalls.push(options);
     return of(undefined);
   }
 }
@@ -84,5 +89,6 @@ export function provideTestDependencies(): (Provider | EnvironmentProviders)[] {
     provideRouter([]),
     { provide: AuthService, useClass: FakeAuthService },
     { provide: HubConnectionFactory, useClass: FakeHubConnectionFactory },
+    { provide: AUTH_RUNTIME_CONFIG, useValue: { domain: 'test.auth0.com', clientId: 'client', audience: 'api', loaded: true } },
   ];
 }

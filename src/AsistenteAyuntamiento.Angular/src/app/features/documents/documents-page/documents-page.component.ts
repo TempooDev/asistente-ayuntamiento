@@ -1,0 +1,215 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { Observable, catchError, debounce, distinctUntilChanged, finalize, of, switchMap, tap, timer } from 'rxjs';
+import { NotificationService } from '../../../core/realtime/notification.service';
+import { ConfirmService } from '../../../shared/ui/confirm.service';
+import { ToastService } from '../../../shared/ui/toast.service';
+import { IngestionService } from '../data-access/ingestion.service';
+import { DocumentFilters, DocumentFiltersComponent } from '../document-filters/document-filters.component';
+import { DocumentStatsComponent } from '../document-stats/document-stats.component';
+import { DocumentTableComponent, documentIdOf, sourceOf } from '../document-table/document-table.component';
+import { BlobInfo, BlobQuery, BlobStats, BlobStatusFilter, IngestionStatus, PipelineMode } from '../models/documents.models';
+
+const FILTERS_KEY = 'docFilters';
+const SEARCH_DEBOUNCE_MS = 300;
+const DEFAULT_FILTERS: DocumentFilters = { pageSize: 20, status: 'Pendientes', search: '', dateFrom: null, dateTo: null, minSizeKb: null, maxSizeKb: null };
+
+/** Admin page of the stored documents: filters, live ingestion state and (re)processing actions. */
+@Component({
+  selector: 'app-documents-page',
+  imports: [DocumentStatsComponent, DocumentFiltersComponent, DocumentTableComponent],
+  templateUrl: './documents-page.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class DocumentsPageComponent {
+  private readonly ingestion = inject(IngestionService);
+  private readonly notifications = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly filters = signal<DocumentFilters>(loadFilters());
+  protected readonly page = signal(1);
+  private readonly reload = signal(0);
+
+  protected readonly blobs = signal<readonly BlobInfo[]>([]);
+  protected readonly stats = signal<BlobStats | null>(null);
+  protected readonly filteredCount = signal(0);
+  protected readonly isLoading = signal(false);
+  protected readonly statusMessage = signal('');
+  protected readonly selected = signal<ReadonlySet<string>>(new Set());
+  protected readonly pipelineMode = signal<PipelineMode>('BOTH');
+
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredCount() / this.filters().pageSize)));
+  private readonly query = computed<BlobQuery & { reload: number }>(() => ({ ...this.filters(), page: this.page(), reload: this.reload() }));
+
+  constructor() {
+    effect(() => saveFilters(this.filters()));
+
+    // Typing in the search box waits for a pause; any other change reloads at once. switchMap drops stale responses.
+    let previousSearch = this.filters().search;
+    toObservable(this.query)
+      .pipe(
+        debounce(query => {
+          const searchChanged = query.search !== previousSearch;
+          previousSearch = query.search;
+          return searchChanged ? timer(SEARCH_DEBOUNCE_MS) : of(0);
+        }),
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+        tap(() => this.isLoading.set(true)),
+        switchMap(({ reload: _, ...query }) =>
+          this.ingestion.getBlobs(query).pipe(
+            catchError(err => {
+              this.statusMessage.set(`Error al cargar: ${errorText(err)}`);
+              return of(null);
+            }),
+            finalize(() => this.isLoading.set(false)),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this.blobs.set(result.items);
+        this.stats.set(result.stats);
+        this.filteredCount.set(result.totalCount);
+      });
+
+    void this.notifications.connect();
+    this.notifications.documentStatusChanged$
+      .pipe(takeUntilDestroyed())
+      .subscribe(({ documentId, status }) => this.applyStatus(documentId, status as IngestionStatus));
+  }
+
+  protected changeFilters(change: Partial<DocumentFilters>): void {
+    this.filters.update(current => ({ ...current, ...change }));
+    this.page.set(1);
+  }
+
+  protected showStatus(status: BlobStatusFilter): void {
+    this.changeFilters({ status });
+  }
+
+  protected changePage(page: number): void {
+    if (page >= 1 && page <= this.totalPages()) this.page.set(page);
+  }
+
+  protected toggle(name: string): void {
+    this.selected.update(current => {
+      const next = new Set(current);
+      if (!next.delete(name)) next.add(name);
+      return next;
+    });
+  }
+
+  protected toggleAll(select: boolean): void {
+    this.selected.update(current => {
+      const next = new Set(current);
+      for (const blob of this.blobs()) {
+        if (select) next.add(blob.name);
+        else next.delete(blob.name);
+      }
+      return next;
+    });
+  }
+
+  protected process(name: string): void {
+    this.statusMessage.set(`Procesando ${name}... (esto puede tardar unos minutos)`);
+    this.setStatus(name, IngestionStatus.Processing);
+    this.act(this.ingestion.processBlob(name, sourceOf(name)), () => this.setStatus(name, IngestionStatus.Completed), () =>
+      this.setStatus(name, IngestionStatus.Failed),
+    );
+  }
+
+  protected reset(name: string): void {
+    this.statusMessage.set(`Reiniciando estado de ${name}...`);
+    this.act(this.ingestion.resetBlobStatus(documentIdOf(name)), () => this.setStatus(name, IngestionStatus.Pending));
+  }
+
+  protected enqueueSelected(): void {
+    const names = [...this.selected()];
+    if (names.length === 0) return;
+    this.statusMessage.set(`Encolando ${names.length} documentos...`);
+    this.act(this.ingestion.enqueueBulk(names.map(name => ({ blobPath: name, source: sourceOf(name) })), this.pipelineMode()), () => {
+      this.blobs.update(list => list.map(b => (this.selected().has(b.name) ? { ...b, status: IngestionStatus.Queued } : b)));
+      this.stats.update(s => (s ? { ...s, pending: Math.max(0, s.pending - names.length), queued: s.queued + names.length } : s));
+      this.selected.set(new Set());
+    });
+  }
+
+  protected resetStuck(): void {
+    this.statusMessage.set('Reiniciando todos los documentos colgados...');
+    this.act(this.ingestion.resetStuckProcessing(), () => this.reload.update(n => n + 1));
+  }
+
+  protected async reprocessAll(): Promise<void> {
+    const confirmed = await this.confirm.ask({
+      title: 'Reprocesar todo el histórico',
+      message: 'Se encolarán todos los documentos almacenados para procesarlos de nuevo. Puede tardar horas y consume cuota de IA.',
+      confirmLabel: 'Reprocesar',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.statusMessage.set('Iniciando reprocesado masivo...');
+    this.act(this.ingestion.reprocessAll(this.pipelineMode()), () => this.reload.update(n => n + 1));
+  }
+
+  protected setPipelineMode(value: string): void {
+    this.pipelineMode.set(value as PipelineMode);
+  }
+
+  /** Runs an action, shows the server message (or the error) and applies the local update on success. */
+  private act(request: Observable<string>, onSuccess: () => void, onError?: () => void): void {
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: message => {
+        this.statusMessage.set(message);
+        onSuccess();
+      },
+      error: err => {
+        this.statusMessage.set('');
+        this.toast.error(`Error: ${errorText(err)}`);
+        onError?.();
+      },
+    });
+  }
+
+  private setStatus(name: string, status: IngestionStatus): void {
+    this.blobs.update(list => list.map(b => (b.name === name ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b)));
+  }
+
+  /** Live status from the ingestion workers; the counters are updated optimistically. */
+  private applyStatus(documentId: string, status: IngestionStatus): void {
+    this.blobs.update(list =>
+      list.map(b => (documentIdOf(b.name) === documentId ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b)),
+    );
+    this.stats.update(s => {
+      if (!s) return s;
+      if (status === IngestionStatus.Processing && s.queued > 0) return { ...s, queued: s.queued - 1, processing: s.processing + 1 };
+      if (status === IngestionStatus.Completed && s.processing > 0) return { ...s, processing: s.processing - 1, completed: s.completed + 1 };
+      return s;
+    });
+  }
+}
+
+function errorText(err: unknown): string {
+  const e = err as { error?: { message?: string; detail?: string }; message?: string };
+  return e?.error?.message ?? e?.error?.detail ?? e?.message ?? String(err);
+}
+
+function loadFilters(): DocumentFilters {
+  try {
+    const saved = localStorage.getItem(FILTERS_KEY);
+    return saved ? { ...DEFAULT_FILTERS, ...(JSON.parse(saved) as Partial<DocumentFilters>) } : DEFAULT_FILTERS;
+  } catch {
+    return DEFAULT_FILTERS;
+  }
+}
+
+function saveFilters(filters: DocumentFilters): void {
+  try {
+    localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // Not persisted.
+  }
+}
+

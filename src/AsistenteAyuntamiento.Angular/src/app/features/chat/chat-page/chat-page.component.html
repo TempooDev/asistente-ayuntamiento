@@ -1,0 +1,73 @@
+<div class="chat-layout flex h-[calc(100vh-80px)] w-full max-w-[max-width] mx-auto overflow-hidden relative">
+  <app-session-sidebar
+    [sessions]="store.sessions()"
+    [currentSessionId]="store.currentSessionId()"
+    [open]="sidebarOpen()"
+    (selected)="select($event)"
+    (create)="create()"
+    (deleted)="delete($event)"
+    (closed)="sidebarOpen.set(false)" />
+
+  <div class="chat-main flex-1 flex flex-col h-full bg-secondary-bg min-w-0">
+    <!-- Mobile header -->
+    <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0 justify-between">
+      <div class="flex items-center">
+        <button type="button" class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" aria-label="Abrir lista de conversaciones" (click)="sidebarOpen.set(true)">
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+        </button>
+        <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <button type="button" (click)="showWelcomeGuide.set(true)" class="text-gray-500 hover:text-primary transition-colors p-1" aria-label="Ayuda" title="Ayuda">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
+        </button>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <span class="text-xs font-medium text-gray-600">Arena</span>
+          <span class="relative inline-flex items-center">
+            <input type="checkbox" class="sr-only peer" role="switch" [checked]="store.arenaMode()" (change)="store.toggleArenaMode()" />
+            <span class="w-9 h-5 bg-gray-200 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Desktop header -->
+    <div class="hidden md:flex px-margin-desktop py-4 shrink-0 bg-white border-b border-gray-200 justify-between items-center">
+      <div>
+        <h1 class="text-headline-lg font-bold text-gray-900 mb-1">Asistente Virtual</h1>
+        <p class="text-body-sm text-gray-600">Haz consultas sobre el conocimiento y documentos del ayuntamiento.</p>
+      </div>
+      <div class="flex items-center gap-6">
+        <button type="button" (click)="showWelcomeGuide.set(true)" class="flex items-center gap-1.5 text-gray-500 hover:text-primary transition-colors text-sm font-medium">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
+          Ayuda
+        </button>
+        <div class="w-px h-6 bg-gray-200" aria-hidden="true"></div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <span class="text-sm font-medium text-gray-600">Modo Arena</span>
+          <span class="relative inline-flex items-center">
+            <input type="checkbox" class="sr-only peer" role="switch" [checked]="store.arenaMode()" (change)="store.toggleArenaMode()" />
+            <span class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <app-message-list
+      [messages]="store.messages()"
+      [loading]="store.loadingHistory()"
+      [waiting]="store.isWaiting()"
+      [generating]="store.isGenerating()"
+      (vote)="vote($event)" />
+
+    <app-chat-input [connected]="store.isConnected()" [busy]="store.isGenerating()" (send)="send($event)" />
+  </div>
+
+  @if (sidebarOpen()) {
+    <div class="md:hidden fixed inset-0 bg-black/50 z-[5]" aria-hidden="true" (click)="sidebarOpen.set(false)"></div>
+  }
+
+  @if (showWelcomeGuide()) {
+    <app-welcome-guide (dismiss)="closeWelcomeGuide()" />
+  }
+</div>

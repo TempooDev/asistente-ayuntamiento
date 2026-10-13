@@ -1,0 +1,72 @@
+@if (isLoading()) {
+  <p role="status">Cargando configuración...</p>
+} @else {
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm" aria-labelledby="model-title">
+        <div class="flex items-center gap-sm mb-md">
+          <span class="material-symbols-outlined text-primary" aria-hidden="true">model_training</span>
+          <h3 id="model-title" class="font-headline-md text-headline-md text-on-surface">Selección de Modelo</h3>
+        </div>
+        <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Selecciona el modelo base para las consultas.</p>
+
+        <div class="space-y-sm mb-md">
+          <label for="ai-provider" class="font-label-md text-label-md text-on-surface">Proveedor</label>
+          <select id="ai-provider" formControlName="provider" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2">
+            <option value="ollama">Ollama (Local)</option>
+            <option value="openai">OpenAI</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google (Gemini)</option>
+          </select>
+        </div>
+
+        <div class="space-y-sm mb-md">
+          <label for="ai-model" class="font-label-md text-label-md text-on-surface">Modelo</label>
+          <input id="ai-model" formControlName="model" type="text" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. llama3.2 o gpt-4o" />
+        </div>
+
+        <div class="space-y-sm mb-md">
+          <label for="ai-endpoint" class="font-label-md text-label-md text-on-surface">Endpoint URL (Opcional)</label>
+          <input id="ai-endpoint" formControlName="endpointUrl" type="url" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2" placeholder="ej. https://openrouter.ai/api/v1" />
+        </div>
+
+        <div class="space-y-sm">
+          <label for="ai-key" class="font-label-md text-label-md text-on-surface">API Key</label>
+          <input id="ai-key" formControlName="apiKey" type="password" autocomplete="off" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-primary focus:border-primary text-sm p-2"
+                 [placeholder]="hasSavedApiKey() ? '•••••••••••• (Guardada)' : 'Introduce API Key (opcional para local)'" aria-describedby="ai-key-help" />
+          @if (hasSavedApiKey() && !form.controls.apiKey.value) {
+            <span id="ai-key-help" class="text-xs text-on-surface-variant">La clave está guardada de forma segura. Ingresa una nueva para sobrescribirla.</span>
+          }
+        </div>
+      </section>
+
+      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm flex flex-col justify-between" aria-labelledby="params-title">
+        <div>
+          <div class="flex items-center gap-sm mb-md">
+            <span class="material-symbols-outlined text-primary" aria-hidden="true">tune</span>
+            <h3 id="params-title" class="font-headline-md text-headline-md text-on-surface">Parámetros</h3>
+          </div>
+          <p class="font-body-md text-body-md text-on-surface-variant mb-lg text-sm">Ajusta el estilo de respuesta para el contexto institucional.</p>
+          <div class="mb-lg">
+            <div class="flex justify-between items-end mb-xs">
+              <label for="ai-temperature" class="font-label-md text-label-md text-on-surface">Creatividad vs Precisión (Temperature)</label>
+              <span class="text-xs font-bold text-primary bg-primary-container px-2 py-1 rounded-full">{{ temperature() | number: '1.1-1' }}</span>
+            </div>
+            <input id="ai-temperature" type="range" formControlName="temperature" min="0" max="1" step="0.1" class="w-full h-1 bg-surface-variant rounded-lg appearance-none cursor-pointer" />
+            <div class="flex justify-between text-xs text-on-surface-variant mt-1" aria-hidden="true">
+              <span>Factual</span>
+              <span>Creativo</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="mt-xl flex justify-end gap-md border-t border-outline-variant pt-lg">
+      <button type="button" (click)="load()" class="px-lg py-2 border border-primary text-primary font-label-md text-label-md rounded-lg hover:bg-surface-container-low transition-colors min-h-[44px]">Restaurar</button>
+      <button type="submit" [disabled]="isSaving() || form.invalid" class="px-lg py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:bg-on-primary-fixed-variant transition-colors min-h-[44px]">
+        {{ isSaving() ? 'Guardando...' : 'Guardar Configuración' }}
+      </button>
+    </div>
+  </form>
+}
