@@ -45,7 +45,8 @@ public sealed class AiCallRecorder(
             outcome.Usage.InputTokens,
             outcome.Usage.OutputTokens,
             outcome.TimeToFirstToken,
-            outcome.Success ? null : outcome.ErrorCode ?? LlmErrorCodes.Unavailable));
+            outcome.Success ? null : outcome.ErrorCode ?? LlmErrorCodes.Unavailable,
+            outcome.Operation));
 
         // Legacy ai.* metrics and the /api/ai/metrics snapshot; the gen_ai.* metrics above replace them.
         metricsService.RecordCall(new AiCallRecord

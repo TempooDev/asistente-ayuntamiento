@@ -17,6 +17,7 @@ public class ClearLanguageGenerationService(
     Kernel kernel,
     IConfiguration configuration,
     ILlmUsageMetrics usageMetrics,
+    IAiCallRecorder callRecorder,
     ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -65,7 +66,9 @@ public class ClearLanguageGenerationService(
         var stopwatch = Stopwatch.StartNew();
         TimeSpan? timeToFirstToken = null;
         var usage = TokenUsageInfo.Empty;
+        var responseLength = 0;
         string? errorType = null;
+        string? errorDetail = null;
 
         IAsyncEnumerator<StreamingChatMessageContent>? enumerator = null;
         try
@@ -78,6 +81,7 @@ public class ClearLanguageGenerationService(
             {
                 logger.LogError(ex, "Could not start the plain-language answer stream");
                 errorType = ex.GetType().Name;
+                errorDetail = ex.Message;
             }
 
             if (enumerator is null)
@@ -96,6 +100,7 @@ public class ClearLanguageGenerationService(
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     errorType = ex.GetType().Name;
+                    errorDetail = ex.Message;
                     throw;
                 }
                 if (!hasChunk) break;
@@ -110,6 +115,7 @@ public class ClearLanguageGenerationService(
                 {
                     usage = chunkUsage;
                 }
+                responseLength += chunk.Content?.Length ?? 0;
                 yield return chunk;
             }
         }
@@ -126,8 +132,26 @@ public class ClearLanguageGenerationService(
             }
             activity?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
             activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
-            usageMetrics.Record(new LlmCallMetrics(_provider, _model, scope.TenantId, scope.Pipeline, Fallback: false,
-                stopwatch.Elapsed, usage.InputTokens, usage.OutputTokens, timeToFirstToken, errorType, scope.Operation));
+
+            if (scope.UserId is null)
+            {
+                usageMetrics.Record(new LlmCallMetrics(_provider, _model, scope.TenantId, scope.Pipeline, Fallback: false,
+                    stopwatch.Elapsed, usage.InputTokens, usage.OutputTokens, timeToFirstToken, errorType, scope.Operation));
+            }
+            else
+            {
+                // A user's answer: also persisted in AiCallLogs like the baseline's (the recorder emits the metrics too).
+                await callRecorder.RecordAsync(
+                    new AiCallOutcome(_model, scope.TenantId, scope.UserId, errorType is null, stopwatch.Elapsed.TotalMilliseconds, usage,
+                        userQuery.Length, responseLength, chatHistory.Count, errorType, errorDetail)
+                    {
+                        Provider = _provider,
+                        Pipeline = scope.Pipeline,
+                        TimeToFirstToken = timeToFirstToken,
+                        Operation = scope.Operation,
+                    },
+                    CancellationToken.None);
+            }
         }
     }
 

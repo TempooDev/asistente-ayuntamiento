@@ -6,9 +6,9 @@ import { Observable, catchError, of, switchMap } from 'rxjs';
 import { AuthFacade } from '../../../core/auth/auth-facade.service';
 import { ToastService } from '../../../shared/ui/toast.service';
 import { AnalyticsService } from '../data-access/analytics.service';
-import { AiMetricsSummary, ArenaAnalyticsRequest, ArenaAnalyticsResponse } from '../models/analytics.models';
+import { AiMetricsSummary, ArenaAnalyticsRequest, ArenaAnalyticsResponse, IngestionUsage } from '../models/analytics.models';
 
-/** Admin metrics: Arena results per pipeline (filterable by date) and AI usage. */
+/** Admin metrics: AI usage of the organization; Arena results per pipeline (filterable by date) and ingestion cost of the platform. */
 @Component({
   selector: 'app-analytics-dashboard',
   imports: [FormsModule, DecimalPipe, PercentPipe],
@@ -24,6 +24,8 @@ export class AnalyticsDashboardComponent {
   readonly showUsage = this.auth.isOrganizationAdmin;
   /** Arena results of every organization (platform data). */
   readonly showArena = this.auth.isPlatformAdmin;
+  /** Ingestion cost of the whole platform (bulletins are shared). */
+  readonly showIngestion = this.auth.isPlatformAdmin;
 
   readonly startDate = signal('');
   readonly endDate = signal('');
@@ -34,6 +36,16 @@ export class AnalyticsDashboardComponent {
     (this.showUsage() ? this.api.getAiMetricsSummary() : of(null) as Observable<AiMetricsSummary | null>).pipe(
       catchError(() => {
         this.toast.error('No se han podido cargar las métricas de IA.');
+        return of(null);
+      }),
+    ),
+    { initialValue: null },
+  );
+
+  readonly ingestionUsage = toSignal(
+    (this.showIngestion() ? this.api.getIngestionUsage() : (of(null) as Observable<IngestionUsage | null>)).pipe(
+      catchError(() => {
+        this.toast.error('No se han podido cargar las métricas de ingesta.');
         return of(null);
       }),
     ),

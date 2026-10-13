@@ -7,6 +7,7 @@ export interface AiModelConsumption {
   totalTokens: number;
 }
 
+/** Chat usage of the caller's organization. `successRate` is already a percentage (0–100). */
 export interface AiMetricsSummary {
   generatedAtUtc: string;
   totalCalls: number;
@@ -21,11 +22,23 @@ export interface AiMetricsSummary {
   consumptions: AiModelConsumption[];
 }
 
+/** Platform-wide ingestion cost (platform administrators only). */
+export interface IngestionUsage {
+  generatedAtUtc: string;
+  documents: number;
+  enrichmentCalls: number;
+  enrichmentTokens: number;
+  embeddedTokens: number;
+  averageProcessingDurationMs: number;
+}
+
 export interface PipelineMetrics {
   pipeline: string;
   winCount: number;
   lossCount: number;
   tieCount: number;
+  bothBadCount: number;
+  /** Wins / (wins + losses), 0–1: ties and "both bad" votes are not counted. */
   winRate: number;
   averageLatencyMs: number;
   averageTokens: number;

@@ -8,4 +8,7 @@ public sealed record LlmCallScope(string TenantId, string Pipeline, string Opera
 {
     /// <summary>Tenant label for work that belongs to no tenant (bulletins are shared).</summary>
     public const string PlatformTenant = "platform";
+
+    /// <summary>User the answer is generated for; when set, the answer is also recorded in <c>AiCallLogs</c>.</summary>
+    public string? UserId { get; init; }
 }

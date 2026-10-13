@@ -119,6 +119,11 @@ The system SHALL resolve the retrieved fragments to their parent documents and g
 - **WHEN** the retrieval returns no fragments
 - **THEN** the service SHALL answer the fixed message "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta." without calling the model
 
+#### Scenario: Recording a user's answer
+- **WHEN** the hierarchical pipeline streams an answer for a user (chat, Arena side or shadow test)
+- **THEN** the call SHALL be recorded through `IAiCallRecorder` in the tenant's `AiCallLogs` (platform chat model, tenant, user, pipeline, success, duration and tokens) and in the `gen_ai.*` metrics, like the baseline's answers
+- **AND** auxiliary platform-model calls (query expansion, enrichment, history analysis) and the non-streaming Arena comparison SHALL only be recorded in the `gen_ai.*` metrics
+
 ## Architecture Decision Records (ADR)
 
 ### ADR: Flat Chunk Retrieval vs. Hierarchical Parent-Child Retrieval

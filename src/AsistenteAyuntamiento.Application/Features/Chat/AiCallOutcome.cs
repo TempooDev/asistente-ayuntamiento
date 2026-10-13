@@ -25,4 +25,7 @@ public sealed record AiCallOutcome(
 
     /// <summary>Streaming only: time until the first chunk arrived.</summary>
     public TimeSpan? TimeToFirstToken { get; init; }
+
+    /// <summary>Value of <c>app.llm.operation</c> (see <see cref="Telemetry.LlmOperations"/>).</summary>
+    public string Operation { get; init; } = Telemetry.LlmOperations.Answer;
 }
