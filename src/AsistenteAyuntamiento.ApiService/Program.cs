@@ -51,8 +51,7 @@ builder.Services.AddDataProtection();
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
     configureDbContextOptions: options => options
-        .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector())
-        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+        .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector()));
 
 var auth0Domain = builder.Configuration["Auth0:Domain"];
 var auth0Audience = builder.Configuration["Auth0:Audience"];
