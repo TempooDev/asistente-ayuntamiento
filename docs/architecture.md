@@ -75,7 +75,6 @@ Los prompts están en `Common/Prompts/PromptCatalog`.
 - Dos ámbitos de administración (los guards de Angular son solo UX):
   - **plataforma** (`admin-plataforma`, `Policies.PlatformAdmin`): ingesta, scraper, métricas en memoria de todos los tenants y analíticas de Arena;
   - **organización** (`admin-organizacion`, `Policies.OrganizationAdmin`): configuración de IA, resumen e historial de uso del tenant y comparación de Arena;
-  - el rol antiguo `administrador` vale para los dos hasta que se retire en Auth0.
 - Claves de IA por tenant cifradas con Data Protection y de solo escritura.
 - gRPC API ↔ scraper autenticado con `x-internal-key` en ambos sentidos.
 - Errores al cliente con códigos estables, sin detalles de excepción.

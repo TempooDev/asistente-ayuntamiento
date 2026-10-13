@@ -30,6 +30,6 @@ describe('SettingsPageComponent', () => {
   it('shows the AI settings to organization admins and the scraper filters to platform admins', () => {
     expect(tabsFor(['admin-organizacion'])).toEqual(['Configuración de IA']);
     expect(tabsFor(['admin-plataforma'])).toEqual(['Filtros del Scraper']);
-    expect(tabsFor(['administrador'])).toEqual(['Configuración de IA', 'Filtros del Scraper']);
+    expect(tabsFor(['admin-plataforma', 'admin-organizacion'])).toEqual(['Configuración de IA', 'Filtros del Scraper']);
   });
 });

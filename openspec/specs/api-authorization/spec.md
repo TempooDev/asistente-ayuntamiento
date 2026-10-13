@@ -15,7 +15,7 @@ The API SHALL enforce, through named authorization policies on the server, two a
   - `/api/settings/ai`;
   - `/api/ai/metrics/summary` and `/api/ai/metrics/history`;
   - `/api/arena/compare`.
-- The role from before the split, `administrador`, SHALL be accepted by both policies until it is no longer assigned in Auth0.
+- The role from before the split, `administrador`, SHALL NOT grant any administrative access (retired on 2026-10-13).
 
 #### Scenario: Platform administrator calls a platform endpoint
 - **GIVEN** a user whose JWT contains the role `admin-plataforma` and a valid `org_id`
@@ -26,10 +26,10 @@ The API SHALL enforce, through named authorization policies on the server, two a
 - **WHEN** an organization administrator calls a platform endpoint, or a platform administrator calls an organization endpoint
 - **THEN** the API SHALL respond `403 Forbidden`
 
-#### Scenario: Legacy role during the transition
-- **GIVEN** a user with the role `administrador`
+#### Scenario: Retired role
+- **GIVEN** a user whose token still contains the role `administrador`
 - **WHEN** they call a platform or an organization endpoint
-- **THEN** the API SHALL authorize the request
+- **THEN** the API SHALL respond `403 Forbidden`
 
 #### Scenario: Authenticated non-admin calls an admin endpoint
 - **GIVEN** a user with a valid JWT but without an administrator role

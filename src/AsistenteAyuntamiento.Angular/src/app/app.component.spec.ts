@@ -80,7 +80,7 @@ describe('AppComponent', () => {
     regular.fixture.detectChanges();
     expect(labels(regular.menu())).toEqual(['Chat', 'Perfil']);
 
-    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['administrador'] });
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-plataforma', 'admin-organizacion'] });
     regular.fixture.detectChanges();
     expect(labels(regular.menu())).toContain('Documentos');
     expect(labels(regular.el.querySelector('aside'))).toContain('Métricas');

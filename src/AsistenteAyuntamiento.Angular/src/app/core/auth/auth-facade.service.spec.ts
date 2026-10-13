@@ -20,14 +20,14 @@ describe('AuthFacade', () => {
   });
 
   it('derives roles and isAdmin from the custom claim', () => {
-    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['ADMINISTRADOR', 'Funcionario'] });
+    auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['ADMIN-PLATAFORMA', 'Funcionario'] });
     TestBed.tick();
 
-    expect(facade.roles()).toEqual(['administrador', 'funcionario']);
+    expect(facade.roles()).toEqual(['admin-plataforma', 'funcionario']);
     expect(facade.isAdmin()).toBe(true);
   });
 
-  it('separates platform and organization administrators, and the legacy role grants both', () => {
+  it('separates platform and organization administrators', () => {
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['admin-plataforma'] });
     TestBed.tick();
     expect([facade.isPlatformAdmin(), facade.isOrganizationAdmin(), facade.isAdmin()]).toEqual([true, false, true]);
@@ -38,7 +38,7 @@ describe('AuthFacade', () => {
 
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['administrador'] });
     TestBed.tick();
-    expect([facade.isPlatformAdmin(), facade.isOrganizationAdmin()]).toEqual([true, true]);
+    expect(facade.isAdmin()).toBe(false); // retired role
 
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['Funcionario'] });
     TestBed.tick();

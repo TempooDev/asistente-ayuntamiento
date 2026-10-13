@@ -10,7 +10,7 @@ namespace AsistenteAyuntamiento.ApiService.Tests.Security;
 
 /// <summary>
 /// Authorization matrix for administrative APIs (spec: api-authorization): platform routes (shared knowledge base,
-/// cross-tenant data) and organization routes (one tenant), plus the legacy role that grants both.
+/// cross-tenant data) and organization routes (one tenant).
 /// </summary>
 public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
@@ -104,15 +104,21 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
     [InlineData(Roles.PlatformAdmin, "/api/arena/analytics")]
     [InlineData(Roles.OrganizationAdmin, "/api/settings/ai")]
     [InlineData(Roles.OrganizationAdmin, "/api/ai/metrics/history")]
-    [InlineData(Roles.LegacyAdmin, "/api/scraper/filters")]
-    [InlineData(Roles.LegacyAdmin, "/api/ai/metrics")]
-    [InlineData(Roles.LegacyAdmin, "/api/settings/ai")]
-    [InlineData(Roles.LegacyAdmin, "/api/ai/metrics/history")]
-    public async Task Each_admin_role_can_use_its_routes_and_the_legacy_role_both(string role, string path)
+    public async Task Each_admin_role_can_use_its_routes(string role, string path)
     {
         var response = await factory.CreateClientAs($"auth0|{role}", Org, role).GetAsync(path);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/scraper/filters")]
+    [InlineData("/api/settings/ai")]
+    public async Task The_retired_administrador_role_no_longer_grants_access(string path)
+    {
+        var response = await factory.CreateClientAs("auth0|old-admin", Org, "administrador").GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
