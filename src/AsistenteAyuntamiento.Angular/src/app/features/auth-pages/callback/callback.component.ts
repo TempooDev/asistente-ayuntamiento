@@ -1,0 +1,10 @@
+import { Component, OnInit } from '@angular/core';
+
+@Component({
+  selector: 'app-callback',
+  standalone: true,
+  templateUrl: './callback.component.html'
+})
+export class CallbackComponent implements OnInit {
+  ngOnInit() {}
+}

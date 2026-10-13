@@ -1,46 +1,44 @@
 import { Routes } from '@angular/router';
-import { AnalyticsDashboardComponent } from './pages/analytics-dashboard/analytics-dashboard';
-import { ChatPanelComponent } from './pages/chat-panel/chat-panel';
-import { DocumentosComponent } from './pages/documentos/documentos';
-import { ConfiguracionComponent } from './pages/configuracion/configuracion';
-import { CallbackComponent } from './pages/callback/callback';
-import { PerfilComponent } from './pages/perfil/perfil';
-import { Arena } from './pages/arena/arena';
-import { ErrorComponent } from './pages/error/error';
-import { LoginComponent } from './pages/login/login';
-import { customAuthGuardFn } from './guards/custom-auth.guard';
-import { roleGuardFn } from './guards/role.guard';
+import { authGuard } from './core/auth/auth.guard';
+import { roleGuard } from './core/auth/role.guard';
 import { ROLES } from './core/auth/roles';
 
+const adminOnly = { canActivate: [authGuard, roleGuard], data: { roles: [ROLES.ADMIN] } };
+
 export const routes: Routes = [
-    { path: 'login', component: LoginComponent },
-    { path: 'callback', component: CallbackComponent },
-    { path: 'error', component: ErrorComponent },
-    { path: 'chat', component: ChatPanelComponent, canActivate: [customAuthGuardFn] },
-    { 
-        path: 'documentos', 
-        component: DocumentosComponent, 
-        canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: [ROLES.ADMIN] }
-    },
-    { 
-        path: 'configuracion', 
-        component: ConfiguracionComponent, 
-        canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: [ROLES.ADMIN] }
-    },
-    {
-        path: 'arena',
-        component: Arena,
-        canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: [ROLES.ADMIN] }
-    },
-    { 
-        path: 'admin/analytics', 
-        component: AnalyticsDashboardComponent, 
-        canActivate: [customAuthGuardFn, roleGuardFn],
-        data: { roles: [ROLES.ADMIN] }
-    },
-    { path: 'perfil', component: PerfilComponent, canActivate: [customAuthGuardFn] },
-    { path: '', redirectTo: '/chat', pathMatch: 'full' }
+  { path: 'login', loadComponent: () => import('./features/auth-pages/login/login.component').then(m => m.LoginComponent) },
+  { path: 'callback', loadComponent: () => import('./features/auth-pages/callback/callback.component').then(m => m.CallbackComponent) },
+  { path: 'error', loadComponent: () => import('./features/auth-pages/error/error.component').then(m => m.ErrorComponent) },
+  {
+    path: 'chat',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/chat/chat-page/chat-page.component').then(m => m.ChatPageComponent),
+  },
+  {
+    path: 'documentos',
+    ...adminOnly,
+    loadComponent: () => import('./features/documents/documents-page/documents-page.component').then(m => m.DocumentsPageComponent),
+  },
+  {
+    path: 'configuracion',
+    ...adminOnly,
+    loadComponent: () => import('./features/settings/settings-page/settings-page.component').then(m => m.SettingsPageComponent),
+  },
+  {
+    path: 'arena',
+    ...adminOnly,
+    loadComponent: () => import('./features/arena/arena-page/arena-page.component').then(m => m.ArenaPageComponent),
+  },
+  {
+    path: 'admin/analytics',
+    ...adminOnly,
+    loadComponent: () => import('./features/analytics/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent),
+  },
+  {
+    path: 'perfil',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/profile-page/profile-page.component').then(m => m.ProfilePageComponent),
+  },
+  { path: '', redirectTo: '/chat', pathMatch: 'full' },
+  { path: '**', redirectTo: '/chat' },
 ];
