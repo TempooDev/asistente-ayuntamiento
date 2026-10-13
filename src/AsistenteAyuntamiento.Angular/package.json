@@ -18,6 +18,8 @@
     "@angular/platform-browser": "^21.2.25",
     "@angular/router": "^21.2.25",
     "@auth0/auth0-angular": "^2.11.0",
+    "@grafana/faro-web-sdk": "2.12.1",
+    "@grafana/faro-web-tracing": "2.12.1",
     "@microsoft/signalr": "^10.0.11",
     "dompurify": "^3.4.17",
     "marked": "^18.0.11",
