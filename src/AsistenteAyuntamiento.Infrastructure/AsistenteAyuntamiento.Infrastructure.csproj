@@ -14,6 +14,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.SemanticKernel" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Pgvector.EntityFrameworkCore" />
     <PackageReference Include="Qdrant.Client" />

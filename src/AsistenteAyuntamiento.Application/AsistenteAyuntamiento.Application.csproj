@@ -12,9 +12,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.SemanticKernel" />
-    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" />
-    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" />
-    <!-- Needed by raw SQL in HybridRetrievalService / IngestionAdminService. TODO(audit-remediation 5.4): move behind ports. -->
   </ItemGroup>
 
   <PropertyGroup>
