@@ -74,17 +74,17 @@ public class AiConfigurationServiceTests
 
         var data = new List<AiConfiguration>
         {
-            new AiConfiguration 
-            { 
-                TenantId = "tenant1", 
-                Provider = "db-provider", 
-                Model = "db-model", 
+            new AiConfiguration
+            {
+                TenantId = "tenant1",
+                Provider = "db-provider",
+                Model = "db-model",
                 Temperature = 0.8,
                 EncryptedApiKey = "YmFzZTY0dXJsZW5jb2RlZA",
-                EndpointUrl = "http://db.url" 
+                EndpointUrl = "http://db.url"
             }
         }.BuildMockDbSet();
-        
+
         _dbContextMock.Setup(db => db.AiConfigurations).Returns(data.Object);
 
         // Act
@@ -119,16 +119,16 @@ public class AiConfigurationServiceTests
     {
         // Arrange
         _tenantServiceMock.Setup(t => t.TenantId).Returns("tenant1");
-        
+
         var data = new List<AiConfiguration>
         {
-            new AiConfiguration 
-            { 
-                TenantId = "tenant1", 
+            new AiConfiguration
+            {
+                TenantId = "tenant1",
                 EncryptedApiKey = "YmFzZTY0dXJsZW5jb2RlZA"
             }
         }.BuildMockDbSet();
-        
+
         _dbContextMock.Setup(db => db.AiConfigurations).Returns(data.Object);
         _dataProtectorMock.Setup(p => p.Unprotect(It.IsAny<byte[]>()))
                           .Returns(System.Text.Encoding.UTF8.GetBytes("decrypted-key"));

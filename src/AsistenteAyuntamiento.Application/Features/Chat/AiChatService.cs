@@ -512,7 +512,7 @@ public sealed class AiChatService(
         }
 
         var documentSources = new List<DocumentSource>();
-                if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
+        if (!string.IsNullOrWhiteSpace(lastUserMessage?.Content))
         {
             try
             {
@@ -593,7 +593,7 @@ public sealed class AiChatService(
                 Microsoft.SemanticKernel.StreamingChatMessageContent chunk = null!;
                 bool shouldContinue = false;
                 string? messageToYield = null;
-                
+
                 try
                 {
                     if (!await enumerator.MoveNextAsync())
@@ -639,7 +639,7 @@ public sealed class AiChatService(
                     {
                         logger.LogWarning(ex, "El stream de la IA se cortó o falló de forma abrupta. Ignorando error final.");
                     }
-                    
+
                     if (!hasYieldedChunks)
                     {
                         errorToYield = "\n\n" + LlmErrorCodes.UserMessage(LlmErrorClassifier.Classify(ex));
@@ -652,7 +652,7 @@ public sealed class AiChatService(
                 {
                     yield return messageToYield;
                 }
-                
+
                 if (shouldContinue)
                 {
                     continue;
@@ -1058,7 +1058,7 @@ public sealed class AiChatService(
         };
 
         dbContext.ArenaBattles.Add(battle);
-        
+
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);

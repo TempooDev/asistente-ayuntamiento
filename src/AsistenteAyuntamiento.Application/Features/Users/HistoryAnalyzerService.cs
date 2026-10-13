@@ -26,8 +26,8 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
 
         if (!recentSessions.Any()) return;
 
-        var messagesContext = string.Join("\n\n", recentSessions.Select(s => 
-            $"Sesión ({s.CreatedAt}):\n" + 
+        var messagesContext = string.Join("\n\n", recentSessions.Select(s =>
+            $"Sesión ({s.CreatedAt}):\n" +
             string.Join("\n", s.Messages.OrderBy(m => m.CreatedAt).Select(m => $"{m.Role}: {m.Content}"))
         ));
 
@@ -48,17 +48,17 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
 
         resultContent = resultContent.Replace("```json", "").Replace("```", "").Trim();
 
-        try 
+        try
         {
             var extracted = JsonSerializer.Deserialize<UserPreferenceDto>(resultContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            
+
             if (extracted != null && (extracted.Topics.Any() || extracted.Locations.Any()))
             {
                 // 3. Merge with existing preferences
                 await preferenceService.MergePreferencesAsync(auth0UserId, extracted, cancellationToken);
             }
         }
-        catch(JsonException) 
+        catch (JsonException)
         {
             // Ignore if the LLM failed to return valid JSON
         }

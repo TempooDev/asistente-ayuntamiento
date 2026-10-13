@@ -33,7 +33,7 @@ public partial class ReadabilityService : IReadabilityService
     public int CountWords(string text)
     {
         var matches = WordRegex().Matches(text);
-        return matches.Count == 0 ? 1 : matches.Count; 
+        return matches.Count == 0 ? 1 : matches.Count;
     }
 
     public int CountSyllables(string text)
@@ -64,7 +64,7 @@ public partial class ReadabilityService : IReadabilityService
         // Vocalic group patterns:
         // Strong vowels: [aeoáéóíú] (í and ú act as strong to break diphthongs forming hiatus)
         // Weak vowels: [iuü]
-        
+
         // A single nucleus can be:
         // 1. Triphthong: weak + strong + weak -> [iuü][aeoáéó][iuü]
         // 2. Diphthong: weak + strong -> [iuü][aeoáéó]
@@ -72,10 +72,10 @@ public partial class ReadabilityService : IReadabilityService
         // 4. Diphthong: weak + weak -> [iuü][iuü] 
         // 5. Strong -> [aeoáéóíú]
         // 6. Weak -> [iuü]
-        
+
         string pattern = "([iuü][aeoáéó][iuü])|([iuü][aeoáéó])|([aeoáéó][iuü])|([iuü][iuü])|([aeoáéóíú])|([iuü])";
         var matches = Regex.Matches(word, pattern, RegexOptions.IgnoreCase);
-        
+
         return matches.Count == 0 ? 1 : matches.Count;
     }
 

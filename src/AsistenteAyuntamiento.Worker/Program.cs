@@ -27,7 +27,7 @@ builder.AddRabbitMQClient("messaging");
 // Configure S3 & Semantic Kernel (Infrastructure)
 builder.AddInfrastructureServices();
 
-builder.Services.AddSingleton<IChunkingStrategy>(sp => 
+builder.Services.AddSingleton<IChunkingStrategy>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);

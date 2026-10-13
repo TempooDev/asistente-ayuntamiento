@@ -21,7 +21,7 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
-        
+
         if (source.Equals("BOPMA", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogWarning("BOPMA document ingestion is discarded. Skipping {DocumentId}.", docIdFromPath);

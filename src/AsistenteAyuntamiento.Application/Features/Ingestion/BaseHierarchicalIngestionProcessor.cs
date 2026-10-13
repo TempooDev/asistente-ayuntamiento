@@ -48,9 +48,9 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
     }
 
     protected abstract BulletinType Bulletin { get; }
-    
+
     protected abstract Task<ParentDocument?> ExtractParentDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken);
-    
+
     protected abstract Task<IEnumerable<RawFragment>> ExtractFragmentsAsync(string blobPath, string documentId, ParentDocument parentDoc, CancellationToken cancellationToken);
 
     /// <summary>

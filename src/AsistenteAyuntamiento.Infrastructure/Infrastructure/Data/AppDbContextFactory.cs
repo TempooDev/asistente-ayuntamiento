@@ -19,5 +19,5 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 public class DummyTenantService : ICurrentTenantService
 {
     public string TenantId => "design-time";
-    public void SetTenant(string tenantId) {}
+    public void SetTenant(string tenantId) { }
 }

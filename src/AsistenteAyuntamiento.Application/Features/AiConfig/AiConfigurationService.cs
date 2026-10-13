@@ -9,7 +9,7 @@ namespace AsistenteAyuntamiento.Application.Features.AiConfig;
 
 public class AiConfigurationService(IAppDbContext dbContext, ICurrentTenantService tenantService, IDataProtectionProvider dataProtectionProvider, IConfiguration configuration) : IAiConfigurationService
 {
-                private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
+    private readonly IDataProtector _dataProtector = dataProtectionProvider.CreateProtector("AiConfiguration.ApiKey");
 
     public async Task<AiConfigurationDto> GetConfigurationAsync()
     {

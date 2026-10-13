@@ -115,7 +115,7 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 builder.AddInfrastructureServices();
 builder.AddRabbitMQClient("messaging");
 
-builder.Services.AddSingleton<IChunkingStrategy>(sp => 
+builder.Services.AddSingleton<IChunkingStrategy>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);

@@ -54,13 +54,13 @@ public class RabbitMqNotificationPublisherTests
 
         // Verify exchange declaration
         _channelMock.Verify(c => c.ExchangeDeclareAsync(
-            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange, 
-            ExchangeType.Fanout, 
-            true, 
-            false, 
-            null, 
-            It.IsAny<bool>(), 
-            It.IsAny<bool>(), 
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
+            ExchangeType.Fanout,
+            true,
+            false,
+            null,
+            It.IsAny<bool>(),
+            It.IsAny<bool>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify publish
@@ -82,14 +82,14 @@ public class RabbitMqNotificationPublisherTests
 
         // Act - first call
         await _sut.NotifyDocumentStatusChangedAsync(documentId, status);
-        
+
         // Act - second call
         await _sut.NotifyDocumentStatusChangedAsync(documentId, "Failed");
 
         // Assert
         // Connection factory should only be called once
         _connectionFactoryMock.Verify(f => f.CreateConnectionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        
+
         // Channel should publish twice
         _channelMock.Verify(c => c.BasicPublishAsync(
             AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,

@@ -16,7 +16,7 @@ public interface IClearLanguageGenerationService
 public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    
+
 
 
     public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default)
@@ -93,7 +93,7 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
         var systemPrompt = string.Format(SystemPrompts.ClearLanguageGeneration, contextBuilder.ToString());
         var chatHistory = new ChatHistory(systemPrompt);
         chatHistory.AddUserMessage(userQuery);
-        
+
         return chatHistory;
     }
 }

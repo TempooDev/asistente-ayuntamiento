@@ -176,14 +176,14 @@ public static class DependencyInjection
         var ingestionProvider = builder.Configuration["Ai:Ingestion:Provider"] ?? chatProvider;
         var ingestionModel = builder.Configuration["Ai:Ingestion:Model"] ?? chatModel;
         var ingestionApiKey = builder.Configuration["Ai:Ingestion:ApiKey"] ?? chatApiKey;
-        
+
         builder.Services.AddHttpClient("IngestionClient");
 
         builder.Services.AddKeyedTransient<Kernel>("IngestionKernel", (sp, key) =>
         {
             var kBuilder = Kernel.CreateBuilder();
             var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            
+
             if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
             {
                 var handler = CreateLlmHandler(allowInsecureTls);

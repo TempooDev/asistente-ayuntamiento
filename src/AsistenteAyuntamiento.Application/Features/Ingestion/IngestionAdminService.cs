@@ -87,7 +87,7 @@ public class IngestionAdminService : IIngestionAdminService
                     {
                         _logger.LogError(ex, "Error fetching objects from S3");
                     }
-                    
+
                     _cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
                 }
             }

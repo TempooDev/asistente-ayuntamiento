@@ -51,7 +51,7 @@ public static class AiMetricsEndpoints
             var totalCalls = chatLogs.Count + ingestionLogs.Sum(i => i.TotalLlmCalls);
             var succeededCalls = chatLogs.Count(x => x.Success) + ingestionLogs.Sum(i => i.TotalLlmCalls);
             var failedCalls = chatLogs.Count(x => !x.Success);
-            
+
             var totalInputTokens = chatLogs.Sum(x => x.InputTokens) + ingestionLogs.Sum(i => i.TotalTokensEmbedded);
             var totalOutputTokens = chatLogs.Sum(x => x.OutputTokens) + ingestionLogs.Sum(i => i.TotalLlmTokens);
             var totalTokens = totalInputTokens + totalOutputTokens;
