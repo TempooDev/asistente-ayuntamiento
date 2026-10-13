@@ -1,64 +1,85 @@
 # observability-grafana Specification
 
 ## Purpose
-Errors, traces and metrics of every service (Angular with Grafana Faro, .NET API and workers, Go scraper) in a self-hosted Grafana stack through OpenTelemetry, with end-to-end traces across HTTP, gRPC and RabbitMQ, and LLM usage, cost and latency metrics that never carry prompt or completion text. See `docs/observability-architecture.md` and ADR 0002.
+Send errors, traces, metrics and logs of every service (Angular with Grafana Faro, .NET ApiService/Worker/Gateway, Go scraper) to a self-hosted Grafana stack through OpenTelemetry, with end-to-end traces across HTTP, gRPC and RabbitMQ, and LLM usage, cost and latency metrics that never carry prompt or completion text. See `docs/observability-architecture.md` and `docs/adr/0002-llm-observability.md`.
+
 ## Requirements
-### Requirement: Global Error Tracking
-The system SHALL capture unhandled exceptions from all services and report them via OpenTelemetry (OTLP) to Grafana (Loki/Tempo).
+### Requirement: Telemetry Export per Service
+Each service SHALL export its telemetry over OTLP only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set:
+- .NET services (`AddServiceDefaults`) SHALL export traces, metrics and logs (formatted messages and scopes), including the `AsistenteAyuntamiento.*` and `Microsoft.SemanticKernel*` sources and meters; `/health` and `/alive` requests SHALL NOT be traced.
+- The Go scraper SHALL export traces and metrics; its logs SHALL be `slog` JSON on stdout carrying `trace_id` and `span_id` when a span is active.
 
 #### Scenario: Backend unhandled exception
-- **WHEN** the ASP.NET Core API or Go scraper throws an unhandled exception
-- **THEN** it SHALL be reported to the OpenTelemetry collector with the stack trace, HTTP request context (if applicable), and environment tags.
+- **WHEN** an ApiService endpoint throws an unhandled exception
+- **THEN** the exception SHALL be logged through the OpenTelemetry logger with the trace context of the request
+- **AND** the request span SHALL record `http.response.status_code` 500
+
+#### Scenario: Collector not configured
+- **WHEN** `OTEL_EXPORTER_OTLP_ENDPOINT` is empty
+- **THEN** the services SHALL start normally without exporting telemetry
+
+### Requirement: Frontend Error Tracking with Faro
+The SPA SHALL report errors to Grafana Faro through Angular's `ErrorHandler` (`FaroErrorHandler`, which keeps the default console logging). Faro's own error and console instrumentations SHALL be off; the session, view, web-vitals and tracing instrumentations SHALL be on. Faro SHALL be loaded lazily after startup and only when the gateway reports a collector (`GET /telemetry/config` with `enabled=true`); the SPA SHALL send data to the gateway's same-origin `/telemetry/faro`, which forwards it to the collector with the collector token, without cookies or the user's `Authorization` header, rate limited per client IP and capped at 256 KB per request. Page URLs SHALL be sent without query string or fragment, and views SHALL be named by route template.
 
 #### Scenario: Frontend unhandled error
-- **WHEN** the Angular application encounters an unhandled JavaScript error
-- **THEN** the Grafana Faro Web SDK SHALL report it automatically with breadcrumbs and browser context.
+- **GIVEN** the gateway has `Telemetry:Faro:CollectorUrl` configured
+- **WHEN** the Angular application raises an unhandled error
+- **THEN** `FaroErrorHandler` SHALL push it to Faro exactly once
+- **AND** errors raised while Faro is still loading SHALL be sent once it starts (up to 20)
+
+#### Scenario: Faro disabled
+- **WHEN** `Telemetry:Faro:CollectorUrl` is empty
+- **THEN** the SPA SHALL NOT load the Faro SDK and SHALL discard queued errors
 
 ### Requirement: LLM Usage, Cost and Latency Metrics
-The system SHALL record, for every LLM call, OpenTelemetry metrics that follow the GenAI semantic conventions (token usage by type, operation duration), enriched with `app.tenant_id`, `app.pipeline` and `app.fallback`. It SHALL also record an estimated cost from a configured price table, and the server-side time to first token for streamed responses. All data SHALL stay on self-hosted infrastructure.
+The system SHALL record, for every LLM call, metrics on the meter `AsistenteAyuntamiento.Ai` following the GenAI conventions: `gen_ai.client.operation.duration`, `gen_ai.client.inference.usage.input_tokens` and `gen_ai.client.inference.usage.output_tokens`, tagged with `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `app.tenant_id`, `app.pipeline`, `app.fallback` and `app.llm.operation` (`answer`, `query_expansion`, `enrichment`, `history_analysis`). It SHALL also record `app.llm.time_to_first_token` for streamed responses and `app.llm.cost`, an estimate in EUR from `Ai:Pricing:{provider}:{model}:{Input,Output}` (per million tokens). User and session ids SHALL NOT be metric labels.
 
 #### Scenario: Chat completion token tracking
 - **WHEN** a chat completion is generated for tenant `org_A` with the hierarchical pipeline
-- **THEN** the system SHALL emit token usage (input and output), duration and estimated cost, tagged with the provider, the model, `app.tenant_id=org_A` and `app.pipeline=hierarchical`
-- **AND** Grafana SHALL be able to chart the cost per tenant and per model
+- **THEN** the system SHALL emit duration, input and output tokens and estimated cost tagged with the provider, the model, `app.tenant_id=org_A`, `app.pipeline=hierarchical` and `app.llm.operation=answer`
 
 #### Scenario: Fallback provider used
-- **WHEN** a call is served by the fallback provider
+- **WHEN** a streamed call is served by the platform fallback model after a quota error
 - **THEN** the metrics SHALL carry `app.fallback=true` and the fallback model name
 
 #### Scenario: Model missing from the price table
-- **WHEN** a call uses a model without a configured price
-- **THEN** the cost recorded SHALL be 0 and a warning SHALL be logged once per model
+- **WHEN** a call to a non-Ollama model without a configured price reports tokens
+- **THEN** the cost recorded SHALL be 0 and a warning SHALL be logged once per provider and model
 
-### Requirement: LLM Traces Without Content by Default
-The system SHALL emit traces for LLM operations (retrieval, completion, streaming) without prompt or completion text. Content capture SHALL be disabled in production configuration unless a separate, privacy-approved change enables it.
+#### Scenario: Self-hosted model
+- **WHEN** a call uses the `ollama` provider
+- **THEN** the cost recorded SHALL be 0 without a warning
 
-#### Scenario: Default production configuration
-- **WHEN** the services run with the production configuration
+#### Scenario: No token usage reported
+- **WHEN** a call reports 0 input and 0 output tokens
+- **THEN** the duration SHALL be recorded but no token counts and no cost
+
+### Requirement: LLM Traces Without Content
+Semantic Kernel's GenAI diagnostics SHALL be enabled without prompt or completion text (`Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnostics`). The sensitive switch SHALL NOT be enabled anywhere; `TelemetryPrivacyTests` SHALL fail if `EnableOTelDiagnosticsSensitive`, `SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE` or `EnableSensitiveData` appears in a `docker-compose*.yml`, `.env.example`, any `appsettings*.json` or any `.cs` file under `src`.
+
+#### Scenario: Default configuration
+- **WHEN** the services run with the committed configuration
 - **THEN** LLM spans SHALL contain the model, operation and token usage, but no prompt or completion text
 
 #### Scenario: Sensitive diagnostics enabled by mistake
-- **WHEN** the sensitive Semantic Kernel diagnostics switch is present in the production settings or compose files
-- **THEN** the configuration test suite SHALL fail
-
-#### Scenario: Optional LLM observability backend
-- **WHEN** a self-hosted LLM observability tool (Phoenix or Langfuse) is adopted after the spike
-- **THEN** it SHALL receive the same OTLP data through the OpenTelemetry Collector
-- **AND** no service code SHALL depend on that tool's SDK
+- **WHEN** the sensitive Semantic Kernel switch is added to a compose file, settings file or source file
+- **THEN** the architecture test suite SHALL fail
 
 ### Requirement: Distributed Tracing
-The system SHALL propagate OpenTelemetry trace context across all service boundaries and record spans for external dependencies (Postgres, RabbitMQ, S3).
+The system SHALL propagate W3C trace context (`traceparent`, `tracestate`) across service boundaries:
+- the SPA (through Faro tracing, when enabled) on requests to the API's `/api/` routes;
+- the ApiService gRPC client to the Go scraper (`otelgrpc` server handler) and the Go scraper gRPC client to the ApiService;
+- AMQP message headers published by the Go scraper and the .NET publishers, continued by the ingestion consumers built on `RabbitMqConsumerBase` (`RabbitMqTraceContext`).
 
-#### Scenario: Inter-service communication
-- **WHEN** the Angular frontend calls the .NET API, which in turn publishes a message to RabbitMQ or calls the Go Scraper via gRPC
-- **THEN** OpenTelemetry SHALL propagate the W3C `traceparent` and `tracestate` headers to seamlessly link the transaction spans across all involved services in Grafana Tempo.
+Dependency spans SHALL be recorded for incoming ASP.NET Core requests, outgoing HTTP and gRPC calls, and the Aspire client integrations (PostgreSQL through Npgsql, RabbitMQ).
 
 #### Scenario: Go scraper publishes to RabbitMQ
-- **WHEN** the Go scraper publishes an ingestion message during a job triggered by the .NET API through gRPC
-- **THEN** the AMQP message headers SHALL contain `traceparent`
-- **AND** the .NET Worker span that processes the message SHALL belong to the same trace as the gRPC call
+- **GIVEN** telemetry export is configured in the ApiService, the Go scraper and the Worker
+- **WHEN** the Go scraper publishes an ingestion message during a scrape triggered by the ApiService through gRPC
+- **THEN** the AMQP headers SHALL contain `traceparent`
+- **AND** the Worker span that processes the message SHALL belong to the same trace as the gRPC call
 
-#### Scenario: Database and Storage Spans
-- **WHEN** a service executes a query against PostgreSQL via Entity Framework or downloads a blob from Cloudflare R2
-- **THEN** OpenTelemetry instrumentation SHALL automatically record performance spans detailing the query execution time or HTTP latency.
-
+#### Scenario: Browser call to the API
+- **GIVEN** Faro is enabled and the session is sampled
+- **WHEN** the SPA calls `/api/users/me`
+- **THEN** the request SHALL carry `traceparent` and the ApiService span SHALL continue the browser trace

@@ -1,60 +1,62 @@
 # api-authorization Specification
 
 ## Purpose
-Enforce on the server, not only in the Angular guards, that administrative APIs require the right administrator role (platform or organization) and that every request runs inside a tenant.
+Enforce on the server, not only in the Angular guards, that administrative APIs require the right administrator role (platform or organization), that internal gRPC services require a shared key, that clients never receive internal error details, and that the services refuse to start without the secrets they need.
+
 ## Requirements
 ### Requirement: Server-Side Role Enforcement for Administrative APIs
-The API SHALL enforce, through named authorization policies on the server, two administrator scopes (roles in the claim `{CustomClaimsNamespace}/roles`). Client-side route guards SHALL be treated as UX only and SHALL NOT be relied upon for security.
+The ApiService SHALL enforce two administrator scopes through named authorization policies registered once in `AddAppAuthorization()` (`Security/AuthorizationPolicies.cs`). Roles are read from the claim `{Auth0:CustomClaimsNamespace}/roles` and compared case-insensitively. Client-side route guards SHALL be treated as UX only.
 
-- **Platform administrators** (`admin-plataforma`, policy `PlatformAdmin`) manage the shared knowledge base and data that spans tenants:
-  - `/api/ingestion/**`;
-  - `/api/scraper/**`;
-  - `/api/ai/metrics` and `/api/ai/health` (in-memory snapshot of every tenant's calls);
-  - `/api/arena/analytics` (aggregates across tenants).
-- **Organization administrators** (`admin-organizacion`, policy `OrganizationAdmin`) manage their own tenant:
-  - `/api/settings/ai`;
-  - `/api/ai/metrics/summary` and `/api/ai/metrics/history`;
-  - `/api/arena/compare`.
-- The role from before the split, `administrador`, SHALL NOT grant any administrative access (retired on 2026-10-13).
+- **Platform administrators** (role `admin-plataforma`, policy `Policies.PlatformAdmin`): `/api/ingestion/**`, `/api/scraper/filters/**`, `GET /api/ai/metrics` and `GET /api/ai/health` (in-memory snapshot of every tenant's calls), `GET /api/arena/analytics` (aggregates across tenants).
+- **Organization administrators** (role `admin-organizacion`, policy `Policies.OrganizationAdmin`): `GET|PUT /api/settings/ai`, `GET /api/ai/metrics/summary`, `GET /api/ai/metrics/history`, `POST /api/arena/compare`.
+- The retired role `administrador` SHALL NOT grant any administrative access.
+- `POST /api/arena/vote` and `/api/users/**` SHALL only require an authenticated user; `GET /api/config/auth0` SHALL be anonymous (public Auth0 client settings for the SPA).
 
 #### Scenario: Platform administrator calls a platform endpoint
-- **GIVEN** a user whose JWT contains the role `admin-plataforma` and a valid `org_id`
-- **WHEN** they call `POST /api/ingestion/reset`
-- **THEN** the API SHALL authorize the request and execute the operation
+- **GIVEN** a user whose token contains the role `admin-plataforma` and an `org_id`
+- **WHEN** they call `GET /api/scraper/filters`
+- **THEN** the API SHALL respond `200 OK`
 
 #### Scenario: Administrator of the other scope
 - **WHEN** an organization administrator calls a platform endpoint, or a platform administrator calls an organization endpoint
 - **THEN** the API SHALL respond `403 Forbidden`
 
 #### Scenario: Retired role
-- **GIVEN** a user whose token still contains the role `administrador`
-- **WHEN** they call a platform or an organization endpoint
+- **GIVEN** a user whose token contains only the role `administrador`
+- **WHEN** they call `GET /api/scraper/filters` or `GET /api/settings/ai`
 - **THEN** the API SHALL respond `403 Forbidden`
 
 #### Scenario: Authenticated non-admin calls an admin endpoint
-- **GIVEN** a user with a valid JWT but without an administrator role
+- **GIVEN** a user with a valid token, an `org_id` and no administrator role
 - **WHEN** they call any administrative endpoint (e.g. `PUT /api/settings/ai`, `POST /api/scraper/filters/trigger`)
-- **THEN** the API SHALL respond `403 Forbidden`
-- **AND** SHALL NOT execute any side effect
+- **THEN** the API SHALL respond `403 Forbidden` without executing the handler
 
 #### Scenario: Unauthenticated call to an admin endpoint
 - **WHEN** a request without a bearer token calls any administrative endpoint
 - **THEN** the API SHALL respond `401 Unauthorized`
 
 #### Scenario: Role casing
-- **WHEN** the roles claim contains `Admin-Plataforma` (different casing)
-- **THEN** the server SHALL treat it as `admin-plataforma`, exactly like the SPA guard, which lowercases roles
+- **WHEN** the roles claim contains `Admin-Plataforma`
+- **THEN** the server SHALL treat it as `admin-plataforma`, like the SPA guard
 
-### Requirement: Policies Declared Once and Applied per Route Group
-Authorization policies SHALL be defined in a single registration (`AddAppAuthorization()`) and applied at the route group level, so that new endpoints added to an admin group inherit the policy automatically.
+### Requirement: Policies Applied per Route Group or per Endpoint, Verified by Enumeration
+Policies SHALL be applied at route-group level where a prefix belongs to a single scope (`/api/ingestion`, `/api/scraper/filters` → `PlatformAdmin`; `/api/settings` → `OrganizationAdmin`). Where a prefix mixes scopes, the policy SHALL be set per endpoint: `/api/ai` uses one group per policy, and `/api/arena` sets the policy on `compare` and `analytics` only. The integration test `AdminAuthorizationTests.Every_endpoint_under_an_admin_prefix_requires_its_admin_policy` SHALL enumerate every mapped route and fail when a route matching its expected-policy table lacks that policy. The table lists prefixes (`/api/ingestion`, `/api/scraper`, `/api/settings`, `/api/ai/`) and exact paths for the mixed prefixes (`/api/ai/metrics/summary`, `/api/ai/metrics/history`, `/api/arena/compare`, `/api/arena/analytics`).
 
-#### Scenario: Adding a new endpoint to an admin group
-- **WHEN** a developer maps a new endpoint inside the `/api/ingestion` route group
-- **THEN** the endpoint SHALL require the group's policy (`PlatformAdmin` for ingestion) without any per-endpoint attribute
-- **AND** an integration test SHALL enumerate all mapped endpoints and fail if an endpoint under an admin prefix does not require its expected policy
+#### Scenario: New endpoint in a single-scope group
+- **WHEN** a developer maps a new endpoint inside the `/api/ingestion` group
+- **THEN** it SHALL inherit `PlatformAdmin` without a per-endpoint attribute
+- **AND** the enumeration test SHALL pass
+
+#### Scenario: New endpoint under /api/ai without the expected policy
+- **WHEN** a developer maps `/api/ai/new-thing` in the organization group
+- **THEN** the enumeration test SHALL fail, because every `/api/ai/` route not listed explicitly is expected to require `PlatformAdmin`
+
+#### Scenario: New endpoint under /api/arena
+- **WHEN** a developer maps a new route under `/api/arena` other than `compare` and `analytics`
+- **THEN** the enumeration test SHALL NOT check it, and the developer SHALL set its policy explicitly
 
 ### Requirement: Internal gRPC Service Protection
-The `FilterConfigService` gRPC service SHALL only accept calls that present the configured internal shared secret in the `x-internal-key` metadata header, and SHALL NOT be routed through the public gateway.
+The ApiService `FilterConfigService` SHALL only accept calls that present the configured `Internal:GrpcApiKey` in the `x-internal-key` metadata header, compared in constant time, and SHALL NOT be routed through the public gateway (the gateway only proxies `/api`, `/openapi` and `/hubs`). The ApiService SHALL send the same key on its calls to the Go scraper's `ScraperCommandService`, which SHALL require it when `INTERNAL_GRPC_KEY` is set.
 
 #### Scenario: Go scraper requests filters with a valid key
 - **WHEN** the Go scraper calls `GetActiveFilters` with the correct `x-internal-key`
@@ -62,44 +64,63 @@ The `FilterConfigService` gRPC service SHALL only accept calls that present the 
 
 #### Scenario: Call without or with a wrong internal key
 - **WHEN** a client calls `GetActiveFilters` without `x-internal-key`, or with a wrong one
-- **THEN** the service SHALL fail with gRPC status `Unauthenticated`
-- **AND** SHALL NOT return any rule
+- **THEN** the service SHALL fail with gRPC status `Unauthenticated` and return no rule
+
+#### Scenario: Key not configured
+- **GIVEN** `Internal:GrpcApiKey` is empty
+- **WHEN** a client calls `GetActiveFilters`
+- **THEN** the call SHALL be accepted with a warning in Development and rejected with `Unauthenticated` in any other environment
 
 ### Requirement: Client Route Guards Mirror Server Policies
-The Angular router SHALL apply the role guard to every route whose backing API requires an admin policy, using role constants from a single `core/auth/roles.ts`:
+The Angular router SHALL apply `authGuard` and `roleGuard` to every route whose backing API requires an admin policy, using the role constants of `core/auth/roles.ts`:
 - `/documentos` requires a platform administrator;
 - `/arena` requires an organization administrator;
-- `/configuracion` and `/admin/analytics` require either, and show only the sections of the user's scope (AI settings and usage for organization administrators; scraper filters and Arena results for platform administrators).
+- `/configuracion` and `/admin/analytics` require either role and show only the sections of the user's scope (AI settings and usage for organization administrators; scraper filters and Arena results for platform administrators).
 
 #### Scenario: Non-admin navigates to an admin route
 - **GIVEN** an authenticated user without an administrator role
-- **WHEN** they navigate to `/configuracion`, `/documentos` or `/admin/analytics`
-- **THEN** the router SHALL redirect them to the chat page
-- **AND** no administrative API call SHALL be issued
+- **WHEN** they navigate to `/configuracion`, `/documentos`, `/arena` or `/admin/analytics`
+- **THEN** the router SHALL redirect them to `/chat`
+- **AND** the page SHALL NOT be loaded
 
 ### Requirement: No Internal Error Details Returned to Clients
-HTTP endpoints and SignalR hub methods SHALL NOT return exception type names, messages or stack traces to clients. Errors SHALL be returned as RFC 7807 `ProblemDetails` with a correlation `traceId`, or, in hubs, as a typed error code.
+HTTP endpoints and SignalR hub methods SHALL NOT return exception type names, messages or stack traces to clients; details SHALL only be written to the server logs.
+- HTTP: unhandled exceptions SHALL go through `UseExceptionHandler()` with `AddProblemDetails()`, returning a `500` RFC 7807 `ProblemDetails` that carries a `traceId`.
+- Hubs: errors SHALL be plain text with a stable code, `Error [UNAUTHORIZED|NOT_FOUND|INVALID_REQUEST|INTERNAL]: …` (`HubErrors`), sent as a stream item, a `ReceiveMessage` payload or a `HubException` message.
+- LLM failures SHALL be text prefixed `[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]` or `[LLM_UNAVAILABLE]` (`LlmErrorCodes`).
+- The SPA SHALL map these codes to user messages (`stream-errors.ts`) and treat any other failure as a lost connection.
 
 #### Scenario: Unhandled exception in an endpoint
-- **WHEN** an endpoint throws an unhandled exception
-- **THEN** the response SHALL be `500` with a generic `ProblemDetails` that contains a `traceId`
-- **AND** the exception details SHALL only be written to the server logs
+- **WHEN** an endpoint throws an unhandled exception outside Development
+- **THEN** the response SHALL be `500` with a generic `ProblemDetails` containing a `traceId`
 
-#### Scenario: Error during chat streaming
-- **WHEN** the chat stream fails
-- **THEN** the hub SHALL send a typed error (e.g. `{ code: "LLM_QUOTA_EXCEEDED" | "LLM_UNAVAILABLE" | "INTERNAL" }`)
-- **AND** SHALL NOT include `ex.Message` or `ex.GetType().Name`
+#### Scenario: Failure in the middle of a chat stream
+- **WHEN** the model stream throws after the hub method returned
+- **THEN** the hub SHALL log the exception and end the stream with a `HubException` whose message is `Error [INTERNAL]: …`
+- **AND** SHALL NOT include `ex.Message` or the exception type
+
+#### Scenario: Model quota exhausted before any content
+- **GIVEN** the tenant's model fails with a quota error and no fallback model is configured
+- **WHEN** the user streams a message
+- **THEN** the stream SHALL yield the text `[LLM_QUOTA_EXCEEDED] …` and end normally
 
 ### Requirement: Fail Fast on Missing Secrets
-Services SHALL validate required secrets at startup (Auth0 domain and audience, blob credentials, RabbitMQ credentials, Qdrant API key outside Development, internal gRPC key) and SHALL refuse to start when one is missing. No production secret SHALL have a default value in source code, `docker-compose.yml` or `.env.example`.
+The ApiService SHALL validate configuration at startup (`RequiredConfiguration.Validate`) and refuse to start when a required key is missing:
+- in every environment: `Auth0:Domain`, `Auth0:Audience`;
+- in Production only: `Auth0:CustomClaimsNamespace`, `Blob:Endpoint`, `Blob:AccessKeyId`, `Blob:SecretAccessKey`, `Internal:GrpcApiKey`.
+
+The shared Infrastructure registration (ApiService and Worker) SHALL also fail when `Blob:Endpoint` is set without its access keys, and, in Production only, when `ConnectionStrings:qdrant` has no `Key=`. In `docker-compose.yml`, `QDRANT_API_KEY`, `RABBITMQ_PASS` and `INTERNAL_GRPC_KEY` SHALL be mandatory (`${VAR:?}`), and `.env.example` SHALL contain no secret values. The Go scraper SHALL only log a warning when `INTERNAL_GRPC_KEY` is missing.
 
 #### Scenario: Missing blob credentials in production
 - **GIVEN** `ASPNETCORE_ENVIRONMENT=Production` and an empty `Blob:SecretAccessKey`
 - **WHEN** the ApiService starts
-- **THEN** startup SHALL fail with a clear validation error naming the missing key
+- **THEN** startup SHALL fail with an `InvalidOperationException` naming the missing key
 
-#### Scenario: Development defaults
+#### Scenario: Missing compose secret
+- **WHEN** `docker compose up` runs without `INTERNAL_GRPC_KEY` in the environment
+- **THEN** compose SHALL refuse to start with the message `INTERNAL_GRPC_KEY is required`
+
+#### Scenario: Local development secrets
 - **WHEN** the AppHost runs locally
-- **THEN** generated or parameterized Aspire secrets SHALL be used instead of hardcoded literals
-- **AND** the local MinIO bucket SHALL NOT be configured with anonymous public access
-
+- **THEN** the MinIO credentials and the internal gRPC key SHALL be Aspire parameters generated and persisted in user secrets, not hardcoded literals
+- **AND** the local MinIO bucket SHALL be created without anonymous access

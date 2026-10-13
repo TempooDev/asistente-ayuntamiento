@@ -64,20 +64,22 @@ All services used in interactive components SHALL be registered in both the serv
 - **THEN** server-only services (OIDC middleware, blob storage, EF Core, Infisical) SHALL NOT be referenced by the client project
 - **AND** the build SHALL complete without referencing server-only assemblies
 
-### Requirement: Cloudflare R2 Blob Storage Adapter
-The blob storage layer SHALL use an S3-compatible `AmazonS3Client` (AWSSDK.S3) pointing to Cloudflare R2 in production and the Azurite emulator in development. The implementation SHALL be registered as `IBlobStorageRepository` in the server-side DI container only.
+### Requirement: S3-compatible Blob Storage Adapter
+Blob storage SHALL be accessed through the `IBlobStorage` port, implemented by `S3BlobStorage` over an `AmazonS3Client` (AWSSDK.S3, `ForcePathStyle = true`) in the Infrastructure layer, configured with the `Blob:*` keys (`Blob:Endpoint`, `Blob:AccessKeyId`, `Blob:SecretAccessKey`, `Blob:BucketName`). Locally the AppHost runs a MinIO container; in production the keys point to Cloudflare R2. It is only registered in server-side hosts, never in a browser bundle.
 
-#### Scenario: Development environment
-- **WHEN** the application runs with the `Development` environment variable
-- **THEN** the `IBlobStorageRepository` SHALL connect to the local Azurite emulator via the Aspire connection string
-- **AND** `PathStyleAddressing` SHALL be set to `true` in the `AmazonS3Config`
+#### Scenario: Local environment
+- **WHEN** the AppHost starts without `Blob:Endpoint` in its configuration
+- **THEN** it SHALL start MinIO, create the bucket, and pass the MinIO endpoint and generated credentials to the services as `Blob__Endpoint`, `Blob__AccessKeyId` and `Blob__SecretAccessKey`
 
-#### Scenario: Production environment
-- **WHEN** the application runs in production
-- **THEN** the `IBlobStorageRepository` SHALL connect to Cloudflare R2 using the S3-compatible endpoint `https://<accountId>.r2.cloudflarestorage.com`
-- **AND** credentials SHALL be loaded from environment variables (`BLOB_ACCESS_KEY_ID`, `BLOB_SECRET_ACCESS_KEY`), never from source code
+#### Scenario: Cloudflare R2
+- **WHEN** the AppHost configuration sets `Blob:Endpoint`, `Blob:AccessKeyId` and `Blob:SecretAccessKey`
+- **THEN** the services SHALL use those values (the R2 S3 endpoint) instead of MinIO
+- **AND** the credentials SHALL come from configuration or secrets, never from source code
 
-#### Scenario: Missing blob credentials
-- **WHEN** the required blob storage environment variables are absent at startup
-- **THEN** the application SHALL throw a configuration exception during startup
-- **AND** the error message SHALL identify which variable is missing
+#### Scenario: Endpoint without credentials
+- **WHEN** `Blob:Endpoint` is set but `Blob:AccessKeyId` or `Blob:SecretAccessKey` is missing
+- **THEN** startup SHALL fail with an exception saying that `Blob:AccessKeyId` or `Blob:SecretAccessKey` is missing
+
+#### Scenario: Production without blob settings
+- **WHEN** the API starts in Production without `Blob:Endpoint`, `Blob:AccessKeyId` or `Blob:SecretAccessKey`
+- **THEN** startup SHALL fail listing the missing settings

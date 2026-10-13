@@ -1,44 +1,48 @@
 # Specification: Ingestion Telemetry and Cost Tracking
 
 ## Purpose
-Track and persist processing costs, token consumption, and latency metrics for both ingestion pipelines (baseline flat-chunk and hierarchical parent-child) to enable quantitative comparison in the TFG thesis.
+Record the processing cost of every document ingested by the baseline and hierarchical pipelines in `IngestionMetrics`, and aggregate the Question Arena votes into per-pipeline win rates, so both pipelines can be compared quantitatively in the TFG thesis.
 
 ## Requirements
 
 ### Requirement: Ingestion Metrics Recording
-The system SHALL record processing metrics for each document ingested by either pipeline.
+Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetrics"`) per successfully ingested document through `IIngestionMetricsService.TrackIngestionAsync`, with: `Pipeline` (`PipelineType`), `Bulletin` (`BulletinType`), `DocumentId`, `TotalTokensEmbedded`, `TotalLlmCalls`, `TotalLlmTokens`, `ProcessingDurationMs`, `ChunksGenerated` and `CreatedAt`. A failure to save the metric SHALL be logged and SHALL NOT fail the ingestion.
 
 #### Scenario: Recording hierarchical ingestion metrics
-- **WHEN** the BOE or BOJA ingestion service finishes processing a document
-- **THEN** the system SHALL persist an `IngestionMetrics` record containing: pipeline identifier, gazette source, document ID, total tokens embedded, number of LLM enrichment calls, total LLM tokens consumed, wall-clock processing duration (milliseconds), and number of chunks generated.
+- **WHEN** the BOE or BOJA processor finishes a document, including the vector sync
+- **THEN** it SHALL record `Pipeline = Hierarchical`, the number of enrichment calls, the LLM tokens they used (as reported by the provider, or estimated at 4 characters per token), the embedded tokens (estimated at 4 characters per token of the enriched text), the number of fragments and the wall-clock duration
 
-#### Scenario: Recording baseline ingestion metrics (for comparison)
-- **WHEN** the baseline flat-chunk pipeline processes a document for the arena
-- **THEN** the system SHALL persist an `IngestionMetrics` record with the same schema, using pipeline identifier `BASELINE_FLAT`.
+#### Scenario: Recording baseline ingestion metrics
+- **WHEN** the baseline pipeline finishes a document, including the vector sync
+- **THEN** it SHALL record `Pipeline = Baseline` with `TotalLlmCalls = 0`, `TotalLlmTokens = 0`, the embedded tokens estimated at 4 characters per token, the number of chunks and the wall-clock duration
 
-### Requirement: Readability Score Calculation (IFSZ)
-The system SHALL calculate the Flesch-Szigriszt Index for Spanish text to compare the readability of raw gazette text vs. generated responses.
+#### Scenario: Document that fails
+- **WHEN** a document fails before its vectors are synced
+- **THEN** no `IngestionMetrics` row SHALL be recorded for that attempt
 
-#### Scenario: Calculating IFSZ for a response
-- **WHEN** a generated response or raw gazette text is submitted for analysis
-- **THEN** the system SHALL count syllables (Spanish phonetic rules), words, and sentences
-- **AND** compute `IFSZ = 206.835 - 62.3 * (syllables/words) - (words/sentences)`
-- **AND** return the score and its interpretation (0–40: very difficult, 40–55: somewhat difficult, 55–65: normal, 65–80: somewhat easy, 80+: very easy).
+#### Scenario: Re-ingestion
+- **WHEN** a document is ingested again
+- **THEN** a new row SHALL be added and the previous rows kept
 
-### Requirement: Arena Win-Rate Aggregation and Statistical Testing
-The system SHALL compute win rates from arena battles and test for statistical significance.
+### Requirement: Arena Win-Rate Aggregation
+`IArenaAnalyticsService.GetAnalyticsAsync`, exposed as `GET /api/arena/analytics` under `Policies.PlatformAdmin`, SHALL aggregate the `ArenaBattles` of every tenant (optionally between `StartDate` and `EndDate`) and return the total, pending and completed battles and, per `PipelineType`, its wins, losses, ties, win rate, average latency and average tokens. The win rate SHALL be wins divided by every voted battle the pipeline took part in, so ties and "both bad" votes count in the denominator.
 
 #### Scenario: Computing win rates
-- **WHEN** the metrics export is triggered
-- **THEN** the system SHALL query `ArenaBattles` and compute the percentage of battles won by each system (excluding ties and "both deficient" votes).
+- **GIVEN** the hierarchical pipeline took part in 10 voted battles: 6 wins, 2 losses, 1 tie and 1 "both bad"
+- **WHEN** the analytics are requested
+- **THEN** its `WinRate` SHALL be 0.6, `WinCount` 6, `LossCount` 2 and `TieCount` 1
 
-#### Scenario: Testing statistical significance
-- **WHEN** win rates are computed
-- **THEN** the system SHALL apply a binomial test to determine whether the new system's win proportion is significantly different from 0.5 (random chance) at p < 0.05.
+#### Scenario: Pending battles
+- **WHEN** some battles have no vote yet
+- **THEN** they SHALL count in `PendingBattles` and in the average latency and tokens, but not in the win-rate denominator
 
-### Requirement: Metrics Export for Thesis
-The system SHALL export all metrics in CSV and JSON formats suitable for direct inclusion in the TFG document.
+### Requirement: Readability Score Calculation (IFSZ)
+The Application layer SHALL provide `IReadabilityService.CalculateIfsz(text)`, which computes the Flesch-Szigriszt index for Spanish as `206.835 - 62.3 * (syllables / words) - (words / sentences)`, counting syllables with Spanish diphthong and triphthong rules. It is registered in DI but not yet called by any endpoint or pipeline.
 
-#### Scenario: Exporting metrics report
-- **WHEN** an admin requests a metrics export via the API
-- **THEN** the system SHALL generate files containing: win-rate table, p-value, IFSZ score distributions per pipeline, and ingestion cost comparison table (tokens, LLM calls, latency).
+#### Scenario: Calculating IFSZ
+- **WHEN** `CalculateIfsz` receives a non-empty Spanish text
+- **THEN** it SHALL return the index computed from its syllable, word and sentence counts
+
+#### Scenario: Empty text
+- **WHEN** `CalculateIfsz` receives an empty or whitespace text
+- **THEN** it SHALL return 0

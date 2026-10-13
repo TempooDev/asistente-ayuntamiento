@@ -1,49 +1,51 @@
 # Specification: Admin Metrics Dashboard
 
 ## Purpose
-Provide a secured administrative view to visualize ingestion costs, arena results, and readability metrics for ongoing monitoring and TFG data collection.
+Give administrators one Angular page, `admin/analytics` ("Métricas"), with the AI usage of their organization and the results of the Question Arena. Each section is shown only to the role that may read its data, and the API authorizes every call itself.
 
 ## Requirements
 
-### Requirement: Secured Admin Access
-The admin dashboard SHALL be accessible only to authenticated users with the Admin role.
+### Requirement: Page Access by Admin Role
+The route `admin/analytics` SHALL be guarded by `authGuard` and `roleGuard` and SHALL only open for users with `admin-plataforma` or `admin-organizacion`. The "Métricas" link SHALL only be shown to those users. The guard only improves the UX; the API SHALL authorize each data call with its own policy.
 
-#### Scenario: Authorized admin access
-- **WHEN** an authenticated user with the `Admin` role navigates to `/admin/metrics`
-- **THEN** the system SHALL display the metrics dashboard.
+#### Scenario: Administrator opens the page
+- **WHEN** a signed-in user with `admin-plataforma` or `admin-organizacion` navigates to `/admin/analytics`
+- **THEN** the page SHALL open with the sections allowed for their roles
 
-#### Scenario: Unauthorized access attempt
-- **WHEN** an unauthenticated user or a user without the `Admin` role attempts to access `/admin/metrics`
-- **THEN** the system SHALL return HTTP 401/403 and redirect to the login page.
+#### Scenario: Regular user
+- **WHEN** a signed-in user without an admin role navigates to `/admin/analytics`
+- **THEN** the guard SHALL redirect them to `/chat`
 
-### Requirement: Ingestion Cost Comparison View
-The dashboard SHALL display a comparative view of processing costs between the baseline and hierarchical pipelines.
+#### Scenario: Anonymous user
+- **WHEN** a user who is not signed in navigates to `/admin/analytics`
+- **THEN** they SHALL be sent to the login page
 
-#### Scenario: Viewing cost comparison
-- **WHEN** an admin views the cost comparison section
-- **THEN** the dashboard SHALL display: total tokens embedded per pipeline, total LLM enrichment calls (hierarchical only), average processing duration per document per pipeline, and a bar chart comparing these metrics.
+### Requirement: Organization AI Usage
+For organization administrators the page SHALL show the AI usage summary of `GET /api/ai/metrics/summary` (policy `OrganizationAdmin`): total calls with success rate, input, output and total tokens, and a breakdown per model (calls, total tokens, average latency). The summary SHALL be aggregated in the database from the tenant's `AiCallLogs` (tenant query filter) plus the ingestion totals of `IngestionMetrics`, shown as the "Ingestion Worker" entry.
 
-### Requirement: Arena Results View
-The dashboard SHALL display the current state of the Question Arena evaluation.
+#### Scenario: Organization administrator
+- **WHEN** a user with `admin-organizacion` opens the page
+- **THEN** the "Consumo de IA / Tokens" section SHALL show the summary of their own tenant's chat calls and the ingestion totals
 
-#### Scenario: Viewing arena results
-- **WHEN** an admin views the arena results section
-- **THEN** the dashboard SHALL display: total battles conducted, win rate per system (with confidence interval), statistical significance indicator (p-value), and a breakdown of wins by criterion (clarity vs. precision).
+#### Scenario: Platform administrator without the organization role
+- **WHEN** a user with only `admin-plataforma` opens the page
+- **THEN** the usage section SHALL NOT be requested or shown
 
-### Requirement: Readability Comparison View
-The dashboard SHALL display IFSZ readability scores comparing raw gazette text with generated responses from both pipelines.
+#### Scenario: Summary request fails
+- **WHEN** the summary request fails
+- **THEN** the page SHALL show an error toast and leave the section empty instead of breaking
 
-#### Scenario: Viewing readability scores
-- **WHEN** an admin views the readability section
-- **THEN** the dashboard SHALL display average IFSZ scores for: raw gazette text, baseline pipeline responses, and new pipeline responses, with a visual indicator of readability level.
+### Requirement: Arena Results
+For platform administrators the page SHALL show the Arena results of `GET /api/arena/analytics` (policy `PlatformAdmin`), optionally filtered by `startDate` and `endDate`: total, completed and pending battles, and per pipeline (`Baseline`, `Hierarchical`) the wins, losses, ties, win rate, average latency and average estimated tokens. The table SHALL be filterable by pipeline on the client. The aggregates SHALL cover battles of every tenant and SHALL never include battle content.
 
-### Requirement: OpenTelemetry Custom Meters
-The system SHALL emit custom OpenTelemetry metrics for real-time visibility in the .NET Aspire Dashboard.
+#### Scenario: Filtering by date
+- **WHEN** a platform administrator sets a start or end date
+- **THEN** the page SHALL request the analytics again with those dates and show the new aggregates
 
-#### Scenario: Emitting ingestion metrics
-- **WHEN** a document is ingested by either pipeline
-- **THEN** the system SHALL emit OpenTelemetry counter metrics for `tokens_embedded` and `chunks_generated`, and a histogram metric for `ingestion_duration_ms`, tagged by pipeline and gazette source.
+#### Scenario: Win rate
+- **WHEN** a pipeline took part in voted battles
+- **THEN** its win rate SHALL be its wins divided by its battles with a vote (`Alfa`, `Beta`, `Tie` or `BothBad`), and pending battles SHALL NOT count
 
-#### Scenario: Emitting arena metrics
-- **WHEN** a vote is recorded in the arena
-- **THEN** the system SHALL emit an OpenTelemetry counter metric for `arena_votes`, tagged by winner system.
+#### Scenario: Organization administrator without the platform role
+- **WHEN** a user with only `admin-organizacion` opens the page
+- **THEN** the Arena section and the date filters SHALL NOT be shown, and the API SHALL answer 403 if called directly

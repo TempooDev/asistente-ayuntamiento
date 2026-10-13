@@ -1,71 +1,73 @@
 # Specification: Chunking and Embedding Creation
 
 ## Purpose
-Injest raw documents from storage, extract their plain text, decompose them into semantic chunks, generate embedding vectors, and persist them in pgvector.
+Turn the documents stored by the Go scraper into searchable chunks for the baseline pipeline: read the scraper's JSON document from the bucket, split its text with the configured chunking strategy, generate embeddings with the configured model, and store the chunks in PostgreSQL (`DocumentChunks`) and their vectors in Qdrant (`document_chunks`). The same chunking strategy also splits the BOE articles and BOJA texts of the hierarchical pipeline.
 
 ## Requirements
 
-### Requirement: Document Parsing and Text Extraction
-The system SHALL retrieve raw documents and extract plain text.
+### Requirement: Scraper Document Input
+`DocumentIngestionService.ProcessBlobAsync(blobPath, source)` SHALL read the JSON document written by the Go scraper (`{ document_id, metadata: { titulo, departamento, fecha_publicacion }, text }`) from the bucket and use `text` as the content. No PDF or HTML parsing happens in .NET.
 
-#### Scenario: Extracting PDF document text
-- **WHEN** a document scraped event is received
-- **THEN** the system SHALL download the raw stream from storage and extract text using PdfPig
+#### Scenario: Reading a stored document
+- **WHEN** the baseline worker receives a message with `blob_path = json/BOE/BOE-A-2026-1234.json`
+- **THEN** it SHALL download that blob, deserialize it as `ScrapedDocument` and chunk its `text`
 
-### Requirement: Text Chunking
-The system SHALL divide plain text into smaller, overlapping semantic fragments using an extensible chunking strategy abstraction.
+#### Scenario: Document without text
+- **WHEN** the document's `text` is empty
+- **THEN** the service SHALL store a single chunk containing the document title (or "Documento sin contenido" when there is no title)
 
-#### Scenario: Running Semantic Kernel TextChunker
-- **WHEN** raw text is extracted
-- **THEN** the system SHALL split the text using `maxTokensPerLine: 100` and `maxTokensPerParagraph: 300` with `overlapTokens: 50`
+### Requirement: Modular Chunking Strategy
+The system SHALL split text through the `IChunkingStrategy` abstraction (`Application.Features.Ingestion.Chunking`), whose `ChunkText(string)` returns `DocumentChunkResult` items (text, zero-based chunk index and strategy metadata). The registered implementation SHALL be `FixedOverlapChunkingStrategy`, a singleton configured with `Ai:Embeddings:ChunkMaxTokens` (default 400) and `Ai:Embeddings:ChunkOverlapTokens` (default 50), which splits the text into lines of at most 200 tokens and groups them into paragraphs with Semantic Kernel's `TextChunker`.
 
-### Requirement: Modular Chunking Strategy Abstraction
-The system SHALL provide an abstraction `IChunkingStrategy` in `Application.Features.Ingestion` to decouple text decomposition from document ingestion and persistence, enabling empirical comparative evaluation between diverse chunking algorithms.
+#### Scenario: Chunking a long document
+- **WHEN** a text of several thousand tokens is chunked with the default configuration
+- **THEN** it SHALL be split into chunks of at most about 400 tokens with about 50 tokens of overlap
+- **AND** each chunk SHALL carry its index and the metadata `Strategy = FixedOverlap`
 
-#### Scenario: Running a chunking strategy
-- **WHEN** plain text and optional metadata are supplied to an `IChunkingStrategy` implementation (e.g., `FixedOverlapChunkingStrategy`)
-- **THEN** it SHALL return a list of `DocumentChunkResult` records containing chunk text, chunk index, and strategy-specific metadata.
+#### Scenario: Empty text
+- **WHEN** `ChunkText` receives an empty or whitespace text
+- **THEN** it SHALL return no chunks
+
+#### Scenario: Shared by both pipelines
+- **WHEN** the hierarchical pipeline splits a BOE article or a BOJA text
+- **THEN** it SHALL use the same registered `IChunkingStrategy`
 
 ### Requirement: Only Bulletins in Scope
-The baseline pipeline SHALL only ingest documents whose source is one of the bulletins in the project's scope (BOE, BOJA).
+The baseline pipeline SHALL only ingest documents whose source is a `BulletinType` (BOE, BOJA), compared case-insensitively.
 
 #### Scenario: Document from another source
 - **WHEN** `DocumentIngestionService` receives a document whose source is not BOE or BOJA
 - **THEN** it SHALL log a warning naming the source and the document
-- **AND** skip chunking, embedding generation and database insertion without failing.
+- **AND** return without chunking, generating embeddings or writing to the database, and without failing the message
 
 ### Requirement: Embedding Generation and Storage
-The system SHALL batch-generate embedding vectors for all paragraphs and save them.
+The system SHALL generate the embeddings of all chunks of a document in batches of 100 with the embedding generator registered in the Semantic Kernel, then store the chunks in PostgreSQL and their vectors in Qdrant. The generator is configured with `Ai:Embeddings:Provider` (`ollama` by default, `google`, `openai` or `openrouter`), `Ai:Embeddings:Model` (`nomic-embed-text` only when no model is configured), `Ai:Embeddings:EndpointUrl` and `Ai:Embeddings:ApiKey`.
 
-#### Scenario: Saving vectors in pgvector
-- **WHEN** chunks are created
-- **THEN** the system SHALL batch generate embeddings using `nomic-embed-text`
-- **AND** store each chunk and its floating-point vector inside PostgreSQL database
+#### Scenario: Storing a document's chunks
+- **WHEN** a document yields N chunks
+- **THEN** its previous `DocumentChunks` rows SHALL be deleted and the N new rows inserted in one transaction, each with `DocumentId`, `Source`, `Title`, `Department`, `Content`, `ChunkIndex` and `PublicationDate`
+- **AND** after the commit, the document's previous points SHALL be deleted from `document_chunks` and N points upserted, using the chunk ids as point ids
+
+#### Scenario: Embedding model not configured
+- **WHEN** neither `Ai:Embeddings:Provider` nor `Ai:Embeddings:Model` is set
+- **THEN** the system SHALL use Ollama's `nomic-embed-text` at the `ollama` connection string (or `http://localhost:11434`)
 
 ### Requirement: Massive Asynchronous Reprocessing via RabbitMQ
-The system SHALL support triggering a massive ingestion flow via RabbitMQ to process thousands of S3 blobs asynchronously.
+The system SHALL support enqueuing every stored document for asynchronous ingestion, so that thousands of blobs are processed by the Workers without blocking the API.
 
-#### Scenario: Enqueuing blobs for reprocessing
-- **WHEN** the `POST /api/ingestion/reprocess-all` endpoint is called
-- **THEN** the API SHALL list all JSON blobs in the S3 bucket
-- **AND** publish a `DocumentMessage` to the `documents_to_process` RabbitMQ queue for each blob
-- **AND** the `RabbitMqConsumerService` background worker SHALL consume the messages safely without blocking the API.
+#### Scenario: Enqueuing every stored blob
+- **WHEN** a platform administrator calls `POST /api/ingestion/reprocess-all`
+- **THEN** the API SHALL list every blob under `json/` in the bucket and publish a `DocumentMessage` per blob to `documents_to_process_baseline` and/or `documents_to_process_hierarchical`, according to `pipelineMode`
+- **AND** `BaselineIngestionConsumer` and `HierarchicalIngestionConsumer` in the Workers SHALL consume the messages with the retry and dead-letter policy of `RabbitMqConsumerBase`
 
 ## Architecture Decision Records (ADR)
 
-### ADR: Migration to OpenRouter and Qwen3-Embedding-8B
+### ADR: Configurable Embedding Provider (OpenRouter and Qwen3-Embedding-8B)
 
-**Decision:** We have decided to support OpenRouter to utilize `qwen/qwen3-embedding-8b` instead of (or as the primary alternative to) Google's `text-embedding-004`, introducing configurable parameters to maximize the chunking window.
+**Decision:** The embedding provider and model are configuration (`Ai:Embeddings:*`), not code. Besides Ollama and Google, OpenAI-compatible providers such as OpenRouter are supported, so `qwen/qwen3-embedding-8b` can be used instead of (or next to) Google's `text-embedding-004`, which is the default of `docker-compose.yml`.
 
-**Context and Legal/Technical Justification:**
-- **Quality in Legal/Formal Context (Spanish):** 
-  - Google `text-embedding-004`: Good for standard vocabulary and translations, but weak with long sentences and negations.
-  - `Qwen3-Embedding-8B`: Outstanding at resolving complex syntax. Robust due to its 8B parameter size and a top performer in multilingual rankings (MTEB).
-- **Chunking and Coherence:**
-  - Google: Max ~1,500 words per chunk.
-  - Qwen: Up to ~6,000 words per chunk without losing coherence.
-- **Cost Analysis (Negligible difference):**
-  - Qwen3-Embedding-8B via OpenRouter is equal to or slightly cheaper per million tokens (~$0.01 USD/1M tokens) compared to Google (~$0.02 USD/1M tokens).
-  - Cost for 100M tokens (~150,000 pages): ~$2.00 USD (Google) vs ~$1.00 USD (Qwen).
-  - API cost is not a limiting factor. Higher ROI with Qwen by leveraging the reasoning capabilities of an 8B model at a lightweight price point.
-- **Impact:** Qwen embeddings have higher dimensionality by default. This does not increase API costs but will require slightly more RAM and disk space in the vector database (pgvector). However, the performance of semantic legal search will improve substantially.
+**Context and Justification:**
+- **Quality in legal Spanish:** `text-embedding-004` handles standard vocabulary well but is weaker with long sentences and negations; `Qwen3-Embedding-8B` resolves complex syntax better and ranks high in multilingual benchmarks (MTEB).
+- **Chunk size:** chunk size does not depend on the model's context window. Both pipelines use `FixedOverlapChunkingStrategy` with about 400 tokens per chunk and 50 of overlap (`Ai:Embeddings:ChunkMaxTokens`, `Ai:Embeddings:ChunkOverlapTokens`); a larger window only leaves headroom for the enrichment text added to hierarchical fragments.
+- **Cost:** Qwen3-Embedding-8B through OpenRouter costs about the same or less per million tokens (~$0.01/1M) than Google (~$0.02/1M); API cost is not a limiting factor.
+- **Impact:** Qwen produces 4,096-dimensional vectors. pgvector indexes are limited to 2,000 dimensions, so vectors are stored and searched in Qdrant (see `qdrant-vector-store`); PostgreSQL keeps the text. Changing the embedding model changes the vector size, and the existing Qdrant collections must be recreated (the ingestion refuses to write to a collection of another size).
