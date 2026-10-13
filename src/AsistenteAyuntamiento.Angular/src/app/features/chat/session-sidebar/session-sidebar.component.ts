@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { ChatSessionSummaryDto } from '../models/chat.models';
 
-/** List of the user's conversations; on mobile it slides in over the chat. */
+/**
+ * List of the user's conversations; on mobile it slides in over the chat. Closed on mobile it is also invisible, so
+ * keyboard and screen reader users do not land on controls they cannot see.
+ */
 @Component({
   selector: 'app-session-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -9,9 +12,10 @@ import { ChatSessionSummaryDto } from '../models/chat.models';
   template: `
     <nav
       aria-label="Conversaciones"
-      class="chat-sidebar bg-white border-r border-gray-200 flex flex-col w-[280px] shrink-0 transition-transform duration-300 md:translate-x-0 absolute md:relative z-10 h-full shadow-lg md:shadow-none"
+      class="chat-sidebar bg-white border-r border-gray-200 flex flex-col w-[280px] shrink-0 transition-[transform,visibility] duration-300 md:translate-x-0 absolute md:relative z-10 h-full shadow-lg md:shadow-none"
       [class.translate-x-0]="open()"
-      [class.-translate-x-full]="!open()">
+      [class.-translate-x-full]="!open()"
+      [class.max-md:invisible]="!open()">
       <div class="chat-sidebar-header p-4 border-b border-gray-100 sticky top-0 bg-white z-20 flex justify-between items-center">
         <button type="button" class="gov-btn gov-btn-primary w-full flex items-center justify-center gap-2" (click)="create.emit()">
           <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
@@ -38,7 +42,7 @@ import { ChatSessionSummaryDto } from '../models/chat.models';
                   [attr.aria-current]="currentSessionId() === session.id ? 'true' : null"
                   (click)="selected.emit(session.id)">
                   <span class="flex justify-between items-center mb-1 gap-2">
-                    <span class="text-xs font-medium text-gray-500">{{ formatDate(session.createdAt) }}</span>
+                    <span class="text-xs font-medium text-gray-600">{{ formatDate(session.createdAt) }}</span>
                     @if (session.messageCount > 0) {
                       <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ session.messageCount }} msgs</span>
                     }
@@ -47,8 +51,8 @@ import { ChatSessionSummaryDto } from '../models/chat.models';
                 </button>
                 <button
                   type="button"
-                  class="text-gray-400 hover:text-red-500 transition-colors p-3"
-                  aria-label="Eliminar conversación"
+                  class="text-gray-500 hover:text-red-600 transition-colors p-3"
+                  [attr.aria-label]="'Eliminar conversación: ' + (session.preview || 'Nueva conversación')"
                   title="Eliminar chat"
                   (click)="deleted.emit(session.id)">
                   <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span>

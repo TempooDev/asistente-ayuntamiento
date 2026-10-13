@@ -217,6 +217,9 @@ layer(base);
 
   :root {
     --primary: #1a365d;
+    /* Background behind white text (citizen bubble, primary button): --primary is a light blue in dark mode. */
+    --primary-strong: #1a365d;
+    --placeholder: #6b7280;
     --secondary-bg: #edf2f7;
     --text-primary: #2d3748;
     --accent: #2f855a;
@@ -229,6 +232,9 @@ layer(base);
 
   [data-theme='dark'] {
     --primary: #63b3ed;
+    /* White on #2b6cb0 is 5.6:1; on --primary (#63b3ed) it was 2.3:1. */
+    --primary-strong: #2b6cb0;
+    --placeholder: #a0aec0;
     --secondary-bg: #1a202c;
     --text-primary: #e2e8f0;
     --accent: #48bb78;
@@ -293,8 +299,8 @@ layer(base);
 
   .btn-primary {
     color: #fff;
-    background-color: var(--primary);
-    border-color: var(--primary);
+    background-color: var(--primary-strong);
+    border-color: var(--primary-strong);
     border-radius: 8px;
     min-height: 44px;
   }
@@ -386,7 +392,7 @@ layer(base);
   }
 
   .chat-bubble.citizen {
-    background-color: var(--primary);
+    background-color: var(--primary-strong);
     color: #ffffff;
     align-self: flex-end;
     border-bottom-right-radius: 4px;
@@ -409,6 +415,12 @@ layer(base);
     font-family: var(--font-label);
     width: 100%;
     transition: all 0.2s;
+  }
+
+  /* The browser default (50% of the text colour) falls under 4.5:1, worst on the dark input. */
+  .gov-input::placeholder {
+    color: var(--placeholder);
+    opacity: 1;
   }
 
   .gov-input:focus {
@@ -445,7 +457,7 @@ layer(base);
   }
 
   .gov-btn-primary {
-    background-color: var(--primary);
+    background-color: var(--primary-strong);
     color: #ffffff;
     border: none;
   }

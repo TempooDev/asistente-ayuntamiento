@@ -23,9 +23,9 @@ describe('ArenaMessageComponent', () => {
     const { buttons, votes } = setup();
     const byLabel = (label: string) => buttons.find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)!;
 
-    byLabel('Elegir la respuesta del modelo Alfa').click();
+    byLabel('Elegir esta respuesta (modelo Alfa)').click();
     byLabel('Empate').click();
-    byLabel('Elegir la respuesta del modelo Beta').click();
+    byLabel('Elegir esta respuesta (modelo Beta)').click();
 
     expect(votes).toEqual(['Alfa', 'Tie', 'Beta']);
   });
