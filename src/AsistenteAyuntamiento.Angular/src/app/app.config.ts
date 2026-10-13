@@ -4,6 +4,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAuth0, authHttpInterceptorFn } from '@auth0/auth0-angular';
 import { routes } from './app.routes';
 import { provideAuthRuntimeConfig } from './core/auth/auth-runtime-config';
+import { provideTelemetry } from './core/telemetry/provide-telemetry';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -12,5 +13,6 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authHttpInterceptorFn])),
     provideAuth0(),
     provideAuthRuntimeConfig(),
+    ...provideTelemetry(),
   ],
 };

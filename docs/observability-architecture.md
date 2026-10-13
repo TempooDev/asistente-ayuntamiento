@@ -8,11 +8,12 @@ flowchart TD
 
     subgraph Frontend
         AngularApp["Angular app"]
-        FaroSDK["Grafana Faro SDK (pending)"]
+        FaroSDK["Grafana Faro SDK"]
         TempooSDK["TempooAnalytics SDK (blocked)"]
     end
 
     subgraph VPS["VPS (Dokploy)"]
+        Gateway["Gateway (YARP)"]
         API[".NET ApiService"]
         Worker[".NET Workers"]
         Scraper["Go scraper"]
@@ -29,7 +30,7 @@ flowchart TD
     end
 
     User --> AngularApp
-    AngularApp -.-> FaroSDK
+    AngularApp --> FaroSDK
     AngularApp -.-> TempooSDK
     AngularApp -->|"HTTP + traceparent"| API
 
@@ -39,7 +40,8 @@ flowchart TD
     RabbitMQ --> Worker
 
     API & Worker & Scraper -->|"OTLP gRPC over the secure channel"| OTelCollector
-    FaroSDK -.->|"OTLP HTTP"| OTelCollector
+    FaroSDK -->|"Faro JSON, same origin: /telemetry/faro"| Gateway
+    Gateway -->|"faro receiver + token, secure channel"| OTelCollector
 
     OTelCollector --> Tempo
     OTelCollector --> Mimir
@@ -125,7 +127,7 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.envir
 The Collector must not be open to the internet. Recommended setup:
 1. **Private network.** A WireGuard (or Tailscale) tunnel between the VPS and the homelab. The Collector listens only on the tunnel address.
 2. **TLS and a token.** The Collector receivers use TLS and the `bearertokenauth` extension. The services send the token in `OTEL_EXPORTER_OTLP_HEADERS`.
-3. **Faro.** The browser cannot use the tunnel. Faro needs a public HTTPS endpoint, for example a Faro receiver behind the reverse proxy with CORS limited to the app origin and rate limiting. This is decided with tasks 3.x.
+3. **Faro.** The browser cannot use the tunnel, so it never talks to the Collector. It posts to `/telemetry/faro` on the app's own origin, and the gateway forwards to the Collector's `faro` receiver over the tunnel. The gateway adds the token, removes cookies and `Authorization`, caps the size at 256 KB and rate-limits (120/min per client IP, 6000/min in total).
 
 ### Collector configuration (homelab)
 
@@ -136,6 +138,10 @@ extensions:
   health_check: {}
 
 receivers:
+  faro:                              # browser data, forwarded by the gateway
+    endpoint: ${env:TUNNEL_IP}:4319
+    tls: { cert_file: /certs/collector.crt, key_file: /certs/collector.key }
+    auth: { authenticator: bearertokenauth }
   otlp:
     protocols:
       grpc:
@@ -175,7 +181,7 @@ service:
   extensions: [bearertokenauth, health_check]
   pipelines:
     traces:
-      receivers: [otlp]
+      receivers: [otlp, faro]
       processors: [memory_limiter, attributes/drop-content, batch]
       exporters: [otlp/tempo]        # add otlp/llm-tool here after the spike
     metrics:
@@ -183,14 +189,25 @@ service:
       processors: [memory_limiter, batch]
       exporters: [otlphttp/mimir]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, faro]
       processors: [memory_limiter, batch]
       exporters: [otlphttp/loki]
 ```
 
 Use the `otelcol-contrib` distribution (`bearertokenauth` is not in the core one). Mimir must accept OTLP (`/otlp`). Keep its default translation strategy (underscores with unit suffixes) so the dashboard queries match.
 
-## Frontend (pending)
+## Frontend: Grafana Faro
 
-- **Grafana Faro** (tasks 3.x): errors, web vitals and routing, with `propagateTraceHeaderCorsUrls` limited to the API origin.
-- **TempooAnalytics** (tasks 4.x–5.x): blocked until its SDK or API exists. Planned variables: `TEMPOOANALYTICS_API_URL` and `TEMPOOANALYTICS_API_KEY`.
+`core/telemetry` (Angular):
+- **Startup:** `FaroTelemetry` asks the gateway for `/telemetry/config` after the app has started. If a Collector is configured, it loads `@grafana/faro-web-sdk` and `@grafana/faro-web-tracing` with a dynamic `import()`. Faro (about 76 kB transferred) stays out of the initial bundle, and nothing is loaded when it is disabled.
+- **What it sends:** sessions, views (named by route template, such as `/admin/analytics`, never with ids), Web Vitals, and errors from Angular's `ErrorHandler` (`FaroErrorHandler`). The window errors arrive there too through `provideBrowserGlobalErrorListeners`, so Faro's own error and console instrumentations are off to avoid duplicates.
+- **Browser → API traces:** `traceparent` is propagated only to `/api/` and `/hubs/` of the API origin (`propagateTraceHeaderCorsUrls`). Faro's own sends, SignalR negotiation and Auth0 are not traced. Unsampled sessions send no trace context (`omitTraceContextForUnsampledSessions`), so they do not suppress backend traces.
+- **Privacy:** every item goes through `scrub` before leaving the browser. It removes the query string and fragment from page URLs, because the Auth0 callback carries `code` and `state`. No console capture, user data or geolocation.
+
+Gateway settings (`Telemetry:Faro`, from `.env`): `FARO_COLLECTOR_URL` (empty = disabled), `FARO_COLLECTOR_TOKEN` and `FARO_SAMPLE_RATE` (0–1).
+
+Checked locally against a fake gateway: session, view, a single error and the `traceparent` on `/api` arrive, the `?code=` never leaves the browser, and Faro does not trace its own sends. The full browser → API → Worker trace in Tempo is checked once the Collector is installed.
+
+## TempooAnalytics (blocked)
+
+Tasks 4.x–5.x are blocked until its SDK or API exists. Planned variables: `TEMPOOANALYTICS_API_URL` and `TEMPOOANALYTICS_API_KEY`.

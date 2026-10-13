@@ -1,9 +1,11 @@
+using AsistenteAyuntamiento.Gateway.Telemetry;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.AddServiceDefaults();
+builder.AddFaroForwarding();
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
@@ -12,6 +14,7 @@ builder.Services.AddReverseProxy()
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
+app.UseFaroForwarding();
 
 if (app.Environment.IsDevelopment())
 {
@@ -34,3 +37,6 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+/// <summary>Entry point, public for the integration tests.</summary>
+public partial class Program;

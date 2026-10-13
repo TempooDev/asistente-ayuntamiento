@@ -32,6 +32,12 @@
             ],
             "styles": [
               "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "@opentelemetry/api",
+              "@opentelemetry/otlp-transformer",
+              "@opentelemetry/semantic-conventions",
+              "ua-parser-js"
             ]
           },
           "configurations": {
