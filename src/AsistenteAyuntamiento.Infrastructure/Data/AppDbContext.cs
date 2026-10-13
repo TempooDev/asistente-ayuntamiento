@@ -30,6 +30,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public DbSet<ArenaBattle> ArenaBattles { get; set; }
     public DbSet<IngestionMetric> IngestionMetrics { get; set; }
 
+    public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
+    {
+        if (!Database.IsRelational())
+        {
+            return operation(cancellationToken);
+        }
+
+        var strategy = Database.CreateExecutionStrategy();
+        return strategy.ExecuteAsync(async ct =>
+        {
+            await using var transaction = await Database.BeginTransactionAsync(ct);
+            await operation(ct);
+            await transaction.CommitAsync(ct);
+        }, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

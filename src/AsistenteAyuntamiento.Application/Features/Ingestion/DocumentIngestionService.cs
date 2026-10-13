@@ -87,24 +87,19 @@ public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext db
 
         try
         {
-            var strategy = dbContext.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await dbContext.ExecuteInTransactionAsync(async ct =>
             {
                 // The execution strategy may re-run this block: start each attempt from a clean state.
                 dbContext.ChangeTracker.Clear();
                 foreach (var chunk in chunks) chunk.Id = 0;
 
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-
                 await dbContext.DocumentChunks
                     .Where(c => c.DocumentId == document.DocumentId)
-                    .ExecuteDeleteAsync(cancellationToken);
+                    .ExecuteDeleteAsync(ct);
 
-                await dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
-                await dbContext.SaveChangesAsync(cancellationToken);
-
-                await transaction.CommitAsync(cancellationToken);
-            });
+                await dbContext.DocumentChunks.AddRangeAsync(chunks, ct);
+                await dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
         }
         catch (Exception ex)
         {

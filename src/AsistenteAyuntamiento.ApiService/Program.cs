@@ -165,7 +165,7 @@ using (var scope = app.Services.CreateScope())
 {
     if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Infrastructure.Data.AppDbContext>();
         dbContext.Database.Migrate();
     }
 

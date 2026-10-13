@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Domain.Features.AiConfig;
@@ -25,7 +24,12 @@ public interface IAppDbContext
     DbSet<ChildFragment> ChildFragments { get; set; }
     DbSet<IngestionMetric> IngestionMetrics { get; set; }
 
-    DatabaseFacade Database { get; }
+    /// <summary>
+    /// Runs <paramref name="operation"/> in a database transaction under the provider's retrying execution
+    /// strategy. The operation may run more than once, so it must start from a clean state on each attempt.
+    /// </summary>
+    Task ExecuteInTransactionAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default);
+
     Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

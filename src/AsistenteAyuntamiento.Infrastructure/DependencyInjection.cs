@@ -18,6 +18,9 @@ using Amazon.Runtime;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Infrastructure.Ai;
 using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Data.Search;
+using AsistenteAyuntamiento.Application.Common.Search;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 
 namespace AsistenteAyuntamiento.Infrastructure;
@@ -27,6 +30,8 @@ public static class DependencyInjection
     public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+        builder.Services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
+        builder.Services.AddScoped<IIngestionMaintenance, IngestionMaintenance>();
 
         // Hosts with a real transport (SignalR in ApiService, RabbitMQ in Worker) register their own.
         builder.Services.TryAddSingleton<INotificationService, NullNotificationService>();

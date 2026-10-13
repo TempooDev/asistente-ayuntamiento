@@ -122,8 +122,7 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
             // 2. Replace the previous version of the document atomically.
             var previousParentIds = new List<long>();
-            var strategy = _dbContext.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await _dbContext.ExecuteInTransactionAsync(async ct =>
             {
                 // The execution strategy may re-run this block: start each attempt from a clean state.
                 _dbContext.ChangeTracker.Clear();
@@ -135,25 +134,22 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
                     parentDoc.Children.Add(child);
                 }
 
-                await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
                 previousParentIds = await _dbContext.ParentDocuments
                     .Where(p => p.DocumentId == documentId)
                     .Select(p => p.Id)
-                    .ToListAsync(cancellationToken);
+                    .ToListAsync(ct);
 
                 if (previousParentIds.Count > 0)
                 {
                     // Child fragments are removed by the ON DELETE CASCADE foreign key.
                     await _dbContext.ParentDocuments
                         .Where(p => p.DocumentId == documentId)
-                        .ExecuteDeleteAsync(cancellationToken);
+                        .ExecuteDeleteAsync(ct);
                 }
 
                 _dbContext.ParentDocuments.Add(parentDoc);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            });
+                await _dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
 
             // 3. Vector store, after the commit.
             await SyncVectorsAsync(documentId, previousParentIds, children, vectors, cancellationToken);

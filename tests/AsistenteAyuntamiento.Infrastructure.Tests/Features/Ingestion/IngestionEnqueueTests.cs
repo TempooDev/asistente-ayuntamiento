@@ -31,6 +31,7 @@ public class IngestionEnqueueTests
         new MemoryCache(new MemoryCacheOptions()),
         publisher,
         Mock.Of<IVectorStore>(),
+        Mock.Of<IIngestionMaintenance>(),
         Mock.Of<INotificationService>(),
         NullLogger<IngestionAdminService>.Instance);
 

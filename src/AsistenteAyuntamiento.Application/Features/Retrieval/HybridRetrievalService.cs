@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Embeddings;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Common.Search;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
@@ -13,6 +14,7 @@ public class HybridRetrievalService(
     IAppDbContext dbContext,
     Kernel kernel,
     IVectorStore vectorStore,
+    IFullTextSearch fullTextSearch,
     ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -43,25 +45,8 @@ public class HybridRetrievalService(
                 logger.LogWarning(ex, "Vector search failed, falling back to text search only.");
             }
 
-            // 3. Query PostgreSQL (Sparse Text Search)
-            var sql = """
-                SELECT "Id" as "FragmentId"
-                FROM ingestion."ChildFragments"
-                WHERE "TsvContent" @@ websearch_to_tsquery('spanish', @tsquery)
-                  AND (@municipio IS NULL OR "Municipality" ILIKE '%' || @municipio || '%')
-                ORDER BY ts_rank_cd("TsvContent", websearch_to_tsquery('spanish', @tsquery)) DESC
-                LIMIT @limit
-                """;
-
-            var municipioParam = string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio) ? (object)DBNull.Value : queryInfo.FiltroMunicipio;
-            var parameters = new[]
-            {
-                new Npgsql.NpgsqlParameter("@tsquery", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object)queryInfo.QueryLexica ?? DBNull.Value },
-                new Npgsql.NpgsqlParameter("@municipio", NpgsqlTypes.NpgsqlDbType.Text) { Value = municipioParam },
-                new Npgsql.NpgsqlParameter("@limit", NpgsqlTypes.NpgsqlDbType.Integer) { Value = limit }
-            };
-
-            var pgResults = await dbContext.Database.SqlQueryRaw<long>(sql, parameters).ToListAsync(cancellationToken);
+            // 3. Sparse (full-text) search
+            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.QueryLexica ?? string.Empty, queryInfo.FiltroMunicipio, limit, cancellationToken);
 
             // 4. In-memory Reciprocal Rank Fusion (RRF)
             var scores = new Dictionary<long, double>();

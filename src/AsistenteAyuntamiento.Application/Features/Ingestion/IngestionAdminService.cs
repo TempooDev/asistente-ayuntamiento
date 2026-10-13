@@ -18,6 +18,7 @@ public class IngestionAdminService : IIngestionAdminService
     private readonly IMemoryCache _cache;
     private readonly IIngestionQueuePublisher _publisher;
     private readonly IVectorStore _vectorStore;
+    private readonly IIngestionMaintenance _maintenance;
     private readonly INotificationService _notificationService;
     private readonly ILogger<IngestionAdminService> _logger;
     private const string BlobListCacheKey = "blobs_list";
@@ -31,6 +32,7 @@ public class IngestionAdminService : IIngestionAdminService
         IMemoryCache cache,
         IIngestionQueuePublisher publisher,
         IVectorStore vectorStore,
+        IIngestionMaintenance maintenance,
         INotificationService notificationService,
         ILogger<IngestionAdminService> logger)
     {
@@ -39,6 +41,7 @@ public class IngestionAdminService : IIngestionAdminService
         _cache = cache;
         _publisher = publisher;
         _vectorStore = vectorStore;
+        _maintenance = maintenance;
         _notificationService = notificationService;
         _logger = logger;
     }
@@ -187,10 +190,7 @@ public class IngestionAdminService : IIngestionAdminService
     /// </summary>
     public async Task ResetIngestionAsync(CancellationToken cancellationToken = default)
     {
-        // TODO(audit-remediation 5.4): move the raw SQL behind an Infrastructure port.
-        await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(
-            _dbContext.Database,
-            "TRUNCATE TABLE ingestion.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
+        await _maintenance.ClearBaselineDataAsync(cancellationToken);
 
         await _vectorStore.DropCollectionAsync(VectorCollection.DocumentChunks, cancellationToken);
         _cache.Remove(BlobListCacheKey);
