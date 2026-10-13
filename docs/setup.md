@@ -48,7 +48,7 @@ Gestiona la autenticación OIDC/OAuth2. Se necesita una aplicación Auth0 config
 
 1. Crear una cuenta en [auth0.com](https://auth0.com) (plan gratuito válido para dev)
 2. Crear una **Single Page Application** para el frontend y una **API** (su *Identifier* es el `audience`)
-3. Activar **Organizations** (cada organización es un tenant) y una Action que añada los roles en `https://asistente.antoniobermudez.dev/roles` (roles de administración: `admin-plataforma` para la base de conocimiento compartida y `admin-organizacion` para la organización; el antiguo `administrador` vale para los dos durante la transición)
+3. Activar **Organizations** (cada organización es un tenant) y una Action que añada los roles en `https://asistente.antoniobermudez.dev/roles` (roles de administración: `admin-plataforma` para la base de conocimiento compartida y `admin-organizacion` para la organización)
 4. En *Settings* de la SPA, añadir a *Allowed Callback URLs* `http://localhost:<puerto>/callback` y a *Allowed Logout URLs* / *Allowed Web Origins* `http://localhost:<puerto>`
 
 El frontend no lleva la configuración compilada: la pide al arrancar a `GET /api/config/auth0`.

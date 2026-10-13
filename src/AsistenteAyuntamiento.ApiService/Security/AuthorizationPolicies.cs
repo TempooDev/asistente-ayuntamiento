@@ -11,12 +11,6 @@ public static class Roles
 
     /// <summary>Manages one organization: its AI model settings, its usage metrics and the Arena comparison.</summary>
     public const string OrganizationAdmin = "admin-organizacion";
-
-    /// <summary>
-    /// Role used before the split; it still grants both scopes so nobody loses access while the new roles are
-    /// assigned in Auth0. Remove it from the policies once no user has it.
-    /// </summary>
-    public const string LegacyAdmin = "administrador";
 }
 
 /// <summary>
@@ -27,9 +21,9 @@ public static class Policies
     public const string PlatformAdmin = "PlatformAdmin";
     public const string OrganizationAdmin = "OrganizationAdmin";
 
-    /// <summary>Roles accepted by each policy (the legacy role is accepted by both).</summary>
-    public static readonly IReadOnlyList<string> PlatformAdminRoles = [Roles.PlatformAdmin, Roles.LegacyAdmin];
-    public static readonly IReadOnlyList<string> OrganizationAdminRoles = [Roles.OrganizationAdmin, Roles.LegacyAdmin];
+    /// <summary>Roles accepted by each policy.</summary>
+    public static readonly IReadOnlyList<string> PlatformAdminRoles = [Roles.PlatformAdmin];
+    public static readonly IReadOnlyList<string> OrganizationAdminRoles = [Roles.OrganizationAdmin];
 }
 
 public static class AuthorizationExtensions
