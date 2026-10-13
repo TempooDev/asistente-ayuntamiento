@@ -43,6 +43,7 @@ public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsSer
             var winCount = asLeft.Count(b => b.Winner == BattleWinner.Alfa) + asRight.Count(b => b.Winner == BattleWinner.Beta);
             var lossCount = asLeft.Count(b => b.Winner == BattleWinner.Beta) + asRight.Count(b => b.Winner == BattleWinner.Alfa);
             var tieCount = asLeft.Count(b => b.Winner == BattleWinner.Tie) + asRight.Count(b => b.Winner == BattleWinner.Tie);
+            var bothBadCount = asLeft.Count(b => b.Winner == BattleWinner.BothBad) + asRight.Count(b => b.Winner == BattleWinner.BothBad);
 
             var totalAsSystem = asLeft.Count + asRight.Count;
             double winRate = 0;
@@ -51,10 +52,11 @@ public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsSer
 
             if (totalAsSystem > 0)
             {
-                var completedAsSystem = asLeft.Count(b => b.Winner != BattleWinner.Pending) + asRight.Count(b => b.Winner != BattleWinner.Pending);
-                if (completedAsSystem > 0)
+                // Win rate over decisive votes only (a winner was picked); ties and "both bad" are reported apart.
+                var decisiveVotes = winCount + lossCount;
+                if (decisiveVotes > 0)
                 {
-                    winRate = (double)winCount / completedAsSystem;
+                    winRate = (double)winCount / decisiveVotes;
                 }
 
                 var totalLatency = asLeft.Sum(b => b.LeftLatencyMs) + asRight.Sum(b => b.RightLatencyMs);
@@ -70,6 +72,7 @@ public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsSer
                 WinCount = winCount,
                 LossCount = lossCount,
                 TieCount = tieCount,
+                BothBadCount = bothBadCount,
                 WinRate = winRate,
                 AverageLatencyMs = avgLatency,
                 AverageTokens = avgTokens

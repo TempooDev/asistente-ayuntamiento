@@ -22,11 +22,17 @@ public static class AiMetricsEndpoints
         .WithName("GetAiMetrics")
         .WithSummary("Returns AI model invocation metrics and recent call history");
 
-        // GET /api/ai/metrics/summary — Persisted usage of the tenant (chat) and of ingestion, aggregated in SQL
+        // GET /api/ai/metrics/summary — Persisted chat usage of the tenant, aggregated in SQL
         organization.MapGet("/metrics/summary", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
             Results.Ok(await metricsQuery.GetSummaryAsync(cancellationToken)))
         .WithName("GetAiMetricsSummary")
         .WithSummary("Returns a lightweight AI metrics summary without recent call details");
+
+        // GET /api/ai/metrics/ingestion — Platform-wide ingestion cost (enrichment and embeddings), not tenant data
+        platform.MapGet("/metrics/ingestion", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
+            Results.Ok(await metricsQuery.GetIngestionUsageAsync(cancellationToken)))
+        .WithName("GetIngestionUsage")
+        .WithSummary("Returns the platform-wide ingestion cost: enrichment LLM calls and tokens, and embedded tokens");
 
         // GET /api/ai/health — Quick health check: is the AI model reachable?
         platform.MapGet("/health", (IAiMetricsService metricsService) =>
