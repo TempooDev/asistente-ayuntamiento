@@ -1,122 +1,138 @@
 # Specification: Hierarchical Parent-Child Retrieval with Hybrid Search
 
 ## Purpose
-Replace the flat chunking retrieval strategy with a hierarchical Parent-Child document model, hybrid search (dense + sparse RRF), LLM-powered query expansion, and clear-language generation optimized for citizen comprehension.
+Provide the hierarchical RAG pipeline next to the baseline one: documents are stored as one parent with enriched child fragments, queries are expanded by an LLM, child fragments are retrieved with hybrid search (Qdrant dense ranking + PostgreSQL full-text ranking fused with RRF), and the answer is generated in plain language from the full text of the parent documents.
 
 ## Requirements
 
 ### Requirement: Parent-Child Document Schema
-The system SHALL store legal documents in a two-level hierarchy where parent records contain the full article text and child records contain fine-grained searchable fragments.
+The hierarchical pipeline SHALL store each document as one `ParentDocument` (unique `DocumentId`) whose `FullText` is the whole text of the scraper's JSON document, plus `ChildFragments` rows (one per fragment) that reference it through `ParentId` with `ON DELETE CASCADE`. The parent SHALL carry `NormTitle` (the document title, or the document id when there is none), `IssuingBody` (the department), `PublicationDate` and `Bulletin`.
 
-#### Scenario: Ingesting a BOE article
-- **WHEN** the BOE ingestion service processes a consolidated law XML
-- **THEN** it SHALL create one `DocumentoPadre` record per `<articulo>` or disposition block
-- **AND** create one or more `FragmentoHijo` records (250–400 tokens each) for each numbered sub-section or paragraph within the article.
+#### Scenario: Ingesting a BOE document
+- **WHEN** `BoeIngestionService` processes `BOE-A-2026-1234`
+- **THEN** it SHALL read the metadata and text from the JSON blob of the message and the structure from `raw-xml/BOE/BOE-A-2026-1234.xml`
+- **AND** split the text of each `<articulo>` (or the whole `<texto>` when there is no `<articulo>`) with the configured `IChunkingStrategy`, one fragment per chunk, sectioned by the article id and, for split articles, `(parte N)`
 
-#### Scenario: Ingesting a BOJA convocatoria
-- **WHEN** the BOJA ingestion service processes a JSON feed entry
-- **THEN** it SHALL create one `DocumentoPadre` record per article or requirement section
-- **AND** create subordinate `FragmentoHijo` records decomposed by clause or paragraph.
+#### Scenario: Ingesting a BOJA document
+- **WHEN** `BojaIngestionService` processes a BOJA document
+- **THEN** it SHALL split the document text with the configured `IChunkingStrategy`, one fragment per chunk with section `Sección N`
+- **AND** use "Junta de Andalucía" as issuing body when the document has no department
 
 ### Requirement: Unified Hierarchical Ingestion Pipeline
-The system SHALL provide a reusable abstract base processor (`BaseHierarchicalIngestionProcessor`) in `AsistenteAyuntamiento.Application.Features.Ingestion` that executes the standard ingestion workflow for legal gazettes (BOE and BOJA).
+The system SHALL run the ingestion of every bulletin through the abstract `BaseHierarchicalIngestionProcessor` (`Application.Features.Ingestion`), whose subclasses only extract the parent and the raw fragments.
 
 #### Scenario: Common pipeline execution
-- **WHEN** a concrete gazette processor (BOE or BOJA) processes a legal document
-- **THEN** it SHALL extract the parent entity and fragment list using gazette-specific parsers
-- **AND** execute the common pipeline for synthetic enrichment via LLM, embedding generation, `ChildFragment` persistence in PostgreSQL, vector upsert in Qdrant, and telemetry metric recording in `IngestionMetrics`.
+- **WHEN** a bulletin processor processes a document
+- **THEN** it SHALL enrich every fragment and generate the embeddings (batches of 100) before writing anything
+- **AND** replace the document's previous `ParentDocument` and fragments in one PostgreSQL transaction
+- **AND** after the commit, delete the document's previous points from the Qdrant collection `child_fragments` and upsert the new ones
+- **AND** record an `IngestionMetrics` row with `PipelineType.Hierarchical`
 
 ### Requirement: Only Bulletins in Scope
-The hierarchical ingestion pipeline SHALL have a processor only for the bulletins in the project's scope (BOE, BOJA).
+The hierarchical pipeline SHALL have a keyed processor only for the bulletins in the project's scope (BOE, BOJA).
 
 #### Scenario: Message from another source
-- **WHEN** a message whose source has no processor reaches the hierarchical consumer
-- **THEN** it SHALL be sent to the dead-letter queue without retries and the job marked as failed
-- **AND** nothing SHALL be inserted into the database or the vector store.
+- **WHEN** a message whose source has no processor reaches `HierarchicalIngestionConsumer`
+- **THEN** it SHALL be sent to `documents_to_process_hierarchical.dlq` without retries and the document's hierarchical status set to `Failed`
+- **AND** nothing SHALL be written to the database or the vector store
 
 ### Requirement: Child Fragment Contextual Enrichment
-The system SHALL enrich each child fragment with a contextual breadcrumb and synthetic citizen questions before embedding.
+Before embedding, `FragmentEnrichmentService` SHALL build each fragment's `ChunkText` from (1) a breadcrumb `[BOLETÍN: … | ORGANISMO: … | NORMA: … | ARTÍCULO: <fragment section> | SUBSECCIÓN: <fragment element type>]`, (2) two citizen questions generated by the ingestion model (`Ai:Ingestion:*`, falling back to `Ai:Chat:*`) under `PREGUNTAS SINTÉTICAS:`, and (3) the original text under `CONTENIDO ORIGINAL:`.
 
 #### Scenario: Generating enriched fragment text
-- **WHEN** a child fragment is created during ingestion
-- **THEN** its `ChunkText` SHALL contain: (1) a breadcrumb line with gazette, issuing body, regulation name, article, and sub-section, (2) two LLM-generated citizen questions that the fragment would answer, and (3) the body text of the legal clause.
+- **WHEN** a BOE fragment of article `a5` is enriched
+- **THEN** its `ChunkText` SHALL start with a breadcrumb with `ARTÍCULO: a5` and `SUBSECCIÓN: General` (BOJA fragments use `SUBSECCIÓN: Párrafo`)
+- **AND** contain the two generated questions and the original text
+
+#### Scenario: Enrichment model fails
+- **WHEN** the LLM call fails
+- **THEN** the fragment SHALL still be stored, with the breadcrumb, an empty questions section and the original text, and the failure logged
 
 ### Requirement: Query Expansion
-The system SHALL translate citizen plain-language queries into administrative terminology before retrieval.
+`QueryExpansionService` SHALL ask the ingestion model to translate the citizen's question into a JSON object with `query_lexica` (keywords for full-text search), `query_semantica` (a formal phrase for the embedding) and `filtro_municipio` (a municipality or null).
 
 #### Scenario: Expanding a colloquial query
-- **WHEN** a user submits a query like "where do I apply for rent help if I'm 24"
-- **THEN** the system SHALL call the LLM to produce a `query_lexica` (tsquery-compatible administrative terms), a `query_semantica` (formal expanded phrase for embedding), and a `filtro_municipio` (detected municipality or null).
+- **WHEN** a user asks "dónde pido la ayuda del alquiler si tengo 24 años"
+- **THEN** the service SHALL return the three fields, accepting the JSON inside a code fence and replacing missing queries with the user's text
+
+#### Scenario: Expansion fails
+- **WHEN** the model call fails or its answer is not valid JSON
+- **THEN** the service SHALL use the user's words as lexical query, the user's question as semantic query and no municipality filter
 
 ### Requirement: Hybrid Search with Reciprocal Rank Fusion
-The system SHALL combine dense vector similarity and sparse full-text search rankings to retrieve the most relevant child fragments.
+`HybridRetrievalService` SHALL combine a dense ranking and a sparse ranking of child fragments and keep the best 5.
 
 #### Scenario: Executing a hybrid search
-- **WHEN** an expanded query is submitted to the retrieval service
-- **THEN** the system SHALL execute a dense ranking using Qdrant (collection `child_fragments`, cosine distance) and a sparse ranking using PostgreSQL (GIN tsvector `ts_rank`)
-- **AND** fuse both rankings in application code using RRF (`1/(k + rank)` with k=60) to produce a final ranked list of the top 5 child fragments.
+- **WHEN** an expanded query is retrieved
+- **THEN** the dense ranking SHALL come from Qdrant (`child_fragments`, cosine) with the embedding of `query_semantica`
+- **AND** the sparse ranking from PostgreSQL over `ingestion."ChildFragments"."TsvContent"` (Spanish `tsvector` filled by a trigger, GIN index), matched with `websearch_to_tsquery('spanish', query_lexica)` and ordered by `ts_rank_cd`
+- **AND** both SHALL be fused with RRF (`1/(60 + rank)`, 1-based) into the top 5 fragments
+
+#### Scenario: Vector store unavailable
+- **WHEN** the Qdrant search fails
+- **THEN** the retrieval SHALL log a warning and continue with the full-text ranking only
 
 #### Scenario: Filtering by municipality
-- **WHEN** the query expansion detects a municipality filter
-- **THEN** the hybrid search SHALL restrict results to fragments matching that municipality or fragments with no municipality (state/regional scope), applying this filter to both the Qdrant query and the PostgreSQL query.
+- **WHEN** the query expansion returns a municipality
+- **THEN** both searches SHALL keep the fragments whose `Municipality` contains that municipality and the fragments without a municipality
+- **AND** because the ingestion does not tag fragments with a municipality yet, every fragment currently passes the filter
 
 ### Requirement: Parent Resolution for Generation
-The system SHALL resolve matched child fragments to their parent documents and provide the full parent text to the LLM.
+The system SHALL resolve the retrieved fragments to their parent documents and give the LLM the full text of each distinct parent once.
 
 #### Scenario: Resolving parent context
-- **WHEN** the top 5 child fragments are retrieved
-- **THEN** the system SHALL fetch the distinct `ParentDocuments.FullText` records referenced by those children
-- **AND** pass them as context to the generation service.
+- **WHEN** the top 5 fragments are retrieved
+- **THEN** the system SHALL load them with their `ParentDocument`
+- **AND** pass the `FullText` of each distinct parent, labelled with the parent's id, to the generation service
 
 ### Requirement: Clear-Language Generation
-The system SHALL generate citizen-friendly answers that explain legal regulations without jargon, organized with practical headings and source citations.
+`ClearLanguageGenerationService` SHALL stream the answer from the platform chat model (`Ai:Chat:*`) with the `ClearLanguageGeneration` prompt, which asks for a friendly "tú" tone, markdown `##` headings, lists and bold for key data, short explanations of legal terms, a final "Fuentes consultadas" section naming the articles or laws used, and answers based only on the provided documents.
 
 #### Scenario: Generating a structured response
-- **WHEN** parent texts are provided to the generation service
-- **THEN** the LLM SHALL produce a response organized with "Requirements", "Key Deadlines", "Documents to Provide", and "Where to Complete the Procedure" headings
-- **AND** include a final "Official Sources Consulted" section citing the exact gazette, regulation, and article.
+- **WHEN** parent texts are provided
+- **THEN** the model SHALL be prompted to answer in plain language with headings it chooses and to end with "Fuentes consultadas"
 
-#### Scenario: Insufficient context
-- **WHEN** the retrieved fragments do not contain enough information for a confident answer
-- **THEN** the system SHALL transparently indicate this and suggest visiting the citizen services office.
+#### Scenario: Documents do not answer the question
+- **WHEN** the provided documents do not contain the answer
+- **THEN** the model SHALL be prompted to say clearly that it does not have that information instead of answering from its own knowledge
+
+#### Scenario: No fragments retrieved
+- **WHEN** the retrieval returns no fragments
+- **THEN** the service SHALL answer the fixed message "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta." without calling the model
 
 ## Architecture Decision Records (ADR)
 
-### ADR: Flat Large-Chunk Retrieval vs. Hierarchical Parent-Child Retrieval
+### ADR: Flat Chunk Retrieval vs. Hierarchical Parent-Child Retrieval
 
-**Decision:** We adopt a hierarchical Parent-Child Retrieval strategy to replace the current flat 6,000-token chunking approach.
+**Decision:** We add a hierarchical Parent-Child retrieval pipeline next to the baseline flat-chunk pipeline, and compare both in the Question Arena.
 
 **Context and Problem Statement:**
-The existing system embeds documents as flat blocks of up to ~6,000 tokens (leveraging Qwen3-Embedding-8B's large context window). While this preserves broad context within each chunk, it creates several problems for a citizen-facing legal assistant:
+The baseline pipeline embeds documents as flat chunks of about 400 tokens (`FixedOverlapChunkingStrategy`) and searches them by dense similarity only (Qdrant `document_chunks`). For a citizen-facing legal assistant this has limits:
 
-1. **Low retrieval precision:** A 6,000-token chunk may contain multiple unrelated articles or sections. When a citizen asks about a specific requirement (e.g., age limits for a housing subsidy), the retrieved chunk includes surrounding irrelevant text that wastes LLM context and can confuse the generation.
-2. **No lexical recall:** Pure dense vector search struggles with exact terms critical in legal retrieval — article numbers, law identifiers (e.g., "BOE-A-2024-1234"), specific dates, and proper nouns. There is no full-text search complement.
-3. **No query adaptation:** Citizens use colloquial language while legal texts use administrative jargon. Without query expansion, the semantic gap between "help for rent" and "subvención de vivienda" reduces recall.
-4. **Opaque generation:** The LLM reproduces legal phrasing verbatim because it receives raw legal text without guidance to simplify it for citizens.
+1. **Fragmented context:** the LLM receives isolated chunks; requirements, deadlines and exceptions of the same norm may be split across chunks that are not all retrieved.
+2. **No lexical recall:** pure dense search struggles with exact terms (article numbers, identifiers such as "BOE-A-2024-1234", dates, proper nouns).
+3. **No query adaptation:** citizens use colloquial language while legal texts use administrative jargon ("ayuda del alquiler" vs. "subvención de vivienda").
+4. **Opaque generation:** without guidance the LLM reproduces legal phrasing verbatim.
 
 **Considered Options:**
 
-| Criterion | Option A: Flat Large Chunks (Baseline) | Option B: Parent-Child + Hybrid Search (Chosen) |
+| Criterion | Option A: Flat Chunks (Baseline) | Option B: Parent-Child + Hybrid Search (Chosen) |
 |---|---|---|
-| **Chunk size** | ~6,000 tokens (single level) | Parent: full article (1,000–3,000 tokens); Child: 250–400 tokens (two levels) |
-| **Search type** | Dense vector only (HNSW) | Hybrid: Dense (HNSW) + Sparse (GIN tsvector) fused via RRF |
-| **Query processing** | Direct embedding of raw user query | LLM Query Expansion: lexical terms + semantic phrase + municipality filter |
-| **Context for LLM** | Raw chunk text (may span multiple articles) | Full parent article text (single coherent legal unit) |
-| **Embedding cost** | Lower total embeddings (fewer, larger chunks) | Higher total embeddings (more, smaller chunks) + LLM enrichment calls |
-| **Retrieval precision** | Lower (noisy context) | Higher (fine-grained child matching) |
-| **Retrieval recall** | Lower (no lexical signal) | Higher (hybrid search captures both semantic and lexical matches) |
-| **Generation quality** | Jargon-heavy, unstructured | Clear language, structured headings, source citations |
-| **Latency** | ~50ms retrieval | ~100ms retrieval (hybrid) + ~200ms query expansion |
-| **Incremental cost** | None (current system) | LLM calls for query expansion (~1/query) and enrichment (~2 questions/chunk, one-time at ingestion) |
+| **Indexed unit** | ~400-token chunk (`DocumentChunks`) | ~400-token child fragment enriched with breadcrumb and two synthetic questions (`ChildFragments`) |
+| **Context for LLM** | The retrieved chunks | Full text of each distinct parent document (`ParentDocuments.FullText`) |
+| **Search type** | Dense only (Qdrant HNSW) | Dense (Qdrant HNSW) + sparse (PostgreSQL GIN tsvector) fused with RRF |
+| **Query processing** | Direct embedding of the user query | LLM query expansion: lexical terms + semantic phrase + municipality filter |
+| **Ingestion cost** | Embeddings only | Embeddings + one LLM enrichment call per fragment |
+| **Query cost** | One embedding | One LLM expansion call + one embedding |
+| **Generation** | Tenant-configurable chat model | Platform chat model with the plain-language prompt |
 
 **Decision Rationale:**
-- **Precision over cost:** The marginal increase in embedding tokens and LLM enrichment calls is negligible compared to the quality improvement. At ~$0.01/1M tokens, even doubling the chunk count adds cents, not dollars.
-- **Hybrid search is strictly better:** Adding sparse search can only improve recall — it never harms dense search results since RRF combines both signals without requiring learned weights.
-- **Parent resolution preserves coherence:** Unlike flat chunks that may cut across articles, parent resolution guarantees the LLM receives a complete, coherent legal unit as context.
-- **Measurable improvement:** The Question Arena will provide empirical human evaluation data, and the `IngestionMetrics` table will quantify the exact cost trade-off for the TFG thesis.
+- **Precision over cost:** the extra embedding tokens and enrichment calls are a one-time ingestion cost, small compared to the expected quality gain.
+- **Hybrid search adds recall:** RRF combines both rankings without learned weights, and the full-text ranking covers the exact terms dense search misses.
+- **Parent resolution preserves coherence:** the LLM receives whole documents instead of isolated fragments.
+- **Measurable:** the Question Arena collects human preferences between both pipelines, and `IngestionMetrics` records the ingestion cost of each (tokens embedded, LLM calls and tokens, duration, chunks).
 
 **Consequences:**
-- The `chunks_baseline_v1` table is preserved unchanged for the ablation study.
-- Both pipelines run concurrently in the Question Arena, allowing direct comparison under identical conditions.
-- The `IngestionMetrics` table records the cost differential (tokens embedded, LLM calls, processing time) between both strategies.
-- Future phases can add re-ranking or cross-encoder stages on top of the hybrid results without architectural changes.
+- Both pipelines keep their own data: `DocumentChunks` + Qdrant `document_chunks` (baseline) and `ParentDocuments`/`ChildFragments` + Qdrant `child_fragments` (hierarchical); each document is ingested by both Workers.
+- Whole-document parents can be long; very long documents increase the generation context.
+- Re-ranking or cross-encoder stages can be added on top of the fused results without schema changes.

@@ -1,21 +1,54 @@
-# Specification: API for Querying with Semantic Kernel
+# Specification: Chat Answers with Semantic Kernel (RAG)
 
 ## Purpose
-Expose a backend service orchestrating semantic search queries and RAG text completions via Microsoft Semantic Kernel.
+Answer chat questions with retrieval-augmented generation on Microsoft Semantic Kernel: search the bulletin fragments (BOE, BOJA) in Qdrant, build the prompt from `PromptCatalog`, and generate the answer with the right model, streaming it through the chat hub.
 
 ## Requirements
 
-### Requirement: Document Context Search
-The system SHALL retrieve relevant document fragments matching the semantic meaning of the user query.
+### Requirement: Baseline Document Search
+`BaselineRagPipeline` SHALL embed the text of the last 3 user messages with the platform embedding generator (never the tenant's chat model) and search the `DocumentChunks` collection through `IVectorStore` (Qdrant, cosine). The non-streaming path SHALL take the top 5 hits; the streaming path the top 3 with a minimum score of 0.65. A failed search SHALL degrade to answering without context.
 
-#### Scenario: Running pgvector similar search
-- **WHEN** a user query is received
-- **THEN** the system SHALL calculate the query embedding vector and query PostgreSQL for the top K closest chunks ordered by Cosine Distance
+#### Scenario: Streaming question with matching documents
+- **WHEN** a user streams a question and Qdrant returns hits above 0.65
+- **THEN** at most 3 fragments SHALL be used as context
 
-### Requirement: Contextual Prompt Generation (RAG)
-The system SHALL combine the prompt templates, history, and retrieved document contexts into a single LLM request.
+#### Scenario: Vector store unavailable
+- **WHEN** the embedding or the Qdrant search fails
+- **THEN** the pipeline SHALL log a warning and answer without retrieved context instead of failing
 
-#### Scenario: Compiling Chat Context
-- **WHEN** similar chunks are successfully retrieved
-- **THEN** the system SHALL compile a prompt combining `SystemPrompt.txt`, `RagPrompt.txt` (with context chunks injected), and the session's chat history
-- **AND** feed the compiled prompt to the local LLM chat completion service
+### Requirement: Prompt Construction
+Every prompt SHALL come from `PromptCatalog`. With retrieved fragments, the pipeline SHALL replace the last user message with a template that contains each fragment's title, public URL, department, publication date and text, followed by the question. When the history has no system message, it SHALL add one: `ChatSystem` (non-streaming) or `StreamingSystem` (streaming with documents), both followed by the user's preferences, or `ConversationalSystem` when streaming without documents. The hub SHALL NOT add a system message of its own.
+
+#### Scenario: Compiling the chat context
+- **WHEN** fragments are retrieved for a streamed question
+- **THEN** the model SHALL receive `StreamingSystem` with the user context, the conversation history (at most 20 messages) and the last user message rewritten with `StreamingUserTemplate`
+
+#### Scenario: Small talk
+- **WHEN** a streamed message retrieves no fragment
+- **THEN** the model SHALL receive `ConversationalSystem` and the unmodified history
+
+### Requirement: Tenant Model with Fallback
+The baseline pipeline SHALL generate with the tenant's chat model, built by `IChatModelFactory` from the tenant's `AiConfiguration` (or the platform defaults), through `ChatStreamingService`. On HTTP 429 before any text was produced it SHALL switch to the platform fallback model (`Ai:Fallback:*`) and add a notice; model errors SHALL be returned as typed messages (`[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]`, `[LLM_UNAVAILABLE]`). Each call SHALL be recorded in `AiCallLogs` and in the `gen_ai.*` metrics.
+
+#### Scenario: Provider not configured
+- **WHEN** the tenant's provider needs an API key and none is available
+- **THEN** the stream SHALL return the `[LLM_NOT_CONFIGURED]` message instead of an answer
+
+#### Scenario: Non-streaming completion
+- **WHEN** the hub's `SendMessage` asks for a non-streaming answer
+- **THEN** the baseline pipeline SHALL answer through `CompleteAsync`, which never throws for model errors and returns no sources
+
+### Requirement: Streaming Routed to the Arena Winner
+Streamed answers SHALL come from the pipeline with more Arena wins across all tenants (`WinningPipelineSelector`, cached for 5 minutes; ties and no votes choose `Baseline`). For 40% of streamed answers, the other pipeline SHALL also run in the background (shadow test) and the pair SHALL be stored as a pending `ArenaBattle`.
+
+#### Scenario: Hierarchical pipeline is winning
+- **WHEN** `Hierarchical` has more Arena wins than `Baseline`
+- **THEN** streamed answers SHALL come from `HierarchicalRagPipeline`: query expansion with the ingestion model, hybrid retrieval (Qdrant `ChildFragments` plus PostgreSQL full text, fused with RRF, top 5) and a plain-language answer from the platform chat model (`Ai:Chat:*`), based only on the latest question
+
+#### Scenario: Hierarchical pipeline finds nothing
+- **WHEN** the hierarchical retrieval returns no fragment
+- **THEN** the answer SHALL be a fixed message saying that no relevant regulation was found
+
+#### Scenario: Shadow run
+- **WHEN** a streamed answer is sampled for a shadow test
+- **THEN** the other pipeline SHALL answer the same turn on the background work queue, and the battle SHALL be saved with `Winner = Pending`

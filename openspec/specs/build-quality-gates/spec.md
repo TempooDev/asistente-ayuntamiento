@@ -1,69 +1,79 @@
 # build-quality-gates Specification
 
 ## Purpose
-Keep the repository healthy through CI: required checks for .NET, Angular, Go and protos, central package versions, nullable warnings as errors, and deploys only after a green CI with traceable image tags.
+Keep the repository healthy through CI: required checks for repository hygiene, .NET, Angular, Go and generated protos; central package versions with nullable and vulnerability warnings as errors; automatic deploys only after a green CI run, with images tagged by commit.
+
 ## Requirements
 ### Requirement: CI Covers All Codebases
-The CI pipeline SHALL build and test the .NET solution, the Angular SPA and the Go scraper on every push to `main` and on every pull request, and SHALL verify that the generated protobuf code is up to date.
+The CI workflow (`.github/workflows/ci.yml`) SHALL run on pushes to `main`, `feature/**`, `feat/**` and `fix/**`, on every pull request and on manual dispatch, with these jobs:
+- `hygiene`: rejects tracked files over 5 MB;
+- `dotnet`: restore, `dotnet format whitespace --verify-no-changes`, Release build and `dotnet test` of `AsistenteAyuntamiento.slnx`;
+- `angular`: `ng test --watch=false` and a production build;
+- `go`: `go vet ./...`, `go test -race ./...`, `gofmt -l` and a build of `./cmd/scraper`;
+- `protos`: regenerates the Go code from `src/Protos` with pinned `protoc` and plugin versions and fails on `git diff --exit-code`.
 
 #### Scenario: Pull request with a failing Angular spec
 - **WHEN** a pull request introduces an Angular spec that fails or does not compile
-- **THEN** the CI `angular` job SHALL fail and block the merge
+- **THEN** the `angular` job SHALL fail
 
-#### Scenario: Pull request with a Go vet or test failure
-- **WHEN** `go vet ./...` or `go test ./...` fails
-- **THEN** the CI `go` job SHALL fail
+#### Scenario: Pull request with a Go vet, test or format failure
+- **WHEN** `go vet`, `go test -race` fails or `gofmt -l cmd internal` lists a file
+- **THEN** the `go` job SHALL fail
 
 #### Scenario: Stale generated protos
-- **WHEN** `src/Protos/scraper.proto` changes without regenerating the Go code
-- **THEN** the `protos` job SHALL fail on `git diff --exit-code`
+- **WHEN** `src/Protos/scraper.proto` changes without regenerating `src/go-scraper/internal/protos`
+- **THEN** the `protos` job SHALL fail
 
-### Requirement: Deployment Gated on CI with Immutable Tags
-Deployment SHALL only run after a successful CI run for the same commit, and SHALL publish container images tagged with the commit SHA as well as `latest`. Image names SHALL match the names referenced in `docker-compose.yml`.
+### Requirement: Automatic Deployment Gated on CI with Commit Tags
+The deploy workflow (`.github/workflows/deploy.yml`) SHALL run automatically only through `workflow_run` after the CI workflow completes successfully for a push to `main`, and SHALL build the commit CI tested (`workflow_run.head_sha`). It SHALL build only the images whose sources changed in that commit, push them tagged `sha-<7-char short sha>` and `latest` to `ghcr.io/tempoodev/asistente-ayuntamiento-*` (the names referenced in `docker-compose.yml`), and then call the Dokploy webhook. A manual `workflow_dispatch` SHALL build the selected services from the chosen ref without requiring a CI run. `docker-compose.yml` SHALL reference the `:latest` tag of every application image.
 
 #### Scenario: CI fails
-- **WHEN** CI fails for commit `abc123`
-- **THEN** the deploy workflow SHALL NOT publish or deploy images for `abc123`
+- **WHEN** CI fails for a push of commit `abc1234` to `main`
+- **THEN** the deploy workflow SHALL NOT build, push or deploy images for `abc1234`
 
-#### Scenario: Rollback
-- **WHEN** an operator needs to roll back
-- **THEN** they SHALL be able to deploy the image tag `sha-<previous>` without rebuilding
+#### Scenario: CI succeeds on main
+- **WHEN** CI succeeds for a push to `main` that changes `src/AsistenteAyuntamiento.ApiService/`
+- **THEN** the ApiService image SHALL be pushed as `sha-<short sha>` and `latest`
+- **AND** the Dokploy deployment SHALL be triggered
+
+#### Scenario: Manual run
+- **WHEN** an operator runs the workflow manually with `force_api`
+- **THEN** the ApiService image SHALL be built and deployed from the selected ref, whether or not CI ran for it
 
 ### Requirement: Central Package Management and Warning Policy
-NuGet versions SHALL be defined once in `Directory.Packages.props`, with no conflicting versions of the same package across projects. The build SHALL treat nullable warnings and known-vulnerability warnings (`NU1901`–`NU1904`) as errors.
+NuGet versions SHALL be defined once in `Directory.Packages.props` (`ManagePackageVersionsCentrally`, with transitive pinning). `Directory.Build.props` SHALL enable nullable reference types and `AnalysisLevel=latest-recommended`, and SHALL treat nullable warnings and known-vulnerability warnings (`NU1901`–`NU1904`) as errors. Other analyzer and `.editorconfig` diagnostics (naming, `CA2254`, `CA2016`) are warnings and SHALL NOT fail the build.
 
 #### Scenario: Vulnerable package introduced
-- **WHEN** a package with a known high-severity vulnerability is restored
+- **WHEN** a package with a known vulnerability is restored
 - **THEN** the build SHALL fail
 
-#### Scenario: Version drift
+#### Scenario: Version on a package reference
 - **WHEN** a project declares a `Version` attribute on a `PackageReference`
-- **THEN** the build SHALL fail, because central package management is enforced
+- **THEN** restore SHALL fail, because central package management is enabled
 
 ### Requirement: Repository Hygiene
-The repository SHALL NOT track compiled binaries, ad-hoc patch files, one-off scripts, duplicated generated code or obsolete tooling. Agent skill definitions SHALL live in a single canonical folder per tool, and `.gitignore` rules SHALL be valid (no inline comments).
+The repository SHALL NOT track files larger than 5 MB; the CI `hygiene` job SHALL enforce it with an allow-list regex that is empty. Go build output (`/go-scraper`, `/bin/`, `*.exe`, `tmp_scraper_bin` under `src/go-scraper`) and .NET build output SHALL be ignored by git.
 
-#### Scenario: Building the Go scraper locally
-- **WHEN** a developer runs `go build` in `src/go-scraper`
+#### Scenario: Large file committed
+- **WHEN** a commit tracks a file larger than 5 MB
+- **THEN** the `hygiene` job SHALL fail and list the file with its size
+
+#### Scenario: Building the Go scraper into bin
+- **WHEN** a developer runs `go build -o bin/scraper ./cmd/scraper` in `src/go-scraper`
 - **THEN** the produced binary SHALL be ignored by git
 
-#### Scenario: Repository content check
-- **WHEN** CI runs the hygiene check
-- **THEN** it SHALL fail if any tracked file is larger than 5 MB outside an allow-list (fonts and logos in `memoria/`)
-
-### Requirement: Minimum Test Baseline
-Each codebase SHALL have meaningful tests for its critical paths. Placeholder tests and empty test projects SHALL NOT exist.
-- **.NET:**
-  - integration tests (WebApplicationFactory + Testcontainers) for the authorization matrix, tenant isolation and the ack/nack/DLQ cycle;
-  - unit tests for `HybridRetrievalService`, the arena analytics, chat streaming fallback and ingestion idempotency.
-- **Angular:** specs for the guards, the hub factory, `ChatStore` and `MarkdownService`.
-- **Go:** fixture-based tests for the BOE/BOJA parsers, the filter matching, and the HTTP client retry behaviour.
-
-#### Scenario: Placeholder test detection
-- **WHEN** a test project contains only template tests (e.g. `UnitTest1.cs` with an empty `Test1`)
-- **THEN** the hygiene check SHALL fail
+### Requirement: Test Baseline
+Each codebase SHALL keep tests for its critical paths, run by CI:
+- **.NET integration (ApiService.Tests):** `WebApplicationFactory` with header-based test authentication and an EF Core InMemory database for the authorization matrix, tenant isolation, hub isolation and hub stream errors and the internal gRPC key; plus unit tests of the startup configuration checks.
+- **.NET integration (Infrastructure.Tests):** Testcontainers (RabbitMQ, PostgreSQL, Qdrant) for the consumer ack/nack/DLQ cycle, ingestion idempotency and job-state concurrency; these tests are skipped when Docker is unavailable.
+- **.NET unit:** Application.Tests (e.g. `HybridRetrievalService`, arena analytics, chat streaming fallback, LLM metrics), Domain.Tests (document job state), Gateway.Tests (Faro forwarding) and ArchitectureTests.
+- **Angular:** specs for the guards, the hub connection factory, `ChatStore`, `MarkdownService` and the stream-error mapping, among others.
+- **Go:** fixture-based tests (`testdata`) for the BOE and BOJA clients, filter matching, and the HTTP client retry behaviour.
 
 #### Scenario: Tenant isolation regression
 - **WHEN** a change makes an endpoint return data of tenant `org_B` to a user of `org_A`
 - **THEN** the tenant-isolation integration tests SHALL fail
 
+#### Scenario: Consumer stops acknowledging messages
+- **WHEN** a change breaks the ack/nack/DLQ handling of the RabbitMQ consumer
+- **THEN** `RabbitMqConsumerIntegrationTests` SHALL fail on a runner with Docker
