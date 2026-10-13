@@ -28,8 +28,12 @@ import (
 	"github.com/asistente-ayuntamiento/go-scraper/internal/telemetry"
 )
 
-// shutdownTimeout bounds the graceful stop of servers, jobs and telemetry.
-const shutdownTimeout = 30 * time.Second
+// shutdownTimeout bounds the graceful stop of servers and jobs; the telemetry flush has its own 5 s, so the
+// whole shutdown stays within 30 s.
+const (
+	shutdownTimeout      = 25 * time.Second
+	telemetryFlushTimout = 5 * time.Second
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -56,7 +60,7 @@ func run() error {
 		shutdownTelemetry = func(context.Context) error { return nil }
 	}
 	defer func() {
-		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		flushCtx, cancel := context.WithTimeout(context.Background(), telemetryFlushTimout)
 		defer cancel()
 		if err := shutdownTelemetry(flushCtx); err != nil {
 			logger.Warn("telemetry flush failed", "error", err)
@@ -139,6 +143,9 @@ func run() error {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Warn("HTTP shutdown", "error", err)
 	}
+	// Cancel every job (scheduled, HTTP or gRPC): each stops between documents and ends as failed. Then a gRPC
+	// ForceScrape waiting on its job returns, and GracefulStop does not have to wait for a whole scrape.
+	orchestrator.Stop()
 	stopGRPC(shutdownCtx, grpcServer)
 	waitForJobs(shutdownCtx, orchestrator, logger)
 	logger.Info("scraper stopped")
@@ -162,7 +169,7 @@ func stopGRPC(ctx context.Context, server interface {
 	}
 }
 
-// waitForJobs waits for background jobs, which see the cancelled context and stop between documents.
+// waitForJobs waits for every job, already cancelled by Stop, to return.
 func waitForJobs(ctx context.Context, orchestrator *pipeline.Orchestrator, logger *slog.Logger) {
 	done := make(chan struct{})
 	go func() {

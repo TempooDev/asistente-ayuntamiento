@@ -61,6 +61,8 @@ func (s *Server) ForceScrape(ctx context.Context, req *pb.ForceScrapeRequest) (*
 	switch {
 	case errors.Is(err, pipeline.ErrBusy):
 		return failure("Ya hay un proceso de scraping en curso"), nil
+	case errors.Is(err, pipeline.ErrStopping):
+		return failure("El scraper se está deteniendo; inténtalo de nuevo en unos minutos"), nil
 	case err != nil:
 		return failure(err.Error()), nil
 	case job.Status == pipeline.StatusFailed:
