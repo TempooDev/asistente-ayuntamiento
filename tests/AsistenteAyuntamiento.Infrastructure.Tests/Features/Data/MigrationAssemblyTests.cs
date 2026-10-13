@@ -18,12 +18,22 @@ public class MigrationAssemblyTests
         typeof(AddRagQuestionArena).Assembly.GetManifestResourceNames().Should().Contain(resourceName);
     }
 
+    private static AppDbContext NpgsqlContext() => new(
+        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost;Database=unused", o => o.UseVector()).Options,
+        Mock.Of<ICurrentTenantService>());
+
+    [Fact]
+    public void The_model_matches_the_latest_migration_snapshot()
+    {
+        using var db = NpgsqlContext();
+
+        db.Database.HasPendingModelChanges().Should().BeFalse("run 'dotnet ef migrations add' after changing the model");
+    }
+
     [Fact]
     public void Every_migration_is_discovered_in_chronological_order()
     {
-        using var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost;Database=unused").Options,
-            Mock.Of<ICurrentTenantService>());
+        using var db = NpgsqlContext();
 
         var migrations = db.Database.GetMigrations().ToList();
 

@@ -1,10 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
 
-[Table("DocumentJobStates", Schema = "public")]
 public class DocumentJobState
 {
     [Key]

@@ -1,3 +1,4 @@
+using NpgsqlTypes;
 using Microsoft.EntityFrameworkCore;
 
 using AsistenteAyuntamiento.Domain.Features.Users;
@@ -29,6 +30,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public DbSet<ChildFragment> ChildFragments { get; set; }
     public DbSet<ArenaBattle> ArenaBattles { get; set; }
     public DbSet<IngestionMetric> IngestionMetrics { get; set; }
+
+    /// <summary>Full-text column of <c>ingestion."ChildFragments"</c> (shadow property, maintained by a trigger).</summary>
+    public const string ChildFragmentTsvColumn = "TsvContent";
 
     public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
     {
@@ -120,22 +124,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
             entity.Property(e => e.Status).HasConversion<string>();
         });
 
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
         modelBuilder.Entity<ChildFragment>(entity =>
         {
             entity.ToTable("ChildFragments", "ingestion");
             entity.HasIndex(e => e.ParentId);
 
-            // TsvContent is filled by a database trigger and only exists on PostgreSQL. Non-relational
-            // providers (EF InMemory in API tests) cannot map NpgsqlTsVector, so the column is skipped there.
-            // TODO(audit-remediation 5.6): turn it into a shadow property and drop Npgsql from Domain.
-            if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            // TsvContent is filled by a database trigger and only exists on PostgreSQL: a shadow property,
+            // so the Domain stays free of Npgsql types. Non-relational providers (EF InMemory in tests) skip it.
+            if (Database.IsNpgsql())
             {
-                entity.Property(e => e.TsvContent).HasColumnType("tsvector");
-                entity.HasIndex(e => e.TsvContent).HasMethod("gin");
-            }
-            else
-            {
-                entity.Ignore(e => e.TsvContent);
+                entity.Property<NpgsqlTsVector>(ChildFragmentTsvColumn).HasColumnType("tsvector");
+                entity.HasIndex(ChildFragmentTsvColumn).HasMethod("gin");
             }
         });
 

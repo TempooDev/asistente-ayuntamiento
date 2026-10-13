@@ -1,4 +1,3 @@
-using Pgvector;
 using System.ComponentModel.DataAnnotations;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;

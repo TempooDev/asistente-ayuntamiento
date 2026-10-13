@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Pgvector;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 
 namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
@@ -21,9 +20,6 @@ public class ChildFragment
 
     [Required]
     public string ChunkText { get; set; } = string.Empty; // breadcrumb + questions + body
-
-    // TsvContent is managed by a DB trigger, not set from C#
-    public NpgsqlTypes.NpgsqlTsVector? TsvContent { get; set; }
 
     // Navigation
     public ParentDocument Parent { get; set; } = null!;
