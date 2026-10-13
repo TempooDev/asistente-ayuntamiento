@@ -200,6 +200,37 @@ func TestCancellingTheContextStopsABackgroundJob(t *testing.T) {
 	}
 }
 
+func TestStopCancelsAJobRunningUnderAnotherContextAndWaitWaitsForIt(t *testing.T) {
+	f := newFixture()
+	f.boe.block = make(chan struct{})
+	o := f.orchestrator()
+
+	// Like gRPC ForceScrape: Run under the call's context, which shutdown never cancels.
+	finished := make(chan Job, 1)
+	go func() {
+		job, _ := o.Run(context.Background(), "grpc", Request{Providers: []string{"BOE"}, Start: date("2026-10-01"), End: date("2026-10-03")})
+		finished <- job
+	}()
+	for !o.isRunning() {
+		time.Sleep(time.Millisecond)
+	}
+
+	o.Stop()
+	o.Wait()
+
+	select {
+	case job := <-finished:
+		if job.Status != StatusFailed || len(f.boe.days) > 1 {
+			t.Fatalf("job = %+v, days = %v", job, f.boe.days)
+		}
+	default:
+		t.Fatal("Wait returned before the Run job ended")
+	}
+	if _, err := o.Run(context.Background(), "schedule", Request{Start: date("2026-10-01")}); !errors.Is(err, ErrStopping) {
+		t.Fatalf("job after Stop: err = %v, want ErrStopping", err)
+	}
+}
+
 func TestNextRun(t *testing.T) {
 	loc := time.FixedZone("CET", 3600)
 	cases := []struct{ now, want time.Time }{

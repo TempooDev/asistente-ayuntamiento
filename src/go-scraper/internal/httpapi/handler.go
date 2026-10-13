@@ -69,6 +69,9 @@ func startScrape(jobCtx context.Context, jobs Jobs, w http.ResponseWriter, r *ht
 	case errors.Is(err, pipeline.ErrBusy):
 		writeError(w, http.StatusConflict, err.Error())
 		return
+	case errors.Is(err, pipeline.ErrStopping):
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
 	case errors.As(err, &invalid):
 		writeError(w, http.StatusBadRequest, invalid.Reason)
 		return

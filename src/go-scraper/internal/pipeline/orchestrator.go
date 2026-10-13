@@ -28,6 +28,9 @@ import (
 // ErrBusy is returned when a job is requested while another one runs.
 var ErrBusy = errors.New("a scrape job is already running")
 
+// ErrStopping is returned when a job is requested after Stop (the scraper is shutting down).
+var ErrStopping = errors.New("the scraper is shutting down")
+
 // ValidationError describes an invalid job request (bad dates, unknown provider, range too long).
 type ValidationError struct{ Reason string }
 
@@ -100,7 +103,12 @@ type Orchestrator struct {
 	running bool
 	jobs    map[string]*Job
 	history []string
-	async   sync.WaitGroup
+
+	// active tracks every running job, whatever started it (schedule, HTTP or gRPC).
+	active sync.WaitGroup
+	// stopped is cancelled by Stop: it cancels every job, even one running under a caller's context (gRPC).
+	stopped    context.Context
+	stopCancel context.CancelFunc
 }
 
 func New(cfg Config) *Orchestrator {
@@ -117,6 +125,7 @@ func New(cfg Config) *Orchestrator {
 		cfg.Now = time.Now
 	}
 	o := &Orchestrator{cfg: cfg, providers: map[string]provider.Provider{}, jobs: map[string]*Job{}}
+	o.stopped, o.stopCancel = context.WithCancel(context.Background())
 	for _, p := range cfg.Providers {
 		o.providers[strings.ToUpper(p.Name())] = p
 		o.order = append(o.order, strings.ToUpper(p.Name()))
@@ -134,6 +143,8 @@ func (o *Orchestrator) Run(ctx context.Context, trigger string, req Request) (Jo
 	if err != nil {
 		return Job{}, err
 	}
+	o.active.Add(1)
+	defer o.active.Done()
 	o.execute(ctx, job, req)
 	return o.snapshot(job.ID), nil
 }
@@ -148,9 +159,9 @@ func (o *Orchestrator) Start(ctx context.Context, trigger string, req Request) (
 	if err != nil {
 		return Job{}, err
 	}
-	o.async.Add(1)
+	o.active.Add(1)
 	go func() {
-		defer o.async.Done()
+		defer o.active.Done()
 		o.execute(ctx, job, req)
 	}()
 	return o.snapshot(job.ID), nil
@@ -167,8 +178,12 @@ func (o *Orchestrator) Job(id string) (Job, bool) {
 	return *job, true
 }
 
-// Wait blocks until background jobs return (call after cancelling their context).
-func (o *Orchestrator) Wait() { o.async.Wait() }
+// Stop cancels every running job (they stop between documents and end as failed) and rejects new ones. Jobs started
+// by gRPC run under the call's context, which shutdown does not cancel, so this is what stops them.
+func (o *Orchestrator) Stop() { o.stopCancel() }
+
+// Wait blocks until every job has returned (call after Stop).
+func (o *Orchestrator) Wait() { o.active.Wait() }
 
 // ProviderNames lists the registered providers in registration order.
 func (o *Orchestrator) ProviderNames() []string { return slices.Clone(o.order) }
@@ -208,6 +223,9 @@ func (o *Orchestrator) validate(req Request) (Request, error) {
 func (o *Orchestrator) begin(trigger string, req Request) (*Job, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.stopped.Err() != nil {
+		return nil, ErrStopping
+	}
 	if o.running {
 		return nil, ErrBusy
 	}
@@ -251,6 +269,11 @@ func (o *Orchestrator) snapshot(id string) Job {
 }
 
 func (o *Orchestrator) execute(ctx context.Context, job *Job, req Request) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopJob := context.AfterFunc(o.stopped, cancel)
+	defer stopJob()
+
 	ctx, span := tracer.Start(ctx, "ScrapeJob")
 	defer span.End()
 	span.SetAttributes(
