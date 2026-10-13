@@ -4,7 +4,9 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 
 /// <summary>
 /// Reads token usage from Semantic Kernel response metadata. Providers expose it differently: a <c>Usage</c>
-/// object (OpenAI, Google), flat keys or the inner OllamaSharp response (Ollama).
+/// object (OpenAI and OpenAI-compatible: <c>ChatTokenUsage</c> with <c>InputTokenCount</c>/<c>OutputTokenCount</c>),
+/// flat keys (Gemini: <c>PromptTokenCount</c>/<c>CandidatesTokenCount</c>; Ollama) or the inner OllamaSharp response.
+/// In streaming, OpenAI sends the usage in a last chunk without content.
 /// </summary>
 public static class TokenUsageExtractor
 {
@@ -18,8 +20,8 @@ public static class TokenUsageExtractor
         // Strategy 1: a "Usage" object with standard properties
         if (metadata.TryGetValue("Usage", out var usage) && usage is not null)
         {
-            var input = GetIntProperty(usage, "PromptTokens") ?? GetIntProperty(usage, "InputTokens") ?? 0;
-            var output = GetIntProperty(usage, "CompletionTokens") ?? GetIntProperty(usage, "OutputTokens") ?? 0;
+            var input = GetIntProperty(usage, "InputTokenCount") ?? GetIntProperty(usage, "PromptTokens") ?? GetIntProperty(usage, "InputTokens") ?? 0;
+            var output = GetIntProperty(usage, "OutputTokenCount") ?? GetIntProperty(usage, "CompletionTokens") ?? GetIntProperty(usage, "OutputTokens") ?? 0;
             if (input > 0 || output > 0)
             {
                 return TokenUsageInfo.Of(input, output);
@@ -28,7 +30,7 @@ public static class TokenUsageExtractor
 
         // Strategy 2: Ollama-specific flat metadata keys
         var flatInput = GetMetadataInt(metadata, "prompt_eval_count") ?? GetMetadataInt(metadata, "PromptEvalCount") ?? GetMetadataInt(metadata, "PromptTokenCount") ?? 0;
-        var flatOutput = GetMetadataInt(metadata, "eval_count") ?? GetMetadataInt(metadata, "EvalCount") ?? GetMetadataInt(metadata, "CompletionTokenCount") ?? 0;
+        var flatOutput = GetMetadataInt(metadata, "eval_count") ?? GetMetadataInt(metadata, "EvalCount") ?? GetMetadataInt(metadata, "CandidatesTokenCount") ?? GetMetadataInt(metadata, "CompletionTokenCount") ?? 0;
         if (flatInput > 0 || flatOutput > 0)
         {
             return TokenUsageInfo.Of(flatInput, flatOutput);
