@@ -26,7 +26,7 @@ flowchart TD
         Tempo[("Tempo")]
         Mimir[("Mimir")]
         GrafanaUI["Grafana"]
-        LlmTool["LLM tool (spike: Phoenix / Langfuse)"]
+        LlmTool["LLM tool (not deployed, ADR 0002)"]
     end
 
     User --> AngularApp
@@ -172,7 +172,8 @@ exporters:
     endpoint: http://mimir:9009/otlp
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
-  # Second exporter for the LLM tool, enabled only after the spike (tasks 6.x):
+  # Second exporter for an LLM tool. Not deployed: see docs/adr/0002-llm-observability.md (Phoenix, once
+  # content capture is approved):
   # otlp/llm-tool:
   #   endpoint: phoenix:4317
   #   tls: { insecure: true }
