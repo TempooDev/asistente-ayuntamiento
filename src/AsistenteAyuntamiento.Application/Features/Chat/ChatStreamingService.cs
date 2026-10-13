@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -17,14 +18,14 @@ public sealed class ChatStreamingService(
 {
     internal const string FallbackNotice = "\n\n*(⚠️ Hemos alcanzado el límite de nuestra IA principal. Estamos usando un modelo de respaldo, por lo que las respuestas pueden ser más lentas o de menor calidad.)*";
 
-    public async Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default)
+    public async Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion");
 
         var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId, cancellationToken);
         var promptLength = LastUserMessageLength(history);
-        Tag(activity, config.Model, tenantId, userId);
+        Tag(activity, config, tenantId, userId, pipeline);
         activity?.SetTag("ai.prompt.length", promptLength);
         activity?.SetTag("ai.history.count", history.Count);
 
@@ -33,6 +34,8 @@ public sealed class ChatStreamingService(
             var service = chatModelFactory.Create(config, apiKey);
             var settings = Settings(config);
             var modelId = config.Model;
+            var provider = config.Provider;
+            var usedFallback = false;
 
             ChatMessageContent response;
             try
@@ -49,6 +52,9 @@ public sealed class ChatStreamingService(
 
                 logger.LogWarning(ex, "Quota exceeded for tenant {TenantId}; using platform fallback model {FallbackModel}", tenantId, fallback.ModelId);
                 modelId = fallback.ModelId;
+                provider = fallback.Provider;
+                usedFallback = true;
+                MarkFallback(activity, fallback);
                 response = await fallback.Service.GetChatMessageContentAsync(history, settings, cancellationToken: cancellationToken);
                 response.Content += FallbackNotice;
             }
@@ -58,12 +64,16 @@ public sealed class ChatStreamingService(
             var usage = TokenUsageExtractor.Extract(response);
 
             activity?.SetStatus(ActivityStatusCode.Ok);
-            activity?.SetTag("ai.tokens.input", usage.InputTokens);
-            activity?.SetTag("ai.tokens.output", usage.OutputTokens);
-            activity?.SetTag("ai.tokens.total", usage.TotalTokens);
+            activity?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
+            activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
 
             await callRecorder.RecordAsync(
-                new AiCallOutcome(modelId, tenantId, userId, true, stopwatch.Elapsed.TotalMilliseconds, usage, promptLength, content.Length, history.Count),
+                new AiCallOutcome(modelId, tenantId, userId, true, stopwatch.Elapsed.TotalMilliseconds, usage, promptLength, content.Length, history.Count)
+                {
+                    Provider = provider,
+                    Pipeline = pipeline,
+                    Fallback = usedFallback,
+                },
                 cancellationToken);
 
             logger.LogInformation(
@@ -79,7 +89,11 @@ public sealed class ChatStreamingService(
 
             // Provider details stay server-side (logs, AiCallLogs); the user only gets the typed message.
             await callRecorder.RecordAsync(
-                new AiCallOutcome(config.Model, tenantId, userId, false, stopwatch.Elapsed.TotalMilliseconds, TokenUsageInfo.Empty, promptLength, 0, history.Count, errorCode, ex.Message),
+                new AiCallOutcome(config.Model, tenantId, userId, false, stopwatch.Elapsed.TotalMilliseconds, TokenUsageInfo.Empty, promptLength, 0, history.Count, errorCode, ex.Message)
+                {
+                    Provider = config.Provider,
+                    Pipeline = pipeline,
+                },
                 CancellationToken.None);
 
             activity?.SetStatus(ActivityStatusCode.Error, errorCode);
@@ -95,13 +109,14 @@ public sealed class ChatStreamingService(
         ChatHistory history,
         string tenantId,
         string userId,
+        string pipeline,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion.Stream");
 
         var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId, cancellationToken);
-        Tag(activity, config.Model, tenantId, userId);
+        Tag(activity, config, tenantId, userId, pipeline);
 
         if (!TryCreateModel(config, apiKey, out var service, out var initError))
         {
@@ -111,6 +126,8 @@ public sealed class ChatStreamingService(
 
         var settings = Settings(config);
         var modelId = config.Model;
+        var provider = config.Provider;
+        TimeSpan? timeToFirstToken = null;
         var content = new StringBuilder();
         var usage = TokenUsageInfo.Empty;
         var usedFallback = false;
@@ -140,6 +157,8 @@ public sealed class ChatStreamingService(
                         logger.LogWarning(error, "Quota exceeded for tenant {TenantId}; streaming from platform fallback model {FallbackModel}", tenantId, fallback.ModelId);
                         usedFallback = true;
                         modelId = fallback.ModelId;
+                        provider = fallback.Provider;
+                        MarkFallback(activity, fallback);
                         await enumerator.DisposeAsync();
                         enumerator = fallback.Service.GetStreamingChatMessageContentsAsync(history, settings, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
 
@@ -166,6 +185,11 @@ public sealed class ChatStreamingService(
                 var chunk = enumerator.Current;
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
+                    if (timeToFirstToken is null)
+                    {
+                        timeToFirstToken = stopwatch.Elapsed;
+                        activity?.AddEvent(new ActivityEvent("gen_ai.first_chunk"));
+                    }
                     content.Append(chunk.Content);
                     yield return chunk.Content;
                 }
@@ -189,9 +213,22 @@ public sealed class ChatStreamingService(
         }
 
         stopwatch.Stop();
+        if (errorText is not null)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, errorCode);
+        }
+        activity?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
+        activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
+
         await callRecorder.RecordAsync(
             new AiCallOutcome(modelId, tenantId, userId, errorText is null, stopwatch.Elapsed.TotalMilliseconds, usage,
-                LastUserMessageLength(history), content.Length, history.Count, errorCode),
+                LastUserMessageLength(history), content.Length, history.Count, errorCode)
+            {
+                Provider = provider,
+                Pipeline = pipeline,
+                Fallback = usedFallback,
+                TimeToFirstToken = timeToFirstToken,
+            },
             CancellationToken.None);
     }
 
@@ -245,10 +282,21 @@ public sealed class ChatStreamingService(
     private static int LastUserMessageLength(ChatHistory history) =>
         history.LastOrDefault(m => m.Role == AuthorRole.User)?.Content?.Length ?? 0;
 
-    private static void Tag(Activity? activity, string modelId, string tenantId, string userId)
+    private static void Tag(Activity? activity, AiConfigurationDto config, string tenantId, string userId, string pipeline)
     {
-        activity?.SetTag("ai.model", modelId);
-        activity?.SetTag("ai.tenant", tenantId);
+        activity?.SetTag(GenAiTelemetry.Attributes.OperationName, GenAiTelemetry.ChatOperation);
+        activity?.SetTag(GenAiTelemetry.Attributes.ProviderName, GenAiTelemetry.ProviderName(config.Provider));
+        activity?.SetTag(GenAiTelemetry.Attributes.RequestModel, config.Model);
+        activity?.SetTag(GenAiTelemetry.Attributes.TenantId, tenantId);
+        activity?.SetTag(GenAiTelemetry.Attributes.Pipeline, pipeline);
+        activity?.SetTag(GenAiTelemetry.Attributes.Fallback, false);
         activity?.SetTag("ai.user", userId);
+    }
+
+    private static void MarkFallback(Activity? activity, FallbackChatModel fallback)
+    {
+        activity?.SetTag(GenAiTelemetry.Attributes.Fallback, true);
+        activity?.SetTag(GenAiTelemetry.Attributes.ProviderName, GenAiTelemetry.ProviderName(fallback.Provider));
+        activity?.SetTag(GenAiTelemetry.Attributes.RequestModel, fallback.ModelId);
     }
 }

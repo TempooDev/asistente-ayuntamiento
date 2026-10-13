@@ -28,6 +28,10 @@ services:
     container_name: asistente-api
     restart: always
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=apiservice
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
@@ -43,6 +47,9 @@ services:
       - Kestrel__Endpoints__Grpc__Protocols=Http2
       - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
       - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      # Estimated cost (EUR per 1M tokens) of the platform chat model; empty = cost 0 with a warning.
+      - Ai__Pricing__${AI_CHAT_PROVIDER:-google}__${AI_CHAT_MODEL:-gemini-1.5-pro}__Input=${AI_CHAT_PRICE_INPUT_EUR:-}
+      - Ai__Pricing__${AI_CHAT_PROVIDER:-google}__${AI_CHAT_MODEL:-gemini-1.5-pro}__Output=${AI_CHAT_PRICE_OUTPUT_EUR:-}
       - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
       - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
       - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
@@ -70,6 +77,10 @@ services:
     container_name: asistente-worker-baseline
     restart: always
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=worker-baseline
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=BASELINE
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
@@ -103,6 +114,10 @@ services:
     container_name: asistente-worker-hierarchical
     restart: always
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=worker-hierarchical
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=HIERARCHICAL
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
@@ -136,6 +151,10 @@ services:
     container_name: asistente-scraper
     restart: always
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=go-scraper
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - PORT=${SCRAPER_PORT:-8080}
       - GRPC_PORT=${SCRAPER_GRPC_PORT:-50051}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
@@ -159,6 +178,10 @@ services:
     ports:
       - "${GATEWAY_PUBLISHED_PORT:-8080}:8080"
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=gateway
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_HTTP_PORTS=8080
       - ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address=http://apiservice:${API_PORT:-8080}

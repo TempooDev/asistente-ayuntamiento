@@ -1,17 +1,26 @@
+using System.Diagnostics;
 using System.Text;
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.Application.Features.Generation;
 
-public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
+/// <summary>Plain-language answers of the hierarchical pipeline, generated with the platform chat model (<c>Ai:Chat:*</c>).</summary>
+public class ClearLanguageGenerationService(
+    Kernel kernel,
+    IConfiguration configuration,
+    ILlmUsageMetrics usageMetrics,
+    ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-
-
+    private readonly string _provider = configuration["Ai:Chat:Provider"] ?? "ollama";
+    private readonly string _model = configuration["Ai:Chat:Model"] ?? "llama3.2";
 
     public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default)
     {
@@ -31,7 +40,11 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
         }
     }
 
-    public async IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(
+        string userQuery,
+        List<RetrievalResult> retrievedContext,
+        LlmCallScope scope,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var chatHistory = BuildChatHistory(userQuery, retrievedContext);
         if (chatHistory == null)
@@ -40,26 +53,79 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
             yield break;
         }
 
-        IAsyncEnumerable<StreamingChatMessageContent>? stream;
+        using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion.Stream");
+        activity?.SetTag(GenAiTelemetry.Attributes.OperationName, GenAiTelemetry.ChatOperation);
+        activity?.SetTag(GenAiTelemetry.Attributes.ProviderName, GenAiTelemetry.ProviderName(_provider));
+        activity?.SetTag(GenAiTelemetry.Attributes.RequestModel, _model);
+        activity?.SetTag(GenAiTelemetry.Attributes.TenantId, scope.TenantId);
+        activity?.SetTag(GenAiTelemetry.Attributes.Pipeline, scope.Pipeline);
+
+        var stopwatch = Stopwatch.StartNew();
+        TimeSpan? timeToFirstToken = null;
+        var usage = TokenUsageInfo.Empty;
+        string? errorType = null;
+
+        IAsyncEnumerator<StreamingChatMessageContent>? enumerator = null;
         try
         {
-            stream = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, cancellationToken: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error al iniciar el stream de respuesta para la consulta: {Query}", userQuery);
-            stream = null;
-        }
+            try
+            {
+                enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not start the plain-language answer stream");
+                errorType = ex.GetType().Name;
+            }
 
-        if (stream == null)
-        {
-            yield return new StreamingChatMessageContent(AuthorRole.Assistant, "Lo siento, ha ocurrido un error interno al intentar procesar la respuesta. Por favor, inténtalo de nuevo más tarde.");
-            yield break;
-        }
+            if (enumerator is null)
+            {
+                yield return new StreamingChatMessageContent(AuthorRole.Assistant, "Lo siento, ha ocurrido un error interno al intentar procesar la respuesta. Por favor, inténtalo de nuevo más tarde.");
+                yield break;
+            }
 
-        await foreach (var chunk in stream)
+            while (true)
+            {
+                bool hasChunk;
+                try
+                {
+                    hasChunk = await enumerator.MoveNextAsync();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    errorType = ex.GetType().Name;
+                    throw;
+                }
+                if (!hasChunk) break;
+
+                var chunk = enumerator.Current;
+                if (timeToFirstToken is null && !string.IsNullOrEmpty(chunk.Content))
+                {
+                    timeToFirstToken = stopwatch.Elapsed;
+                }
+                var chunkUsage = TokenUsageExtractor.Extract(chunk.Metadata, chunk.InnerContent);
+                if (chunkUsage.TotalTokens > 0)
+                {
+                    usage = chunkUsage;
+                }
+                yield return chunk;
+            }
+        }
+        finally
         {
-            yield return chunk;
+            if (enumerator is not null)
+            {
+                await enumerator.DisposeAsync();
+            }
+
+            if (errorType is not null)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, errorType);
+            }
+            activity?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
+            activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
+            usageMetrics.Record(new LlmCallMetrics(_provider, _model, scope.TenantId, scope.Pipeline, Fallback: false,
+                stopwatch.Elapsed, usage.InputTokens, usage.OutputTokens, timeToFirstToken, errorType));
         }
     }
 

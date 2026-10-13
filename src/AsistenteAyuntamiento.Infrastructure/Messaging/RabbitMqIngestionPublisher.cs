@@ -26,6 +26,7 @@ public sealed class RabbitMqIngestionPublisher(IConnectionFactory connectionFact
             Persistent = true,
             ContentType = "application/json",
             MessageId = message.DocumentId,
+            Headers = RabbitMqTraceContext.Inject(),
         };
 
         await _lock.WaitAsync(cancellationToken);

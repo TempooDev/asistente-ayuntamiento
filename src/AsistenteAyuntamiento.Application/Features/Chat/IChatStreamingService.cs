@@ -9,8 +9,9 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 public interface IChatStreamingService
 {
     /// <summary>Never throws for model errors: they come back as a failed result with a typed error code.</summary>
-    Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default);
+    /// <param name="pipeline">Value of <c>app.pipeline</c> for the metrics (see <see cref="Telemetry.LlmPipelines"/>).</param>
+    Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 
     /// <summary>Streams text chunks. Model errors are streamed as a user-facing message, never thrown.</summary>
-    IAsyncEnumerable<string> StreamAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<string> StreamAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 }

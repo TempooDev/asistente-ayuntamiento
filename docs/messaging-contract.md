@@ -54,7 +54,7 @@ El blob `json/{SOURCE}/{document_id}.json` lo escribe el scraper:
 | Cabecera | Tipo | Significado |
 |---|---|---|
 | `x-retry-count` | int | Reintentos ya hechos. La añade el consumidor al reenviar a `Q.retry`. |
-| `traceparent` / `tracestate` | string | Contexto W3C. Previsto en el change de observabilidad; todavía no se envía. |
+| `traceparent` / `tracestate` | string | Contexto W3C de quien publica (API, consumidor al reintentar o scraper Go). El consumidor continúa esa traza (`RabbitMqTraceContext`). |
 
 ### Garantías
 

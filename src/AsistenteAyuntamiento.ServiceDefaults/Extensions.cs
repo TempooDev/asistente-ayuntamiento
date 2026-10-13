@@ -17,6 +17,19 @@ public static class Extensions
     private const string HealthEndpointPath = "/health";
     private const string AlivenessEndpointPath = "/alive";
 
+    /// <summary>Our own sources and meters (AI calls, messaging…).</summary>
+    private const string AppTelemetryPrefix = "AsistenteAyuntamiento.*";
+
+    /// <summary>Semantic Kernel's model-call spans and metrics (GenAI conventions).</summary>
+    private const string SemanticKernelTelemetryPrefix = "Microsoft.SemanticKernel*";
+
+    /// <summary>
+    /// Enables Semantic Kernel's GenAI diagnostics WITHOUT prompt or completion text. The sensitive variant
+    /// (<c>EnableOTelDiagnosticsSensitive</c>) must never be enabled here: citizens' questions may contain personal
+    /// data. A configuration test fails if it appears in the production settings or the compose file.
+    /// </summary>
+    public const string SemanticKernelDiagnosticsSwitch = "Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnostics";
+
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.ConfigureOpenTelemetry();
@@ -45,6 +58,8 @@ public static class Extensions
 
     public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
+        AppContext.SetSwitch(SemanticKernelDiagnosticsSwitch, true);
+
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
@@ -56,19 +71,20 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(AppTelemetryPrefix, SemanticKernelTelemetryPrefix);
             })
             .WithTracing(tracing =>
             {
-                tracing.AddSource(builder.Environment.ApplicationName)
+                tracing.AddSource(builder.Environment.ApplicationName, AppTelemetryPrefix, SemanticKernelTelemetryPrefix)
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>
                             !context.Request.Path.StartsWithSegments(HealthEndpointPath)
                             && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
                     )
-                    // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
-                    //.AddGrpcClientInstrumentation()
+                    // gRPC calls to the Go scraper; the server side continues the trace with otelgrpc.
+                    .AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();
             });
 

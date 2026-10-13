@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.Extensions.AI;
@@ -49,7 +50,7 @@ public sealed class BaselineRagPipeline(
             ReplaceLastUserMessage(turn, string.Format(CultureInfo.InvariantCulture, PromptCatalog.ChatUserTemplate, FormatContext(hits), turn.UserQuery, date));
         }
 
-        return await chatStreamingService.CompleteAsync(turn.History, turn.TenantId, turn.UserId, cancellationToken);
+        return await chatStreamingService.CompleteAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken);
     }
 
     public async IAsyncEnumerable<string> StreamAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -68,11 +69,13 @@ public sealed class BaselineRagPipeline(
             }
         }
 
-        await foreach (var chunk in chatStreamingService.StreamAsync(turn.History, turn.TenantId, turn.UserId, cancellationToken))
+        await foreach (var chunk in chatStreamingService.StreamAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken))
         {
             yield return chunk;
         }
     }
+
+    private static string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? LlmPipelines.Baseline;
 
     /// <summary>Public link of a bulletin document (BOJA has no stable per-document URL yet).</summary>
     public static string GetPublicUrl(string source, string documentId) => source.ToUpperInvariant() switch

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // Topology shared with the .NET services (RabbitMqTopology.cs, docs/messaging-contract.md).
@@ -142,9 +144,25 @@ func (p *Publisher) PublishDocument(ctx context.Context, msg DocumentMessage) er
 	return lastErr
 }
 
+// TraceHeaders returns the W3C trace context of ctx (traceparent, tracestate) as AMQP headers, so the .NET
+// worker continues the trace of the job that published the document (docs/messaging-contract.md).
+func TraceHeaders(ctx context.Context) amqp.Table {
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	headers := amqp.Table{}
+	for _, key := range []string{"traceparent", "tracestate"} {
+		if value := carrier.Get(key); value != "" {
+			headers[key] = value
+		}
+	}
+	return headers
+}
+
 func (p *Publisher) publishBothLocked(ctx context.Context, documentID string, body []byte) error {
+	headers := TraceHeaders(ctx)
 	for _, queue := range []string{BaselineQueue, HierarchicalQueue} {
 		confirmation, err := p.channel.PublishWithDeferredConfirmWithContext(ctx, "", queue, true, false, amqp.Publishing{
+			Headers:      headers,
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
 			MessageId:    documentID,

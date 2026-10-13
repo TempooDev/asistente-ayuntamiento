@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
@@ -76,6 +77,75 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
         await publisher.DisposeAsync();
     }
 
+    [DockerFact]
+    public async Task Consumer_continues_the_trace_of_a_dotnet_publisher()
+    {
+        using var listener = ListenToAllSources();
+        var queue = $"test_{Guid.NewGuid():N}";
+        var consumer = new TestConsumer(_factory, queue, failingDocumentId: "none");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        await consumer.StartAsync(cts.Token);
+        await consumer.TopologyDeclared.Task.WaitAsync(cts.Token);
+
+        await using var connection = await _factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        using var source = new ActivitySource("test.producer");
+        ActivityTraceId producerTrace;
+        using (var producer = source.StartActivity("enqueue", ActivityKind.Producer)!)
+        {
+            producerTrace = producer.TraceId;
+            await channel.BasicPublishAsync(string.Empty, queue, mandatory: false,
+                new BasicProperties { Persistent = true, Headers = RabbitMqTraceContext.Inject() },
+                JsonSerializer.SerializeToUtf8Bytes(new DocumentMessage { DocumentId = "traced", Source = "BOE", BlobPath = "x" }));
+        }
+
+        await WaitUntilAsync(() => Task.FromResult(consumer.TraceIds.ContainsKey("traced")), cts.Token);
+        consumer.TraceIds["traced"].Should().Be(producerTrace.ToHexString());
+        await consumer.StopAsync(CancellationToken.None);
+    }
+
+    [DockerFact]
+    public async Task Consumer_continues_a_traceparent_written_by_another_service()
+    {
+        var queue = $"test_{Guid.NewGuid():N}";
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        // Published before any .NET listener exists: with one, RabbitMQ.Client's own publish span would replace the
+        // header. The Go scraper writes it as a string (RabbitMQ delivers it as bytes).
+        const string traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+        await using (var connection = await _factory.CreateConnectionAsync())
+        await using (var channel = await connection.CreateChannelAsync())
+        {
+            await RabbitMqTopology.DeclareWorkQueueAsync(channel, queue, cts.Token, retryDelayMs: 300);
+            await channel.BasicPublishAsync(string.Empty, queue, mandatory: false,
+                new BasicProperties
+                {
+                    Persistent = true,
+                    Headers = new Dictionary<string, object?> { ["traceparent"] = $"00-{traceId}-00f067aa0ba902b7-01" },
+                },
+                JsonSerializer.SerializeToUtf8Bytes(new DocumentMessage { DocumentId = "from-go", Source = "BOE", BlobPath = "x" }));
+        }
+
+        using var listener = ListenToAllSources();
+        var consumer = new TestConsumer(_factory, queue, failingDocumentId: "none");
+        await consumer.StartAsync(cts.Token);
+
+        await WaitUntilAsync(() => Task.FromResult(consumer.TraceIds.ContainsKey("from-go")), cts.Token);
+        consumer.TraceIds["from-go"].Should().Be(traceId);
+        await consumer.StopAsync(CancellationToken.None);
+    }
+
+    private static ActivityListener ListenToAllSources()
+    {
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+        };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
+    }
+
     private static async Task Publish(IChannel channel, string queue, string documentId) =>
         await channel.BasicPublishAsync(string.Empty, queue, mandatory: false,
             new BasicProperties { Persistent = true },
@@ -95,6 +165,7 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
     {
         public ConcurrentBag<string> Handled { get; } = [];
         public ConcurrentDictionary<string, int> Attempts { get; } = new();
+        public ConcurrentDictionary<string, string> TraceIds { get; } = new();
         public TaskCompletionSource TopologyDeclared { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override string ConsumerName => "test";
@@ -110,6 +181,7 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
         protected override Task HandleAsync(DocumentMessage message, IServiceProvider services, CancellationToken cancellationToken)
         {
             Attempts.AddOrUpdate(message.DocumentId, 1, (_, n) => n + 1);
+            if (Activity.Current is { } activity) TraceIds[message.DocumentId] = activity.TraceId.ToHexString();
             if (message.DocumentId == failingDocumentId) throw new TimeoutException("transient");
             Handled.Add(message.DocumentId);
             return Task.CompletedTask;

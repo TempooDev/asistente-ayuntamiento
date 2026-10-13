@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using Microsoft.EntityFrameworkCore;
@@ -34,19 +35,23 @@ public sealed class ArenaStreamingService(
         var beta = new ArenaSide(BetaOption, hierarchicalIsAlfa ? PipelineType.Baseline : PipelineType.Hierarchical);
 
         // Each side runs concurrently in its own DI scope (DbContext and kernels are not thread-safe).
-        var runs = Task.WhenAll(RunSideAsync(alfa, turn.Copy(), cancellationToken), RunSideAsync(beta, turn.Copy(), cancellationToken));
+        var runs = Task.WhenAll(
+            RunSideAsync(alfa, turn.Copy() with { TelemetryPipeline = LlmPipelines.ArenaAlfa }, cancellationToken),
+            RunSideAsync(beta, turn.Copy() with { TelemetryPipeline = LlmPipelines.ArenaBeta }, cancellationToken));
 
-        // Forward chunks from whichever side produces them first.
-        var waiting = new Dictionary<Task<bool>, ArenaSide>
+        // Forward chunks from whichever side produces them first. A list, not a dictionary keyed by task: two
+        // reads that complete synchronously return the same cached Task<bool>, which would drop one side.
+        var waiting = new List<(Task<bool> Ready, ArenaSide Side)>
         {
-            [alfa.Output.Reader.WaitToReadAsync(cancellationToken).AsTask()] = alfa,
-            [beta.Output.Reader.WaitToReadAsync(cancellationToken).AsTask()] = beta,
+            (alfa.Output.Reader.WaitToReadAsync(cancellationToken).AsTask(), alfa),
+            (beta.Output.Reader.WaitToReadAsync(cancellationToken).AsTask(), beta),
         };
         while (waiting.Count > 0)
         {
-            var ready = await Task.WhenAny(waiting.Keys);
-            var side = waiting[ready];
-            waiting.Remove(ready);
+            var ready = await Task.WhenAny(waiting.Select(w => w.Ready));
+            var index = waiting.FindIndex(w => w.Ready == ready);
+            var side = waiting[index].Side;
+            waiting.RemoveAt(index);
 
             if (!await ready)
             {
@@ -58,7 +63,7 @@ public sealed class ArenaStreamingService(
                 side.Answer.Append(text);
                 yield return new ArenaStreamChunk(side.Option, text);
             }
-            waiting[side.Output.Reader.WaitToReadAsync(cancellationToken).AsTask()] = side;
+            waiting.Add((side.Output.Reader.WaitToReadAsync(cancellationToken).AsTask(), side));
         }
 
         await runs;
@@ -113,7 +118,8 @@ public sealed class ArenaStreamingService(
             RightLatencyMs = beta.LatencyMs,
             LeftTokens = TokenUsageInfo.Estimate(left),
             RightTokens = TokenUsageInfo.Estimate(right),
-            Winner = BattleWinner.Pending
+            Winner = BattleWinner.Pending,
+            TraceId = Activity.Current?.TraceId.ToHexString(),
         });
 
         try

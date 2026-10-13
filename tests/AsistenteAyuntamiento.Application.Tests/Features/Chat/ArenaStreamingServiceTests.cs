@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using FluentAssertions;
@@ -103,5 +105,24 @@ public class ArenaStreamingServiceTests
         _baseline.Turns.Single().History.Should().NotBeSameAs(turn.History);
         _hierarchical.Turns.Single().History.Should().NotBeSameAs(turn.History);
         _baseline.Turns.Single().History.Should().NotBeSameAs(_hierarchical.Turns.Single().History);
+    }
+
+    [Fact]
+    public async Task Tags_each_side_with_its_arena_pipeline_for_the_metrics()
+    {
+        await CreateSut().StreamAsync(Turn()).ToListAsync();
+
+        new[] { _baseline.Turns.Single().TelemetryPipeline, _hierarchical.Turns.Single().TelemetryPipeline }
+            .Should().BeEquivalentTo([LlmPipelines.ArenaAlfa, LlmPipelines.ArenaBeta]);
+    }
+
+    [Fact]
+    public async Task Stores_the_trace_id_so_a_vote_can_be_linked_to_its_traces()
+    {
+        using var activity = new Activity("chat").Start();
+
+        await CreateSut().StreamAsync(Turn()).ToListAsync();
+
+        _saved.Single().TraceId.Should().Be(activity.TraceId.ToHexString());
     }
 }

@@ -2,6 +2,7 @@ using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
@@ -38,6 +39,7 @@ public static class DependencyInjection
 
         // AI configuration and chat
         services.AddSingleton<IAiMetricsService, AiMetricsService>();
+        services.AddSingleton<ILlmUsageMetrics, LlmUsageMetrics>();
         services.AddScoped<IAiConfigurationService, AiConfigurationService>();
         services.AddScoped<IChatSessionService, ChatSessionService>();
         services.AddSingleton<ChatMessageBuffer>();
