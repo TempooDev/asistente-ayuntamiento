@@ -8,14 +8,18 @@ Let the administrators of each tenant (Auth0 organization) choose the chat model
 ## Requirements
 
 ### Requirement: Per-tenant Chat Model Settings
-Each tenant SHALL have at most one `AiConfiguration` row (provider, model, temperature, optional endpoint URL, encrypted API key). Supported providers: `ollama`, `openai`, `openrouter` (OpenAI-compatible endpoint) and `google` (Gemini). Without a row, the platform defaults (`Ai:Chat:*`) apply. When the tenant has no usable key of its own, the platform key `Ai:Chat:ApiKey` SHALL be used.
+Each tenant SHALL have at most one `AiConfiguration` row (provider, model, temperature, optional endpoint URL, encrypted API key). Supported providers: `ollama`, `openai`, `openrouter` (OpenAI-compatible endpoint) and `google` (Gemini). Without a row, the platform defaults (`Ai:Chat:*`) apply. When the tenant has no usable key of its own, the platform provider, model, endpoint and key (`Ai:Chat:*`) SHALL be used together; the platform key SHALL never be sent to a provider or endpoint chosen by the tenant. An `ollama` tenant needs no key and keeps its model (Ollama always runs at the platform endpoint).
+
+#### Scenario: Tenant endpoint without a tenant key
+- **WHEN** an organization administrator sets provider `openai` and an endpoint URL of their own without saving a key
+- **THEN** chat requests SHALL use the platform provider, model, endpoint and key, and nothing SHALL be sent to the tenant's endpoint
 
 #### Scenario: Tenant without configuration
 - **WHEN** a user of a tenant without `AiConfiguration` chats
 - **THEN** the answer SHALL come from the platform default model and key (`Ai:Chat:Provider`, `Ai:Chat:Model`, `Ai:Chat:ApiKey`)
 
 #### Scenario: Provider that needs a key without one
-- **WHEN** the tenant selects `openai`, `openrouter` or `google` and neither the tenant nor the platform has a key
+- **WHEN** neither the tenant nor the platform has a key and the resulting provider is `openai`, `openrouter` or `google`
 - **THEN** chat requests SHALL fail with the typed code `LLM_NOT_CONFIGURED` and a user-facing message, without provider details
 
 ### Requirement: Scope of the Tenant Model
@@ -43,7 +47,7 @@ API keys SHALL be stored encrypted with ASP.NET Core Data Protection (purpose `A
 
 #### Scenario: Key that cannot be decrypted
 - **WHEN** the stored key cannot be decrypted (for example after the key ring changed)
-- **THEN** the system SHALL log a warning and fall back to the platform key instead of failing every request
+- **THEN** the system SHALL log a warning and fall back to the platform settings and key instead of failing every request
 
 ### Requirement: Organization Administrators Only
 Reading and changing the AI settings SHALL require an organization administrator (`admin-organizacion`, policy `OrganizationAdmin`) and SHALL only affect the caller's tenant. Platform administrators without the organization role SHALL NOT change a tenant's model.

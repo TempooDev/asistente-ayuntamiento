@@ -41,9 +41,13 @@ env:
 
 jobs:
   changes:
-    # Manual runs build the selected services; workflow_run only continues when CI succeeded on a push.
+    # Manual runs build the selected services of a main commit with a green CI; workflow_run only continues when CI
+    # succeeded on a push.
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       sha: ${{ steps.meta.outputs.sha }}
       short_sha: ${{ steps.meta.outputs.short_sha }}
@@ -52,6 +56,23 @@ jobs:
       goscraper: ${{ steps.set-matrix.outputs.goscraper }}
       compose: ${{ steps.set-matrix.outputs.compose }}
     steps:
+      # A manual run may only redeploy a main commit that already passed CI on push.
+      - name: Require a green CI for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Manual deploys only run from main (got $GITHUB_REF)."
+            exit 1
+          fi
+          green=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&status=success" --jq '.total_count')
+          if [ "$green" -lt 1 ]; then
+            echo "::error::CI has not succeeded on push for $SHA; deploy refused."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}

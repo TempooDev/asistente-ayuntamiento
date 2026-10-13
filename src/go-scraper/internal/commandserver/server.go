@@ -75,16 +75,16 @@ func failure(message string) *pb.ForceScrapeResponse {
 	return &pb.ForceScrapeResponse{Success: false, Message: message}
 }
 
-// NewGRPCServer registers the command service with tracing and, when internalKey is set, requires callers to
-// send it in the x-internal-key metadata.
+// NewGRPCServer registers the command service with tracing and requires callers to send internalKey in the
+// x-internal-key metadata. An empty key is a programming error (config.Load rejects it).
 func NewGRPCServer(server *Server, internalKey string) *grpc.Server {
-	opts := []grpc.ServerOption{grpc.StatsHandler(otelgrpc.NewServerHandler())}
 	if internalKey == "" {
-		server.logger.Warn("INTERNAL_GRPC_KEY is not set: the command service accepts unauthenticated calls")
-	} else {
-		opts = append(opts, grpc.UnaryInterceptor(requireInternalKey(internalKey)))
+		panic("commandserver: internal key is required")
 	}
-	grpcServer := grpc.NewServer(opts...)
+	grpcServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.UnaryInterceptor(requireInternalKey(internalKey)),
+	)
 	pb.RegisterScraperCommandServiceServer(grpcServer, server)
 	return grpcServer
 }

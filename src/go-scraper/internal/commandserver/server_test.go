@@ -62,6 +62,15 @@ func TestCallsWithoutTheInternalKeyAreRejected(t *testing.T) {
 	}
 }
 
+func TestAServerWithoutAKeyCannotBeBuilt(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected a panic for an empty internal key")
+		}
+	}()
+	NewGRPCServer(NewServer(&fakeRunner{}, slog.New(slog.NewTextHandler(io.Discard, nil))), "")
+}
+
 func TestForceScrapeRunsAJobWithTheRequestedRange(t *testing.T) {
 	runner := &fakeRunner{job: pipeline.Job{Status: pipeline.StatusSucceeded, Saved: 12}}
 	client := dial(t, runner, "secret")
@@ -85,13 +94,13 @@ func TestBusyInvalidAndFailedJobsAreUnsuccessfulResponses(t *testing.T) {
 		{job: pipeline.Job{Status: pipeline.StatusFailed, Error: "loading filter rules"}},
 	}
 	for _, runner := range cases {
-		resp, err := dial(t, runner, "").ForceScrape(context.Background(), &pb.ForceScrapeRequest{Provider: "BOE"})
+		resp, err := dial(t, runner, "secret").ForceScrape(withKey("secret"), &pb.ForceScrapeRequest{Provider: "BOE"})
 		if err != nil || resp.Success || resp.Message == "" {
 			t.Fatalf("resp = %+v err = %v", resp, err)
 		}
 	}
 
-	resp, _ := dial(t, &fakeRunner{}, "").ForceScrape(context.Background(), &pb.ForceScrapeRequest{StartDate: "01/10/2026"})
+	resp, _ := dial(t, &fakeRunner{}, "secret").ForceScrape(withKey("secret"), &pb.ForceScrapeRequest{StartDate: "01/10/2026"})
 	if resp.Success {
 		t.Fatal("an invalid date must not succeed")
 	}

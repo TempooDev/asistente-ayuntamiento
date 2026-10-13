@@ -139,4 +139,65 @@ public class AiConfigurationServiceTests
         // Assert
         result.Should().Be("decrypted-key");
     }
+
+    private void GivenTenantConfig(string provider, string? encryptedKey)
+    {
+        _tenantServiceMock.Setup(t => t.TenantId).Returns("tenant1");
+        var data = new List<AiConfiguration>
+        {
+            new() { TenantId = "tenant1", Provider = provider, Model = "tenant-model", EncryptedApiKey = encryptedKey, EndpointUrl = "https://attacker.example" }
+        }.BuildMockDbSet();
+        _dbContextMock.Setup(db => db.AiConfigurations).Returns(data.Object);
+    }
+
+    [Fact]
+    public async Task GetFullConfigurationAsync_WithoutTenantKey_UsesPlatformProviderEndpointAndKeyTogether()
+    {
+        GivenTenantConfig("openai", encryptedKey: null);
+
+        var (config, apiKey) = await _sut.GetFullConfigurationAsync();
+
+        apiKey.Should().Be("default-api-key");
+        config.Provider.Should().Be("default-provider");
+        config.Model.Should().Be("default-model");
+        config.EndpointUrl.Should().Be("http://default.url");
+    }
+
+    [Fact]
+    public async Task GetFullConfigurationAsync_WhenTenantKeyCannotBeDecrypted_UsesPlatformSettings()
+    {
+        GivenTenantConfig("openai", encryptedKey: "YmFzZTY0dXJsZW5jb2RlZA");
+        _dataProtectorMock.Setup(p => p.Unprotect(It.IsAny<byte[]>()))
+                          .Throws(new System.Security.Cryptography.CryptographicException());
+
+        var (config, apiKey) = await _sut.GetFullConfigurationAsync();
+
+        apiKey.Should().Be("default-api-key");
+        config.EndpointUrl.Should().Be("http://default.url");
+    }
+
+    [Fact]
+    public async Task GetFullConfigurationAsync_WithTenantKey_UsesTenantSettings()
+    {
+        GivenTenantConfig("openai", encryptedKey: "YmFzZTY0dXJsZW5jb2RlZA");
+        _dataProtectorMock.Setup(p => p.Unprotect(It.IsAny<byte[]>()))
+                          .Returns(System.Text.Encoding.UTF8.GetBytes("tenant-key"));
+
+        var (config, apiKey) = await _sut.GetFullConfigurationAsync();
+
+        apiKey.Should().Be("tenant-key");
+        config.Model.Should().Be("tenant-model");
+        config.EndpointUrl.Should().Be("https://attacker.example");
+    }
+
+    [Fact]
+    public async Task GetFullConfigurationAsync_OllamaWithoutKey_KeepsTenantModelAndSendsNoKey()
+    {
+        GivenTenantConfig("ollama", encryptedKey: null);
+
+        var (config, apiKey) = await _sut.GetFullConfigurationAsync();
+
+        apiKey.Should().BeNull();
+        config.Model.Should().Be("tenant-model");
+    }
 }

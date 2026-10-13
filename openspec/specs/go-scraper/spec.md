@@ -37,7 +37,7 @@ All requests to the bulletin sites SHALL go through the shared client (`internal
 - **THEN** the wait SHALL end immediately with the cancellation
 
 ### Requirement: Filter Rules, Fail Closed
-Every job SHALL load the active filter rules once from the .NET API (`FilterConfigService.GetActiveFilters` over gRPC at `DOTNET_API_GRPC_URL`, 30-second timeout, sending `x-internal-key` when `INTERNAL_GRPC_KEY` is set). `Keyword` and `Department` rules filter documents of their provider; `Section` (BOE) and `BojaFeed` (BOJA) rules select what is fetched. Sections passed in a manual request take precedence over `Section` rules.
+Every job SHALL load the active filter rules once from the .NET API (`FilterConfigService.GetActiveFilters` over gRPC at `DOTNET_API_GRPC_URL`, 30-second timeout, sending `x-internal-key`). `Keyword` and `Department` rules filter documents of their provider; `Section` (BOE) and `BojaFeed` (BOJA) rules select what is fetched. Sections passed in a manual request take precedence over `Section` rules.
 
 #### Scenario: Rules unavailable
 - **WHEN** the rules cannot be loaded (API down, invalid key, server error)
@@ -90,10 +90,14 @@ Scrape jobs SHALL come from the daily schedule (the previous day at local hour `
 - **THEN** it SHALL receive the job's trigger, providers, range, status (`running`, `succeeded`, `failed`), saved documents and error
 
 ### Requirement: Authenticated Command Service
-When `INTERNAL_GRPC_KEY` is set, the gRPC `ScraperCommandService` SHALL require it in the `x-internal-key` metadata (constant-time comparison); the .NET API sends it on every call. When it is not set, the service SHALL accept calls and log a warning at startup.
+`INTERNAL_GRPC_KEY` SHALL be required (at least 16 characters; the AppHost generates 32) and the scraper SHALL refuse to start without it. The gRPC `ScraperCommandService` SHALL require it in the `x-internal-key` metadata (constant-time comparison); the .NET API sends it on every call.
+
+#### Scenario: Missing key
+- **WHEN** the scraper starts without `INTERNAL_GRPC_KEY`
+- **THEN** configuration loading SHALL fail and the process SHALL exit
 
 #### Scenario: Call without the key
-- **WHEN** a caller invokes `ForceScrape` without the key or with a wrong one while `INTERNAL_GRPC_KEY` is set
+- **WHEN** a caller invokes `ForceScrape` without the key or with a wrong one
 - **THEN** the call SHALL fail with `Unauthenticated`
 
 ### Requirement: Graceful Shutdown and Observability
