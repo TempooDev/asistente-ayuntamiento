@@ -115,19 +115,32 @@ public static class ScraperFilterEndpoints
         var hubContext = services.GetRequiredService<IHubContext<NotificationHub>>();
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ScraperFilterEndpoints));
 
+        // Empty message = finished successfully; otherwise the reason is shown to the administrator.
+        var outcome = string.Empty;
         try
         {
-            await client.ForceScrapeAsync(request, cancellationToken: cancellationToken);
+            var response = await client.ForceScrapeAsync(request, cancellationToken: cancellationToken);
+            if (!response.Success)
+            {
+                // Another job running, invalid range or a failed job: the scraper says which.
+                logger.LogWarning("Manual scrape of {Provider} was not completed: {Message}", request.Provider, response.Message);
+                outcome = string.IsNullOrWhiteSpace(response.Message) ? "La extracción no se ha completado." : response.Message;
+            }
+            else
+            {
+                logger.LogInformation("Manual scrape of {Provider} finished: {Items} documents", request.Provider, response.ItemsExtracted);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Manual scrape of {Provider} failed", request.Provider);
+            outcome = "No se ha podido contactar con el scraper.";
         }
         finally
         {
             stateService.Finish();
             await hubContext.Clients.Group(NotificationGroups.PlatformAdmins)
-                .SendAsync("ScraperStateChanged", new ScraperStateNotification(false, string.Empty), CancellationToken.None);
+                .SendAsync("ScraperStateChanged", new ScraperStateNotification(false, outcome), CancellationToken.None);
         }
     }
 }

@@ -35,52 +35,41 @@ public sealed class HierarchicalIngestionConsumer(
         var processor = services.GetKeyedService<IHierarchicalIngestionProcessor>(message.Source.ToUpperInvariant())
             ?? throw new NonRetryableMessageException($"No hierarchical processor for source '{message.Source}'.");
 
-        var dbContext = services.GetRequiredService<IAppDbContext>();
-        await IngestionJobStates.SetAsync(dbContext, message.DocumentId, JobStatus.Processing, null, cancellationToken);
+        await IngestionJobStates.SetAsync(services, message.DocumentId, PipelineType.Hierarchical, JobStatus.Processing, null, cancellationToken);
 
-        await processor.ProcessDocumentAsync(message.BlobPath, message.DocumentId, cancellationToken);
+        try
+        {
+            await processor.ProcessDocumentAsync(message.BlobPath, message.DocumentId, cancellationToken);
+        }
+        catch (VectorSyncFailedException ex)
+        {
+            // Visible while the message is retried; the retry re-syncs the vectors.
+            await IngestionJobStates.SetAsync(services, message.DocumentId, PipelineType.Hierarchical, JobStatus.VectorSyncFailed, ex.InnerException?.Message, cancellationToken);
+            throw;
+        }
 
-        await IngestionJobStates.SetAsync(dbContext, message.DocumentId, JobStatus.Completed, null, cancellationToken);
+        await IngestionJobStates.SetAsync(services, message.DocumentId, PipelineType.Hierarchical, JobStatus.Completed, null, cancellationToken);
     }
 
     protected override Task OnDeadLetteredAsync(DocumentMessage? message, Exception exception, IServiceProvider services, CancellationToken cancellationToken) =>
         message is null
             ? Task.CompletedTask
-            : IngestionJobStates.MarkFailedAsync(services, message.DocumentId, exception, cancellationToken);
+            : IngestionJobStates.MarkFailedAsync(services, message.DocumentId, PipelineType.Hierarchical, exception, cancellationToken);
 }
 
-/// <summary>Job-state updates shared by the ingestion consumers.</summary>
+/// <summary>Job-state updates shared by the ingestion consumers: each pipeline updates its own status.</summary>
 internal static class IngestionJobStates
 {
-    public static async Task SetAsync(IAppDbContext dbContext, string documentId, JobStatus status, string? error, CancellationToken cancellationToken)
+    /// <summary>Records the pipeline's status and notifies the document's summary.</summary>
+    public static async Task SetAsync(IServiceProvider services, string documentId, PipelineType pipeline, JobStatus status, string? error, CancellationToken cancellationToken)
     {
-        var jobState = await dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == documentId, cancellationToken);
-        if (jobState is null)
-        {
-            dbContext.DocumentJobStates.Add(new Domain.Features.Ingestion.DocumentJobState
-            {
-                DocumentId = documentId,
-                Status = status,
-                ErrorMessage = error,
-            });
-        }
-        else
-        {
-            jobState.Status = status;
-            jobState.ErrorMessage = error;
-            jobState.LastUpdatedAt = DateTime.UtcNow;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var state = await DocumentJobStateUpdates.SetPipelineStatusAsync(
+            services.GetRequiredService<IAppDbContext>(), documentId, pipeline, status, error, cancellationToken);
+        await services.GetRequiredService<INotificationService>().NotifyDocumentStatusChangedAsync(documentId, state.Status.ToString());
     }
 
-    public static async Task MarkFailedAsync(IServiceProvider services, string documentId, Exception exception, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(documentId)) return;
-
-        var dbContext = services.GetRequiredService<IAppDbContext>();
-        await SetAsync(dbContext, documentId, JobStatus.Failed, exception.Message, cancellationToken);
-        await services.GetRequiredService<INotificationService>()
-            .NotifyDocumentStatusChangedAsync(documentId, JobStatus.Failed.ToString());
-    }
+    public static Task MarkFailedAsync(IServiceProvider services, string documentId, PipelineType pipeline, Exception exception, CancellationToken cancellationToken) =>
+        string.IsNullOrEmpty(documentId)
+            ? Task.CompletedTask
+            : SetAsync(services, documentId, pipeline, JobStatus.Failed, exception.Message, cancellationToken);
 }
