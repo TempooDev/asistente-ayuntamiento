@@ -48,7 +48,7 @@ public static class PromptCatalog
         Tu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.
         Si el usuario hace una pregunta de seguimiento (ej. "¿qué requisitos tiene?"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.
         Responde siempre en español de forma clara y precisa.
-        Si utilizas información del contexto, incluye al final de tu respuesta un apartado de "Fuentes consultadas" en Markdown con los enlaces (URLs) proporcionados.
+        Si utilizas información del contexto, menciona en el texto la norma en la que te basas. No añadas un apartado de "Fuentes consultadas": se añade automáticamente al final de tu respuesta.
         """;
 
     /// <summary>{0} retrieved context, {1} user question. Tells the model to ignore off-topic context.</summary>
@@ -58,6 +58,7 @@ public static class PromptCatalog
     /// <summary>Arena baseline side: {0} query, {1} retrieved documents.</summary>
     public const string ArenaBaselineTemplate = """
         Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
+        No añadas un apartado de "Fuentes consultadas": se añade automáticamente al final de tu respuesta.
         Consulta: {0}
         Documentos:
         {1}
@@ -123,7 +124,7 @@ REGLAS ESTRICTAS:
 1. **Lenguaje Amigable**: Usa un tono servicial, directo y fácil de entender. Háblale de 'tú' al ciudadano.
 2. **Estructura Clara**: Utiliza encabezados markdown (##), listas con viñetas y negritas para resaltar puntos clave (fechas, requisitos, cuantías).
 3. **Explicación de Jerga**: Si debes usar un término legal o administrativo complejo (ej. 'silencio administrativo', 'prorrateo'), explícalo brevemente entre paréntesis.
-4. **Cita de Fuentes**: Al final de tu respuesta, añade una sección 'Fuentes consultadas' e indica en qué artículos o leyes te has basado, citando cada documento por su título, boletín y referencia, con su URL cuando la tenga.
+4. **Cita de Fuentes**: Indica en el texto en qué artículos o normas te basas, citando cada documento por su título o referencia. No añadas una sección 'Fuentes consultadas': se añade automáticamente al final de tu respuesta.
 5. **No Inventes**: Basa tu respuesta ÚNICAMENTE en los documentos legales proporcionados. Si los documentos no contienen la respuesta, di claramente que no dispones de esa información. No respondas en base a tu conocimiento previo.
 
 DOCUMENTOS LEGALES PROPORCIONADOS:

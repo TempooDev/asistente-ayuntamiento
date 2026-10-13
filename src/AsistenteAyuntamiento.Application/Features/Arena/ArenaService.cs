@@ -4,6 +4,7 @@ using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
@@ -175,7 +176,7 @@ public class ArenaService(
             sw.Stop();
 
             int estimatedTokens = (prompt.Length + (result.Content?.Length ?? 0)) / 4;
-            return new(result.Content ?? string.Empty, sw.ElapsedMilliseconds, sources, estimatedTokens);
+            return new((result.Content ?? string.Empty) + SourceCitations.FromHits(searchResult), sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

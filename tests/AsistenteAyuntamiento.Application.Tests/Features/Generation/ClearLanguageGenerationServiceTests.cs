@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
@@ -175,5 +176,85 @@ public class ClearLanguageGenerationServiceTests
         var system = prompt!.First().Content;
         system.Should().Contain("Referencia: BOE-A-2026-1234").And.NotContain("ID Documento Padre");
         system!.Split("--- INICIO DE DOCUMENTO LEGAL ---").Should().HaveCount(2, "the two fragments share one parent");
+    }
+
+    [Fact]
+    public async Task A_streamed_answer_ends_with_the_sources_of_the_documents_sent()
+    {
+        Streams("Hay ayudas al alquiler.");
+        var answer = new System.Text.StringBuilder();
+
+        await foreach (var chunk in _sut.GenerateStreamingResponseAsync("¿Qué ayudas hay?", [Boe()], new LlmCallScope("org_A", LlmPipelines.Hierarchical)))
+        {
+            answer.Append(chunk.Content);
+        }
+
+        answer.ToString().Should().Be("Hay ayudas al alquiler.\n\n### Fuentes consultadas\n" +
+            "- [Orden de ayudas al alquiler](https://www.boe.es/buscar/doc.php?id=BOE-A-2026-1234) (BOE-A-2026-1234)");
+    }
+
+    [Fact]
+    public async Task A_failed_stream_does_not_end_with_sources()
+    {
+        _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Returns(FailAfter("Hay "));
+        var received = new System.Text.StringBuilder();
+
+        var act = async () =>
+        {
+            await foreach (var chunk in _sut.GenerateStreamingResponseAsync("¿Qué ayudas hay?", [Boe()], new LlmCallScope("org_A", LlmPipelines.Hierarchical)))
+            {
+                received.Append(chunk.Content);
+            }
+        };
+
+        await act.Should().ThrowAsync<LlmStreamInterruptedException>();
+        received.ToString().Should().NotContain(SourceCitations.Heading);
+    }
+
+    [Fact]
+    public void Only_the_documents_that_fit_the_budget_are_cited()
+    {
+        var first = Boe(fragmentId: 1, parentId: 10) with { ParentFullText = new string('x', 1_500) };
+        var second = Boe(fragmentId: 2, parentId: 20) with { ParentDocumentId = "BOE-A-2026-9999", ChunkText = "" };
+
+        var context = ClearLanguageGenerationService.BuildContext([first, second with { ParentFullText = new string('y', 5_000) }], maxChars: 1_500);
+
+        SourceCitations.FromRetrieval(context.Included).Should().Contain("BOE-A-2026-1234").And.NotContain("BOE-A-2026-9999");
+    }
+
+    private static RetrievalResult Fragment(long fragmentId, long parentId, string chunk, int parentLength) =>
+        new(fragmentId, chunk, parentId, new string('x', parentLength), 0.5);
+
+    [Fact]
+    public void Parents_that_fit_the_budget_go_whole()
+    {
+        var context = ClearLanguageGenerationService.BuildContext([Fragment(1, 10, "a", 100), Fragment(2, 20, "b", 100)], maxChars: 1_000);
+
+        context.Included.Should().HaveCount(2);
+        context.Excerpted.Should().Be(0);
+        context.Text.Should().Contain(new string('x', 100));
+    }
+
+    [Fact]
+    public void A_parent_over_the_budget_is_replaced_by_its_matching_fragments()
+    {
+        // The 100,000-character parent would make Ollama drop the whole system prompt; its two fragments are sent.
+        var context = ClearLanguageGenerationService.BuildContext(
+            [Fragment(1, 10, "plazo de diez días", 100_000), Fragment(2, 10, "cuantía de 500 euros", 100_000)], maxChars: 1_000);
+
+        context.Excerpted.Should().Be(1);
+        context.Text.Should().Contain("plazo de diez días").And.Contain("cuantía de 500 euros").And.NotContain(new string('x', 1_000));
+    }
+
+    [Fact]
+    public void The_context_never_exceeds_the_budget_and_keeps_the_best_ranked_document()
+    {
+        var context = ClearLanguageGenerationService.BuildContext(
+            [Fragment(1, 10, new string('a', 5_000), 50_000), Fragment(2, 20, "segundo", 50_000)], maxChars: 2_000);
+
+        context.Included.Should().ContainSingle("the first document used the whole budget");
+        context.Text.Should().Contain(new string('a', 1_000));
+        context.Text.Length.Should().BeLessThan(2_000 + 500, "only the labels and separators are added to the budget");
     }
 }

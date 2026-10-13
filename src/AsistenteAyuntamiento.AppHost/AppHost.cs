@@ -86,7 +86,10 @@ var qdrant = builder.AddQdrant("qdrant")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var ollama = builder.AddOllama("ollama")
-    .WithDataVolume();
+    .WithDataVolume()
+    // Ollama's default 4,096-token window drops a system prompt that does not fit (documents included) without
+    // an error; the hierarchical answer sends up to ~6,500 tokens of legal text (Ai:Hierarchical:MaxContextChars).
+    .WithEnvironment("OLLAMA_CONTEXT_LENGTH", "16384");
 ollama.AddModel("llama3.2");
 ollama.AddModel("nomic-embed-text");
 
