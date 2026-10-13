@@ -22,7 +22,7 @@ public class ClearLanguageGenerationService(
     private readonly string _provider = configuration["Ai:Chat:Provider"] ?? "ollama";
     private readonly string _model = configuration["Ai:Chat:Model"] ?? "llama3.2";
 
-    public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope, CancellationToken cancellationToken = default)
     {
         var chatHistory = BuildChatHistory(userQuery, retrievedContext);
         if (chatHistory == null)
@@ -30,7 +30,7 @@ public class ClearLanguageGenerationService(
 
         try
         {
-            var result = await _chatCompletionService.GetChatMessageContentAsync(chatHistory, cancellationToken: cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken);
             return result.Content ?? "Lo siento, hubo un problema al generar la respuesta.";
         }
         catch (Exception ex)
@@ -59,6 +59,7 @@ public class ClearLanguageGenerationService(
         activity?.SetTag(GenAiTelemetry.Attributes.RequestModel, _model);
         activity?.SetTag(GenAiTelemetry.Attributes.TenantId, scope.TenantId);
         activity?.SetTag(GenAiTelemetry.Attributes.Pipeline, scope.Pipeline);
+        activity?.SetTag(GenAiTelemetry.Attributes.Operation, scope.Operation);
 
         var stopwatch = Stopwatch.StartNew();
         TimeSpan? timeToFirstToken = null;
@@ -125,7 +126,7 @@ public class ClearLanguageGenerationService(
             activity?.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
             activity?.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
             usageMetrics.Record(new LlmCallMetrics(_provider, _model, scope.TenantId, scope.Pipeline, Fallback: false,
-                stopwatch.Elapsed, usage.InputTokens, usage.OutputTokens, timeToFirstToken, errorType));
+                stopwatch.Elapsed, usage.InputTokens, usage.OutputTokens, timeToFirstToken, errorType, scope.Operation));
         }
     }
 

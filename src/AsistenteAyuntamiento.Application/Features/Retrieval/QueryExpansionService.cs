@@ -1,5 +1,7 @@
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -9,19 +11,21 @@ namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
 public class QueryExpansionService(
     [FromKeyedServices("IngestionKernel")] Kernel kernel,
+    IConfiguration configuration,
+    ILlmUsageMetrics usageMetrics,
     ILogger<QueryExpansionService> logger) : IQueryExpansionService
 {
     private readonly IChatCompletionService chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly (string Provider, string Model) model = PlatformModels.Ingestion(configuration);
 
-    public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, CancellationToken cancellationToken = default)
+    public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, LlmCallScope scope, CancellationToken cancellationToken = default)
     {
         try
         {
             var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
 
-            var result = await chatCompletionService.GetChatMessageContentAsync(
-                prompt,
-                cancellationToken: cancellationToken);
+            var result = await chatCompletionService.CompleteMeteredAsync(
+                prompt, model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken);
 
             return Parse(result.Content, userQuery);
         }
