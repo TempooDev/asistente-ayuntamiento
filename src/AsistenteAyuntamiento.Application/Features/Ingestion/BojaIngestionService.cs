@@ -58,6 +58,7 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
             DocumentId = documentId,
             NormTitle = string.IsNullOrWhiteSpace(metadata?.Title) ? documentId : metadata.Title,
             IssuingBody = string.IsNullOrWhiteSpace(metadata?.Department) ? "Junta de Andalucía" : metadata.Department,
+            Municipality = MunicipalityExtractor.Extract(metadata?.Title, metadata?.Department),
             FullText = scraped?.Content ?? string.Empty,
             PublicationDate = publicationDate,
             IsActive = true,

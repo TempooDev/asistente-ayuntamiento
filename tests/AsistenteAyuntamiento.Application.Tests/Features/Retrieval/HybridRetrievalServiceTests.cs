@@ -87,16 +87,17 @@ public class HybridRetrievalServiceTests
     }
 
     [Fact]
-    public async Task The_municipality_filters_both_searches()
+    public async Task The_municipality_filters_both_searches_with_its_match_key()
     {
         _vectorStore.Setup(v => v.SearchAsync(It.IsAny<VectorCollection>(), It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
         _fullText.Setup(f => f.SearchChildFragmentsAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
-        await CreateSut().RetrieveAsync(new ExpandedQueryInfo { LexicalQuery = "obras", SemanticQuery = "obras", MunicipalityFilter = "Ronda" });
+        // The model may answer with the Ayuntamiento, capitals or accents: fragments store the key "velez malaga".
+        await CreateSut().RetrieveAsync(new ExpandedQueryInfo { LexicalQuery = "obras", SemanticQuery = "obras", MunicipalityFilter = "Ayuntamiento de VÉLEZ-Málaga" });
 
         _vectorStore.Verify(v => v.SearchAsync(VectorCollection.ChildFragments,
-            It.Is<VectorSearchRequest>(r => r.TextFilter.HasValue && r.TextFilter.Value.Field == "Municipality" && r.TextFilter.Value.Text == "Ronda"), It.IsAny<CancellationToken>()));
-        _fullText.Verify(f => f.SearchChildFragmentsAsync("obras", "Ronda", It.IsAny<int>(), It.IsAny<CancellationToken>()));
+            It.Is<VectorSearchRequest>(r => r.TextFilter.HasValue && r.TextFilter.Value.Field == "Municipality" && r.TextFilter.Value.Text == "velez malaga"), It.IsAny<CancellationToken>()));
+        _fullText.Verify(f => f.SearchChildFragmentsAsync("obras", "velez malaga", It.IsAny<int>(), It.IsAny<CancellationToken>()));
     }
 
     [Fact]

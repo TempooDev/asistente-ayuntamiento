@@ -102,6 +102,7 @@ public class DocumentIngestionService(
 
         // 5. PostgreSQL first: it is the source of truth. Vectors are written only after the commit.
         var publicationDate = PublicationDateParser.TryParse(document.Metadata?.PublicationDate, out var date) ? date : DateTime.UtcNow;
+        var municipalityKey = MunicipalityExtractor.ToMatchKey(MunicipalityExtractor.Extract(document.Metadata?.Title, document.Metadata?.Department));
         var chunks = paragraphs.Select((p, i) => new DocumentChunk
         {
             DocumentId = documentId,
@@ -148,6 +149,7 @@ public class DocumentIngestionService(
                 [VectorPayloadKeys.Source] = chunk.Source,
                 [VectorPayloadKeys.Title] = chunk.Title ?? "",
                 [VectorPayloadKeys.Department] = chunk.Department ?? "",
+                [VectorPayloadKeys.Municipality] = municipalityKey ?? "", // same match key as the hierarchical payload
                 [VectorPayloadKeys.Content] = chunk.Content,
                 [VectorPayloadKeys.ChunkIndex] = chunk.ChunkIndex,
                 [VectorPayloadKeys.PublicationDate] = chunk.PublicationDate.ToString("O")
