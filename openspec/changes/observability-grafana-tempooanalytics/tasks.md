@@ -22,10 +22,10 @@
 
 ## 3. Grafana Faro (Frontend)
 
-- [ ] 3.1 Install `@grafana/faro-web-sdk` and `@grafana/faro-web-tracing` in `src/AsistenteAyuntamiento.Angular`.
-- [ ] 3.2 Initialize Faro in `main.ts` from the runtime configuration (not the mutated `environment`, see audit task 7.3), with routing instrumentation enabled.
-- [ ] 3.3 Register an Angular `ErrorHandler` that forwards to Faro.
-- [ ] 3.4 Limit `propagateTraceHeaderCorsUrls` to the API origin. Verify that browser → API → Worker appears as a single trace.
+- [x] 3.1 Install `@grafana/faro-web-sdk` and `@grafana/faro-web-tracing` in `src/AsistenteAyuntamiento.Angular`. **Done** (2.12.1, pinned). Loaded with a dynamic `import()`, so they are not in the initial bundle.
+- [x] 3.2 Initialize Faro in `main.ts` from the runtime configuration (not the mutated `environment`, see audit task 7.3), with routing instrumentation enabled. **Done:** `core/telemetry/FaroTelemetry`, started from an app initializer without blocking. The configuration comes from the gateway (`/telemetry/config`), not from `environment`. Views are named by route template on `NavigationEnd`, because Faro has no Angular router integration.
+- [x] 3.3 Register an Angular `ErrorHandler` that forwards to Faro. **Done:** `FaroErrorHandler` keeps Angular's default logging and forwards to Faro. Faro's own error and console instrumentations are off to avoid duplicates.
+- [x] 3.4 Limit `propagateTraceHeaderCorsUrls` to the API origin. Verify that browser → API → Worker appears as a single trace. **Done:** only `/api/` and `/hubs/` on the API origin. Faro data goes through the gateway (`/telemetry/faro`: Collector token, no cookies, size and rate limits) instead of exposing the Collector. Verified locally that `traceparent` reaches `/api` and that Faro does not trace its own sends (that bug was found and fixed during the check). The full browser → API → Worker trace in Tempo needs the Collector from 1.7.
 
 ## 4. TempooAnalytics Setup (Frontend), blocked until the SDK or API is available
 
