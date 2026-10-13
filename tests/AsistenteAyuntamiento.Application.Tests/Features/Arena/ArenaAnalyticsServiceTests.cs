@@ -47,12 +47,45 @@ public class ArenaAnalyticsServiceTests
         hierarchical.WinCount.Should().Be(2);
         hierarchical.LossCount.Should().Be(0);
         hierarchical.TieCount.Should().Be(1);
-        hierarchical.WinRate.Should().BeApproximately(2.0 / 3, 1e-9);
+        hierarchical.WinRate.Should().Be(1, "the tie is not a decisive vote");
         hierarchical.AverageLatencyMs.Should().Be((100 + 300 + 0 + 0) / 4.0);
 
         var baseline = analytics.Metrics.Single(m => m.Pipeline == nameof(PipelineType.Baseline));
         baseline.LossCount.Should().Be(2);
         baseline.WinRate.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Win_rate_counts_only_decisive_votes_and_reports_ties_and_both_bad_apart()
+    {
+        // Hierarchical: 6 wins, 2 losses, 1 tie, 1 both bad, 1 pending.
+        var battles = Enumerable.Repeat(Battle(PipelineType.Hierarchical, PipelineType.Baseline, BattleWinner.Alfa), 3)
+            .Concat(Enumerable.Repeat(Battle(PipelineType.Baseline, PipelineType.Hierarchical, BattleWinner.Beta), 3))
+            .Concat(Enumerable.Repeat(Battle(PipelineType.Hierarchical, PipelineType.Baseline, BattleWinner.Beta), 2))
+            .Append(Battle(PipelineType.Hierarchical, PipelineType.Baseline, BattleWinner.Tie))
+            .Append(Battle(PipelineType.Baseline, PipelineType.Hierarchical, BattleWinner.BothBad))
+            .Append(Battle(PipelineType.Baseline, PipelineType.Hierarchical, BattleWinner.Pending))
+            .ToArray();
+
+        var analytics = await Sut(battles).GetAnalyticsAsync();
+
+        var hierarchical = analytics.Metrics.Single(m => m.Pipeline == nameof(PipelineType.Hierarchical));
+        hierarchical.Should().Match<PipelineMetrics>(m => m.WinCount == 6 && m.LossCount == 2 && m.TieCount == 1 && m.BothBadCount == 1);
+        hierarchical.WinRate.Should().Be(0.75);
+
+        var baseline = analytics.Metrics.Single(m => m.Pipeline == nameof(PipelineType.Baseline));
+        baseline.WinRate.Should().Be(0.25);
+        baseline.BothBadCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Win_rate_is_zero_without_decisive_votes()
+    {
+        var analytics = await Sut(
+            Battle(PipelineType.Baseline, PipelineType.Hierarchical, BattleWinner.Tie),
+            Battle(PipelineType.Baseline, PipelineType.Hierarchical, BattleWinner.BothBad)).GetAnalyticsAsync();
+
+        analytics.Metrics.Should().OnlyContain(m => m.WinRate == 0);
     }
 
     [Fact]

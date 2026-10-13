@@ -1,6 +1,6 @@
 namespace AsistenteAyuntamiento.Application.Features.Metrics.DTOs;
 
-/// <summary>Persisted AI usage of the current tenant (chat) plus platform ingestion.</summary>
+/// <summary>Persisted chat usage of the current tenant (<c>AiCallLogs</c>).</summary>
 public sealed record AiMetricsSummaryDto(
     DateTime GeneratedAtUtc,
     long TotalCalls,

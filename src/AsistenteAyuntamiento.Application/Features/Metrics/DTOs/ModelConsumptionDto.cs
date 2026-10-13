@@ -1,6 +1,6 @@
 namespace AsistenteAyuntamiento.Application.Features.Metrics.DTOs;
 
-/// <summary>Usage of one chat model, or of the ingestion worker's embeddings and enrichment.</summary>
+/// <summary>Usage of one chat model by the current tenant.</summary>
 public sealed record ModelConsumptionDto(
     string ModelId,
     string Type,
