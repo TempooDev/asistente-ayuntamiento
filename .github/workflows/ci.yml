@@ -84,8 +84,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: src/AsistenteAyuntamiento.Angular/package-lock.json
 
+      # Use the npm version from package.json "packageManager"; npm 10 (bundled with Node 22) rejects this lockfile.
       - name: Install dependencies
-        run: npm ci --no-audit
+        run: |
+          npm install -g npm@11.6.2
+          npm ci --no-audit
 
       - name: Unit tests
         run: npx ng test --watch=false

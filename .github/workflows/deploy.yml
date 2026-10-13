@@ -130,6 +130,7 @@ jobs:
         if: matrix.project == 'AsistenteAyuntamiento.Gateway'
         run: |
           cd src/AsistenteAyuntamiento.Angular
+          npm install -g npm@11.6.2  # matches package.json "packageManager"
           npm ci --no-audit
           npm run build -- --configuration production
           cd ..
