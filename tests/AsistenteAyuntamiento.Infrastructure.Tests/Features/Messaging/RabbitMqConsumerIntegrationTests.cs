@@ -78,6 +78,31 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
     }
 
     [DockerFact]
+    public async Task Confirmed_ingestion_messages_survive_a_broker_restart()
+    {
+        var publisher = new RabbitMqIngestionPublisher(_factory, NullLogger<RabbitMqIngestionPublisher>.Instance);
+        await publisher.PublishAsync(
+            new DocumentMessage { DocumentId = "BOE-A-restart", Source = "BOE", BlobPath = "json/BOE/BOE-A-restart.json" },
+            Application.Common.Messaging.IngestionPipelines.Baseline | Application.Common.Messaging.IngestionPipelines.Hierarchical);
+        await publisher.DisposeAsync();
+
+        // Same container, so the same data directory; the host port may change.
+        await _broker!.StopAsync();
+        await _broker.StartAsync();
+        var factory = new ConnectionFactory { Uri = new Uri(_broker.GetConnectionString()) };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        foreach (var queue in new[] { RabbitMqTopology.BaselineQueue, RabbitMqTopology.HierarchicalQueue })
+        {
+            var message = await channel.BasicGetAsync(queue, autoAck: true);
+            message.Should().NotBeNull($"the message in {queue} is persistent and was confirmed before the restart");
+            JsonSerializer.Deserialize<DocumentMessage>(message!.Body.Span, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!
+                .DocumentId.Should().Be("BOE-A-restart");
+        }
+    }
+
+    [DockerFact]
     public async Task Consumer_continues_the_trace_of_a_dotnet_publisher()
     {
         using var listener = ListenToAllSources();
