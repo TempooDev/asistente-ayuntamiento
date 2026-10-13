@@ -85,16 +85,16 @@ export function publicUrlOf(blobName: string): string | null {
               <td class="p-sm font-body-md whitespace-nowrap">{{ kb(blob.size) }} KB</td>
               <td class="p-sm font-body-md whitespace-nowrap">{{ blob.lastModified ? (blob.lastModified | date: 'short') : '-' }}</td>
               <td class="p-sm font-body-md">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" [class]="badge(blob.status).classes">{{ badge(blob.status).label }}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium" [class]="badge(blob.status).classes">{{ badge(blob.status).label }}</span>
               </td>
               <td class="p-sm font-body-md">
                 <div class="flex gap-2">
-                  <button type="button" class="btn btn-sm btn-outline border border-outline rounded px-3 py-1"
+                  <button type="button" class="btn btn-sm btn-outline border border-outline rounded-sm px-3 py-1"
                           [disabled]="blob.status === Status.Processing" (click)="process.emit(blob.name)">
                     {{ blob.status === Status.Completed ? 'Reprocesar' : blob.status === Status.Processing ? 'Procesando...' : 'Procesar' }}
                   </button>
                   @if (blob.status === Status.Processing) {
-                    <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
+                    <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded-sm px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
                             title="Reiniciar estado si se ha quedado atascado" (click)="reset.emit(blob.name)">
                       Reiniciar
                     </button>

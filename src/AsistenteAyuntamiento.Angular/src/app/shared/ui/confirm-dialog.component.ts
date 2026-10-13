@@ -8,7 +8,7 @@ import { DialogFocusDirective } from './dialog-focus.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (confirm.pending(); as request) {
-      <div class="fixed inset-0 bg-black/50 z-[150] flex items-center justify-center p-4" (click)="confirm.answer(false)">
+      <div class="fixed inset-0 bg-black/50 z-150 flex items-center justify-center p-4" (click)="confirm.answer(false)">
         <div
           class="bg-surface rounded-xl shadow-lg max-w-sm w-full p-6"
           role="alertdialog"

@@ -14,14 +14,14 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           <div class="flex items-center justify-center shrink-0">
             <button
               type="button"
-              class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-sm transition-colors disabled:opacity-50"
+              class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
               [disabled]="!canVote()"
               (click)="vote.emit('Tie')">
               Empate
             </button>
           </div>
         }
-        <div class="chat-bubble shadow-sm assistant flex-1 relative group">
+        <div class="chat-bubble shadow-xs assistant flex-1 relative group">
           <div class="text-xs font-bold text-gray-400 mb-1">Modelo {{ side.vote }}</div>
           <div class="markdown-content" [innerHTML]="(side.vote === 'Alfa' ? message().alfa : message().beta) | markdown"></div>
           <button

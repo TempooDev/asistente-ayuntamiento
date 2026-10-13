@@ -6,7 +6,7 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
   imports: [DialogFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm">
+    <div class="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
       <div class="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-300 relative max-h-[90vh] flex flex-col bg-white" role="dialog" aria-modal="true" aria-labelledby="welcome-title" appDialogFocus (escape)="close()">
         <button type="button" (click)="close()" aria-label="Cerrar guía" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors p-2 rounded-full hover:bg-gray-100">
           <span class="material-symbols-outlined">close</span>
@@ -39,29 +39,29 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
               El <strong>Modo Arena</strong> te permite comparar dos modelos de Inteligencia Artificial al mismo tiempo para ayudarnos a evaluar y mejorar las respuestas del asistente.
             </p>
             
-            <div class="bg-purple-50 border border-purple-100 rounded-xl p-5 ml-8 shadow-sm">
+            <div class="bg-purple-50 border border-purple-100 rounded-xl p-5 ml-8 shadow-xs">
               <h4 class="font-medium text-purple-900 mb-3">¿Cómo funciona?</h4>
               <ul class="space-y-4">
                 <li class="flex items-start gap-3">
-                  <div class="bg-white p-1 rounded-md shadow-sm shrink-0">
+                  <div class="bg-white p-1 rounded-md shadow-xs shrink-0">
                     <span class="material-symbols-outlined text-purple-600 text-lg block">toggle_on</span>
                   </div>
                   <span class="text-gray-700 text-sm leading-tight mt-1">Activa el interruptor de "Modo Arena" en la barra superior de la pantalla.</span>
                 </li>
                 <li class="flex items-start gap-3">
-                  <div class="bg-white p-1 rounded-md shadow-sm shrink-0">
+                  <div class="bg-white p-1 rounded-md shadow-xs shrink-0">
                     <span class="material-symbols-outlined text-purple-600 text-lg block">chat</span>
                   </div>
                   <span class="text-gray-700 text-sm leading-tight mt-1">Haz una pregunta al asistente como lo harías normalmente en cualquier chat.</span>
                 </li>
                 <li class="flex items-start gap-3">
-                  <div class="bg-white p-1 rounded-md shadow-sm shrink-0">
+                  <div class="bg-white p-1 rounded-md shadow-xs shrink-0">
                     <span class="material-symbols-outlined text-purple-600 text-lg block">visibility</span>
                   </div>
                   <span class="text-gray-700 text-sm leading-tight mt-1">Recibirás dos respuestas diferentes, generadas por el <strong>Modelo Alfa</strong> y el <strong>Modelo Beta</strong>.</span>
                 </li>
                 <li class="flex items-start gap-3">
-                  <div class="bg-white p-1 rounded-md shadow-sm shrink-0">
+                  <div class="bg-white p-1 rounded-md shadow-xs shrink-0">
                     <span class="material-symbols-outlined text-purple-600 text-lg block">thumb_up</span>
                   </div>
                   <span class="text-gray-700 text-sm leading-tight mt-1">Vota por la mejor respuesta con el botón <strong>"Elegir esta respuesta"</strong> de la burbuja que prefieras, o elige el botón <strong>"Empate"</strong> si ambas son de igual calidad.</span>
@@ -72,7 +72,7 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
         </div>
         
         <div class="mt-6 flex justify-end shrink-0 pt-4 border-t border-gray-100">
-          <button type="button" class="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2" (click)="close()">
+          <button type="button" class="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-xs flex items-center gap-2" (click)="close()">
             <span>¡Entendido, empezar!</span>
             <span class="material-symbols-outlined text-sm">arrow_forward</span>
           </button>
