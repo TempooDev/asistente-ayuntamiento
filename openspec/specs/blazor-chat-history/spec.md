@@ -37,8 +37,9 @@ The system SHALL persist each user and assistant message as a `ChatMessage` (ses
 - **AND** when no text was sent before the failure, no assistant message SHALL be stored
 
 #### Scenario: Stream cancelled by the client
-- **WHEN** the client cancels the stream (it disconnects or deletes the conversation) before the answer finishes
-- **THEN** no assistant message SHALL be stored for that turn
+- **WHEN** the client cancels the stream (for example, it disconnects) before the answer finishes
+- **THEN** the text that had arrived SHALL be stored as the assistant message, without any error notice
+- **AND** when no text had arrived, no assistant message SHALL be stored for that turn
 
 #### Scenario: Database temporarily unavailable
 - **WHEN** a flush fails with a transient database error

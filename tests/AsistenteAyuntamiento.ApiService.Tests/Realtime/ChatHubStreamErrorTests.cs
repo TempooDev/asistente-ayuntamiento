@@ -30,13 +30,16 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
     /// <summary>The message that makes <see cref="FailingChatService"/> wait until the client cancels, then end normally.</summary>
     private const string WaitForCancel = "espera";
 
+    /// <summary>Like <see cref="WaitForCancel"/>, but waits before sending any text.</summary>
+    private const string WaitForCancelWithoutText = "espera sin texto";
+
     private TestServer _server = null!;
 
     /// <summary>Streams one chunk, then fails like a provider or a database would.</summary>
     private sealed class FailingChatService : IAiChatService
     {
-        /// <summary>Completed when a <see cref="WaitForCancel"/> stream has ended.</summary>
-        public static TaskCompletionSource CancelledStreamEnded { get; } = new();
+        /// <summary>Completed when a <see cref="WaitForCancelWithoutText"/> stream has ended.</summary>
+        public static TaskCompletionSource CancelledStreamWithoutTextEnded { get; } = new();
 
         public Task<AiCompletionResult> GetCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -47,6 +50,12 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
             {
                 throw new InvalidOperationException(Secret);
             }
+            if (history[^1].Content == WaitForCancelWithoutText)
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken).ContinueWith(_ => { }, TaskScheduler.Default);
+                CancelledStreamWithoutTextEnded.TrySetResult();
+                yield break;
+            }
 
             yield return "Respuesta parcial";
             await Task.Yield();
@@ -54,7 +63,6 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
             {
                 // Like ChatStreamingService: a stream cancelled by the client just ends.
                 await Task.Delay(Timeout.Infinite, cancellationToken).ContinueWith(_ => { }, TaskScheduler.Default);
-                CancelledStreamEnded.TrySetResult();
                 yield break;
             }
             if (history[^1].Content == ModelFailure)
@@ -155,7 +163,7 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task A_stream_cancelled_by_the_client_stores_no_answer()
+    public async Task A_stream_cancelled_by_the_client_stores_the_text_that_arrived_without_a_notice()
     {
         await using var connection = await ConnectAsync();
         var sessionId = await connection.InvokeAsync<Guid>("CreateNewSession");
@@ -169,8 +177,30 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
             }
         });
 
-        await FailingChatService.CancelledStreamEnded.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        // The hub finishes the stream right after the service ends; give it time to (not) enqueue the answer.
+        // The hub ends the stream after the client cancelled; wait for it to enqueue the answer.
+        var stored = new List<string>();
+        for (var attempt = 0; attempt < 100 && stored.Count == 0; attempt++)
+        {
+            await Task.Delay(50);
+            stored.AddRange(StoredAnswers(sessionId));
+        }
+        Assert.Equal(["Respuesta parcial"], stored);
+    }
+
+    [Fact]
+    public async Task A_stream_cancelled_before_any_text_stores_no_answer()
+    {
+        await using var connection = await ConnectAsync();
+        var sessionId = await connection.InvokeAsync<Guid>("CreateNewSession");
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in connection.StreamAsync<string>("StreamMessage", sessionId.ToString(), WaitForCancelWithoutText, cancellation.Token)) { }
+        });
+
+        await FailingChatService.CancelledStreamWithoutTextEnded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // The hub finishes the stream right after the service ends; give it time to (not) enqueue an answer.
         await Task.Delay(500);
         Assert.Empty(StoredAnswers(sessionId));
     }

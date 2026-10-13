@@ -147,10 +147,11 @@ public class ChatHub(
             yield return chunk;
         }
 
-        // A stream the client cancelled (it left or deleted the conversation) stores no answer.
-        if (!cancellationToken.IsCancellationRequested)
+        // A stream the client cancelled (it disconnected) keeps the text that arrived, without a notice; none if empty.
+        var answer = fullResponseBuilder.ToString();
+        if (!cancellationToken.IsCancellationRequested || !string.IsNullOrWhiteSpace(answer))
         {
-            _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
+            _sessionService.EnqueueAssistantMessage(session, answer);
         }
     }
 
