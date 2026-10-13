@@ -1,9 +1,7 @@
 export const environment = {
   production: true,
   auth0: {
-    domain: '',
-    clientId: '',
-    audience: '',
+    // domain, clientId and audience are loaded at runtime from /api/config/auth0 (AUTH_RUNTIME_CONFIG)
     customClaimsNamespace: 'https://asistente.antoniobermudez.dev'
   },
   apiBaseUrl: '',

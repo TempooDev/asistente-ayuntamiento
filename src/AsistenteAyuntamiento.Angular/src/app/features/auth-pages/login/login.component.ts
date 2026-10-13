@@ -1,35 +1,19 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { AuthService } from '@auth0/auth0-angular';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input } from '@angular/core';
+import { AuthFacade } from '../../../core/auth/auth-facade.service';
 
+/** Entry point of invitation and organization links: /login?invitation=…&organization=… */
 @Component({
   selector: 'app-login',
-  standalone: true,
-  templateUrl: './login.component.html'
+  templateUrl: './login.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginComponent implements OnInit {
-  private route = inject(ActivatedRoute);
-  public auth = inject(AuthService);
+  private readonly auth = inject(AuthFacade);
 
-  ngOnInit() {
-    const params = this.route.snapshot.queryParams;
-    const invitation = params['invitation'];
-    const organization = params['organization'];
-    
-    const authParams: any = {};
-    
-    if (invitation) {
-      authParams.invitation = invitation;
-    }
-    
-    if (organization) {
-      authParams.organization = organization;
-      // Guardamos la org para futuros accesos directos
-      localStorage.setItem('last_org_id', organization);
-    }
-    
-    this.auth.loginWithRedirect({
-      authorizationParams: Object.keys(authParams).length > 0 ? authParams : undefined
-    });
+  readonly invitation = input<string>();
+  readonly organization = input<string>();
+
+  ngOnInit(): void {
+    this.auth.loginWithOrg({ invitation: this.invitation(), organization: this.organization() });
   }
 }

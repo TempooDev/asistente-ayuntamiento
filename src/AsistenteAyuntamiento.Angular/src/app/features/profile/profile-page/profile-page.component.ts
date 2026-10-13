@@ -8,7 +8,8 @@ import { UserPreferencesService } from '../data-access/user-preferences.service'
 import { UserPreferenceDto } from '../models/profile.models';
 import { finalize, switchMap, catchError } from 'rxjs/operators';
 import { forkJoin, of } from 'rxjs';
-import { environment } from '../../../../environments/environment';
+import { AuthFacade } from '../../../core/auth/auth-facade.service';
+import { ToastService } from '../../../shared/ui/toast.service';
 
 @Component({
   selector: 'app-profile-page',
@@ -21,6 +22,8 @@ export class ProfilePageComponent implements OnInit {
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
   private prefsService = inject(UserPreferencesService);
+  private authFacade = inject(AuthFacade);
+  private toast = inject(ToastService);
 
   profileForm: FormGroup;
   isEditing = signal(false);
@@ -110,7 +113,7 @@ export class ProfilePageComponent implements OnInit {
     this.isAnalyzing.set(true);
     this.prefsService.analyzeHistory().subscribe({
       next: () => {
-        alert('Se ha iniciado el análisis. Recarga la página en unos segundos.');
+        this.toast.info('Se ha iniciado el análisis. Recarga la página en unos segundos.');
         this.isAnalyzing.set(false);
       },
       error: () => this.isAnalyzing.set(false)
@@ -157,37 +160,9 @@ export class ProfilePageComponent implements OnInit {
 
   changePassword(email: string | undefined) {
     if (!email) return;
-
-    // Use HttpClient directly here or create a method in UserService
-    const domain = environment.auth0.domain;
-    const clientId = environment.auth0.clientId;
-    
-    // Auth0 Authentication API endpoint for password reset
-    const url = `https://${domain}/dbconnections/change_password`;
-    
-    const payload = {
-      client_id: clientId,
-      email: email,
-      connection: 'Username-Password-Authentication'
-    };
-
-    // We can use fetch or HttpClient. Since we have HttpClient in user.service,
-    // let's just use fetch for simplicity here, or inject HttpClient.
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(res => {
-      if (res.ok) {
-        alert('Se ha enviado un correo para restablecer tu contraseña. Revisa tu bandeja de entrada.');
-      } else {
-        alert('Hubo un problema al intentar restablecer la contraseña. Si usas inicio de sesión social (Google, etc.), no puedes cambiar la contraseña aquí.');
-      }
-    })
-    .catch(err => {
-      console.error('Error resetting password', err);
-      alert('Error al contactar con el servidor de autenticación.');
+    this.authFacade.requestPasswordReset(email).subscribe({
+      next: () => this.toast.success('Se ha enviado un correo para restablecer tu contraseña. Revisa tu bandeja de entrada.'),
+      error: () => this.toast.error('No se ha podido restablecer la contraseña. Si inicias sesión con Google u otra red social, cámbiala en ese proveedor.'),
     });
   }
 }

@@ -6,12 +6,12 @@
   </div>
   <h1 class="mb-2 text-3xl font-bold text-gray-900">Error de Autenticación</h1>
   <p class="mb-8 max-w-md text-lg text-gray-600">
-    {{ errorMessage || 'Ha ocurrido un error durante el inicio de sesión. Por favor, verifica tu cuenta o contacta al administrador.' }}
+    {{ errorMessage() }}
   </p>
   
   <div class="flex gap-4">
     <button 
-      (click)="volverALogin()" 
+      (click)="retry()" 
       class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
       Volver a intentar
     </button>

@@ -1,42 +1,36 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '@auth0/auth0-angular';
-import { Router, ActivatedRoute } from '@angular/router';
+import { AuthFacade } from '../../../core/auth/auth-facade.service';
+import { AUTH_ERROR_CODES, AUTH_ERROR_MESSAGES, AuthErrorCode } from '../../../core/auth/auth-error-codes';
 
+const DEFAULT_MESSAGE = 'Ha ocurrido un error durante el inicio de sesión. Por favor, verifica tu cuenta o contacta al administrador.';
+
+/** /error?code=… — the code selects a known message; free text from the URL is never shown. */
 @Component({
   selector: 'app-error',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './error.component.html'
+  templateUrl: './error.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ErrorComponent implements OnInit {
-  public auth = inject(AuthService);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
-  
-  errorMessage = '';
+export class ErrorComponent {
+  private readonly facade = inject(AuthFacade);
+  private readonly auth0Error = toSignal(inject(AuthService).error$, { initialValue: null });
 
-  ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      if (params['message']) {
-        this.errorMessage = params['message'];
-      }
-    });
+  readonly code = input<string>();
 
-    this.auth.error$.subscribe(error => {
-      if (error) {
-        this.errorMessage = error.message;
-      }
-    });
-  }
+  readonly errorMessage = computed(() => {
+    const code = this.code() as AuthErrorCode | undefined;
+    if (code && code in AUTH_ERROR_MESSAGES) return AUTH_ERROR_MESSAGES[code];
+    return this.auth0Error()?.message ?? DEFAULT_MESSAGE;
+  });
 
-  volverALogin() {
-    const lastOrgId = localStorage.getItem('last_org_id');
-    this.auth.loginWithRedirect({
-      authorizationParams: {
-        prompt: 'login', // Forzamos pedir credenciales para romper la sesión SSO errónea
-        ...(lastOrgId && { organization: lastOrgId })
-      }
-    });
+  retry(): void {
+    if (this.code() === AUTH_ERROR_CODES.configUnavailable) {
+      // The configuration is loaded at startup: reload to try again.
+      window.location.assign('/');
+      return;
+    }
+    // Force the credentials screen to break a wrong SSO session.
+    this.facade.loginWithOrg({ prompt: 'login' });
   }
 }

@@ -1,59 +1,30 @@
-import { environment } from "../environments/environment";
-import { ROLES } from "./core/auth/roles";
-import { HubConnectionFactory } from "./core/realtime/hub-connection.factory";
-
-
-import { Component, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
-import { AuthService } from '@auth0/auth0-angular';
-import { DOCUMENT, AsyncPipe } from '@angular/common';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthFacade } from './core/auth/auth-facade.service';
+import { ThemeService } from './core/layout/theme.service';
+import { ConfirmDialogComponent } from './shared/ui/confirm-dialog.component';
+import { ToastContainerComponent } from './shared/ui/toast-container.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, AsyncPipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastContainerComponent, ConfirmDialogComponent],
   templateUrl: './app.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
-  public auth = inject(AuthService);
-  private document = inject(DOCUMENT);
-  private hubs = inject(HubConnectionFactory);
+  protected readonly auth = inject(AuthFacade);
+  protected readonly theme = inject(ThemeService);
+  protected readonly defaultAvatar = '/default-avatar.svg';
 
-  // Using signals for reactive state
-  isAuthenticated = toSignal(this.auth.isAuthenticated$, { initialValue: false });
-  user = toSignal(this.auth.user$);
-
-  isAdmin = () => {
-    const userData = this.user();
-    if (!userData) return false;
-    const rolesClaim = userData[`${environment.auth0.customClaimsNamespace}/roles`] || [];
-    const roles = Array.isArray(rolesClaim) ? rolesClaim.map(r => r.toLowerCase()) : [rolesClaim.toLowerCase()];
-    return roles.includes(ROLES.ADMIN.toLowerCase());
-  };
-
-  login() {
-    const lastOrgId = localStorage.getItem('last_org_id');
-    this.auth.loginWithRedirect({
-      authorizationParams: lastOrgId ? { organization: lastOrgId } : undefined
-    });
+  constructor() {
+    this.theme.restore();
   }
 
-  async logout() {
-    // Close SignalR connections first so no hub keeps running with the old session.
-    await this.hubs.stopAll();
-    this.auth.logout({ logoutParams: { returnTo: this.document.location.origin } });
+  login(): void {
+    this.auth.loginWithOrg();
   }
 
-  toggleTheme() {
-    const root = this.document.documentElement;
-    const isDark = root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark';
-    const next = isDark ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    if (next === 'dark') {
-        root.classList.add('dark');
-    } else {
-        root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', next);
+  logout(): Promise<void> {
+    return this.auth.logout();
   }
 }

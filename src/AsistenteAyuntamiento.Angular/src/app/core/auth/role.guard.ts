@@ -1,44 +1,25 @@
-import { environment } from "../../../environments/environment";
-
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
-import { Observable, of } from 'rxjs';
-import { map, switchMap, take } from 'rxjs/operators';
+import { map, take } from 'rxjs';
+import { AuthFacade } from './auth-facade.service';
+import { rolesFromClaims } from './auth-claims';
 
-export const roleGuard: CanActivateFn = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
-  const authService = inject(AuthService);
+/**
+ * Requires one of route.data.roles. Only improves the UX: the API authorizes every admin call itself.
+ * Users without the role go to the chat; anonymous users to the login page.
+ */
+export const roleGuard: CanActivateFn = route => {
+  const auth = inject(AuthService);
+  const facade = inject(AuthFacade);
   const router = inject(Router);
+  const required: string[] = route.data['roles'] ?? [];
 
-  // Expected roles can be passed in route data, e.g., data: { roles: ['administrador'] }
-  const expectedRoles: string[] = route.data['roles'] || [];
-
-  return authService.user$.pipe(
+  return auth.user$.pipe(
     take(1),
     map(user => {
-      if (!user) {
-        router.navigate(['/login']);
-        return false;
-      }
-
-      const rolesClaim = user[`${environment.auth0.customClaimsNamespace}/roles`] || [];
-      const userRoles: string[] = Array.isArray(rolesClaim) ? rolesClaim.map(r => r.toLowerCase()) : [rolesClaim.toLowerCase()];
-
-      // If no specific roles required, allow
-      if (expectedRoles.length === 0) {
-        return true;
-      }
-
-      // Check if user has any of the expected roles
-      const hasRole = expectedRoles.some(role => userRoles.includes(role.toLowerCase()));
-      
-      if (hasRole) {
-        return true;
-      }
-
-      // If not, redirect to chat (or error page)
-      router.navigate(['/chat']);
-      return false;
-    })
+      if (!user) return router.createUrlTree(['/login']);
+      return facade.hasAnyRole(required, rolesFromClaims(user)) ? true : router.createUrlTree(['/chat']);
+    }),
   );
 };

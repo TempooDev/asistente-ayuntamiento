@@ -1,61 +1,50 @@
-import { environment } from "../../../environments/environment";
-
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
-import { Observable, of } from 'rxjs';
-import { map, switchMap, tap } from 'rxjs/operators';
+import { of, switchMap, take, map } from 'rxjs';
+import { AUTH_RUNTIME_CONFIG } from './auth-runtime-config';
+import { AuthFacade } from './auth-facade.service';
+import { organizationsFromClaims } from './auth-claims';
+import { AUTH_ERROR_CODES } from './auth-error-codes';
 
-export const authGuard: CanActivateFn = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
-  const authService = inject(AuthService);
+/**
+ * Requires a signed-in user with an organization context. Users without org_id that belong to an organization
+ * are silently re-logged into it; users without any organization see an error page.
+ */
+export const authGuard: CanActivateFn = (_route, state) => {
+  const auth = inject(AuthService);
+  const facade = inject(AuthFacade);
   const router = inject(Router);
+  const errorPage = (code: string) => router.createUrlTree(['/error'], { queryParams: { code } });
 
-  return authService.isAuthenticated$.pipe(
+  if (!inject(AUTH_RUNTIME_CONFIG).loaded) {
+    return of(errorPage(AUTH_ERROR_CODES.configUnavailable));
+  }
+
+  return auth.isAuthenticated$.pipe(
+    take(1),
     switchMap(isAuthenticated => {
       if (!isAuthenticated) {
-        // Usuario no autenticado: intentamos usar la última organización guardada
-        const lastOrgId = localStorage.getItem('last_org_id');
-        authService.loginWithRedirect({
-          appState: { target: state.url },
-          authorizationParams: lastOrgId ? { organization: lastOrgId } : undefined
-        });
+        facade.loginWithOrg({ returnTo: state.url });
         return of(false);
       }
-
-      // Usuario autenticado: verificamos si tiene contexto de organización
-      return authService.idTokenClaims$.pipe(
+      return auth.idTokenClaims$.pipe(
+        take(1),
         map(claims => {
-          if (!claims) return false;
-
-          // Si ya tiene org_id, todo está perfecto, guardamos el último y dejamos pasar
-          if (claims['org_id']) {
-            localStorage.setItem('last_org_id', claims['org_id']);
+          const orgId = claims?.['org_id'] as string | undefined;
+          if (orgId) {
+            facade.rememberOrganization(orgId);
             return true;
           }
-
-          // Si NO tiene org_id, buscamos el claim personalizado que inyectaremos con la Action de Auth0
-          const orgsClaim = claims[`${environment.auth0.customClaimsNamespace}/orgs`];
-          
-          if (orgsClaim && Array.isArray(orgsClaim) && orgsClaim.length > 0) {
-            // Si pertenece a 1 o más organizaciones, hacemos re-login automático a la primera
-            // (Para soportar múltiples, aquí redirigiríamos a una pantalla de selector)
-            const targetOrg = orgsClaim[0].id || orgsClaim[0]; // Soporta array de IDs o array de objetos
-            authService.loginWithRedirect({
-              appState: { target: state.url },
-              authorizationParams: { organization: targetOrg, prompt: 'none' } // prompt: none para que sea silente
-            });
+          const organizations = organizationsFromClaims(claims);
+          if (organizations.length > 0) {
+            // A selector would be needed to choose among several; the first one is used.
+            facade.loginWithOrg({ organization: organizations[0], returnTo: state.url, prompt: 'none' });
             return false;
           }
-
-          // Si no tiene organizaciones ni contexto, no puede usar la app.
-          router.navigate(['/error'], { 
-            queryParams: { 
-              message: 'No perteneces a ninguna organización. Solicita una invitación al administrador.' 
-            }
-          });
-          return false;
-        })
+          return errorPage(AUTH_ERROR_CODES.noOrganization);
+        }),
       );
-    })
+    }),
   );
 };
