@@ -8,7 +8,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -26,12 +26,11 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
-        QdrantClient qdrantClient,
+        IVectorStore vectorStore,
         ILogger<BoeIngestionService> logger,
         Kernel kernel,
-        IConfiguration configuration,
-        IVectorCollections vectorCollections)
-        : base(dbContext, enrichmentService, metricsService, qdrantClient, logger, kernel, vectorCollections)
+        IConfiguration configuration)
+        : base(dbContext, enrichmentService, metricsService, vectorStore, logger, kernel)
     {
         _s3Client = s3Client;
         _bucketName = configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;

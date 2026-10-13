@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using Amazon.S3;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Messaging;
@@ -31,7 +32,7 @@ public class IngestionEnqueueTests
         db,
         new MemoryCache(new MemoryCacheOptions()),
         publisher,
-        Mock.Of<IVectorCollections>(),
+        Mock.Of<IVectorStore>(),
         Mock.Of<INotificationService>(),
         NullLogger<IngestionAdminService>.Instance);
 

@@ -5,18 +5,17 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Embeddings;
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
 public class HybridRetrievalService(
     IAppDbContext dbContext,
     Kernel kernel,
-    QdrantClient qdrantClient,
+    IVectorStore vectorStore,
     ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-    private const string QdrantCollectionName = "child_fragments";
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {
@@ -26,44 +25,22 @@ public class HybridRetrievalService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
             var embeddingVector = embeddings[0].Vector.ToArray();
 
-            // 2. Query Qdrant (Dense Vector Search)
-            var qdrantPoints = new List<Qdrant.Client.Grpc.ScoredPoint>();
+            // 2. Dense vector search
+            IReadOnlyList<VectorSearchHit> vectorHits = [];
             try
             {
-                // Prepare filter if needed
-                Qdrant.Client.Grpc.Filter? qdrantFilter = null;
-                if (!string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio))
-                {
-                    qdrantFilter = new Qdrant.Client.Grpc.Filter
-                    {
-                        Must =
-                        {
-                            new Qdrant.Client.Grpc.Condition
-                            {
-                                Field = new Qdrant.Client.Grpc.FieldCondition
-                                {
-                                    Key = "Municipality",
-                                    Match = new Qdrant.Client.Grpc.Match
-                                    {
-                                        Text = queryInfo.FiltroMunicipio
-                                    }
-                                }
-                            }
-                        }
-                    };
-                }
+                var textFilter = string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio)
+                    ? ((string Field, string Text)?)null
+                    : (VectorPayloadKeys.Municipality, queryInfo.FiltroMunicipio);
 
-                qdrantPoints = (await qdrantClient.QueryAsync(
-                    collectionName: QdrantCollectionName,
-                    query: embeddingVector,
-                    filter: qdrantFilter,
-                    limit: (ulong)limit,
-                    cancellationToken: cancellationToken
-                )).ToList();
+                vectorHits = await vectorStore.SearchAsync(
+                    VectorCollection.ChildFragments,
+                    new VectorSearchRequest(embeddingVector, limit, TextFilter: textFilter),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Qdrant search failed, falling back to text search only.");
+                logger.LogWarning(ex, "Vector search failed, falling back to text search only.");
             }
 
             // 3. Query PostgreSQL (Sparse Text Search)
@@ -89,10 +66,10 @@ public class HybridRetrievalService(
             // 4. In-memory Reciprocal Rank Fusion (RRF)
             var scores = new Dictionary<long, double>();
 
-            // Add Qdrant ranks
-            for (int i = 0; i < qdrantPoints.Count; i++)
+            // Add vector ranks
+            for (int i = 0; i < vectorHits.Count; i++)
             {
-                long id = (long)qdrantPoints[i].Id.Num;
+                long id = vectorHits[i].Id;
                 scores[id] = 1.0 / (60.0 + i + 1); // RRF formula: 1 / (k + rank), rank is 1-based
             }
 

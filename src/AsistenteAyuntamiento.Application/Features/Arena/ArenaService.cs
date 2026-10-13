@@ -16,7 +16,7 @@ using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
@@ -24,11 +24,11 @@ public class ArenaService(
     IAppDbContext dbContext,
     IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
-    QdrantClient qdrantClient,
+    IVectorStore vectorStore,
     ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    private readonly QdrantClient _qdrantClient = qdrantClient;
+    private readonly IVectorStore _vectorStore = vectorStore;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
@@ -125,13 +125,12 @@ public class ArenaService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
             var queryVector = embeddings[0].Vector.ToArray();
 
-            var searchResult = await _qdrantClient.QueryAsync(
-                "document_chunks",
-                queryVector,
-                limit: 5,
-                cancellationToken: cancellationToken);
+            var searchResult = await _vectorStore.SearchAsync(
+                VectorCollection.DocumentChunks,
+                new VectorSearchRequest(queryVector, Limit: 5),
+                cancellationToken);
 
-            var sources = searchResult.Select(p => p.Payload["Content"].StringValue).ToArray();
+            var sources = searchResult.Select(p => p.GetString(VectorPayloadKeys.Content)).ToArray();
             var contextText = string.Join("\n\n", sources);
             var prompt = $@"Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
 Consulta: {query}

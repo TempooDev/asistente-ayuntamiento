@@ -8,7 +8,6 @@ using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using FluentAssertions;
-using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using Xunit;
 
 namespace AsistenteAyuntamiento.Application.Tests.Features.Chat;
@@ -64,7 +62,7 @@ public class AiChatServiceCompletionTests
             Mock.Of<IServiceScopeFactory>(),
             Mock.Of<IClearLanguageGenerationService>(),
             preferences.Object,
-            new QdrantClient(new QdrantGrpcClient(new EmptyQueryCallInvoker())),
+            EmptyVectorStore(),
             _modelFactory.Object);
     }
 
@@ -169,31 +167,13 @@ public class AiChatServiceCompletionTests
         public void Dispose() { }
     }
 
-    /// <summary>Qdrant gRPC transport that answers every unary call with an empty response (no matches).</summary>
-    private sealed class EmptyQueryCallInvoker : CallInvoker
+    /// <summary>Vector store with no matches.</summary>
+    private static IVectorStore EmptyVectorStore()
     {
-        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
-            Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
-        {
-            var response = (TResponse)Activator.CreateInstance(typeof(TResponse))!;
-            return new AsyncUnaryCall<TResponse>(
-                Task.FromResult(response),
-                Task.FromResult(new Metadata()),
-                () => Status.DefaultSuccess,
-                () => new Metadata(),
-                () => { });
-        }
-
-        public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request) =>
-            throw new NotSupportedException();
-
-        public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request) =>
-            throw new NotSupportedException();
-
-        public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options) =>
-            throw new NotSupportedException();
-
-        public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options) =>
-            throw new NotSupportedException();
+        var store = new Mock<IVectorStore>();
+        store
+            .Setup(v => v.SearchAsync(It.IsAny<VectorCollection>(), It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<VectorSearchHit>());
+        return store.Object;
     }
 }

@@ -7,14 +7,13 @@ using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using System.Text.Json;
-using Qdrant.Client;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using static Qdrant.Client.Grpc.Conditions;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService, IVectorCollections vectorCollections) : IDocumentIngestionService
+public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, IVectorStore vectorStore, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
 {
     private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
 
@@ -131,26 +130,21 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         try
         {
             var vectors = allEmbeddings.Select(e => e.Vector.ToArray()).ToList();
-            await vectorCollections.EnsureAsync(VectorCollectionNames.DocumentChunks, vectors[0].Length, cancellationToken);
-            await qdrantClient.DeleteAsync(VectorCollectionNames.DocumentChunks, MatchKeyword("DocumentId", document.DocumentId), cancellationToken: cancellationToken);
+            await vectorStore.EnsureCollectionAsync(VectorCollection.DocumentChunks, vectors[0].Length, cancellationToken);
+            await vectorStore.DeleteDocumentAsync(VectorCollection.DocumentChunks, document.DocumentId, cancellationToken: cancellationToken);
 
-            var points = chunks.Select((chunk, i) => new Qdrant.Client.Grpc.PointStruct
+            var points = chunks.Select((chunk, i) => new VectorPoint(chunk.Id, vectors[i], new Dictionary<string, object>
             {
-                Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)chunk.Id },
-                Vectors = vectors[i],
-                Payload =
-                {
-                    ["DocumentId"] = chunk.DocumentId,
-                    ["Source"] = chunk.Source,
-                    ["Title"] = chunk.Title ?? "",
-                    ["Department"] = chunk.Department ?? "",
-                    ["Content"] = chunk.Content,
-                    ["ChunkIndex"] = chunk.ChunkIndex,
-                    ["PublicationDate"] = chunk.PublicationDate.ToString("O")
-                }
-            }).ToList();
+                [VectorPayloadKeys.DocumentId] = chunk.DocumentId,
+                [VectorPayloadKeys.Source] = chunk.Source,
+                [VectorPayloadKeys.Title] = chunk.Title ?? "",
+                [VectorPayloadKeys.Department] = chunk.Department ?? "",
+                [VectorPayloadKeys.Content] = chunk.Content,
+                [VectorPayloadKeys.ChunkIndex] = chunk.ChunkIndex,
+                [VectorPayloadKeys.PublicationDate] = chunk.PublicationDate.ToString("O")
+            })).ToList();
 
-            await qdrantClient.UpsertAsync(VectorCollectionNames.DocumentChunks, points, cancellationToken: cancellationToken);
+            await vectorStore.UpsertAsync(VectorCollection.DocumentChunks, points, cancellationToken);
         }
         catch (Exception ex)
         {

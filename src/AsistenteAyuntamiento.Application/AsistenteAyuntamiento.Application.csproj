@@ -17,7 +17,6 @@
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" />
     <!-- Needed by raw SQL in HybridRetrievalService / IngestionAdminService. TODO(audit-remediation 5.4): move behind ports. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Qdrant.Client" />
     <PackageReference Include="RabbitMQ.Client" />
   </ItemGroup>
 

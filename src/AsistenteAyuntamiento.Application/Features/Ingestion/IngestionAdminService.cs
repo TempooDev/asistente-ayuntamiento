@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using AsistenteAyuntamiento.Domain.Common.Enums;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -19,7 +20,7 @@ public class IngestionAdminService : IIngestionAdminService
     private readonly IAppDbContext _dbContext;
     private readonly IMemoryCache _cache;
     private readonly IIngestionQueuePublisher _publisher;
-    private readonly IVectorCollections _vectorCollections;
+    private readonly IVectorStore _vectorStore;
     private readonly INotificationService _notificationService;
     private readonly ILogger<IngestionAdminService> _logger;
     private readonly string _bucketName;
@@ -31,7 +32,7 @@ public class IngestionAdminService : IIngestionAdminService
         IAppDbContext dbContext,
         IMemoryCache cache,
         IIngestionQueuePublisher publisher,
-        IVectorCollections vectorCollections,
+        IVectorStore vectorStore,
         INotificationService notificationService,
         ILogger<IngestionAdminService> logger)
     {
@@ -40,7 +41,7 @@ public class IngestionAdminService : IIngestionAdminService
         _dbContext = dbContext;
         _cache = cache;
         _publisher = publisher;
-        _vectorCollections = vectorCollections;
+        _vectorStore = vectorStore;
         _notificationService = notificationService;
         _logger = logger;
         _bucketName = _config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
@@ -206,7 +207,7 @@ public class IngestionAdminService : IIngestionAdminService
             _dbContext.Database,
             "TRUNCATE TABLE ingestion.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
 
-        await _vectorCollections.DropAsync(VectorCollectionNames.DocumentChunks, cancellationToken);
+        await _vectorStore.DropCollectionAsync(VectorCollection.DocumentChunks, cancellationToken);
         _cache.Remove($"blobs_list_{_bucketName}");
     }
 

@@ -6,6 +6,7 @@ using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Infrastructure.Background;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
 using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -62,8 +63,8 @@ public static class DependencyInjection
         }
 
         builder.AddQdrantClient("qdrant");
-        builder.Services.AddQdrantVectorStore();
-        builder.Services.AddSingleton<IVectorCollections, QdrantVectorCollections>();
+        builder.Services.AddOptions<VectorStoreOptions>().Bind(builder.Configuration.GetSection(VectorStoreOptions.SectionName));
+        builder.Services.AddSingleton<IVectorStore, QdrantVectorStore>();
 
         AddMessaging(builder);
         AddSemanticKernelServices(builder);
