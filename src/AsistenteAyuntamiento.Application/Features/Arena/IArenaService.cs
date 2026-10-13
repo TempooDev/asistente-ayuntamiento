@@ -11,5 +11,6 @@ public interface IArenaService
     /// Returns <c>null</c> when the battle does not exist or belongs to someone else.
     /// </summary>
     /// <exception cref="ArgumentException">The winner value is not valid.</exception>
+    /// <exception cref="ArenaVoteConflictException">The battle was already voted (votes are final).</exception>
     Task<ArenaVoteResponse?> VoteAsync(ArenaVoteRequest request, string userId, CancellationToken cancellationToken = default);
 }

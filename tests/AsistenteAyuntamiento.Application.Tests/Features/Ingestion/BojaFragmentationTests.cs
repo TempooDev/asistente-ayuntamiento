@@ -47,7 +47,7 @@ public class BojaFragmentationTests
 
         fragments.Should().HaveCountGreaterThan(1);
         fragments.Select(f => f.Section).Should().StartWith("Sección 1").And.OnlyHaveUniqueItems();
-        fragments.Should().OnlyContain(f => f.ElementType == "Párrafo");
+        fragments.Should().OnlyContain(f => f.SubSection == null, "BOJA sections have no sub-sections");
         // Every fragment starts and ends on a word boundary (the old slices cut every 1000 characters).
         var words = Words(text).ToHashSet();
         foreach (var fragment in fragments)

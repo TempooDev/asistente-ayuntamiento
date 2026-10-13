@@ -118,6 +118,24 @@ public class IngestionEnqueueTests
         publisher.Pipelines.Should().AllBeEquivalentTo(IngestionPipelines.Baseline);
     }
 
+    [Fact]
+    public async Task A_request_without_source_is_published_with_the_source_of_its_path()
+    {
+        var sources = new List<string>();
+        var publisher = new FakePublisher(message =>
+        {
+            sources.Add(message.Source);
+            return Task.CompletedTask;
+        });
+
+        await using var db = NewContext();
+        await CreateSut(db, publisher).EnqueueBulkAsync(
+            [Blob("BOE-A-1"), new ProcessBlobRequest { BlobPath = "json/BOJA/BOJA-2026-1-1.json" }, new ProcessBlobRequest { BlobPath = "json/BOJA/BOJA-2026-1-2.json", Source = "BOE" }],
+            "BASELINE");
+
+        sources.Should().Equal("BOE", "BOJA", "BOE");
+    }
+
     private sealed class FakePublisher(Func<DocumentMessage, Task> onPublish) : IIngestionQueuePublisher
     {
         public List<IngestionPipelines> Pipelines { get; } = [];

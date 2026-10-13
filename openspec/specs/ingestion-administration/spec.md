@@ -31,12 +31,20 @@ Every endpoint under `/api/ingestion` SHALL require the `Policies.PlatformAdmin`
 ### Requirement: Bulk Queueing and Reprocessing
 `EnqueueBulkAsync` and `ReprocessAllAsync` SHALL build one `DocumentMessage` per blob, set the requested pipelines' status to `Queued`, publish through `IIngestionQueuePublisher`, and notify connected administrators through `INotificationService` once per request batch. Only the requested pipelines' statuses change.
 
+#### Scenario: Source inferred from the path
+- **WHEN** a request item has no `source` (or an empty one)
+- **THEN** the message SHALL use the source of the blob path (`json/{SOURCE}/{id}.json`), never a placeholder such as `Unknown`
+
 #### Scenario: Bulk enqueueing blobs
 - **WHEN** an administrator enqueues documents for `BASELINE`, `HIERARCHICAL` or `BOTH`
 - **THEN** the service SHALL publish the messages to the selected queues, leave the documents `Queued` in the selected pipelines (or `Pending` if their publish failed), send `DocumentStatusesChanged` with the resulting summary statuses, and invalidate the blob-list cache
 
 ### Requirement: Manual Single-Document Processing
-`POST /api/ingestion/process-blob` with `{ blobPath, source }` SHALL run the baseline ingestion (`IDocumentIngestionService.ProcessBlobAsync`) synchronously inside the API request.
+`POST /api/ingestion/process-blob` with `{ blobPath, source }` SHALL run the baseline ingestion (`IDocumentIngestionService.ProcessBlobAsync`) synchronously inside the API request. `source` is optional: when it is missing or empty, the source of the blob path MUST be used.
+
+#### Scenario: Processing a blob without source
+- **WHEN** an administrator posts `{ "blobPath": "json/BOJA/BOJA-2026-1-1.json" }`
+- **THEN** the document SHALL be ingested as `BOJA`
 
 #### Scenario: Processing one blob from the documents page
 - **WHEN** an administrator processes `json/BOE/BOE-A-2026-1234.json` from the table
@@ -57,5 +65,10 @@ The service SHALL let administrators correct document job states: reset one docu
 
 #### Scenario: Resetting the baseline data
 - **WHEN** an administrator calls `POST /api/ingestion/reset`
-- **THEN** the service SHALL truncate `ingestion."DocumentChunks"` and `public."DocumentJobStates"`, drop the Qdrant collection `document_chunks` (recreated on the next ingestion) and invalidate the blob-list cache
-- **AND** hierarchical data (`ParentDocuments`, `ChildFragments`, `child_fragments`) SHALL be left untouched
+- **THEN** the service SHALL truncate `ingestion."DocumentChunks"`, drop the Qdrant collection `document_chunks` (recreated on the next ingestion) and invalidate the blob-list cache
+- **AND** only the baseline job statuses SHALL be cleared: every `BaselineStatus` set to null, a `[Baseline]` error cleared, and the summary recomputed from the hierarchical status alone; rows without a hierarchical status SHALL be deleted
+- **AND** hierarchical data (`ParentDocuments`, `ChildFragments`, `child_fragments`) and hierarchical statuses and errors SHALL be left untouched
+
+#### Scenario: Reset of a document ingested by both pipelines
+- **WHEN** a document has `BaselineStatus = Completed` and `HierarchicalStatus = Failed` and the baseline data is reset
+- **THEN** its row SHALL remain with `BaselineStatus = null`, `HierarchicalStatus = Failed`, summary `Failed` and its `[Hierarchical]` error

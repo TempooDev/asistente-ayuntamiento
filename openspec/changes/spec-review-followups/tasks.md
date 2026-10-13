@@ -8,20 +8,25 @@
 
 ## 2. Correctness
 
-- [ ] 2.1 The organization usage card shows `successRate` (0–100) through the `percent` pipe (95 → 9,500 %), and labels `totalCalls` as "Llamadas (Éxito)" (`analytics-dashboard.component.html:30`).
-- [ ] 2.2 `/api/ai/metrics/summary` (organization admins) includes platform-wide `IngestionMetrics`, and labels enrichment calls as "Embeddings". Hierarchical and platform-model calls are never written to `AiCallLogs` (`AiMetricsQueryService.cs:31-41`).
-- [ ] 2.3 A non-429 provider error after some text was streamed ends the answer silently and is recorded as a success (`ChatStreamingService.cs:171-177`).
-- [ ] 2.4 A failing Arena side is only logged: the user sees an empty or truncated column and can still vote on it (`ArenaStreamingService.cs:91-94`).
-- [ ] 2.5 A battle can be voted again: the winner changes and the hub adds another assistant message; the hub also clears `OptionalComment` (`ArenaService.cs:109-117`).
-- [ ] 2.6 After a Tie vote in chat mode the client shows both answers, but the server stores none, so reloading loses that turn (`chat.store.ts:205-212`).
-- [ ] 2.7 `HistoryAnalyzerService` throws a NullReferenceException when the model returns `"Topics": null` or `"Locations": null` (only `JsonException` is caught, line 60).
-- [ ] 2.8 The baseline leaves the state at `Processing` when the JSON deserializes to null, and sets `Processing` with the id from the path but later states with `document.DocumentId` (`DocumentIngestionService.cs:36,50`).
-- [ ] 2.9 `ProcessBlobRequest.Source` defaults to `"Unknown"`, so the source inferred from the path is never used when a client omits it (`ProcessBlobRequest.cs:6`, `IngestionAdminService.cs:355`).
-- [ ] 2.10 BOE hierarchical ingestion requires `raw-xml/BOE/{id}.xml`, which the scraper treats as an optional backup (`BoeIngestionService.cs:67` vs `orchestrator.go:368`). Either make the raw store required for BOE or fall back to the JSON text.
-- [ ] 2.11 `/api/ingestion/reset` truncates all `DocumentJobStates`, including hierarchical statuses whose data stays (`IngestionMaintenance.cs:18`).
-- [ ] 2.12 Win rates count ties and both-bad votes in the denominator (`ArenaAnalyticsService.cs:54-57`). Decide the definition.
-- [ ] 2.13 The fragment breadcrumb passes `ElementType` ("General"/"Párrafo") as SUBSECCIÓN, and fragments never get a municipality (`BaseHierarchicalIngestionProcessor.cs:80,89`).
-- [ ] 2.14 The plain-language generation only labels each parent document by its numeric id, so "Fuentes consultadas" cannot cite the bulletin or norm (`ClearLanguageGenerationService.cs:149`).
+- [x] 2.1 The organization usage card shows `successRate` (0–100) through the `percent` pipe (95 → 9,500 %), and labels `totalCalls` as "Llamadas (Éxito)" (`analytics-dashboard.component.html:30`).
+- [x] 2.2 `/api/ai/metrics/summary` (organization admins) includes platform-wide `IngestionMetrics`, and labels enrichment calls as "Embeddings". Hierarchical and platform-model calls are never written to `AiCallLogs` (`AiMetricsQueryService.cs:31-41`).
+- [x] 2.3 A non-429 provider error after some text was streamed ends the answer silently and is recorded as a success (`ChatStreamingService.cs:171-177`).
+- [x] 2.4 A failing Arena side is only logged: the user sees an empty or truncated column and can still vote on it (`ArenaStreamingService.cs:91-94`).
+- [x] 2.5 A battle can be voted again: the winner changes and the hub adds another assistant message; the hub also clears `OptionalComment` (`ArenaService.cs:109-117`).
+- [x] 2.6 After a Tie vote in chat mode the client shows both answers, but the server stores none, so reloading loses that turn (`chat.store.ts:205-212`).
+- [x] 2.7 `HistoryAnalyzerService` throws a NullReferenceException when the model returns `"Topics": null` or `"Locations": null` (only `JsonException` is caught, line 60).
+- [x] 2.8 The baseline leaves the state at `Processing` when the JSON deserializes to null, and sets `Processing` with the id from the path but later states with `document.DocumentId` (`DocumentIngestionService.cs:36,50`).
+- [x] 2.9 `ProcessBlobRequest.Source` defaults to `"Unknown"`, so the source inferred from the path is never used when a client omits it (`ProcessBlobRequest.cs:6`, `IngestionAdminService.cs:355`).
+- [x] 2.10 BOE hierarchical ingestion requires `raw-xml/BOE/{id}.xml`, which the scraper treats as an optional backup (`BoeIngestionService.cs:67` vs `orchestrator.go:368`). Either make the raw store required for BOE or fall back to the JSON text.
+- [x] 2.11 `/api/ingestion/reset` truncates all `DocumentJobStates`, including hierarchical statuses whose data stays (`IngestionMaintenance.cs:18`).
+- [x] 2.12 Win rates count ties and both-bad votes in the denominator (`ArenaAnalyticsService.cs:54-57`). Decide the definition.
+- [x] 2.13 The fragment breadcrumb passes `ElementType` ("General"/"Párrafo") as SUBSECCIÓN, and fragments never get a municipality (`BaseHierarchicalIngestionProcessor.cs:80,89`).
+- [x] 2.14 The plain-language generation only labels each parent document by its numeric id, so "Fuentes consultadas" cannot cite the bulletin or norm (`ClearLanguageGenerationService.cs:149`).
+- [ ] 2.15 Left over from 2.2: query expansion, ingestion enrichment, history analysis and the non-streaming Arena compare still only reach the `gen_ai.*` metrics, not `AiCallLogs`. Recording them needs a column naming the step (migration) so they are not counted as answers.
+- [ ] 2.16 Left over from 2.4: a model error before any text arrives as a normal `[LLM_*]` message, so that Arena side is not marked as failed and can still be voted on.
+- [ ] 2.17 When a chat stream fails midway, the partial answer is not saved, so a reload shows the question with no answer.
+- [ ] 2.18 The Arena vote reads, checks and writes without a concurrency token: two simultaneous votes could both pass (the client blocks double clicks). Needs a row version (migration).
+- [ ] 2.19 Fragments now inherit `ParentDocument.Municipality`, but neither the scraper JSON nor the baseline fills a municipality, so it is always null and the municipality filter never matches a real value.
 
 ## 3. Robustness and hygiene
 

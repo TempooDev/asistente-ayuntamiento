@@ -28,7 +28,12 @@ Every prompt SHALL come from `PromptCatalog`. With retrieved fragments, the pipe
 - **THEN** the model SHALL receive `ConversationalSystem` and the unmodified history
 
 ### Requirement: Tenant Model with Fallback
-The baseline pipeline SHALL generate with the tenant's chat model, built by `IChatModelFactory` from the tenant's `AiConfiguration` (or the platform defaults), through `ChatStreamingService`. On HTTP 429 before any text was produced it SHALL switch to the platform fallback model (`Ai:Fallback:*`) and add a notice; model errors SHALL be returned as typed messages (`[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]`, `[LLM_UNAVAILABLE]`). Each call SHALL be recorded in `AiCallLogs` and in the `gen_ai.*` metrics.
+The baseline pipeline SHALL generate with the tenant's chat model, built by `IChatModelFactory` from the tenant's `AiConfiguration` (or the platform defaults), through `ChatStreamingService`. On HTTP 429 before any text was produced it SHALL switch to the platform fallback model (`Ai:Fallback:*`) and add a notice; model errors before any text SHALL be returned as typed messages (`[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]`, `[LLM_UNAVAILABLE]`), and model errors after some text SHALL be thrown as `LlmStreamInterruptedException` carrying the typed code. Each call SHALL be recorded in `AiCallLogs` and in the `gen_ai.*` metrics, as a failure with its error code whenever the model failed.
+
+#### Scenario: Model fails after part of the answer
+- **WHEN** the model stream fails with a non-cancellation error after some text was streamed
+- **THEN** `ChatStreamingService` SHALL NOT switch to the fallback model, SHALL record the call as failed with the classified code (for example `LLM_UNAVAILABLE`), and SHALL throw `LlmStreamInterruptedException` with that code
+- **AND** a stream cancelled by the client SHALL just end
 
 #### Scenario: Provider not configured
 - **WHEN** the tenant's provider needs an API key and none is available

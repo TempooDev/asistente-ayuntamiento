@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { ArenaVote } from '../models/chat.models';
+import { ArenaSide, ArenaVote } from '../models/chat.models';
 import { ArenaMessageComponent } from './arena-message.component';
 
 describe('ArenaMessageComponent', () => {
-  function setup(canVote = true) {
+  function setup(canVote = true, failed?: ArenaSide[]) {
     const fixture = TestBed.createComponent(ArenaMessageComponent);
-    fixture.componentRef.setInput('message', { kind: 'arena', id: 'm1', battleId: 'b1', alfa: '**Uno**', beta: 'Dos' });
+    fixture.componentRef.setInput('message', { kind: 'arena', id: 'm1', battleId: 'b1', alfa: '**Uno**', beta: 'Dos', failed });
     fixture.componentRef.setInput('canVote', canVote);
     const votes: ArenaVote[] = [];
     fixture.componentInstance.vote.subscribe(v => votes.push(v));
@@ -33,5 +33,11 @@ describe('ArenaMessageComponent', () => {
   it('disables voting while the answers are streaming', () => {
     const { buttons } = setup(false);
     expect(buttons.every(b => b.disabled)).toBe(true);
+  });
+
+  it('disables voting and says why when a side failed', () => {
+    const { fixture, buttons } = setup(true, ['Beta']);
+    expect(buttons.every(b => b.disabled)).toBe(true);
+    expect(fixture.nativeElement.querySelector('[role="status"]')?.textContent).toContain('No se puede votar');
   });
 });

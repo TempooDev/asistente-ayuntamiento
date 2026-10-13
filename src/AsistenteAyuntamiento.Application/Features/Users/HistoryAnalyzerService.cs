@@ -49,23 +49,35 @@ public class HistoryAnalyzerService(
 
         var scope = new LlmCallScope(tenantService.TenantId ?? "unknown", LlmPipelines.Profile, LlmOperations.HistoryAnalysis);
         var result = await chatCompletion.CompleteMeteredAsync(history, PlatformModels.Chat(configuration), scope, usageMetrics, cancellationToken: cancellationToken);
-        var resultContent = result.Content ?? string.Empty;
+        var extracted = Parse(result.Content ?? string.Empty);
 
-        resultContent = resultContent.Replace("```json", "").Replace("```", "").Trim();
+        if (extracted != null && (extracted.Topics.Count > 0 || extracted.Locations.Count > 0))
+        {
+            // 3. Merge with existing preferences
+            await preferenceService.MergePreferencesAsync(auth0UserId, extracted, cancellationToken);
+        }
+    }
 
+    /// <summary>
+    /// Reads the model's JSON answer (markdown fences allowed). Returns <c>null</c> when it is not valid JSON; a
+    /// <c>null</c> list (<c>"Topics": null</c>) is read as empty.
+    /// </summary>
+    internal static UserPreferenceDto? Parse(string answer)
+    {
+        var json = answer.Replace("```json", "").Replace("```", "").Trim();
         try
         {
-            var extracted = JsonSerializer.Deserialize<UserPreferenceDto>(resultContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var extracted = JsonSerializer.Deserialize<UserPreferenceDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (extracted is null) return null;
 
-            if (extracted != null && (extracted.Topics.Any() || extracted.Locations.Any()))
-            {
-                // 3. Merge with existing preferences
-                await preferenceService.MergePreferencesAsync(auth0UserId, extracted, cancellationToken);
-            }
+            extracted.Topics ??= [];
+            extracted.Locations ??= [];
+            return extracted;
         }
         catch (JsonException)
         {
             // Ignore if the LLM failed to return valid JSON
+            return null;
         }
     }
 }

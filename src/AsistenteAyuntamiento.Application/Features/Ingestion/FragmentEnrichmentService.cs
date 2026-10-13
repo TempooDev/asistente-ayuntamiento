@@ -28,11 +28,11 @@ public class FragmentEnrichmentService(
         string issuingBody,
         string normTitle,
         string normSection,
-        string subSection,
+        string? subSection,
         string originalText,
         CancellationToken cancellationToken = default)
     {
-        var breadcrumb = $"[BOLETÍN: {bulletin} | ORGANISMO: {issuingBody} | NORMA: {normTitle} | ARTÍCULO: {normSection} | SUBSECCIÓN: {subSection}]";
+        var breadcrumb = BuildBreadcrumb(bulletin, issuingBody, normTitle, normSection, subSection);
 
         // Generate synthetic questions
         string syntheticQuestions = "";
@@ -60,6 +60,13 @@ public class FragmentEnrichmentService(
         var enrichedText = $"{breadcrumb}\n\nPREGUNTAS SINTÉTICAS:\n{syntheticQuestions}\n\nCONTENIDO ORIGINAL:\n{originalText}";
 
         return (enrichedText, llmCalls, llmTokens);
+    }
+
+    /// <summary>The <c>SUBSECCIÓN</c> segment is only written when the fragment has a sub-section.</summary>
+    public static string BuildBreadcrumb(BulletinType bulletin, string issuingBody, string normTitle, string normSection, string? subSection)
+    {
+        var subSectionPart = string.IsNullOrWhiteSpace(subSection) ? string.Empty : $" | SUBSECCIÓN: {subSection}";
+        return $"[BOLETÍN: {bulletin} | ORGANISMO: {issuingBody} | NORMA: {normTitle} | ARTÍCULO: {normSection}{subSectionPart}]";
     }
 }
 

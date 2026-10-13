@@ -18,6 +18,9 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
 {
     private const string Secret = "connection string with password=hunter2";
 
+    /// <summary>The message that makes <see cref="FailingChatService"/> fail like the model stream would.</summary>
+    private const string ModelFailure = "fallo del modelo";
+
     /// <summary>Streams one chunk, then fails like a provider or a database would.</summary>
     private sealed class FailingChatService : IAiChatService
     {
@@ -28,6 +31,10 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
         {
             yield return "Respuesta parcial";
             await Task.Yield();
+            if (history[^1].Content == ModelFailure)
+            {
+                throw new LlmStreamInterruptedException(LlmErrorCodes.Unavailable, new IOException(Secret));
+            }
             throw new InvalidOperationException(Secret);
         }
 
@@ -74,6 +81,23 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
 
         Assert.Equal(["Respuesta parcial"], chunks);
         Assert.Contains("[INTERNAL]", error.Message);
+        Assert.DoesNotContain("hunter2", error.Message);
+    }
+
+    [Fact]
+    public async Task A_model_failure_after_some_text_ends_the_stream_with_its_llm_code()
+    {
+        await using var connection = await ConnectAsync();
+        var sessionId = await connection.InvokeAsync<Guid>("CreateNewSession");
+
+        var chunks = new List<string>();
+        var error = await Assert.ThrowsAsync<HubException>(async () =>
+        {
+            await foreach (var chunk in connection.StreamAsync<string>("StreamMessage", sessionId.ToString(), ModelFailure)) chunks.Add(chunk);
+        });
+
+        Assert.Equal(["Respuesta parcial"], chunks);
+        Assert.Contains($"[{LlmErrorCodes.Unavailable}]", error.Message);
         Assert.DoesNotContain("hunter2", error.Message);
     }
 

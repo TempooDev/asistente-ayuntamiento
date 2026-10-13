@@ -5,6 +5,7 @@ import { environment } from '../../../../environments/environment';
 import { InactivityService } from '../../../core/auth/inactivity.service';
 import {
   ArenaMessage,
+  ArenaSide,
   ArenaStreamChunk,
   ArenaVote,
   AssistantMessage,
@@ -16,7 +17,8 @@ import { ChatService } from './chat.service';
 import { RECONNECT_FAILED_MESSAGE, mapStreamError } from './stream-errors';
 
 /** Pending text per message and field, flushed into the state once per animation frame. */
-type PendingChunks = Map<string, { text?: string; alfa?: string; beta?: string; battleId?: string }>;
+type PendingDelta = { text?: string; alfa?: string; beta?: string; battleId?: string; failed?: readonly ArenaSide[] };
+type PendingChunks = Map<string, PendingDelta>;
 
 const nextFrame: (callback: () => void) => void =
   typeof requestAnimationFrame === 'function' ? cb => requestAnimationFrame(() => cb()) : cb => setTimeout(cb, 16);
@@ -37,6 +39,8 @@ export class ChatStore {
   private readonly streaming = signal<ReadonlySet<string>>(new Set());
   private readonly waiting = signal<ReadonlySet<string>>(new Set());
   private readonly subscriptions = new Map<string, ISubscription<unknown>>();
+  /** Arena messages whose vote is in flight (a second click must not send a second vote). */
+  private readonly voting = new Set<string>();
   private pending: PendingChunks = new Map();
   private flushScheduled = false;
 
@@ -164,7 +168,8 @@ export class ChatStore {
       if (error !== undefined) {
         console.error('Chat stream failed', error);
         const notice = mapStreamError(error);
-        this.queue(answer.id, answer.kind === 'arena' ? { alfa: notice, beta: notice } : { text: notice });
+        // A failed Arena stream is not stored as a battle, so neither side can be voted on.
+        this.queue(answer.id, answer.kind === 'arena' ? { alfa: notice, beta: notice, failed: ['Alfa', 'Beta'] } : { text: notice });
       }
       this.flush();
       this.subscriptions.delete(sessionId);
@@ -195,22 +200,26 @@ export class ChatStore {
     }
   }
 
-  /** Records the vote and replaces the two answers with the chosen one (both for a tie). */
+  /**
+   * Records the vote (once: votes are final) and replaces the two answers with the one the server stored in the
+   * conversation (the chosen side, or both for a tie), so a reload shows the same. Battles with a failed side
+   * cannot be voted on.
+   */
   async vote(messageId: string, winner: ArenaVote): Promise<void> {
     const sessionId = this.currentSessionId();
     const battle = this.messages().find((m): m is ArenaMessage => m.id === messageId && m.kind === 'arena');
-    if (!battle?.battleId) return;
+    if (!battle?.battleId || battle.failed?.length || this.voting.has(messageId)) return;
 
-    await this.hub.voteArena(sessionId, battle.battleId, winner);
-    const text =
-      winner === 'Alfa'
-        ? battle.alfa
-        : winner === 'Beta'
-          ? battle.beta
-          : `*(Empate)*\n\n**Respuesta Alfa:**\n${battle.alfa}\n\n**Respuesta Beta:**\n${battle.beta}`;
-    this.updateMessages(sessionId, list =>
-      list.map(m => (m.id === messageId ? { kind: 'assistant', id: m.id, text, arenaWinner: winner } : m)),
-    );
+    this.voting.add(messageId);
+    try {
+      const text = await this.hub.voteArena(sessionId, battle.battleId, winner);
+      if (text == null) return;
+      this.updateMessages(sessionId, list =>
+        list.map(m => (m.id === messageId ? { kind: 'assistant', id: m.id, text, arenaWinner: winner } : m)),
+      );
+    } finally {
+      this.voting.delete(messageId);
+    }
   }
 
   /** True when the hub is (or could be made) connected; shows "reconnecting" meanwhile. */
@@ -244,17 +253,24 @@ export class ChatStore {
       return;
     }
     this.mark(this.waiting, sessionId, false);
+    if (chunk.errorCode) {
+      // That side failed: keep its partial text, show the typed error and block the vote.
+      const notice = mapStreamError(`[${chunk.errorCode}]`);
+      this.queue(messageId, chunk.option === 'Alfa' ? { alfa: notice, failed: ['Alfa'] } : { beta: notice, failed: ['Beta'] });
+      return;
+    }
     this.queue(messageId, chunk.option === 'Alfa' ? { alfa: chunk.content } : { beta: chunk.content });
   }
 
   /** Buffers streamed text; the state (and the Markdown render) changes at most once per frame. */
-  private queue(messageId: string, delta: { text?: string; alfa?: string; beta?: string; battleId?: string }): void {
+  private queue(messageId: string, delta: PendingDelta): void {
     const current = this.pending.get(messageId) ?? {};
     this.pending.set(messageId, {
       text: (current.text ?? '') + (delta.text ?? ''),
       alfa: (current.alfa ?? '') + (delta.alfa ?? ''),
       beta: (current.beta ?? '') + (delta.beta ?? ''),
       battleId: delta.battleId ?? current.battleId,
+      failed: [...(current.failed ?? []), ...(delta.failed ?? [])],
     });
     if (!this.flushScheduled) {
       this.flushScheduled = true;
@@ -278,7 +294,8 @@ export class ChatStore {
             const delta = pending.get(m.id);
             if (!delta) return m;
             if (m.kind === 'arena') {
-              return { ...m, alfa: m.alfa + (delta.alfa ?? ''), beta: m.beta + (delta.beta ?? ''), battleId: delta.battleId ?? m.battleId };
+              const failed = delta.failed?.length ? [...new Set([...(m.failed ?? []), ...delta.failed])] : m.failed;
+              return { ...m, alfa: m.alfa + (delta.alfa ?? ''), beta: m.beta + (delta.beta ?? ''), battleId: delta.battleId ?? m.battleId, failed };
             }
             return m.kind === 'assistant' ? { ...m, text: m.text + (delta.text ?? '') } : m;
           }),

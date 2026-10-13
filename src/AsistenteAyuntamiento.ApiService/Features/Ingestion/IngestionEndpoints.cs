@@ -23,8 +23,9 @@ public static class IngestionEndpoints
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
-            logger.LogInformation("Iniciando proceso manual de {BlobPath} (Source: {Source})", request.BlobPath, request.Source);
-            await ingestionService.ProcessBlobAsync(request.BlobPath, request.Source, cancellationToken);
+            var source = request.ResolveSource();
+            logger.LogInformation("Iniciando proceso manual de {BlobPath} (Source: {Source})", request.BlobPath, source);
+            await ingestionService.ProcessBlobAsync(request.BlobPath, source, cancellationToken);
             return Results.Ok(new { message = $"Blob {request.BlobPath} procesado y vectorizado correctamente." });
         })
         .WithName("ProcessBlobManually");

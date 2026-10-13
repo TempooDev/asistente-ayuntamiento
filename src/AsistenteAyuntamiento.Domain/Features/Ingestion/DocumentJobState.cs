@@ -60,6 +60,30 @@ public class DocumentJobState
         LastUpdatedAt = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Forgets one pipeline (its data was deleted): its status and its error are cleared and <see cref="Status"/> is
+    /// recomputed from the other pipeline alone.
+    /// </summary>
+    public void ClearPipeline(PipelineType pipeline)
+    {
+        if (pipeline == PipelineType.Hierarchical)
+        {
+            HierarchicalStatus = null;
+        }
+        else
+        {
+            BaselineStatus = null;
+        }
+
+        if (ErrorMessage?.StartsWith($"[{pipeline}]", StringComparison.Ordinal) == true)
+        {
+            ErrorMessage = null;
+        }
+
+        Status = Summarize(BaselineStatus, HierarchicalStatus);
+        LastUpdatedAt = DateTime.UtcNow;
+    }
+
     private bool HasFailure => BaselineStatus is JobStatus.Failed or JobStatus.VectorSyncFailed
         || HierarchicalStatus is JobStatus.Failed or JobStatus.VectorSyncFailed;
 

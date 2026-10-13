@@ -48,12 +48,12 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
         new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_postgres!.GetConnectionString(), o => o.UseVector()).Options,
         Mock.Of<ICurrentTenantService>(t => t.TenantId == "system"));
 
-    private async Task IngestAsync(string text)
+    private async Task IngestAsync(string text, Func<string, string>? json = null)
     {
         _documentText = text;
         await using var db = NewContext();
         var sut = new DocumentIngestionService(
-            new JsonBlob(() => _documentText),
+            new JsonBlob(() => _documentText, json),
             db,
             KernelWithFakeEmbeddings(),
             _vectors,
@@ -97,6 +97,33 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
         (await db.DocumentJobStates.SingleAsync()).Status.Should().Be(JobStatus.VectorSyncFailed);
     }
 
+    [DockerFact]
+    public async Task A_blob_that_deserializes_to_null_ends_Failed_with_an_error_instead_of_Processing()
+    {
+        await IngestAsync("", json: _ => "null");
+
+        await using var db = NewContext();
+        var job = await db.DocumentJobStates.AsNoTracking().SingleAsync();
+        job.DocumentId.Should().Be("BOE-A-2026-1");
+        (job.Status, job.BaselineStatus).Should().Be((JobStatus.Failed, (JobStatus?)JobStatus.Failed));
+        job.ErrorMessage.Should().StartWith("[Baseline]").And.Contain(BlobPath);
+        (await db.DocumentChunks.CountAsync()).Should().Be(0);
+        _vectors.Operations.Should().BeEmpty();
+    }
+
+    [DockerFact]
+    public async Task Every_state_chunk_and_vector_uses_the_id_of_the_path()
+    {
+        // The JSON declares another id: the run must not leave a Processing row under one id and the result under another.
+        await IngestAsync(Paragraphs(2, "texto"), json: text => JsonSerializer.Serialize(new { document_id = "otro-id", text }));
+
+        await using var db = NewContext();
+        var job = await db.DocumentJobStates.AsNoTracking().SingleAsync();
+        (job.DocumentId, job.Status).Should().Be(("BOE-A-2026-1", JobStatus.Completed));
+        (await db.DocumentChunks.Select(c => c.DocumentId).Distinct().ToListAsync()).Should().Equal("BOE-A-2026-1");
+        _vectors.Operations.Should().Contain("delete BOE-A-2026-1");
+    }
+
     private static Kernel KernelWithFakeEmbeddings()
     {
         var generator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -108,7 +135,7 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
         return builder.Build();
     }
 
-    private sealed class JsonBlob(Func<string> text) : IBlobStorage
+    private sealed class JsonBlob(Func<string> text, Func<string, string>? json = null) : IBlobStorage
     {
         public Task EnsureContainerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public IAsyncEnumerable<BlobObjectInfo> ListAsync(string prefix, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<BlobObjectInfo>();
@@ -116,13 +143,13 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
 
         public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken = default)
         {
-            var json = JsonSerializer.Serialize(new
+            var content = json?.Invoke(text()) ?? JsonSerializer.Serialize(new
             {
                 document_id = "BOE-A-2026-1",
                 text = text(),
                 metadata = new { titulo = "Ayudas", departamento = "Ministerio", fecha_publicacion = "20261001" }
             });
-            return Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(json)));
+            return Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(content)));
         }
     }
 

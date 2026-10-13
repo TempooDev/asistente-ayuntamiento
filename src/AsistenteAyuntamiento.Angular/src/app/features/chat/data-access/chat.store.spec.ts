@@ -26,6 +26,8 @@ class FakeChatService {
   textStream = new FakeStream<string>();
   arenaStream = new FakeStream<ArenaStreamChunk>();
   votes: unknown[] = [];
+  /** Answer the server stores (and returns) for the vote. */
+  storedAnswer: string | null = 'Respuesta B';
   connect = vi.fn(() => Promise.resolve());
   getSessions = vi.fn(() => Promise.resolve(this.sessions));
   loadSession = vi.fn(() => Promise.resolve([
@@ -38,7 +40,7 @@ class FakeChatService {
   streamArenaMessage = vi.fn(() => this.arenaStream);
   voteArena = vi.fn((...args: unknown[]) => {
     this.votes.push(args);
-    return Promise.resolve();
+    return Promise.resolve(this.storedAnswer);
   });
 }
 
@@ -133,6 +135,18 @@ describe('ChatStore', () => {
     expect(store.isGenerating()).toBe(false);
   });
 
+  it('keeps the partial answer and appends the model error when the model fails midway', async () => {
+    await store.init();
+    await store.send('x');
+    hub.textStream.observer!.next('Respuesta parcial');
+
+    hub.textStream.observer!.error(new Error('HubException: [LLM_UNAVAILABLE] El modelo de IA no está disponible.'));
+
+    const last = store.messages().at(-1) as AssistantMessage;
+    expect(last.text.startsWith('Respuesta parcial')).toBe(true);
+    expect(last.text).toContain(STREAM_ERROR_MESSAGES['LLM_UNAVAILABLE']);
+  });
+
   it('ignores empty messages and does not send while generating', async () => {
     await store.init();
     await store.send('   ');
@@ -170,6 +184,59 @@ describe('ChatStore', () => {
 
     expect(hub.votes[0]).toEqual(['s1', 'battle-1', 'Beta']);
     expect(store.messages().at(-1)).toEqual(expect.objectContaining({ kind: 'assistant', text: 'Respuesta B', arenaWinner: 'Beta' }));
+  });
+
+  async function finishedBattle(...chunks: ArenaStreamChunk[]): Promise<ArenaMessage> {
+    store.arenaMode.set(true);
+    await store.init();
+    await store.send('Compara');
+    hub.arenaStream.observer!.next({ option: 'SessionId', content: 'battle-1' });
+    hub.arenaStream.observer!.next({ option: 'Alfa', content: 'Respuesta A' });
+    hub.arenaStream.observer!.next({ option: 'Beta', content: 'Respuesta B' });
+    chunks.forEach(chunk => hub.arenaStream.observer!.next(chunk));
+    hub.arenaStream.observer!.complete();
+    return store.messages().at(-1) as ArenaMessage;
+  }
+
+  it('shows the answer the server stored for a tie, so a reload shows the same', async () => {
+    hub.storedAnswer = '*(Empate)*\n\n**Respuesta Alfa:**\nRespuesta A\n\n**Respuesta Beta:**\nRespuesta B';
+    const battle = await finishedBattle();
+
+    await store.vote(battle.id, 'Tie');
+
+    expect(store.messages().at(-1)).toEqual(expect.objectContaining({ kind: 'assistant', text: hub.storedAnswer, arenaWinner: 'Tie' }));
+  });
+
+  it('sends a single vote when the user clicks twice', async () => {
+    const battle = await finishedBattle();
+
+    await Promise.all([store.vote(battle.id, 'Alfa'), store.vote(battle.id, 'Beta')]);
+
+    expect(hub.voteArena).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the typed error of a failed side, keeps its text and blocks the vote', async () => {
+    const battle = await finishedBattle({ option: 'Beta', content: '', errorCode: 'LLM_UNAVAILABLE' });
+
+    expect(battle.alfa).toBe('Respuesta A');
+    expect(battle.beta).toContain('Respuesta B');
+    expect(battle.beta).toContain(STREAM_ERROR_MESSAGES['LLM_UNAVAILABLE']);
+    expect(battle.failed).toEqual(['Beta']);
+
+    await store.vote(battle.id, 'Alfa');
+    expect(hub.voteArena).not.toHaveBeenCalled();
+    expect(store.messages().at(-1)).toEqual(expect.objectContaining({ kind: 'arena' }));
+  });
+
+  it('marks both sides as failed when the whole Arena stream fails', async () => {
+    store.arenaMode.set(true);
+    await store.init();
+    await store.send('Compara');
+    hub.arenaStream.observer!.next({ option: 'SessionId', content: 'battle-1' });
+
+    hub.arenaStream.observer!.error(new Error('HubException: Error [INTERNAL]: error interno.'));
+
+    expect((store.messages().at(-1) as ArenaMessage).failed).toEqual(['Alfa', 'Beta']);
   });
 
   it('keeps streaming into a conversation the user left', async () => {
