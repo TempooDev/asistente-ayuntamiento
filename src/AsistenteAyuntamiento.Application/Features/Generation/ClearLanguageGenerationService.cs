@@ -7,12 +7,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.Application.Features.Generation;
 
-public interface IClearLanguageGenerationService
-{
-    Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default);
-    IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, CancellationToken cancellationToken = default);
-}
-
 public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguageGenerationService> logger) : IClearLanguageGenerationService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
@@ -97,6 +91,3 @@ public class ClearLanguageGenerationService(Kernel kernel, ILogger<ClearLanguage
         return chatHistory;
     }
 }
-
-
-

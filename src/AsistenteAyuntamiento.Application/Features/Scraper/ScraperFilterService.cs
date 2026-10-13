@@ -14,17 +14,17 @@ public class ScraperFilterService : IScraperFilterService
         _dbContext = dbContext;
     }
 
-    public async Task<List<ScraperFilterRule>> GetAllRulesAsync()
+    public async Task<List<ScraperFilterRule>> GetAllRulesAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ScraperFilterRules.AsNoTracking().ToListAsync();
+        return await _dbContext.ScraperFilterRules.AsNoTracking().ToListAsync(cancellationToken);
     }
 
-    public async Task<ScraperFilterRule?> GetRuleByIdAsync(int id)
+    public async Task<ScraperFilterRule?> GetRuleByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ScraperFilterRules.FindAsync(id);
+        return await _dbContext.ScraperFilterRules.FindAsync([id], cancellationToken);
     }
 
-    public async Task<ScraperFilterRule> CreateRuleAsync(CreateFilterRuleDto dto)
+    public async Task<ScraperFilterRule> CreateRuleAsync(CreateFilterRuleDto dto, CancellationToken cancellationToken = default)
     {
         var rule = new ScraperFilterRule
         {
@@ -36,13 +36,13 @@ public class ScraperFilterService : IScraperFilterService
         };
 
         _dbContext.ScraperFilterRules.Add(rule);
-        await _dbContext.SaveChangesAsync(CancellationToken.None);
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return rule;
     }
 
-    public async Task<bool> UpdateRuleAsync(int id, UpdateFilterRuleDto dto)
+    public async Task<bool> UpdateRuleAsync(int id, UpdateFilterRuleDto dto, CancellationToken cancellationToken = default)
     {
-        var rule = await _dbContext.ScraperFilterRules.FindAsync(id);
+        var rule = await _dbContext.ScraperFilterRules.FindAsync([id], cancellationToken);
         if (rule == null) return false;
 
         rule.Provider = dto.Provider;
@@ -50,17 +50,17 @@ public class ScraperFilterService : IScraperFilterService
         rule.Value = dto.Value;
         rule.IsActive = dto.IsActive;
 
-        await _dbContext.SaveChangesAsync(CancellationToken.None);
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 
-    public async Task<bool> DeleteRuleAsync(int id)
+    public async Task<bool> DeleteRuleAsync(int id, CancellationToken cancellationToken = default)
     {
-        var rule = await _dbContext.ScraperFilterRules.FindAsync(id);
+        var rule = await _dbContext.ScraperFilterRules.FindAsync([id], cancellationToken);
         if (rule == null) return false;
 
         _dbContext.ScraperFilterRules.Remove(rule);
-        await _dbContext.SaveChangesAsync(CancellationToken.None);
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 

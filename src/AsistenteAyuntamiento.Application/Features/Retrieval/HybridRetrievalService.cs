@@ -1,10 +1,8 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Embeddings;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Common.Search;
 
@@ -24,16 +22,16 @@ public class HybridRetrievalService(
         try
         {
             // 1. Generate Embeddings
-            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
+            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.SemanticQuery }, cancellationToken: cancellationToken);
             var embeddingVector = embeddings[0].Vector.ToArray();
 
             // 2. Dense vector search
             IReadOnlyList<VectorSearchHit> vectorHits = [];
             try
             {
-                var textFilter = string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio)
+                var textFilter = string.IsNullOrWhiteSpace(queryInfo.MunicipalityFilter)
                     ? ((string Field, string Text)?)null
-                    : (VectorPayloadKeys.Municipality, queryInfo.FiltroMunicipio);
+                    : (VectorPayloadKeys.Municipality, queryInfo.MunicipalityFilter);
 
                 vectorHits = await vectorStore.SearchAsync(
                     VectorCollection.ChildFragments,
@@ -46,7 +44,7 @@ public class HybridRetrievalService(
             }
 
             // 3. Sparse (full-text) search
-            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.QueryLexica ?? string.Empty, queryInfo.FiltroMunicipio, limit, cancellationToken);
+            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.LexicalQuery ?? string.Empty, queryInfo.MunicipalityFilter, limit, cancellationToken);
 
             // 4. In-memory Reciprocal Rank Fusion (RRF)
             var scores = new Dictionary<long, double>();
@@ -108,7 +106,7 @@ public class HybridRetrievalService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error executing Hybrid RRF Retrieval for query: {Query}", queryInfo.QuerySemantica);
+            logger.LogError(ex, "Error executing Hybrid RRF Retrieval for query: {Query}", queryInfo.SemanticQuery);
             throw;
         }
     }

@@ -1,6 +1,5 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using AsistenteAyuntamiento.Domain.Features.Arena;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 

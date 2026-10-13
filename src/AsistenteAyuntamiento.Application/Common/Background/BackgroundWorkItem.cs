@@ -30,9 +30,3 @@ public sealed record BackgroundWorkItem
     public static BackgroundWorkItem PlatformWide(string name, Func<IServiceProvider, CancellationToken, Task> work) =>
         new(name, null, work);
 }
-
-public interface IBackgroundWorkQueue
-{
-    /// <summary>Queues the item. Returns <c>false</c> when the queue is full.</summary>
-    bool TryEnqueue(BackgroundWorkItem item);
-}

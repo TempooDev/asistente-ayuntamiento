@@ -40,8 +40,8 @@ public class QueryExpansionService(
 
             return expanded ?? new ExpandedQueryInfo
             {
-                QueryLexica = userQuery,
-                QuerySemantica = userQuery
+                LexicalQuery = userQuery,
+                SemanticQuery = userQuery
             };
         }
         catch (Exception ex)
@@ -49,8 +49,8 @@ public class QueryExpansionService(
             logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
             return new ExpandedQueryInfo
             {
-                QueryLexica = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
-                QuerySemantica = userQuery
+                LexicalQuery = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+                SemanticQuery = userQuery
             };
         }
     }

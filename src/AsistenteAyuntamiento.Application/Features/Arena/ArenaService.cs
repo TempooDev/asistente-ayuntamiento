@@ -4,15 +4,12 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Arena;
-using AsistenteAyuntamiento.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.DependencyInjection;

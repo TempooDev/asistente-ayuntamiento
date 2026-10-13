@@ -22,7 +22,7 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     /// <summary>
     /// Explicitly creates a brand new chat session, bypassing the 7-day reuse logic.
     /// </summary>
-    public async Task<ChatSession> CreateNewSessionAsync(string userId, string tenantId)
+    public async Task<ChatSession> CreateNewSessionAsync(string userId, string tenantId, CancellationToken cancellationToken = default)
     {
         var session = new ChatSession
         {
@@ -34,7 +34,7 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
         };
 
         _dbContext.ChatSessions.Add(session);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return session;
     }
@@ -118,9 +118,9 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     /// Saves all changes made in this context to the database.
     /// </summary>
     /// <returns>A task representing the asynchronous save operation.</returns>
-    public async Task SaveAsync()
+    public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -168,25 +168,25 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     /// <summary>
     /// Gets a user's chat sessions ordered by creation date descending.
     /// </summary>
-    public async Task<List<ChatSession>> GetUserSessionsAsync(string userId, string tenantId)
+    public async Task<List<ChatSession>> GetUserSessionsAsync(string userId, string tenantId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ChatSessions
             .AsNoTracking()
             .Include(s => s.Messages)
             .Where(s => s.UserId == userId && s.TenantId == tenantId)
             .OrderByDescending(s => s.CreatedAt)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>
     /// Gets messages for a specific session.
     /// </summary>
-    public async Task<List<ChatMessage>> GetSessionMessagesAsync(Guid sessionId, string userId, string tenantId)
+    public async Task<List<ChatMessage>> GetSessionMessagesAsync(Guid sessionId, string userId, string tenantId, CancellationToken cancellationToken = default)
     {
         var session = await _dbContext.ChatSessions
             .AsNoTracking()
             .Include(s => s.Messages)
-            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId, cancellationToken);
 
         if (session == null)
         {
@@ -196,13 +196,13 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
         return session.Messages.OrderBy(m => m.CreatedAt).ToList();
     }
 
-    public async Task<bool> DeleteSessionAsync(Guid sessionId, string userId, string tenantId)
+    public async Task<bool> DeleteSessionAsync(Guid sessionId, string userId, string tenantId, CancellationToken cancellationToken = default)
     {
-        var session = await _dbContext.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+        var session = await _dbContext.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId, cancellationToken);
         if (session != null)
         {
             _dbContext.ChatSessions.Remove(session);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
         return false;
@@ -211,10 +211,10 @@ public class ChatSessionService(IAppDbContext dbContext, ChatMessageBuffer buffe
     /// <summary>
     /// Gets a specific chat session by ID.
     /// </summary>
-    public async Task<ChatSession?> GetSessionByIdAsync(Guid sessionId, string userId, string tenantId)
+    public async Task<ChatSession?> GetSessionByIdAsync(Guid sessionId, string userId, string tenantId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ChatSessions
             .Include(s => s.Messages)
-            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId);
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.TenantId == tenantId, cancellationToken);
     }
 }

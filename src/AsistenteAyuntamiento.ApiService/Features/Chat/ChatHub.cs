@@ -53,7 +53,7 @@ public class ChatHub(
             _logger.LogInformation("Message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
 
             // 1. Fetch specific session
-            var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+            var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId, Context.ConnectionAborted);
             if (session == null)
             {
                 await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.NotFound));
@@ -66,7 +66,7 @@ public class ChatHub(
             var history = BuildChatHistory(recentMessages);
 
             // 3. Call AI (metrics and tracing are handled inside AiChatService)
-            var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId);
+            var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId, Context.ConnectionAborted);
 
             var finalContent = result.Content;
 
@@ -109,7 +109,7 @@ public class ChatHub(
             }
             else
             {
-                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId, cancellationToken);
                 if (session == null)
                 {
                     errorMessage = HubErrors.Message(HubErrors.NotFound);
@@ -172,7 +172,7 @@ public class ChatHub(
             }
             else
             {
-                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId);
+                session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId, cancellationToken);
                 if (session == null)
                 {
                     errorMessage = HubErrors.Message(HubErrors.NotFound);
@@ -236,7 +236,7 @@ public class ChatHub(
         // The winning answer becomes the assistant message of the chat; ties and "both bad" add nothing.
         if (voteResult.WinningResponse is not null)
         {
-            var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId);
+            var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId, Context.ConnectionAborted);
             if (session != null)
             {
                 _sessionService.EnqueueAssistantMessage(session, voteResult.WinningResponse);
@@ -269,7 +269,7 @@ public class ChatHub(
         if (string.IsNullOrEmpty(userId))
             return new List<ChatSessionSummaryDto>();
 
-        var sessions = await _sessionService.GetUserSessionsAsync(userId, CurrentTenantId);
+        var sessions = await _sessionService.GetUserSessionsAsync(userId, CurrentTenantId, Context.ConnectionAborted);
         return sessions.Select(s =>
         {
             var firstUserMsg = s.Messages.OrderBy(m => m.CreatedAt).FirstOrDefault(m => m.Role == "user")?.Content ?? "";
@@ -284,7 +284,7 @@ public class ChatHub(
         if (string.IsNullOrEmpty(userId))
             return new List<ChatMessageDto>();
 
-        var messages = await _sessionService.GetSessionMessagesAsync(sessionId, userId, CurrentTenantId);
+        var messages = await _sessionService.GetSessionMessagesAsync(sessionId, userId, CurrentTenantId, Context.ConnectionAborted);
         return messages.Select(m => new ChatMessageDto(m.Role, m.Content, m.CreatedAt)).ToList();
     }
 
@@ -294,7 +294,7 @@ public class ChatHub(
         if (string.IsNullOrEmpty(userId))
             throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-        var session = await _sessionService.CreateNewSessionAsync(userId, CurrentTenantId);
+        var session = await _sessionService.CreateNewSessionAsync(userId, CurrentTenantId, Context.ConnectionAborted);
         return session.Id;
     }
 
@@ -304,6 +304,6 @@ public class ChatHub(
         if (string.IsNullOrEmpty(userId))
             throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-        await _sessionService.DeleteSessionAsync(sessionId, userId, CurrentTenantId);
+        await _sessionService.DeleteSessionAsync(sessionId, userId, CurrentTenantId, Context.ConnectionAborted);
     }
 }

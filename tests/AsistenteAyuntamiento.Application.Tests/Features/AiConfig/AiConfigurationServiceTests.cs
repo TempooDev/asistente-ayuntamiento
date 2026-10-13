@@ -43,7 +43,7 @@ public class AiConfigurationServiceTests
         };
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
 
-        _sut = new AiConfigurationService(_dbContextMock.Object, _tenantServiceMock.Object, _dataProtectionProviderMock.Object, _configuration);
+        _sut = new AiConfigurationService(_dbContextMock.Object, _tenantServiceMock.Object, _dataProtectionProviderMock.Object, _configuration, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiConfigurationService>.Instance);
     }
 
     [Fact]

@@ -10,13 +10,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class RawFragment
-{
-    public string Section { get; set; } = string.Empty;
-    public string ElementType { get; set; } = string.Empty;
-    public string OriginalText { get; set; } = string.Empty;
-}
-
 public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestionProcessor
 {
     protected readonly IAppDbContext _dbContext;

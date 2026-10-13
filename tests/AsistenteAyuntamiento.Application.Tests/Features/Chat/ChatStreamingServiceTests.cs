@@ -21,7 +21,7 @@ public class ChatStreamingServiceTests
     private ChatStreamingService CreateSut()
     {
         var config = new Mock<IAiConfigurationService>();
-        config.Setup(c => c.GetFullConfigurationAsync(It.IsAny<string?>()))
+        config.Setup(c => c.GetFullConfigurationAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new AiConfigurationDto { Provider = "openai", Model = "tenant-model" }, (string?)"key"));
 
         var recorder = new Mock<IAiCallRecorder>();

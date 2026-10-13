@@ -22,7 +22,7 @@ public sealed class ChatStreamingService(
         var stopwatch = Stopwatch.StartNew();
         using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion");
 
-        var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId);
+        var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId, cancellationToken);
         var promptLength = LastUserMessageLength(history);
         Tag(activity, config.Model, tenantId, userId);
         activity?.SetTag("ai.prompt.length", promptLength);
@@ -100,7 +100,7 @@ public sealed class ChatStreamingService(
         var stopwatch = Stopwatch.StartNew();
         using var activity = AiMetricsService.ActivitySource.StartActivity("AI.ChatCompletion.Stream");
 
-        var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId);
+        var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId, cancellationToken);
         Tag(activity, config.Model, tenantId, userId);
 
         if (!TryCreateModel(config, apiKey, out var service, out var initError))

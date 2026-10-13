@@ -7,11 +7,6 @@ using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
 
-public interface IHistoryAnalyzerService
-{
-    Task AnalyzeAndMergeUserHistoryAsync(string auth0UserId, CancellationToken cancellationToken = default);
-}
-
 public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceService preferenceService, Kernel kernel) : IHistoryAnalyzerService
 {
     public async Task AnalyzeAndMergeUserHistoryAsync(string auth0UserId, CancellationToken cancellationToken = default)

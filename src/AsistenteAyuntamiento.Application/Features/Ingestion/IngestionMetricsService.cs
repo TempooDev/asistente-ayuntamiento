@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;

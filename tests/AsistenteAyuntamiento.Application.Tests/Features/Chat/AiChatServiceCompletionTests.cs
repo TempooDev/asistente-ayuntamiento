@@ -37,7 +37,7 @@ public class AiChatServiceCompletionTests
     {
         var configService = new Mock<IAiConfigurationService>();
         configService
-            .Setup(s => s.GetFullConfigurationAsync(It.IsAny<string?>()))
+            .Setup(s => s.GetFullConfigurationAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new AiConfigurationDto { Provider = "openai", Model = "tenant-model" }, (string?)TenantKey));
 
         var preferences = new Mock<IUserPreferenceService>();
