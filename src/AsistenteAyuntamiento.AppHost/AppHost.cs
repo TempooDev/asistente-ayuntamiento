@@ -137,9 +137,9 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
+// No mod tidy / mod vendor on start: they rewrite go.mod, go.sum and vendor/ while go vet and go run read them
+// (go vet failed on missing vendor files). Dependencies come from the module cache (mod download).
 var goScraper = builder.AddGoApp("go-scraper", "../go-scraper", "./cmd/scraper")
-    .WithModTidy()
-    .WithModVendor()
     .WithModDownload()
     .WithVetTool()
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
