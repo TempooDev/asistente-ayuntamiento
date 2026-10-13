@@ -339,6 +339,43 @@
       "options": {}
     },
     {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Coste estimado por operación (rango)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "answer (respuestas), query_expansion, enrichment (ingesta) e history_analysis (perfil).",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (app_llm_operation) (increase(app_llm_cost_total{app_tenant_id=~\"$tenant\", app_pipeline=~\"$pipeline\"}[$__range])))",
+          "legendFormat": "{{app_llm_operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      }
+    },
+    {
       "id": 8,
       "type": "timeseries",
       "title": "Errores por código",
@@ -348,7 +385,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 32,
         "w": 24,
         "h": 8
       },

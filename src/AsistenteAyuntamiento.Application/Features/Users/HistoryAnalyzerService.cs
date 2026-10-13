@@ -1,4 +1,6 @@
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -7,7 +9,13 @@ using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
 
-public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceService preferenceService, Kernel kernel) : IHistoryAnalyzerService
+public class HistoryAnalyzerService(
+    IAppDbContext dbContext,
+    IUserPreferenceService preferenceService,
+    Kernel kernel,
+    IConfiguration configuration,
+    ICurrentTenantService tenantService,
+    ILlmUsageMetrics usageMetrics) : IHistoryAnalyzerService
 {
     public async Task AnalyzeAndMergeUserHistoryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
@@ -39,7 +47,8 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
         var history = new ChatHistory(systemPrompt);
         history.AddUserMessage(messagesContext);
 
-        var result = await chatCompletion.GetChatMessageContentAsync(history, cancellationToken: cancellationToken);
+        var scope = new LlmCallScope(tenantService.TenantId ?? "unknown", LlmPipelines.Profile, LlmOperations.HistoryAnalysis);
+        var result = await chatCompletion.CompleteMeteredAsync(history, PlatformModels.Chat(configuration), scope, usageMetrics, cancellationToken: cancellationToken);
         var resultContent = result.Content ?? string.Empty;
 
         resultContent = resultContent.Replace("```json", "").Replace("```", "").Trim();

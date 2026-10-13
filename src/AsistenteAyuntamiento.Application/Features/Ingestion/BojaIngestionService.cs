@@ -6,6 +6,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -15,15 +16,15 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 /// </summary>
 public class BojaIngestionService : BaseHierarchicalIngestionProcessor
 {
-    private const int ChunkSize = 1000;
-
     private readonly IBlobStorage _blobStorage;
+    private readonly IChunkingStrategy _chunking;
 
     // Both extraction steps need the same document: download it once per (scoped) service instance.
     private (string BlobPath, ScrapedDocument? Document)? _cached;
 
     public BojaIngestionService(
         IBlobStorage blobStorage,
+        IChunkingStrategy chunking,
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
@@ -33,6 +34,7 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
         : base(dbContext, enrichmentService, metricsService, vectorStore, logger, kernel)
     {
         _blobStorage = blobStorage;
+        _chunking = chunking;
     }
 
     protected override BulletinType Bulletin => BulletinType.BOJA;
@@ -42,7 +44,7 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
         var scraped = await LoadAsync(blobPath, cancellationToken);
         var metadata = scraped?.Metadata;
 
-        // TODO(audit-remediation 6.3): the Go BOJA client still writes the scrape date instead of the bulletin date.
+        // The scraper writes the bulletin date; documents stored before audit phase 6 may lack it.
         if (!PublicationDateParser.TryParse(metadata?.PublicationDate, out var publicationDate))
         {
             _logger.LogWarning("BOJA document {DocumentId} has no parsable publication date ({Value}); using ingestion time",
@@ -68,23 +70,16 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
         var scraped = await LoadAsync(blobPath, cancellationToken);
         var rawText = scraped?.Content ?? string.Empty;
 
-        // TODO(audit-remediation 6.x / M2): use IChunkingStrategy instead of fixed-size slices.
-        var result = new List<RawFragment>();
-
-        for (int i = 0; i < rawText.Length; i += ChunkSize)
-        {
-            var originalText = rawText.Substring(i, Math.Min(ChunkSize, rawText.Length - i));
-            var normSection = $"Sección {i / ChunkSize + 1}";
-
-            result.Add(new RawFragment
+        // BOJA pages carry no article structure: the whole text is split with the configured strategy, which cuts
+        // on line and paragraph boundaries with overlap instead of every 1000 characters mid-word.
+        return _chunking.ChunkText(rawText)
+            .Select(chunk => new RawFragment
             {
-                Section = normSection,
+                Section = $"Sección {chunk.ChunkIndex + 1}",
                 ElementType = "Párrafo",
-                OriginalText = originalText
-            });
-        }
-
-        return result;
+                OriginalText = chunk.Text
+            })
+            .ToList();
     }
 
     private async Task<ScrapedDocument?> LoadAsync(string blobPath, CancellationToken cancellationToken)

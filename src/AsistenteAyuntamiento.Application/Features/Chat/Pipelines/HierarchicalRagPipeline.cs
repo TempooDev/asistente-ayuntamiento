@@ -21,11 +21,11 @@ public sealed class HierarchicalRagPipeline(
 
     public async IAsyncEnumerable<string> StreamAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var expandedQuery = await queryExpansionService.ExpandQueryAsync(turn.UserQuery, cancellationToken);
+        var scope = new LlmCallScope(turn.TenantId, turn.TelemetryPipeline ?? LlmPipelines.Hierarchical);
+        var expandedQuery = await queryExpansionService.ExpandQueryAsync(turn.UserQuery, scope, cancellationToken);
         var retrieved = await hybridRetrievalService.RetrieveAsync(expandedQuery, RetrievalLimit, cancellationToken);
 
-        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(
-            turn.UserQuery, retrieved, new LlmCallScope(turn.TenantId, turn.TelemetryPipeline ?? LlmPipelines.Hierarchical), cancellationToken))
+        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(turn.UserQuery, retrieved, scope, cancellationToken))
         {
             if (chunk.Content is not null)
             {

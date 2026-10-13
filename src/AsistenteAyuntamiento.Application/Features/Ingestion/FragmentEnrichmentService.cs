@@ -1,20 +1,27 @@
 using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.Extensions.Logging;
-using AsistenteAyuntamiento.Domain.Common.Enums;
-
-using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public class FragmentEnrichmentService(
     [FromKeyedServices("IngestionKernel")] Kernel kernel,
+    IConfiguration configuration,
+    ILlmUsageMetrics usageMetrics,
     ILogger<FragmentEnrichmentService> logger) : IFragmentEnrichmentService
 {
-    private readonly Kernel _kernel = kernel;
+    /// <summary>Bulletins are shared by every tenant: the ingestion cost is the platform's.</summary>
+    private static readonly LlmCallScope Scope = new(LlmCallScope.PlatformTenant, LlmPipelines.Ingestion, LlmOperations.Enrichment);
+
     private readonly ILogger<FragmentEnrichmentService> _logger = logger;
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly (string Provider, string Model) _model = PlatformModels.Ingestion(configuration);
 
     public async Task<(string EnrichedText, int LlmCalls, int LlmTokens)> EnrichFragmentAsync(
         BulletinType bulletin,
@@ -30,21 +37,20 @@ public class FragmentEnrichmentService(
         // Generate synthetic questions
         string syntheticQuestions = "";
         int llmCalls = 0;
-        int llmTokens = 0; // Semantic Kernel doesn't always expose token counts easily without native results, we'll estimate or leave as 0 if unavailable
+        int llmTokens = 0;
 
         try
         {
             var prompt = string.Format(PromptCatalog.FragmentEnrichment, originalText);
 
-            var result = await _chatCompletionService.GetChatMessageContentAsync(
-                prompt,
-                cancellationToken: cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(prompt, _model, Scope, usageMetrics, cancellationToken);
 
             syntheticQuestions = result.Content?.Trim() ?? "";
             llmCalls = 1;
 
-            // Note: In a real scenario we'd parse usage metadata to get llmTokens, estimating here.
-            llmTokens = (prompt.Length + syntheticQuestions.Length) / 4;
+            // Real usage when the provider reports it; a rough estimate (4 chars per token) otherwise.
+            var usage = TokenUsageExtractor.Extract(result);
+            llmTokens = usage.TotalTokens > 0 ? usage.TotalTokens : (prompt.Length + syntheticQuestions.Length) / 4;
         }
         catch (Exception ex)
         {
