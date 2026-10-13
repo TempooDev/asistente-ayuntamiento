@@ -30,7 +30,13 @@ type DocumentMessage struct {
 	Source     string `json:"source"`
 	DocumentID string `json:"document_id"`
 	BlobPath   string `json:"blob_path"`
+	// Pipelines the document is published to. The first worker to receive it records the others as queued, so
+	// the admin summary does not show it as completed before the slower pipeline has processed it.
+	Pipelines []string `json:"pipelines,omitempty"`
 }
+
+// PublishedPipelines are the pipelines PublishDocument sends every document to, one per queue.
+var PublishedPipelines = []string{"BASELINE", "HIERARCHICAL"}
 
 // Publisher publishes persistent messages with publisher confirms. It is safe for concurrent use:
 // the channel is guarded by a mutex, and the connection is re-established when it is closed.
@@ -114,6 +120,7 @@ func declareWorkQueue(ch *amqp.Channel, queue string) error {
 // PublishDocument publishes the message to both ingestion queues and waits for the broker confirms.
 // On a closed connection it reconnects once and retries.
 func (p *Publisher) PublishDocument(ctx context.Context, msg DocumentMessage) error {
+	msg.Pipelines = PublishedPipelines
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
