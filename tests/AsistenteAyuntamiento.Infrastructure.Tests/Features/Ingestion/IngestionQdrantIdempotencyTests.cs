@@ -39,6 +39,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
     private QdrantClient _client = null!;
     private QdrantVectorStore _vectors = null!;
     private readonly Dictionary<string, string> _texts = [];
+    private readonly Dictionary<string, string> _titles = [];
     private readonly VectorStoreOptions _options = new();
 
     public async Task InitializeAsync()
@@ -71,7 +72,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
         _texts[documentId] = text;
         await using var db = NewContext();
         var sut = new DocumentIngestionService(
-            new JsonBlobs(_texts),
+            new JsonBlobs(_texts, _titles),
             db,
             KernelWithFakeEmbeddings(),
             _vectors,
@@ -144,18 +145,38 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
     }
 
     [DockerFact]
-    public async Task A_municipality_filter_keeps_fragments_without_municipality_in_both_searches()
+    public async Task A_municipality_filter_matches_its_documents_and_keeps_those_without_municipality_in_both_searches()
     {
-        // Bulletins are not tagged with a municipality: a question about one must still find them.
-        await IngestBojaAsync("BOJA-2026-10-2", Paragraphs(3, "subvencion"));
-
-        var dense = await _vectors.SearchAsync(VectorCollection.ChildFragments,
-            new VectorSearchRequest([0.1f, 0.2f, 0.3f], Limit: 10, TextFilter: (VectorPayloadKeys.Municipality, "Sedella")));
-        dense.Should().NotBeEmpty();
+        // BOJA names the issuing Ayuntamiento in the title; the other document has none and applies to every municipality.
+        await IngestBojaAsync("BOJA-2026-10-2", Paragraphs(3, "subvencion"), title: "Anuncio de 3 de febrero de 2026, del Ayuntamiento de Sedella, de subvenciones.");
+        await IngestBojaAsync("BOJA-2026-10-4", Paragraphs(3, "subvencion"));
 
         await using var db = NewContext();
-        var sparse = await new PostgresFullTextSearch(db).SearchChildFragmentsAsync("subvencion1", "Sedella", 10);
-        sparse.Should().NotBeEmpty();
+        (await db.ParentDocuments.AsNoTracking().SingleAsync(p => p.DocumentId == "BOJA-2026-10-2")).Municipality.Should().Be("Sedella");
+        var sedella = await FragmentIdsAsync(db, "BOJA-2026-10-2");
+        var untagged = await FragmentIdsAsync(db, "BOJA-2026-10-4");
+
+        // The citizen's spelling does not need to match the stored case or accents.
+        var (dense, sparse) = await SearchBothAsync(db, "Ayuntamiento de SÉDELLA");
+        dense.Should().Contain(sedella).And.Contain(untagged);
+        sparse.Should().Contain(id => sedella.Contains(id)).And.Contain(id => untagged.Contains(id));
+
+        (dense, sparse) = await SearchBothAsync(db, "Ronda");
+        dense.Should().Contain(untagged).And.NotContain(sedella);
+        sparse.Should().NotBeEmpty().And.OnlyContain(id => untagged.Contains(id));
+    }
+
+    private static async Task<List<long>> FragmentIdsAsync(AppDbContext db, string documentId) =>
+        await db.ChildFragments.AsNoTracking().Where(c => c.Parent.DocumentId == documentId).Select(c => c.Id).ToListAsync();
+
+    private async Task<(List<long> Dense, List<long> Sparse)> SearchBothAsync(AppDbContext db, string municipality)
+    {
+        // As HybridRetrievalService: both searches receive the filter as a match key.
+        var key = MunicipalityExtractor.ToMatchKey(municipality)!;
+        var dense = await _vectors.SearchAsync(VectorCollection.ChildFragments,
+            new VectorSearchRequest([0.1f, 0.2f, 0.3f], Limit: 100, TextFilter: (VectorPayloadKeys.Municipality, key)));
+        var sparse = await new PostgresFullTextSearch(db).SearchChildFragmentsAsync("subvencion1", key, 100);
+        return (dense.Select(h => h.Id).ToList(), sparse.ToList());
     }
 
     [DockerFact]
@@ -172,16 +193,17 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
         (await db.ParentDocuments.CountAsync(p => p.DocumentId == "BOJA-2026-10-3")).Should().Be(1, "PostgreSQL is committed first");
     }
 
-    private async Task IngestBojaAsync(string documentId, string text, IVectorStore? vectors = null)
+    private async Task IngestBojaAsync(string documentId, string text, IVectorStore? vectors = null, string title = "Ayudas")
     {
         _texts[documentId] = text;
+        _titles[documentId] = title;
         await using var db = NewContext();
         var enrichment = new Mock<IFragmentEnrichmentService>();
         enrichment.Setup(e => e.EnrichFragmentAsync(It.IsAny<BulletinType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((BulletinType _, string _, string _, string _, string _, string original, CancellationToken _) => (original, 0, 0));
         var sut = new BojaIngestionService(
-            new JsonBlobs(_texts),
+            new JsonBlobs(_texts, _titles),
             new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 0),
             db,
             enrichment.Object,
@@ -204,7 +226,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
     }
 
     /// <summary>Scraper JSON per document id, taken from the blob key (<c>json/BOE/{id}.json</c>).</summary>
-    private sealed class JsonBlobs(IReadOnlyDictionary<string, string> texts) : IBlobStorage
+    private sealed class JsonBlobs(IReadOnlyDictionary<string, string> texts, IReadOnlyDictionary<string, string> titles) : IBlobStorage
     {
         public Task EnsureContainerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public IAsyncEnumerable<BlobObjectInfo> ListAsync(string prefix, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<BlobObjectInfo>();
@@ -217,7 +239,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
             {
                 document_id = documentId,
                 text = texts[documentId],
-                metadata = new { titulo = "Ayudas", departamento = "Ministerio", fecha_publicacion = "20261001" }
+                metadata = new { titulo = titles.GetValueOrDefault(documentId, "Ayudas"), departamento = "Ministerio", fecha_publicacion = "20261001" }
             });
             return Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(json)));
         }

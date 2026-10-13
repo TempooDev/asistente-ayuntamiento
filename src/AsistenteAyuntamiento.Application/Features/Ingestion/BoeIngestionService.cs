@@ -56,6 +56,7 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
             DocumentId = documentId,
             NormTitle = string.IsNullOrWhiteSpace(metadata?.Title) ? documentId : metadata.Title,
             IssuingBody = metadata?.Department,
+            Municipality = MunicipalityExtractor.Extract(metadata?.Title, metadata?.Department),
             FullText = scraped?.Content ?? string.Empty,
             PublicationDate = publicationDate,
             IsActive = true,

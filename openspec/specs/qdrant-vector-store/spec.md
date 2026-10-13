@@ -10,11 +10,11 @@ The system SHALL store the vectors of each pipeline in its own Qdrant collection
 
 #### Scenario: Indexing a child fragment
 - **WHEN** the hierarchical ingestion stores a child fragment
-- **THEN** it SHALL upsert a point into `child_fragments` with id = `ChildFragments.Id` and payload `DocumentId`, `ParentId`, `Bulletin` (enum value), `Municipality` (empty string when none), `SubSection` and `ChunkText`
+- **THEN** it SHALL upsert a point into `child_fragments` with id = `ChildFragments.Id` and payload `DocumentId`, `ParentId`, `Bulletin` (enum value), `Municipality` (the municipality match key, empty string when none), `SubSection` and `ChunkText`
 
 #### Scenario: Indexing a baseline chunk
 - **WHEN** the baseline ingestion stores a document chunk
-- **THEN** it SHALL upsert a point into `document_chunks` with id = `DocumentChunks.Id` and payload `DocumentId`, `Source`, `Title`, `Department`, `Content`, `ChunkIndex` and `PublicationDate` (ISO 8601), used by the baseline answer to cite its sources
+- **THEN** it SHALL upsert a point into `document_chunks` with id = `DocumentChunks.Id` and payload `DocumentId`, `Source`, `Title`, `Department`, `Municipality` (the same match key as the hierarchical pipeline, empty string when none), `Content`, `ChunkIndex` and `PublicationDate` (ISO 8601), used by the baseline answer to cite its sources
 
 #### Scenario: Deleting a document's vectors
 - **WHEN** a document is re-ingested
@@ -42,8 +42,9 @@ Before writing to a collection, the system SHALL ensure it exists with the vecto
 `IVectorStore.SearchAsync` SHALL return the nearest points of a collection, best first, up to a limit and above an optional score threshold. An optional text filter on a payload field SHALL keep the points whose field matches the text and the points where that field is empty, missing or null.
 
 #### Scenario: Municipality filter
-- **WHEN** the hierarchical retrieval searches `child_fragments` with the municipality "Málaga"
-- **THEN** points whose `Municipality` matches "Málaga" and points with an empty `Municipality` SHALL both be candidates
+- **WHEN** the hierarchical retrieval searches `child_fragments` with the municipality "Málaga" (match key "malaga")
+- **THEN** points whose `Municipality` contains "malaga" and points with an empty `Municipality` SHALL both be candidates
+- **AND** the filter text SHALL match as a substring (no full-text index on the field), so stored keys and the query key are both normalized by `MunicipalityExtractor.ToMatchKey`
 
 ### Requirement: Authenticated Access
 In the Production environment, the API and the Workers SHALL refuse to start unless `ConnectionStrings:qdrant` contains a non-empty `Key=` API key. The production compose file SHALL start Qdrant with `QDRANT__SERVICE__API_KEY` (required) and SHALL NOT publish Qdrant ports outside the internal Docker network. Outside Production (the Aspire AppHost) no key is enforced by the application.
