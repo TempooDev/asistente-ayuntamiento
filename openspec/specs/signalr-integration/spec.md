@@ -51,7 +51,7 @@ Hub failures SHALL reach the client as a stable code (`UNAUTHORIZED`, `NOT_FOUND
 - **AND** the client SHALL show the message mapped from the code (`mapStreamError`)
 
 ### Requirement: Group-scoped Notifications
-The notification hub SHALL never broadcast with `Clients.All`. Connections join `tenant:{id}` and, for administrators, `role:admin` in `OnConnectedAsync`. `DocumentStatusChanged` (`{ documentId, status }`) and `ScraperStateChanged` (`{ isScraping, message }`) concern platform-wide ingestion and SHALL be sent to `role:admin` only.
+The notification hub SHALL never broadcast with `Clients.All`. Connections join `tenant:{id}` and, for administrators, `role:admin` in `OnConnectedAsync`. `DocumentStatusChanged` (`{ documentId, status }`), `DocumentStatusesChanged` (an array of those, at most 500 per message) and `ScraperStateChanged` (`{ isScraping, message }`) concern platform-wide ingestion and SHALL be sent to `role:admin` only.
 
 #### Scenario: Document processed by the worker
 - **WHEN** the ingestion worker reports a new status for a document
@@ -61,3 +61,8 @@ The notification hub SHALL never broadcast with `Clients.All`. Connections join 
 #### Scenario: Unauthorized listener
 - **WHEN** a user without the administrator role is connected
 - **THEN** it SHALL NOT receive scraper or ingestion notifications meant for administrators
+
+#### Scenario: Many documents enqueued at once
+- **WHEN** an administrator enqueues or reprocesses hundreds of documents
+- **THEN** their new states SHALL be sent as `DocumentStatusesChanged` batches instead of one message per document
+- **AND** the documents page SHALL apply each batch in a single update

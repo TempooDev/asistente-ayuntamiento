@@ -25,6 +25,14 @@ public class IngestionEnqueueTests
         new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(_databaseName).Options,
         Mock.Of<ICurrentTenantService>(t => t.TenantId == "system"));
 
+    private readonly Mock<INotificationService> _notifications = new();
+    private readonly List<IReadOnlyList<DocumentStatusChange>> _notifiedBatches = [];
+
+    public IngestionEnqueueTests() =>
+        _notifications.Setup(n => n.NotifyDocumentStatusesChangedAsync(It.IsAny<IReadOnlyList<DocumentStatusChange>>()))
+            .Callback<IReadOnlyList<DocumentStatusChange>>(_notifiedBatches.Add)
+            .Returns(Task.CompletedTask);
+
     private IngestionAdminService CreateSut(AppDbContext db, IIngestionQueuePublisher publisher, IBlobStorage? blobs = null) => new(
         blobs ?? Mock.Of<IBlobStorage>(),
         db,
@@ -32,7 +40,7 @@ public class IngestionEnqueueTests
         publisher,
         Mock.Of<IVectorStore>(),
         Mock.Of<IIngestionMaintenance>(),
-        Mock.Of<INotificationService>(),
+        _notifications.Object,
         NullLogger<IngestionAdminService>.Instance);
 
     private static ProcessBlobRequest Blob(string id) => new() { BlobPath = $"json/BOE/{id}.json" };
@@ -98,6 +106,15 @@ public class IngestionEnqueueTests
         states["BOE-A-1"].ErrorMessage.Should().BeNull();
         states["BOE-A-2"].Status.Should().Be(JobStatus.Pending);
         states["BOE-A-3"].Status.Should().Be(JobStatus.Queued);
+
+        // One notification batch with the final states, instead of one message per document.
+        _notifiedBatches.Should().ContainSingle().Which.Should().BeEquivalentTo(new[]
+        {
+            new DocumentStatusChange("BOE-A-1", "Queued"),
+            new DocumentStatusChange("BOE-A-2", "Pending"),
+            new DocumentStatusChange("BOE-A-3", "Queued"),
+        });
+        _notifications.Verify(n => n.NotifyDocumentStatusChangedAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         publisher.Pipelines.Should().AllBeEquivalentTo(IngestionPipelines.Baseline);
     }
 

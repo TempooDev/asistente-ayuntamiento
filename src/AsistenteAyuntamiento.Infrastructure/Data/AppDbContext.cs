@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public DbSet<UserPreference> UserPreferences { get; set; }
     public DbSet<ChatSession> ChatSessions { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
+    public DbSet<FailedChatMessage> FailedChatMessages { get; set; }
     public DbSet<AiCallLog> AiCallLogs { get; set; }
     public DbSet<AiConfiguration> AiConfigurations { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
@@ -87,6 +88,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         {
             entity.ToTable("ChatMessages", "chat");
             entity.HasQueryFilter(m => m.Session.TenantId == CurrentTenantId);
+        });
+
+        // Dead letters of ChatPersistenceWorker: no foreign key (the session may be gone) and no tenant filter
+        // (operator-only, not exposed by any endpoint).
+        modelBuilder.Entity<FailedChatMessage>(entity =>
+        {
+            entity.ToTable("FailedChatMessages", "chat");
+            entity.Property(m => m.Id).ValueGeneratedNever();
+            entity.Property(m => m.Role).HasMaxLength(20);
+            entity.Property(m => m.Error).HasMaxLength(300);
+            entity.HasIndex(m => m.FailedAt);
         });
 
         modelBuilder.Entity<AiCallLog>(entity =>

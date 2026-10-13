@@ -225,6 +225,44 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.ToTable("ChatSessions", "chat");
                 });
 
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.FailedChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("FailedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FailedAt");
+
+                    b.ToTable("FailedChatMessages", "chat");
+                });
+
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ChildFragment", b =>
                 {
                     b.Property<long>("Id")
