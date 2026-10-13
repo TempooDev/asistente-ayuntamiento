@@ -23,10 +23,11 @@
 - [x] 2.13 The fragment breadcrumb passes `ElementType` ("General"/"Párrafo") as SUBSECCIÓN, and fragments never get a municipality (`BaseHierarchicalIngestionProcessor.cs:80,89`).
 - [x] 2.14 The plain-language generation only labels each parent document by its numeric id, so "Fuentes consultadas" cannot cite the bulletin or norm (`ClearLanguageGenerationService.cs:149`).
 - [x] 2.15 Left over from 2.2: query expansion, ingestion enrichment, history analysis and the non-streaming Arena compare still only reach the `gen_ai.*` metrics, not `AiCallLogs`. Recording them needs a column naming the step (migration) so they are not counted as answers.
-- [ ] 2.16 Left over from 2.4: a model error before any text arrives as a normal `[LLM_*]` message, so that Arena side is not marked as failed and can still be voted on.
-- [ ] 2.17 When a chat stream fails midway, the partial answer is not saved, so a reload shows the question with no answer.
+- [x] 2.16 Left over from 2.4: a model error before any text arrives as a normal `[LLM_*]` message, so that Arena side is not marked as failed and can still be voted on.
+- [x] 2.17 When a chat stream fails midway, the partial answer is not saved, so a reload shows the question with no answer.
 - [x] 2.18 The Arena vote reads, checks and writes without a concurrency token: two simultaneous votes could both pass (the client blocks double clicks). Needs a row version (migration).
-- [ ] 2.19 Fragments now inherit `ParentDocument.Municipality`, but neither the scraper JSON nor the baseline fills a municipality, so it is always null and the municipality filter never matches a real value.
+- [x] 2.19 Fragments now inherit `ParentDocument.Municipality`, but neither the scraper JSON nor the baseline fills a municipality, so it is always null and the municipality filter never matches a real value.
+- [ ] 2.20 The hierarchical pipeline (`ClearLanguageGenerationService`) returns a generic "Lo siento, ha ocurrido un error interno…" text when its stream cannot start, so in the Arena that side still counts as an answer and can be voted on.
 
 ## 3. Robustness and hygiene
 

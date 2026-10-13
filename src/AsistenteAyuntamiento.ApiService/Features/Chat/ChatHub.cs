@@ -137,13 +137,37 @@ public class ChatHub(
 
         var fullResponseBuilder = new System.Text.StringBuilder();
 
-        await foreach (var chunk in Guarded(_aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken), cancellationToken))
+        var stream = Guarded(
+            _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken),
+            cancellationToken,
+            llmErrorCode => SaveInterruptedAnswer(session, fullResponseBuilder.ToString(), llmErrorCode));
+        await foreach (var chunk in stream)
         {
             fullResponseBuilder.Append(chunk);
             yield return chunk;
         }
 
-        _sessionService.EnqueueAssistantMessage(session, fullResponseBuilder.ToString());
+        // A stream the client cancelled (it disconnected) keeps the text that arrived, without a notice; none if empty.
+        var answer = fullResponseBuilder.ToString();
+        if (!cancellationToken.IsCancellationRequested || !string.IsNullOrWhiteSpace(answer))
+        {
+            _sessionService.EnqueueAssistantMessage(session, answer);
+        }
+    }
+
+    /// <summary>
+    /// Stores the text streamed before a failure followed by the notice the client appends for it
+    /// (<see cref="HubErrors.StreamFailureNotice"/>), so a reload shows what the user saw. Nothing is stored when no
+    /// text was streamed.
+    /// </summary>
+    private void SaveInterruptedAnswer(ChatSession session, string partialAnswer, string? llmErrorCode)
+    {
+        if (string.IsNullOrWhiteSpace(partialAnswer))
+        {
+            return;
+        }
+
+        _sessionService.EnqueueAssistantMessage(session, partialAnswer + HubErrors.StreamFailureNotice(llmErrorCode));
     }
 
     public async IAsyncEnumerable<ArenaStreamChunk> StreamArenaMessage(
@@ -259,8 +283,13 @@ public class ChatHub(
     /// SignalR enumerates a stream after the hub method has returned, outside any try/catch in it. This turns an
     /// unexpected failure in the middle of a stream into the typed <c>Error [INTERNAL]</c> (details only in the logs),
     /// and a model failure after some text into its <c>[LLM_*]</c> code; the client maps them like any other hub error.
+    /// <paramref name="onFailure"/> runs before the error is thrown (with the <c>LLM_*</c> code, or null for an internal
+    /// error), never for a stream the client cancelled.
     /// </summary>
-    private async IAsyncEnumerable<T> Guarded<T>(IAsyncEnumerable<T> source, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<T> Guarded<T>(
+        IAsyncEnumerable<T> source,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken,
+        Action<string?>? onFailure = null)
     {
         await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
         while (true)
@@ -274,11 +303,13 @@ public class ChatHub(
             {
                 // The model failed after part of the answer was sent: the client keeps it and shows the typed code.
                 _logger.LogWarning("Chat stream interrupted ({ErrorCode}) for {User}", ex.ErrorCode, CurrentUserId);
+                if (!cancellationToken.IsCancellationRequested) onFailure?.Invoke(ex.ErrorCode);
                 throw new HubException(ex.Message);
             }
             catch (Exception ex) when (ex is not HubException && !(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {
                 _logger.LogError(ex, "Chat stream failed for {User}", CurrentUserId);
+                if (!cancellationToken.IsCancellationRequested) onFailure?.Invoke(null);
                 throw new HubException(HubErrors.Message(HubErrors.Internal));
             }
 

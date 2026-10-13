@@ -26,9 +26,14 @@ For each Arena question the system SHALL run both pipelines concurrently, each i
 
 #### Scenario: One side fails in the chat Arena
 - **WHEN** one side of a chat Arena stream throws
-- **THEN** after that side's text the hub SHALL send `{ option: <side>, content: "", errorCode: <code> }`, where the code is the side's `LLM_*` code when the model stream was interrupted and `INTERNAL` otherwise
+- **THEN** after that side's text the hub SHALL send `{ option: <side>, content: "", errorCode: <code> }`, where the code is the side's `LLM_*` code when the model stream failed (`LlmStreamInterruptedException`) and `INTERNAL` otherwise
 - **AND** the battle SHALL NOT be stored, so it cannot be voted on
 - **AND** the client SHALL keep the side's partial text, append the message mapped from the code, and disable the vote buttons with a note that the comparison cannot be voted on (also when the whole Arena stream fails)
+
+#### Scenario: A side's model fails before any text
+- **WHEN** the model of one side fails before streaming any text (for example `LLM_QUOTA_EXCEEDED` with no fallback, or `LLM_NOT_CONFIGURED`)
+- **THEN** that side SHALL count as failed exactly like a side that threw: it SHALL send no text (not the `[LLM_*]` message as an answer), the hub SHALL send `{ option: <side>, content: "", errorCode: <LLM_* code> }`, and the battle SHALL NOT be stored
+- **AND** the client SHALL show the mapped message in that column and disable the vote
 
 #### Scenario: Arena request cannot start
 - **WHEN** the chat session id is invalid or not the caller's

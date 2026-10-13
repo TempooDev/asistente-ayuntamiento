@@ -107,6 +107,7 @@ public sealed class ArenaStreamingService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Arena side {Option} ({Pipeline}) failed", side.Option, side.Pipeline);
+            // A model failure keeps its LLM_* code, also when it happened before any text.
             side.ErrorCode = ex is LlmStreamInterruptedException interrupted ? interrupted.ErrorCode : SideFailedCode;
         }
         finally

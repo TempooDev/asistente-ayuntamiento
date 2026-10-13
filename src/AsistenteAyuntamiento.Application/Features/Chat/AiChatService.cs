@@ -27,7 +27,9 @@ public sealed class AiChatService(
 
     /// <summary>
     /// Streams the answer of the pipeline currently winning the Arena. A sample of answers also gets a shadow run
-    /// of the other pipeline in the background (see <see cref="IShadowTestScheduler"/>).
+    /// of the other pipeline in the background (see <see cref="IShadowTestScheduler"/>). A model failure before any
+    /// text becomes the typed <c>[LLM_*]</c> message as the answer; after some text it is thrown
+    /// (<see cref="LlmStreamInterruptedException"/>).
     /// </summary>
     public async IAsyncEnumerable<string> GetStreamingCompletionAsync(
         ChatHistory history,
@@ -42,11 +44,34 @@ public sealed class AiChatService(
         var shadowTurn = shadowTestScheduler.ShouldRun() ? turn.Copy() : null;
         var answer = shadowTurn is null ? null : new StringBuilder();
         var stopwatch = Stopwatch.StartNew();
+        var started = false;
 
-        await foreach (var chunk in pipelines.Get(winner).StreamAsync(turn, cancellationToken))
+        await using var enumerator = pipelines.Get(winner).StreamAsync(turn, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        while (true)
         {
-            answer?.Append(chunk);
-            yield return chunk;
+            string? failure = null;
+            try
+            {
+                if (!await enumerator.MoveNextAsync())
+                {
+                    break;
+                }
+            }
+            catch (LlmStreamInterruptedException ex) when (!started)
+            {
+                failure = ex.Message;
+            }
+
+            if (failure is not null)
+            {
+                // Nothing to keep or compare: the chat shows the typed error as the answer, without a shadow test.
+                yield return failure;
+                yield break;
+            }
+
+            started = true;
+            answer?.Append(enumerator.Current);
+            yield return enumerator.Current;
         }
 
         if (shadowTurn is not null)

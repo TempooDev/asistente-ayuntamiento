@@ -52,4 +52,35 @@ public class AiChatServiceStreamingTests
             "base",
             It.IsAny<long>()), Times.Once);
     }
+
+    [Fact]
+    public async Task A_model_failure_before_any_text_is_answered_with_the_typed_message_and_no_shadow_run()
+    {
+        _baseline.Chunks = [];
+        _baseline.Failure = new LlmStreamInterruptedException(LlmErrorCodes.QuotaExceeded, new IOException("429 from provider"));
+
+        var chunks = await CreateSut(PipelineType.Baseline, shadow: true).GetStreamingCompletionAsync(History(), "org_A", "u1").ToListAsync();
+
+        chunks.Should().Equal(LlmErrorCodes.UserMessage(LlmErrorCodes.QuotaExceeded));
+        _shadow.Verify(s => s.Schedule(It.IsAny<ChatTurn>(), It.IsAny<PipelineType>(), It.IsAny<string>(), It.IsAny<long>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_model_failure_after_some_text_is_thrown_with_its_code()
+    {
+        _baseline.Failure = new LlmStreamInterruptedException(LlmErrorCodes.Unavailable, new IOException("reset"));
+        var chunks = new List<string>();
+
+        var act = async () =>
+        {
+            await foreach (var chunk in CreateSut(PipelineType.Baseline, shadow: true).GetStreamingCompletionAsync(History(), "org_A", "u1"))
+            {
+                chunks.Add(chunk);
+            }
+        };
+
+        (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        chunks.Should().Equal("base");
+        _shadow.Verify(s => s.Schedule(It.IsAny<ChatTurn>(), It.IsAny<PipelineType>(), It.IsAny<string>(), It.IsAny<long>()), Times.Never);
+    }
 }

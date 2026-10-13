@@ -1,3 +1,5 @@
+using AsistenteAyuntamiento.Application.Features.Chat;
+
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 
 /// <summary>
@@ -11,6 +13,17 @@ public static class HubErrors
     public const string InvalidRequest = "INVALID_REQUEST";
     public const string Internal = "INTERNAL";
     public const string AlreadyVoted = "ALREADY_VOTED";
+
+    /// <summary>What the client shows for <see cref="Internal"/> (<c>stream-errors.ts</c>).</summary>
+    private const string InternalNotice = "Se ha producido un error interno. Inténtalo de nuevo más tarde.";
+
+    /// <summary>
+    /// Markdown appended to a partial answer stored after its stream failed: the notice the client appends for the
+    /// same error (<c>mapStreamError</c> in <c>stream-errors.ts</c>), for an <c>LLM_*</c> code or, when null, an
+    /// internal error.
+    /// </summary>
+    public static string StreamFailureNotice(string? llmErrorCode) =>
+        $"\n\n**⚠️ {(llmErrorCode is null ? InternalNotice : LlmErrorCodes.Description(llmErrorCode))}**";
 
     public static string Message(string code) => code switch
     {

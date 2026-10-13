@@ -143,6 +143,22 @@ public class ArenaStreamingServiceTests
     }
 
     [Fact]
+    public async Task A_model_failure_before_any_text_marks_the_side_failed_and_the_battle_is_not_stored()
+    {
+        _baseline.Chunks = [];
+        _baseline.Failure = new LlmStreamInterruptedException(LlmErrorCodes.Unavailable, new IOException("provider down"));
+
+        var chunks = await CreateSut().StreamAsync(Turn()).ToListAsync();
+
+        var failed = chunks.Where(c => c.ErrorCode is not null).Should().ContainSingle().Subject;
+        failed.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        failed.Content.Should().BeEmpty();
+        chunks.Where(c => c.Option == failed.Option).Should().ContainSingle("the failed side sends no text, not even the error message");
+        chunks.Where(c => c.Content.StartsWith('H')).Should().HaveCount(3);
+        _saved.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Stores_the_trace_id_so_a_vote_can_be_linked_to_its_traces()
     {
         using var activity = new Activity("chat").Start();

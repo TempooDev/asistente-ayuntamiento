@@ -118,12 +118,7 @@ public sealed class ChatStreamingService(
         var (config, apiKey) = await aiConfigurationService.GetFullConfigurationAsync(tenantId, cancellationToken);
         Tag(activity, config, tenantId, userId, pipeline);
 
-        if (!TryCreateModel(config, apiKey, out var service, out var initError))
-        {
-            yield return initError;
-            yield break;
-        }
-
+        var service = CreateModel(config, apiKey);
         var settings = Settings(config);
         var modelId = config.Model;
         var provider = config.Provider;
@@ -131,7 +126,6 @@ public sealed class ChatStreamingService(
         var content = new StringBuilder();
         var usage = TokenUsageInfo.Empty;
         var usedFallback = false;
-        string? errorText = null;
         string? errorCode = null;
         Exception? interruption = null;
 
@@ -151,7 +145,7 @@ public sealed class ChatStreamingService(
                         {
                             logger.LogWarning(error, "Quota exceeded for tenant {TenantId} and no fallback model is configured", tenantId);
                             errorCode = LlmErrorCodes.QuotaExceeded;
-                            errorText = LlmErrorCodes.UserMessage(errorCode);
+                            interruption = error;
                             break;
                         }
 
@@ -170,14 +164,10 @@ public sealed class ChatStreamingService(
                     }
 
                     LogStreamFailure(error);
-                    if (content.Length == 0)
+                    if (!cancellationToken.IsCancellationRequested)
                     {
-                        errorCode = LlmErrorClassifier.Classify(error);
-                        errorText = "\n\n" + LlmErrorCodes.UserMessage(errorCode);
-                    }
-                    else if (!cancellationToken.IsCancellationRequested)
-                    {
-                        // Text already sent cannot be replaced by a message: the stream ends with a typed error.
+                        // Before or after some text, the stream ends with a typed error: the caller decides how to
+                        // show it (the chat as a message, the Arena as a failed side).
                         errorCode = LlmErrorClassifier.Classify(error);
                         interruption = error;
                     }
@@ -213,12 +203,6 @@ public sealed class ChatStreamingService(
             await enumerator.DisposeAsync();
         }
 
-        if (errorText is not null)
-        {
-            content.Append(errorText);
-            yield return errorText;
-        }
-
         stopwatch.Stop();
         if (errorCode is not null)
         {
@@ -244,21 +228,17 @@ public sealed class ChatStreamingService(
         }
     }
 
-    private bool TryCreateModel(AiConfigurationDto config, string? apiKey, out IChatCompletionService service, out string userError)
+    private IChatCompletionService CreateModel(AiConfigurationDto config, string? apiKey)
     {
         try
         {
-            service = chatModelFactory.Create(config, apiKey);
-            userError = string.Empty;
-            return true;
+            return chatModelFactory.Create(config, apiKey);
         }
         catch (Exception ex)
         {
             var errorCode = LlmErrorClassifier.Classify(ex);
             logger.LogError(ex, "Failed to initialize the chat model for streaming ({ErrorCode})", errorCode);
-            service = null!;
-            userError = LlmErrorCodes.UserMessage(errorCode);
-            return false;
+            throw new LlmStreamInterruptedException(errorCode, ex);
         }
     }
 
