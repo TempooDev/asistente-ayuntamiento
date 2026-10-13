@@ -35,6 +35,7 @@ public sealed class HierarchicalIngestionConsumer(
         var processor = services.GetKeyedService<IHierarchicalIngestionProcessor>(message.Source.ToUpperInvariant())
             ?? throw new NonRetryableMessageException($"No hierarchical processor for source '{message.Source}'.");
 
+        await IngestionJobStates.MarkRequestedAsync(services, message, cancellationToken);
         await IngestionJobStates.SetAsync(services, message.DocumentId, PipelineType.Hierarchical, JobStatus.Processing, null, cancellationToken);
 
         try
@@ -66,6 +67,26 @@ internal static class IngestionJobStates
         var state = await DocumentJobStateUpdates.SetPipelineStatusAsync(
             services.GetRequiredService<IAppDbContext>(), documentId, pipeline, status, error, cancellationToken);
         await services.GetRequiredService<INotificationService>().NotifyDocumentStatusChangedAsync(documentId, state.Status.ToString());
+    }
+
+    /// <summary>
+    /// Marks the pipelines the message was published to as queued when they have no status yet, so the summary does
+    /// not show a document as completed while the slower pipeline has not reached it (see
+    /// <see cref="DocumentJobStateUpdates.MarkQueuedIfUnsetAsync"/>).
+    /// </summary>
+    public static async Task MarkRequestedAsync(IServiceProvider services, DocumentMessage message, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(message.DocumentId))
+        {
+            return;
+        }
+
+        var state = await DocumentJobStateUpdates.MarkQueuedIfUnsetAsync(
+            services.GetRequiredService<IAppDbContext>(), message.DocumentId, message.RequestedPipelines(), cancellationToken);
+        if (state is not null)
+        {
+            await services.GetRequiredService<INotificationService>().NotifyDocumentStatusChangedAsync(message.DocumentId, state.Status.ToString());
+        }
     }
 
     public static Task MarkFailedAsync(IServiceProvider services, string documentId, PipelineType pipeline, Exception exception, CancellationToken cancellationToken) =>

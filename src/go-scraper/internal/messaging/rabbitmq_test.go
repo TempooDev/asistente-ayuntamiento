@@ -2,12 +2,27 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
+
+func TestDocumentMessageCarriesThePublishedPipelines(t *testing.T) {
+	msg := DocumentMessage{Source: "BOJA", DocumentID: "BOJA-2026-198-1", BlobPath: "json/BOJA/BOJA-2026-198-1.json", Pipelines: PublishedPipelines}
+
+	body, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"source":"BOJA","document_id":"BOJA-2026-198-1","blob_path":"json/BOJA/BOJA-2026-198-1.json","pipelines":["BASELINE","HIERARCHICAL"]}`
+	if string(body) != want {
+		t.Fatalf("body = %s, want %s", body, want)
+	}
+}
 
 func TestTraceHeadersCarryTheW3CContext(t *testing.T) {
 	previous := otel.GetTextMapPropagator()
