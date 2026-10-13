@@ -1,22 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestDependencies } from '../../../testing/test-providers';
+import { ChatPanelComponent } from './chat-panel';
 
-import { ChatPanel } from './chat-panel';
-
-describe('ChatPanel', () => {
-  let component: ChatPanel;
-  let fixture: ComponentFixture<ChatPanel>;
+describe('ChatPanelComponent', () => {
+  let fixture: ComponentFixture<ChatPanelComponent>;
 
   beforeEach(async () => {
+    localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [ChatPanel],
+      imports: [ChatPanelComponent],
+      providers: provideTestDependencies(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(ChatPanel);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture = TestBed.createComponent(ChatPanelComponent);
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
