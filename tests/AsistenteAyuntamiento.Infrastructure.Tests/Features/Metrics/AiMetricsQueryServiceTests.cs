@@ -1,5 +1,6 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Metrics;
+using AsistenteAyuntamiento.Application.Features.Metrics.DTOs;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Infrastructure.Data;
@@ -25,28 +26,56 @@ public class AiMetricsQueryServiceTests
             new AiCallLog { TenantId = "org_A", ModelId = "gpt", Success = false, DurationMs = 300 },
             new AiCallLog { TenantId = "org_A", ModelId = "gemini", Success = true, DurationMs = 50, InputTokens = 1, OutputTokens = 1, TotalTokens = 2 },
             new AiCallLog { TenantId = "org_B", ModelId = "gpt", Success = true, DurationMs = 999, InputTokens = 500, OutputTokens = 500, TotalTokens = 1000 });
-        db.IngestionMetrics.Add(new IngestionMetric { DocumentId = "BOE-1", TotalLlmCalls = 4, TotalTokensEmbedded = 100, TotalLlmTokens = 40, ProcessingDurationMs = 2000 });
+        db.IngestionMetrics.AddRange(
+            new IngestionMetric { DocumentId = "BOE-1", TotalLlmCalls = 4, TotalTokensEmbedded = 100, TotalLlmTokens = 40, ProcessingDurationMs = 2000 },
+            new IngestionMetric { DocumentId = "BOE-2", TotalLlmCalls = 0, TotalTokensEmbedded = 50, TotalLlmTokens = 0, ProcessingDurationMs = 1000 });
         await db.SaveChangesAsync();
     }
 
     [Fact]
-    public async Task Summary_aggregates_the_tenants_chat_calls_and_platform_ingestion()
+    public async Task Summary_aggregates_only_the_tenants_chat_calls()
     {
         await SeedAsync();
         await using var db = Context("org_A");
 
         var summary = await new AiMetricsQueryService(db).GetSummaryAsync();
 
-        summary.TotalCalls.Should().Be(3 + 4);
-        summary.SucceededCalls.Should().Be(2 + 4);
+        summary.TotalCalls.Should().Be(3);
+        summary.SucceededCalls.Should().Be(2);
         summary.FailedCalls.Should().Be(1);
-        summary.TotalInputTokens.Should().Be(11 + 100);
-        summary.TotalOutputTokens.Should().Be(21 + 40);
-        summary.Consumptions.Select(c => (c.ModelId, c.TotalCalls, c.TotalTokens)).Should().Equal(
-            ("Ingestion Worker", 4, 140L),
-            ("gpt", 2, 30L),
-            ("gemini", 1, 2L));
+        summary.SuccessRate.Should().BeApproximately(66.67, 0.01);
+        summary.TotalInputTokens.Should().Be(11);
+        summary.TotalOutputTokens.Should().Be(21);
+        summary.Consumptions.Select(c => (c.ModelId, c.Type, c.TotalCalls, c.TotalTokens)).Should().Equal(
+            ("gpt", "Chat", 2, 30L),
+            ("gemini", "Chat", 1, 2L));
         summary.Consumptions.Single(c => c.ModelId == "gpt").AverageDurationMs.Should().Be(200);
+    }
+
+    [Fact]
+    public async Task Ingestion_usage_aggregates_every_ingested_document()
+    {
+        await SeedAsync();
+        await using var db = Context("org_A");
+
+        var usage = await new AiMetricsQueryService(db).GetIngestionUsageAsync();
+
+        usage.Documents.Should().Be(2);
+        usage.EnrichmentCalls.Should().Be(4);
+        usage.EnrichmentTokens.Should().Be(40);
+        usage.EmbeddedTokens.Should().Be(150);
+        usage.AverageProcessingDurationMs.Should().Be(1500);
+    }
+
+    [Fact]
+    public async Task Ingestion_usage_is_zero_when_nothing_was_ingested()
+    {
+        await using var db = Context("org_A");
+
+        var usage = await new AiMetricsQueryService(db).GetIngestionUsageAsync();
+
+        usage.Should().Match<IngestionUsageDto>(u =>
+            u.Documents == 0 && u.EnrichmentCalls == 0 && u.EmbeddedTokens == 0 && u.AverageProcessingDurationMs == 0);
     }
 
     [Fact]

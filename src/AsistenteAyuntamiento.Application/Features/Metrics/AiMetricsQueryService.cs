@@ -9,7 +9,6 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
 {
     public const int DefaultPageSize = 50;
     public const int MaxPageSize = 100;
-    private const string IngestionModelId = "Ingestion Worker";
 
     public async Task<AiMetricsSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
@@ -28,36 +27,18 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
             })
             .ToListAsync(cancellationToken);
 
-        var ingestion = await dbContext.IngestionMetrics
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                LlmCalls = g.Sum(x => (long)x.TotalLlmCalls),
-                AverageDurationMs = g.Average(x => (double)x.ProcessingDurationMs),
-                EmbeddedTokens = g.Sum(x => (long)x.TotalTokensEmbedded),
-                LlmTokens = g.Sum(x => (long)x.TotalLlmTokens)
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
+        // Only the tenant's own calls: IngestionMetrics is platform-wide and is served by GetIngestionUsageAsync.
         var consumptions = chatByModel
             .Select(c => new ModelConsumptionDto(
                 string.IsNullOrEmpty(c.ModelId) ? "Unknown" : c.ModelId, "Chat", c.Calls, c.Succeeded, Math.Round(c.AverageDurationMs, 2), c.TotalTokens))
+            .OrderByDescending(c => c.TotalTokens)
             .ToList();
-        if (ingestion is not null)
-        {
-            consumptions.Add(new ModelConsumptionDto(
-                IngestionModelId, "Embeddings", (int)ingestion.LlmCalls, (int)ingestion.LlmCalls, Math.Round(ingestion.AverageDurationMs, 2), ingestion.EmbeddedTokens + ingestion.LlmTokens));
-        }
-        consumptions = consumptions.OrderByDescending(c => c.TotalTokens).ToList();
 
-        // Ingestion only records successful LLM calls.
-        var ingestionCalls = ingestion?.LlmCalls ?? 0;
-        var totalCalls = chatByModel.Sum(c => (long)c.Calls) + ingestionCalls;
-        var succeededCalls = chatByModel.Sum(c => (long)c.Succeeded) + ingestionCalls;
-        var failedCalls = chatByModel.Sum(c => (long)(c.Calls - c.Succeeded));
-        var inputTokens = chatByModel.Sum(c => c.InputTokens) + (ingestion?.EmbeddedTokens ?? 0);
-        var outputTokens = chatByModel.Sum(c => c.OutputTokens) + (ingestion?.LlmTokens ?? 0);
+        var totalCalls = chatByModel.Sum(c => (long)c.Calls);
+        var succeededCalls = chatByModel.Sum(c => (long)c.Succeeded);
+        var failedCalls = totalCalls - succeededCalls;
+        var inputTokens = chatByModel.Sum(c => c.InputTokens);
+        var outputTokens = chatByModel.Sum(c => c.OutputTokens);
         var totalTokens = inputTokens + outputTokens;
 
         return new AiMetricsSummaryDto(
@@ -72,6 +53,27 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext) : IAiMetricsQ
             TotalTokens: totalTokens,
             AverageTokensPerCall: succeededCalls > 0 ? Math.Round((double)totalTokens / succeededCalls, 1) : 0,
             Consumptions: consumptions);
+    }
+
+    public async Task<IngestionUsageDto> GetIngestionUsageAsync(CancellationToken cancellationToken = default)
+    {
+        var ingestion = await dbContext.IngestionMetrics
+            .AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Documents = g.LongCount(),
+                EnrichmentCalls = g.Sum(x => (long)x.TotalLlmCalls),
+                EnrichmentTokens = g.Sum(x => (long)x.TotalLlmTokens),
+                EmbeddedTokens = g.Sum(x => (long)x.TotalTokensEmbedded),
+                AverageDurationMs = g.Average(x => (double)x.ProcessingDurationMs)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return ingestion is null
+            ? new IngestionUsageDto(DateTime.UtcNow, 0, 0, 0, 0, 0)
+            : new IngestionUsageDto(DateTime.UtcNow, ingestion.Documents, ingestion.EnrichmentCalls, ingestion.EnrichmentTokens,
+                ingestion.EmbeddedTokens, Math.Round(ingestion.AverageDurationMs, 2));
     }
 
     public async Task<AiCallLogPageDto> GetHistoryAsync(int page, int pageSize, CancellationToken cancellationToken = default)

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { AiMetricsSummary, ArenaAnalyticsRequest, ArenaAnalyticsResponse } from '../models/analytics.models';
+import { AiMetricsSummary, ArenaAnalyticsRequest, ArenaAnalyticsResponse, IngestionUsage } from '../models/analytics.models';
 
 /** Admin metrics: Arena win rates per pipeline and AI usage. */
 @Injectable({ providedIn: 'root' })
@@ -18,5 +18,9 @@ export class AnalyticsService {
 
   getAiMetricsSummary(): Observable<AiMetricsSummary> {
     return this.http.get<AiMetricsSummary>(`${environment.apiBaseUrl}/api/ai/metrics/summary`);
+  }
+
+  getIngestionUsage(): Observable<IngestionUsage> {
+    return this.http.get<IngestionUsage>(`${environment.apiBaseUrl}/api/ai/metrics/ingestion`);
   }
 }

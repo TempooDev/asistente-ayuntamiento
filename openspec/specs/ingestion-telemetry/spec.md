@@ -25,16 +25,20 @@ Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetr
 - **THEN** a new row SHALL be added and the previous rows kept
 
 ### Requirement: Arena Win-Rate Aggregation
-`IArenaAnalyticsService.GetAnalyticsAsync`, exposed as `GET /api/arena/analytics` under `Policies.PlatformAdmin`, SHALL aggregate the `ArenaBattles` of every tenant (optionally between `StartDate` and `EndDate`) and return the total, pending and completed battles and, per `PipelineType`, its wins, losses, ties, win rate, average latency and average tokens. The win rate SHALL be wins divided by every voted battle the pipeline took part in, so ties and "both bad" votes count in the denominator.
+`IArenaAnalyticsService.GetAnalyticsAsync`, exposed as `GET /api/arena/analytics` under `Policies.PlatformAdmin`, SHALL aggregate the `ArenaBattles` of every tenant (optionally between `StartDate` and `EndDate`) and return the total, pending and completed battles and, per `PipelineType`, its wins, losses, ties (`TieCount`), "both bad" votes (`BothBadCount`), win rate, average latency and average tokens. The win rate SHALL be wins divided by decisive votes (battles where a winner was picked: wins plus losses); ties and "both bad" votes MUST NOT count in the denominator and SHALL be reported only as their own counts. Without decisive votes the win rate SHALL be 0.
 
 #### Scenario: Computing win rates
 - **GIVEN** the hierarchical pipeline took part in 10 voted battles: 6 wins, 2 losses, 1 tie and 1 "both bad"
 - **WHEN** the analytics are requested
-- **THEN** its `WinRate` SHALL be 0.6, `WinCount` 6, `LossCount` 2 and `TieCount` 1
+- **THEN** its `WinRate` SHALL be 0.75 (6 / 8), `WinCount` 6, `LossCount` 2, `TieCount` 1 and `BothBadCount` 1
 
 #### Scenario: Pending battles
 - **WHEN** some battles have no vote yet
 - **THEN** they SHALL count in `PendingBattles` and in the average latency and tokens, but not in the win-rate denominator
+
+#### Scenario: Only ties and "both bad" votes
+- **WHEN** a pipeline has no win or loss
+- **THEN** its `WinRate` SHALL be 0
 
 ### Requirement: Readability Score Calculation (IFSZ)
 The Application layer SHALL provide `IReadabilityService.CalculateIfsz(text)`, which computes the Flesch-Szigriszt index for Spanish as `206.835 - 62.3 * (syllables / words) - (words / sentences)`, counting syllables with Spanish diphthong and triphthong rules. It is registered in DI but not yet called by any endpoint or pipeline.

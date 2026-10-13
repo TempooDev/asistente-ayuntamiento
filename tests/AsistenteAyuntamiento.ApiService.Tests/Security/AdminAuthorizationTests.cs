@@ -33,6 +33,7 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         { "GET", "/api/scraper/filters/state" },
         { "GET", "/api/ai/metrics" },
         { "GET", "/api/ai/health" },
+        { "GET", "/api/ai/metrics/ingestion" },
         { "GET", "/api/arena/analytics" },
     };
 
@@ -101,6 +102,7 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
     [Theory]
     [InlineData(Roles.PlatformAdmin, "/api/scraper/filters")]
     [InlineData(Roles.PlatformAdmin, "/api/ai/metrics")]
+    [InlineData(Roles.PlatformAdmin, "/api/ai/metrics/ingestion")]
     [InlineData(Roles.PlatformAdmin, "/api/arena/analytics")]
     [InlineData(Roles.OrganizationAdmin, "/api/settings/ai")]
     [InlineData(Roles.OrganizationAdmin, "/api/ai/metrics/history")]

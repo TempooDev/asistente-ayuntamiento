@@ -26,8 +26,9 @@
     <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de IA / Tokens</h2>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
       <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Llamadas (Éxito)</h3>
-        <p class="text-2xl font-bold text-gray-900 mt-1">{{ metrics.totalCalls }} <span class="text-sm font-normal text-green-600">({{ metrics.successRate | percent:'1.0-1' }})</span></p>
+        <h3 class="text-gray-500 text-sm font-medium">Llamadas</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ metrics.totalCalls | number:'1.0-0' }} <span class="text-sm font-normal text-green-600" data-testid="success-rate">({{ metrics.successRate | number:'1.0-1' }} % con éxito)</span></p>
+        <p class="text-xs text-gray-500 mt-1">{{ metrics.succeededCalls | number:'1.0-0' }} correctas · {{ metrics.failedCalls | number:'1.0-0' }} con error</p>
       </div>
       <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Tokens Input</h3>
@@ -50,11 +51,7 @@
           <div>
             <div class="flex justify-between items-start mb-2">
               <h4 class="font-bold text-gray-900 truncate" [title]="model.modelId">{{ model.modelId }}</h4>
-              <span class="px-2 py-1 text-xs font-semibold rounded-full" 
-                    [class.bg-blue-100]="model.type === 'Chat'" [class.text-blue-800]="model.type === 'Chat'"
-                    [class.bg-purple-100]="model.type === 'Embeddings'" [class.text-purple-800]="model.type === 'Embeddings'">
-                {{ model.type }}
-              </span>
+              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">{{ model.type }}</span>
             </div>
             <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
               <div class="text-gray-500">Llamadas:</div>
@@ -69,6 +66,29 @@
           </div>
         </div>
       }
+    </div>
+  }
+
+  @if (showIngestion() && ingestionUsage(); as ingestion) {
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de ingesta (plataforma)</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Documentos ingeridos</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ ingestion.documents | number:'1.0-0' }}</p>
+        <p class="text-xs text-gray-500 mt-1">{{ ingestion.averageProcessingDurationMs | number:'1.0-0' }} ms de media</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Llamadas de enriquecimiento</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ ingestion.enrichmentCalls | number:'1.0-0' }}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Tokens de enriquecimiento</h3>
+        <p class="text-2xl font-bold text-indigo-600 mt-1">{{ ingestion.enrichmentTokens | number:'1.0-0' }}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
+        <h3 class="text-gray-500 text-sm font-medium">Tokens de embeddings</h3>
+        <p class="text-2xl font-bold text-purple-600 mt-1">{{ ingestion.embeddedTokens | number:'1.0-0' }}</p>
+      </div>
     </div>
   }
 
@@ -114,7 +134,9 @@
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Victorias</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Derrotas</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empates</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Win Rate</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ambas malas</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                title="Victorias / (victorias + derrotas). Los empates y los votos «ambas malas» no cuentan.">Tasa de victorias</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latencia Media</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens Medios</th>
           </tr>
@@ -126,6 +148,7 @@
               <td class="px-6 py-4 whitespace-nowrap text-green-600">{{ metric.winCount }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-red-600">{{ metric.lossCount }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.tieCount }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.bothBadCount }}</td>
               <td class="px-6 py-4 whitespace-nowrap font-bold text-indigo-600">
                 <div class="flex items-center">
                   <span class="mr-2">{{ metric.winRate | percent:'1.0-1' }}</span>
@@ -139,7 +162,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+              <td colspan="8" class="px-6 py-8 text-center text-gray-500">
                 No hay datos disponibles para los filtros seleccionados.
               </td>
             </tr>

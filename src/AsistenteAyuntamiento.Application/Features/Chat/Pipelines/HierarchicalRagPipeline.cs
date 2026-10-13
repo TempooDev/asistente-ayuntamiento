@@ -21,7 +21,7 @@ public sealed class HierarchicalRagPipeline(
 
     public async IAsyncEnumerable<string> StreamAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var scope = new LlmCallScope(turn.TenantId, turn.TelemetryPipeline ?? LlmPipelines.Hierarchical);
+        var scope = new LlmCallScope(turn.TenantId, turn.TelemetryPipeline ?? LlmPipelines.Hierarchical) { UserId = turn.UserId };
         var expandedQuery = await queryExpansionService.ExpandQueryAsync(turn.UserQuery, scope, cancellationToken);
         var retrieved = await hybridRetrievalService.RetrieveAsync(expandedQuery, RetrievalLimit, cancellationToken);
 
