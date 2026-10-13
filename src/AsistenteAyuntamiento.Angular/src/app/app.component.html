@@ -7,7 +7,10 @@
       <!-- TopNavBar (Mobile Only) -->
       <header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 fixed top-0 z-50 bg-surface border-b border-outline-variant shadow-sm transition-all duration-200">
           <div class="flex items-center gap-sm">
-                            <span class="font-headline-md text-headline-md font-bold text-primary">AdminAI</span>
+              @if (auth.isAuthenticated()) {
+                  <button type="button" class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" aria-label="Abrir menú" aria-controls="mobile-menu" [attr.aria-expanded]="mobileMenuOpen()" (click)="toggleMobileMenu()">menu</button>
+              }
+              <span class="font-headline-md text-headline-md font-bold text-primary">AdminAI</span>
           </div>
           <div class="flex items-center gap-sm">
               <button type="button" class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" (click)="theme.toggle()" aria-label="Cambiar tema" title="Cambiar tema">{{ theme.theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</button>
@@ -37,32 +40,12 @@
                 </a>
             </div>
             <div class="flex-1 px-md flex flex-col gap-xs font-label-md text-label-md">
-                <a routerLink="/chat" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                    <span class="material-symbols-outlined">chat</span>
-                    <span>Chat</span>
-                </a>
-                @if (auth.isAdmin()) {
-                    <a routerLink="/documentos" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                        <span class="material-symbols-outlined">description</span>
-                        <span>Documentos</span>
-                    </a>
-                    <a routerLink="/configuracion" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                        <span class="material-symbols-outlined">settings_input_component</span>
-                        <span>Configuración IA</span>
-                    </a>
-                    <a routerLink="/arena" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                        <span class="material-symbols-outlined">compare_arrows</span>
-                        <span>Arena (A/B)</span>
-                    </a>
-                    <a routerLink="/admin/analytics" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                        <span class="material-symbols-outlined">bar_chart</span>
-                        <span>Métricas</span>
+                @for (item of navItems(); track item.path) {
+                    <a [routerLink]="item.path" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                        <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                        <span class="truncate">{{ item.label }}</span>
                     </a>
                 }
-                <a routerLink="/perfil" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
-                    <span class="material-symbols-outlined">account_circle</span>
-                    <span class="truncate">Perfil</span>
-                </a>
             </div>
           }
           <div class="mt-auto px-md flex flex-col gap-xs font-label-md text-label-md border-t border-outline-variant pt-md">
@@ -78,6 +61,32 @@
               }
           </div>
       </aside>
+
+      <!-- Mobile menu (off-canvas) -->
+      @if (mobileMenuOpen() && auth.isAuthenticated()) {
+          <div class="md:hidden fixed inset-0 z-[60] bg-black/50" aria-hidden="true" data-testid="mobile-menu-backdrop" (click)="closeMobileMenu()"></div>
+          <nav id="mobile-menu" appDialogFocus (escape)="closeMobileMenu()" role="dialog" aria-modal="true" aria-label="Menú principal"
+               class="md:hidden fixed left-0 top-0 z-[70] h-full w-72 max-w-[85vw] flex flex-col py-lg bg-surface-container-low border-r border-outline-variant shadow-xl">
+              <div class="px-md mb-lg flex items-center justify-between">
+                  <span class="font-headline-md text-headline-md font-bold text-on-surface">AdminAI</span>
+                  <button type="button" class="material-symbols-outlined text-secondary hover:bg-surface-container-high p-sm rounded-full" aria-label="Cerrar menú" (click)="closeMobileMenu()">close</button>
+              </div>
+              <div class="flex-1 overflow-y-auto px-md flex flex-col gap-xs font-label-md text-label-md">
+                  @for (item of navItems(); track item.path) {
+                      <a [routerLink]="item.path" (click)="closeMobileMenu()" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
+                          <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                          <span class="truncate">{{ item.label }}</span>
+                      </a>
+                  }
+              </div>
+              <div class="px-md border-t border-outline-variant pt-md font-label-md text-label-md">
+                  <button type="button" (click)="logout()" class="w-full flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
+                      <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+                      <span>Cerrar Sesión</span>
+                  </button>
+              </div>
+          </nav>
+      }
 
       <!-- Main Canvas -->
       <main class="flex-1 flex flex-col min-h-screen bg-surface relative pt-16 md:pt-0 md:ml-64 w-full">

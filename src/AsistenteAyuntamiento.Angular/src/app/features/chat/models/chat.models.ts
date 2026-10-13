@@ -48,4 +48,4 @@ export interface ArenaMessage extends MessageBase {
 
 export type ChatMessage = UserMessage | AssistantMessage | ArenaMessage;
 
-export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
