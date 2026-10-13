@@ -7,7 +7,7 @@ import { Observable, map } from 'rxjs';
 import { HubConnectionFactory } from '../realtime/hub-connection.factory';
 import { AUTH_RUNTIME_CONFIG } from './auth-runtime-config';
 import { rolesFromClaims } from './auth-claims';
-import { ROLES } from './roles';
+import { ORGANIZATION_ADMIN_ROLES, PLATFORM_ADMIN_ROLES } from './roles';
 
 const LAST_ORGANIZATION_KEY = 'last_org_id';
 
@@ -35,7 +35,11 @@ export class AuthFacade {
   readonly isAuthenticated = toSignal(this.auth.isAuthenticated$, { initialValue: false });
   readonly user = toSignal(this.auth.user$, { initialValue: null });
   readonly roles = computed(() => rolesFromClaims(this.user()));
-  readonly isAdmin = computed(() => this.roles().includes(ROLES.ADMIN.toLowerCase()));
+  /** Manages the shared knowledge base (documents, scraper, Arena analytics). */
+  readonly isPlatformAdmin = computed(() => this.hasAnyRole(PLATFORM_ADMIN_ROLES));
+  /** Manages the organization (AI settings, usage metrics, Arena comparison). */
+  readonly isOrganizationAdmin = computed(() => this.hasAnyRole(ORGANIZATION_ADMIN_ROLES));
+  readonly isAdmin = computed(() => this.isPlatformAdmin() || this.isOrganizationAdmin());
   readonly orgId = computed(() => (this.user()?.['org_id'] as string | undefined) ?? this.lastOrganization());
 
   /** Whether the user has at least one of roles (case-insensitive). No roles required means true. */

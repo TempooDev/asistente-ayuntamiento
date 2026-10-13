@@ -1,9 +1,13 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
 import { roleGuard } from './core/auth/role.guard';
-import { ROLES } from './core/auth/roles';
+import { ANY_ADMIN_ROLES, ORGANIZATION_ADMIN_ROLES, PLATFORM_ADMIN_ROLES } from './core/auth/roles';
 
-const adminOnly = { canActivate: [authGuard, roleGuard], data: { roles: [ROLES.ADMIN] } };
+const requireRoles = (roles: readonly string[]) => ({ canActivate: [authGuard, roleGuard], data: { roles } });
+const platformAdmin = requireRoles(PLATFORM_ADMIN_ROLES);
+const organizationAdmin = requireRoles(ORGANIZATION_ADMIN_ROLES);
+/** Pages with sections for each admin scope; each section checks its own role. */
+const anyAdmin = requireRoles(ANY_ADMIN_ROLES);
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/auth-pages/login/login.component').then(m => m.LoginComponent) },
@@ -16,22 +20,22 @@ export const routes: Routes = [
   },
   {
     path: 'documentos',
-    ...adminOnly,
+    ...platformAdmin,
     loadComponent: () => import('./features/documents/documents-page/documents-page.component').then(m => m.DocumentsPageComponent),
   },
   {
     path: 'configuracion',
-    ...adminOnly,
+    ...anyAdmin,
     loadComponent: () => import('./features/settings/settings-page/settings-page.component').then(m => m.SettingsPageComponent),
   },
   {
     path: 'arena',
-    ...adminOnly,
+    ...organizationAdmin,
     loadComponent: () => import('./features/arena/arena-page/arena-page.component').then(m => m.ArenaPageComponent),
   },
   {
     path: 'admin/analytics',
-    ...adminOnly,
+    ...anyAdmin,
     loadComponent: () => import('./features/analytics/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent),
   },
   {

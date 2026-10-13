@@ -5,14 +5,14 @@
   </div>
 
   <div class="flex border-b border-outline-variant mb-6 space-x-4" role="tablist" aria-label="Secciones de configuración">
-    @for (tab of tabs; track tab.id) {
+    @for (tab of tabs(); track tab.id) {
       <button
         type="button"
         role="tab"
         [id]="'tab-' + tab.id"
         [attr.aria-selected]="activeTab() === tab.id"
         [attr.aria-controls]="'panel-' + tab.id"
-        (click)="activeTab.set(tab.id)"
+        (click)="selectTab(tab.id)"
         [class.border-primary]="activeTab() === tab.id"
         [class.text-primary]="activeTab() === tab.id"
         class="py-2 px-4 border-b-2 font-label-lg transition-colors border-transparent text-on-surface-variant hover:text-on-surface">
@@ -24,7 +24,7 @@
   <div role="tabpanel" [id]="'panel-' + activeTab()" [attr.aria-labelledby]="'tab-' + activeTab()">
     @if (activeTab() === 'ai') {
       <app-ai-config-form />
-    } @else {
+    } @else if (activeTab() === 'scraper') {
       <app-scraper-filters />
       <app-manual-scrape />
     }

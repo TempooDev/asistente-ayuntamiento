@@ -26,22 +26,22 @@ describe('roleGuard', () => {
 
   it('allows users with the role, ignoring case', async () => {
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: ['Administrador'] });
-    expect(await run([ROLES.ADMIN])).toBe(true);
+    expect(await run([ROLES.LEGACY_ADMIN])).toBe(true);
   });
 
   it('accepts a single role given as a string', async () => {
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: 'administrador' });
-    expect(await run([ROLES.ADMIN])).toBe(true);
+    expect(await run([ROLES.LEGACY_ADMIN])).toBe(true);
   });
 
   it('sends users without the role to the chat', async () => {
     auth.user$.next({ ...TEST_USER, [CLAIMS.roles]: [ROLES.FUNCIONARIO] });
-    expect(await run([ROLES.ADMIN])).toBe('/chat');
+    expect(await run([ROLES.LEGACY_ADMIN])).toBe('/chat');
   });
 
   it('sends anonymous users to login', async () => {
     auth.user$.next(null);
-    expect(await run([ROLES.ADMIN])).toBe('/login');
+    expect(await run([ROLES.LEGACY_ADMIN])).toBe('/login');
   });
 
   it('allows any signed-in user when the route requires no role', async () => {
