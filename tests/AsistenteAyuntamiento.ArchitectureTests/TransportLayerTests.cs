@@ -17,4 +17,17 @@ public class TransportLayerTests
 
         offenders.Should().BeEmpty("move queries and persistence into an Application service");
     }
+
+    [Fact]
+    public void ApiService_does_not_set_system_prompts()
+    {
+        // The pipelines own the system prompt (RAG instructions, user preferences) and only add it when the history
+        // has none: a system message added by the hub silently replaced them.
+        string[] markers = ["new ChatHistory(\"", "AddSystemMessage("];
+        var offenders = RepositoryFiles.SourceFiles("AsistenteAyuntamiento.ApiService")
+            .Where(f => markers.Any(File.ReadAllText(f).Contains))
+            .Select(RepositoryFiles.Relative);
+
+        offenders.Should().BeEmpty("add system prompts in the Application pipelines (PromptCatalog)");
+    }
 }

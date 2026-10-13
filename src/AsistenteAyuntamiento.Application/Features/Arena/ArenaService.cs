@@ -101,7 +101,8 @@ public class ArenaService(
 
     public async Task<ArenaVoteResponse?> VoteAsync(ArenaVoteRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        if (!Enum.TryParse<BattleWinner>(request.Winner, true, out var w) || !Enum.IsDefined(w) || w == BattleWinner.Pending)
+        // The Arena page sends ALFA / BETA / TIE / BOTH_BAD: case and underscores are ignored.
+        if (!Enum.TryParse<BattleWinner>(request.Winner?.Replace("_", string.Empty), true, out var w) || !Enum.IsDefined(w) || w == BattleWinner.Pending)
             throw new ArgumentException("Invalid winner value provided.", nameof(request.Winner));
 
         // The tenant query filter scopes the lookup to the current tenant; the UserId predicate to the owner.

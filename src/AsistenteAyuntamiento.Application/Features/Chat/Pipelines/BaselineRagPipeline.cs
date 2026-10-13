@@ -57,16 +57,17 @@ public sealed class BaselineRagPipeline(
     {
         var preferences = await userPreferenceService.GetPreferencesAsync(turn.UserId, cancellationToken);
 
-        // Streaming only adds a system prompt when there is context, so small talk stays conversational.
+        // With context: the RAG prompt and the user's preferences. Without it (small talk), a conversational prompt.
         var hits = await SearchAsync(turn, StreamingSearch, cancellationToken);
         if (hits.Count > 0)
         {
             ReplaceLastUserMessage(turn, string.Format(CultureInfo.InvariantCulture, PromptCatalog.StreamingUserTemplate, FormatContext(hits), turn.UserQuery));
-            if (!turn.History.Any(m => m.Role == AuthorRole.System))
-            {
-                turn.History.Insert(0, new ChatMessageContent(AuthorRole.System,
-                    PromptCatalog.StreamingSystem + UserContext(preferences, PromptCatalog.UserContextGuidance)));
-            }
+        }
+        if (!turn.History.Any(m => m.Role == AuthorRole.System))
+        {
+            turn.History.Insert(0, new ChatMessageContent(AuthorRole.System, hits.Count > 0
+                ? PromptCatalog.StreamingSystem + UserContext(preferences, PromptCatalog.UserContextGuidance)
+                : PromptCatalog.ConversationalSystem));
         }
 
         await foreach (var chunk in chatStreamingService.StreamAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken))

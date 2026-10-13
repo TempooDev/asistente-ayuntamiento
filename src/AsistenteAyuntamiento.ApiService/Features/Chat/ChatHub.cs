@@ -137,7 +137,7 @@ public class ChatHub(
 
         var fullResponseBuilder = new System.Text.StringBuilder();
 
-        await foreach (var chunk in _aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        await foreach (var chunk in Guarded(_aiChatService.GetStreamingCompletionAsync(history, tenantId, userId, cancellationToken), cancellationToken))
         {
             fullResponseBuilder.Append(chunk);
             yield return chunk;
@@ -191,14 +191,14 @@ public class ChatHub(
 
         if (errorMessage != null || session == null)
         {
-            yield return new ArenaStreamChunk("Error", errorMessage ?? HubErrors.Message(HubErrors.Internal));
-            yield break;
+            // A thrown HubException reaches the client as a stream error, shown in both Arena columns.
+            throw new HubException(errorMessage ?? HubErrors.Message(HubErrors.Internal));
         }
 
         var recentMessages = _sessionService.GetCompactedHistory(session);
         var history = BuildChatHistory(recentMessages);
 
-        await foreach (var chunk in _aiChatService.GetArenaStreamingCompletionAsync(history, tenantId, userId, cancellationToken))
+        await foreach (var chunk in Guarded(_aiChatService.GetArenaStreamingCompletionAsync(history, tenantId, userId, cancellationToken), cancellationToken))
         {
             yield return chunk;
         }
@@ -245,12 +245,39 @@ public class ChatHub(
     }
 
     /// <summary>
-    /// Converts persisted <see cref="ChatMessage"/> entities into a Semantic Kernel <see cref="ChatHistory"/>.
+    /// SignalR enumerates a stream after the hub method has returned, outside any try/catch in it. This turns an
+    /// unexpected failure in the middle of a stream into the typed <c>Error [INTERNAL]</c> (details only in the logs),
+    /// which the client maps like any other hub error.
+    /// </summary>
+    private async IAsyncEnumerable<T> Guarded<T>(IAsyncEnumerable<T> source, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            bool hasNext;
+            try
+            {
+                hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (Exception ex) when (ex is not HubException && !(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+            {
+                _logger.LogError(ex, "Chat stream failed for {User}", CurrentUserId);
+                throw new HubException(HubErrors.Message(HubErrors.Internal));
+            }
+
+            if (!hasNext) yield break;
+            yield return enumerator.Current;
+        }
+    }
+
+    /// <summary>
+    /// Converts persisted <see cref="ChatMessage"/> entities into a Semantic Kernel <see cref="ChatHistory"/>. No system
+    /// message: the pipeline adds its own (RAG instructions and the user's preferences), and only does so when the
+    /// history has none.
     /// </summary>
     private static ChatHistory BuildChatHistory(List<ChatMessage> messages)
     {
-        var history = new ChatHistory(
-            "You are a virtual assistant for the city council. Respond clearly and concisely in Spanish.");
+        var history = new ChatHistory();
 
         foreach (var msg in messages)
         {

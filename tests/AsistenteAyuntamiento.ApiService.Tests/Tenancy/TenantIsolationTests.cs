@@ -61,18 +61,22 @@ public class TenantIsolationTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.NotEqual("modelo-privado-org-a", json.GetProperty("model").GetString());
     }
 
-    [Fact]
-    public async Task Owner_can_vote_on_their_battle()
+    [Theory]
+    [InlineData("Alfa", BattleWinner.Alfa)]
+    [InlineData("BETA", BattleWinner.Beta)]
+    [InlineData("TIE", BattleWinner.Tie)]
+    [InlineData("BOTH_BAD", BattleWinner.BothBad)] // as the Arena page sends it
+    public async Task Owner_can_vote_on_their_battle(string vote, BattleWinner expected)
     {
         var battleId = await SeedBattleAsync("org_arena", "auth0|owner");
         var client = factory.CreateClientAs("auth0|owner", "org_arena");
 
-        var response = await client.PostAsJsonAsync("/api/arena/vote", new { sessionId = battleId, winner = "Alfa" });
+        var response = await client.PostAsJsonAsync("/api/arena/vote", new { sessionId = battleId, winner = vote });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var winner = await factory.QueryAsync(db => db.ArenaBattles.IgnoreQueryFilters()
             .Where(b => b.SessionId == battleId).Select(b => b.Winner).SingleAsync());
-        Assert.Equal(BattleWinner.Alfa, winner);
+        Assert.Equal(expected, winner);
     }
 
     [Theory]
