@@ -1,97 +1,49 @@
-using System.Text;
-using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.Infrastructure.Common;
+using AsistenteAyuntamiento.Infrastructure.Messaging;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 
-public partial class RabbitMqNotificationConsumer(
-    IServiceProvider serviceProvider,
-    ILogger<RabbitMqNotificationConsumer> logger) : BackgroundService
+/// <summary>
+/// Relays document status events published by the Worker to the SignalR clients of this API instance.
+/// Each instance binds its own exclusive, auto-delete queue to the fanout exchange; events are ephemeral,
+/// so failures are logged and dropped (no retry / DLQ).
+/// </summary>
+public sealed class RabbitMqNotificationConsumer(
+    IConnectionFactory connectionFactory,
+    IServiceScopeFactory scopeFactory,
+    RabbitMqConsumerHealth health,
+    ILogger<RabbitMqNotificationConsumer> logger)
+    : RabbitMqConsumerBase<RabbitMqNotificationConsumer.DocumentNotificationEvent>(connectionFactory, scopeFactory, health, logger)
 {
-            private const string ExchangeName = RabbitMqConstants.DocumentNotificationsExchange;
-    private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}"; // Cola temporal para cada instancia de la API
-    private IConnection? _connection;
-    private IChannel? _channel;
+    private readonly string _queueName = $"api_notifications_{Guid.NewGuid():N}";
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
+    protected override string ConsumerName => "api-notifications";
+
+    protected override bool UsesRetryAndDeadLetter => false;
+
+    protected override async Task<string> DeclareTopologyAsync(IChannel channel, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Iniciando RabbitMqNotificationConsumer");
-
-        var connectionFactory = serviceProvider.GetService<IConnectionFactory>();
-        if (connectionFactory != null)
-        {
-            var connected = false;
-            var retryCount = 0;
-            while (!connected && retryCount < 10 && !cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
-                    _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-                    await _channel.ExchangeDeclareAsync(exchange: ExchangeName, type: ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
-
-                    // Cola exclusiva para recibir los eventos
-                    await _channel.QueueDeclareAsync(queue: _queueName, durable: false, exclusive: true, autoDelete: true, cancellationToken: cancellationToken);
-                    await _channel.QueueBindAsync(queue: _queueName, exchange: ExchangeName, routingKey: string.Empty, cancellationToken: cancellationToken);
-
-                    connected = true;
-                    logger.LogInformation("Notification Consumer conectado a RabbitMQ exitosamente.");
-                }
-                catch (Exception ex)
-                {
-                    retryCount++;
-                    logger.LogError(ex, $"Error conectando a RabbitMQ para notificaciones (Intento {retryCount}/10). Reintentando...");
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-                }
-            }
-        }
-        else
-        {
-            logger.LogWarning("IConnectionFactory no está registrado para notificaciones.");
-        }
-
-        await base.StartAsync(cancellationToken);
+        await channel.ExchangeDeclareAsync(RabbitMqTopology.DocumentNotificationsExchange, ExchangeType.Fanout, durable: true, cancellationToken: cancellationToken);
+        await channel.QueueDeclareAsync(_queueName, durable: false, exclusive: true, autoDelete: true, cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(_queueName, RabbitMqTopology.DocumentNotificationsExchange, routingKey: string.Empty, cancellationToken: cancellationToken);
+        return _queueName;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task HandleAsync(DocumentNotificationEvent message, IServiceProvider services, CancellationToken cancellationToken)
     {
-        if (_channel == null) return;
-
-        var consumer = new AsyncEventingBasicConsumer(_channel);
-        consumer.ReceivedAsync += async (model, ea) =>
+        if (string.IsNullOrEmpty(message.DocumentId))
         {
-            var body = ea.Body.ToArray();
-            var message = Encoding.UTF8.GetString(body);
+            return Task.CompletedTask;
+        }
 
-            try
-            {
-                var docEvent = JsonSerializer.Deserialize<DocumentNotificationEvent>(message, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (docEvent != null && !string.IsNullOrEmpty(docEvent.DocumentId))
-                {
-                    using var scope = serviceProvider.CreateScope();
-                    var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
-                    await notificationService.NotifyDocumentStatusChangedAsync(docEvent.DocumentId, docEvent.NewStatus ?? string.Empty);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error procesando notificación entrante.");
-            }
-
-            await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
-        };
-
-        await _channel.BasicConsumeAsync(queue: _queueName, autoAck: false, consumer: consumer, cancellationToken: stoppingToken);
+        return services.GetRequiredService<INotificationService>()
+            .NotifyDocumentStatusChangedAsync(message.DocumentId, message.NewStatus ?? string.Empty);
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    public sealed class DocumentNotificationEvent
     {
-        if (_channel != null) await _channel.CloseAsync(cancellationToken: cancellationToken);
-        if (_connection != null) await _connection.CloseAsync(cancellationToken: cancellationToken);
-        await base.StopAsync(cancellationToken);
+        public string? DocumentId { get; set; }
+        public string? NewStatus { get; set; }
     }
 }

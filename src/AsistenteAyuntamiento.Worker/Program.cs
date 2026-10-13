@@ -6,7 +6,6 @@ using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.Application.Common;
-using AsistenteAyuntamiento.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -47,14 +46,13 @@ if (pipelineMode == PipelineType.Hierarchical)
     builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BoeIngestionService>(BulletinType.BOE.ToString());
     builder.Services.AddKeyedScoped<IHierarchicalIngestionProcessor, BojaIngestionService>(BulletinType.BOJA.ToString());
 
-    // Register the hierarchical consumer
-    builder.Services.AddHostedService<HierarchicalRabbitMqConsumerService>();
+    builder.AddIngestionConsumer<HierarchicalIngestionConsumer>();
 }
 else
 {
     // Default Baseline Pipeline
     builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
-    builder.Services.AddHostedService<RabbitMqConsumerService>();
+    builder.AddIngestionConsumer<BaselineIngestionConsumer>();
 }
 
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();

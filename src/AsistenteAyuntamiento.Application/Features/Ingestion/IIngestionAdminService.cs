@@ -39,12 +39,15 @@ public class BlobListStats
     public int Processing { get; set; }
 }
 
+/// <summary>Outcome of a bulk enqueue: documents published, and documents whose publish failed (left as Pending).</summary>
+public sealed record EnqueueResult(int Enqueued, int Failed);
+
 public interface IIngestionAdminService
 {
     Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb, CancellationToken cancellationToken = default);
     Task ResetDocumentStatusAsync(string documentId, CancellationToken cancellationToken = default);
     Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync(CancellationToken cancellationToken = default);
     Task ResetIngestionAsync(CancellationToken cancellationToken = default);
-    Task<int> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default);
-    Task<int> ReprocessAllAsync(string? pipelineMode, CancellationToken cancellationToken = default);
+    Task<EnqueueResult> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default);
+    Task<EnqueueResult> ReprocessAllAsync(string? pipelineMode, CancellationToken cancellationToken = default);
 }

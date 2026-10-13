@@ -22,6 +22,7 @@ public class ChatPersistenceWorker(
     private readonly ChatMessageBuffer _buffer = buffer;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly ILogger<ChatPersistenceWorker> _logger = logger;
+    // Only touched by the single flush loop (and the final flush after it ends), so no locking is needed.
     private readonly Dictionary<Guid, int> _retryCounts = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -92,7 +93,10 @@ public class ChatPersistenceWorker(
                 }
                 else
                 {
-                    _logger.LogCritical("Message {Id} exceeded maximum retry limit (3) and will be dropped to prevent poison loop.", msg.Id);
+                    // Content is not logged (it may contain personal data); ids allow tracing the lost message.
+                    _logger.LogCritical(
+                        "Chat message {Id} of session {SessionId} ({Role}, {CreatedAt:O}, {Length} chars) could not be persisted after 3 retries and was dropped",
+                        msg.Id, msg.SessionId, msg.Role, msg.CreatedAt, msg.Content?.Length ?? 0);
                     _retryCounts.Remove(msg.Id);
                 }
             }

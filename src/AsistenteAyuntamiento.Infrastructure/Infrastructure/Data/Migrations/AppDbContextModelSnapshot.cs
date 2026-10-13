@@ -419,6 +419,9 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DocumentId")
+                        .IsUnique();
+
                     b.ToTable("ParentDocuments", "ingestion");
                 });
 

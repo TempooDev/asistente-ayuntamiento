@@ -94,6 +94,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
             entity.ToTable("ParentDocuments", "ingestion");
             entity.Property(e => e.Metadata).HasColumnType("jsonb");
             entity.HasMany(e => e.Children).WithOne(e => e.Parent).HasForeignKey(e => e.ParentId).OnDelete(DeleteBehavior.Cascade);
+            // One version per document: re-ingestion replaces it (BaseHierarchicalIngestionProcessor).
+            entity.HasIndex(e => e.DocumentId).IsUnique();
+        });
+
+        modelBuilder.Entity<DocumentJobState>(entity =>
+        {
+            // Stored as text: same values as the former string constants, so no data migration is needed.
+            entity.Property(e => e.Status).HasConversion<string>();
         });
 
         modelBuilder.Entity<ChildFragment>(entity =>

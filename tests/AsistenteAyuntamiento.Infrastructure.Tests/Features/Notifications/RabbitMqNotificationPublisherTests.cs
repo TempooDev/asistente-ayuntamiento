@@ -54,7 +54,7 @@ public class RabbitMqNotificationPublisherTests
 
         // Verify exchange declaration
         _channelMock.Verify(c => c.ExchangeDeclareAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange, 
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange, 
             ExchangeType.Fanout, 
             true, 
             false, 
@@ -65,7 +65,7 @@ public class RabbitMqNotificationPublisherTests
 
         // Verify publish
         _channelMock.Verify(c => c.BasicPublishAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange,
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
             string.Empty,
             false,
             It.Is<BasicProperties>(p => p.Persistent == true),
@@ -92,7 +92,7 @@ public class RabbitMqNotificationPublisherTests
         
         // Channel should publish twice
         _channelMock.Verify(c => c.BasicPublishAsync(
-            AsistenteAyuntamiento.Infrastructure.Common.RabbitMqConstants.DocumentNotificationsExchange,
+            AsistenteAyuntamiento.Infrastructure.Messaging.RabbitMqTopology.DocumentNotificationsExchange,
             string.Empty,
             false,
             It.IsAny<BasicProperties>(),

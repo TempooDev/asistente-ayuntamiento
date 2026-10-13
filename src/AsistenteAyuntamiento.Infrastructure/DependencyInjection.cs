@@ -4,6 +4,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using AsistenteAyuntamiento.Application.Common.Notifications;
 using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Infrastructure.Background;
+using AsistenteAyuntamiento.Infrastructure.Messaging;
+using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
@@ -60,9 +63,29 @@ public static class DependencyInjection
 
         builder.AddQdrantClient("qdrant");
         builder.Services.AddQdrantVectorStore();
+        builder.Services.AddSingleton<IVectorCollections, QdrantVectorCollections>();
 
+        AddMessaging(builder);
         AddSemanticKernelServices(builder);
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Durable ingestion publishing and consumer health. Consumers themselves are registered by the
+    /// hosts that run them (<see cref="AddIngestionConsumer{TConsumer}"/>).
+    /// </summary>
+    private static void AddMessaging(IHostApplicationBuilder builder)
+    {
+        builder.Services.AddSingleton<IIngestionQueuePublisher, RabbitMqIngestionPublisher>();
+        builder.Services.AddSingleton<RabbitMqConsumerHealth>();
+        builder.Services.AddHealthChecks().AddCheck<RabbitMqConsumerHealth>("rabbitmq-consumers");
+    }
+
+    public static IHostApplicationBuilder AddIngestionConsumer<TConsumer>(this IHostApplicationBuilder builder)
+        where TConsumer : class, IHostedService
+    {
+        builder.Services.AddHostedService<TConsumer>();
         return builder;
     }
 

@@ -52,7 +52,14 @@ public static class IngestionEndpoints
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             logger.LogInformation("Restableciendo estado del documento {DocumentId} a Pending", documentId);
-            await adminService.ResetDocumentStatusAsync(documentId, cancellationToken);
+            try
+            {
+                await adminService.ResetDocumentStatusAsync(documentId, cancellationToken);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
             return Results.Ok(new { message = $"El estado del documento {documentId} ha sido reiniciado a 'Pending'." });
         })
         .WithName("ResetDocumentStatus");
@@ -87,8 +94,15 @@ public static class IngestionEndpoints
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             logger.LogInformation("Encolando {Count} documentos (Mode: {PipelineMode})", requests.Count, pipelineMode ?? "BOTH");
-            var count = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
-            return Results.Ok(new { message = $"Se han encolado {count} documentos en RabbitMQ." });
+            var result = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
+            return Results.Ok(new
+            {
+                message = result.Failed == 0
+                    ? $"Se han encolado {result.Enqueued} documentos en RabbitMQ."
+                    : $"Se han encolado {result.Enqueued} documentos; {result.Failed} no se pudieron encolar y siguen como 'Pending'.",
+                enqueued = result.Enqueued,
+                failed = result.Failed
+            });
         })
         .WithName("EnqueueBulkBlobs");
 
@@ -99,14 +113,21 @@ public static class IngestionEndpoints
         {
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             logger.LogInformation("Iniciando reprocesado masivo de todos los documentos en S3 (Mode: {PipelineMode})", pipelineMode ?? "BOTH");
-            var count = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
+            var result = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
 
-            if (count == 0)
+            if (result.Enqueued == 0 && result.Failed == 0)
             {
-                return Results.Ok(new { message = "No se encontraron documentos en S3." });
+                return Results.Ok(new { message = "No se encontraron documentos en S3.", enqueued = 0, failed = 0 });
             }
 
-            return Results.Ok(new { message = $"Se han encolado {count} documentos en las colas seleccionadas para reprocesado masivo." });
+            return Results.Ok(new
+            {
+                message = result.Failed == 0
+                    ? $"Se han encolado {result.Enqueued} documentos en las colas seleccionadas para reprocesado masivo."
+                    : $"Se han encolado {result.Enqueued} documentos; {result.Failed} no se pudieron encolar y siguen como 'Pending'.",
+                enqueued = result.Enqueued,
+                failed = result.Failed
+            });
         })
         .WithName("ReprocessAllBlobs");
     }
