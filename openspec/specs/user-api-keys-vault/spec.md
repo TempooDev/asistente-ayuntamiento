@@ -1,83 +1,58 @@
-# Specification: User API Keys with Infisical Vault & Dynamic Kernel
+# Specification: Tenant AI Model Configuration
+
+> Kept under the folder name `user-api-keys-vault` for history. The original design (per-user keys in an Infisical vault, a model selector in the chat) was not built; what exists is a per-tenant configuration with keys encrypted by ASP.NET Core Data Protection. Moving the keys to an external vault is a possible follow-up change, not a requirement of this spec.
 
 ## Purpose
-Allow users to store their own LLM provider API keys securely in an Infisical vault (internal-only network), select their active model from the chat UI, and have the system build a per-request Semantic Kernel instance using the user's key. The embedding model remains fixed as local Ollama.
+Let the administrators of each tenant (Auth0 organization) choose the chat model their users talk to and store its API key securely, while the platform keeps control of the embedding model and of a fallback model.
 
 ## Requirements
 
-### Requirement: IApiKeyVault Abstraction
-The system SHALL define an `IApiKeyVault` interface with implementations for Infisical (production) and in-memory (development).
+### Requirement: Per-tenant Chat Model Settings
+Each tenant SHALL have at most one `AiConfiguration` row (provider, model, temperature, optional endpoint URL, encrypted API key). Supported providers: `ollama`, `openai`, `openrouter` (OpenAI-compatible endpoint) and `google` (Gemini). Without a row, the platform defaults (`Ai:Chat:*`) apply.
 
-#### Scenario: Storing a user API key
-- **WHEN** a user submits an API key for a provider via the settings page
-- **THEN** the system SHALL call `IApiKeyVault.StoreAsync(userId, provider, apiKey)`
-- **AND** the key SHALL be stored at path `/users/{userId}/{provider}` in Infisical
-- **AND** the raw key SHALL never be persisted in the PostgreSQL database
+#### Scenario: Tenant without configuration
+- **WHEN** a user of a tenant without `AiConfiguration` chats
+- **THEN** the answer SHALL come from the platform default model and key (`Ai:Chat:Provider`, `Ai:Chat:Model`, `Ai:Chat:ApiKey`)
 
-#### Scenario: Retrieving a key in development
-- **WHEN** the application runs in Development environment
-- **THEN** the `InMemoryApiKeyVault` implementation SHALL be used
-- **AND** no Infisical container SHALL be required to run the app locally
+#### Scenario: Provider that needs a key without one
+- **WHEN** the tenant selects `openai`, `openrouter` or `google` and neither the tenant nor the platform has a key
+- **THEN** chat requests SHALL fail with the typed code `LLM_NOT_CONFIGURED` and a user-facing message, without provider details
 
-### Requirement: Infisical Network Isolation
-Infisical SHALL only be reachable from the ApiService on the internal Docker network.
+### Requirement: Encrypted, Write-only API Keys
+API keys SHALL be stored encrypted with ASP.NET Core Data Protection (purpose `AiConfiguration.ApiKey`) and SHALL never be returned by the API.
 
-#### Scenario: Infisical not exposed publicly
-- **WHEN** the Docker Compose stack is running in production
-- **THEN** the Infisical container SHALL have no externally bound ports
-- **AND** only the ApiService container SHALL be able to reach it via internal DNS (e.g. `http://infisical:8080`)
+#### Scenario: Reading the configuration
+- **WHEN** an administrator opens the AI settings (`GET /api/settings/ai`)
+- **THEN** the response SHALL include `hasApiKey` but not the key
+- **AND** the form SHALL show the key as stored and only send a new one if the administrator types it
 
-### Requirement: Dynamic KernelFactory per Request
-The system SHALL build a new `Kernel` instance per chat request using the user's active provider and API key.
+#### Scenario: Saving without a new key
+- **WHEN** an administrator saves the settings with an empty API key
+- **THEN** the stored key SHALL be kept
 
-#### Scenario: User has an OpenAI key configured
-- **WHEN** a chat request arrives and the user's active provider is `OpenAI`
-- **THEN** `KernelFactory` SHALL retrieve the key from Infisical and build a Kernel with `AddOpenAIChatCompletion(modelId, apiKey)`
+#### Scenario: Key that cannot be decrypted
+- **WHEN** the stored key cannot be decrypted (for example after the key ring changed)
+- **THEN** the system SHALL log a warning and fall back to the platform key instead of failing every request
 
-#### Scenario: User has a DeepSeek key configured
-- **WHEN** a chat request arrives and the user's active provider is `DeepSeek`
-- **THEN** `KernelFactory` SHALL build a Kernel with `AddOpenAIChatCompletion(modelId, apiKey, endpoint: "https://api.deepseek.com")`
+### Requirement: Administrators Only
+Reading and changing the AI settings SHALL require the `administrador` role (`Policies.Admin`) and SHALL only affect the caller's tenant.
 
-#### Scenario: User has a Google Gemini key configured
-- **WHEN** a chat request arrives and the user's active provider is `Google`
-- **THEN** `KernelFactory` SHALL build a Kernel with the Gemini connector using the user's key
+#### Scenario: Regular user
+- **WHEN** a user without the `administrador` role calls `GET` or `PUT /api/settings/ai`
+- **THEN** the API SHALL answer 403
 
-#### Scenario: User has an Anthropic Claude key configured
-- **WHEN** a chat request arrives and the user's active provider is `Claude`
-- **THEN** `KernelFactory` SHALL build a Kernel with the Anthropic connector using the user's key
+#### Scenario: Unauthenticated caller
+- **WHEN** the call has no valid token
+- **THEN** the API SHALL answer 401
 
-#### Scenario: No API key configured by the user
-- **WHEN** a chat request arrives and the user has no active provider configured
-- **THEN** the system SHALL fall back to the platform Ollama instance (llama3.2)
-- **AND** SHALL NOT return an error, allowing the user to chat without their own key
+### Requirement: Platform-owned Embeddings and Fallback
+The embedding model (`Ai:Embeddings:*`) SHALL be platform-wide and not configurable per tenant, because every tenant searches the same vector collections. When the tenant's model reports an exhausted quota (HTTP 429), the platform fallback model (`Ai:Fallback:*`) MAY answer with its own credentials.
 
-### Requirement: Model Selector in Chat UI
-The Blazor UI SHALL display a model selector showing only providers the user has configured, plus the Ollama fallback.
+#### Scenario: Quota exhausted with a fallback configured
+- **WHEN** the tenant's provider answers 429 and `Ai:Fallback:ApiKey` is set
+- **THEN** the answer SHALL come from the fallback model with a notice for the user
+- **AND** the tenant's key SHALL never be sent to the fallback provider
 
-#### Scenario: Displaying available models
-- **WHEN** an authenticated user opens the chat
-- **THEN** the UI SHALL query `/api/apikeys/providers` and render a dropdown
-- **AND** the dropdown SHALL include only providers with a stored key plus "Ollama (local)"
-
-#### Scenario: User changes active model
-- **WHEN** the user selects a different model from the dropdown
-- **THEN** the selection SHALL be persisted as the user's `activeProvider` preference
-- **AND** all subsequent chat requests in that session SHALL use the newly selected provider
-
-### Requirement: API Key Management Page
-Users SHALL be able to add, view (masked), and delete their API keys from a settings page.
-
-#### Scenario: Adding a new API key
-- **WHEN** the user submits a key for a provider they have not configured yet
-- **THEN** the system SHALL store it in Infisical and show the provider as active in the model selector
-
-#### Scenario: Deleting an API key
-- **WHEN** the user deletes a provider key
-- **THEN** the system SHALL call `IApiKeyVault.DeleteAsync(userId, provider)`
-- **AND** the provider SHALL be removed from the model selector dropdown
-- **AND** if it was the active provider, the system SHALL automatically fall back to Ollama
-
-#### Scenario: Viewing existing keys
-- **WHEN** the user navigates to the settings page
-- **THEN** configured providers SHALL be shown with masked keys (e.g. `sk-••••••••4f2a`)
-- **AND** the raw key SHALL never be returned from the API to the client
+#### Scenario: Quota exhausted without fallback
+- **WHEN** the tenant's provider answers 429 and no fallback is configured
+- **THEN** the request SHALL fail with `LLM_QUOTA_EXCEEDED`

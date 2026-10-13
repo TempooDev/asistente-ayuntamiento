@@ -10,6 +10,29 @@
 
 Leyenda: 🔴 Crítico · 🟠 Alto · 🟡 Medio · ⚪ Bajo. Las rutas son relativas a `src/` salvo que se indique otra cosa.
 
+## Estado: resuelta (octubre 2026)
+
+Todos los hallazgos se corrigieron en el cambio `openspec/changes/audit-remediation-2026-10` (detalle por tarea en su `tasks.md`). El resto del informe se conserva tal cual como registro de la situación de partida; las rutas y líneas que cita ya no existen en muchos casos.
+
+| Hallazgos | Fase | PR |
+|---|---|---|
+| S1–S13 (roles, fallback con clave propia, TLS, tenant obligatorio, IDOR de Arena, grupos SignalR, errores sin detalles, secretos obligatorios, OpenApi) | 1 | #19 |
+| B1–B16 (filtros Go, kernel, mutex del scraper, payload y token de SignalR, tenant en segundo plano, bucket, BOJA/BOPMA, fugas en Angular) | 2 | #19 |
+| B4, B11, §3.5 (mensajes persistentes, retry + DLQ, publicación tras el commit, ingesta idempotente, `VectorSyncFailed`) | 3 | #19 |
+| §4 Repositorio y paquetes, §5 Tests y CI (binario, `.gitignore`, skills, `Directory.Packages.props`, migraciones en baseline, CI con Go y Angular, deploy tras CI con tags `sha-`) | 4 | #19 |
+| §3.1–§3.4, §4 Convenciones .NET (puertos en Application, `AiChatService` dividido, `RabbitMqConsumerBase<T>`, `AddApplicationServices()`, `CancellationToken`, constantes y opciones) | 5 | #20 |
+| §3.3 y §4 Go (configuración, `httpx`, orquestador con un único job, apagado ordenado, `slog`, `go:generate`, Dockerfile) | 6 | #21 |
+| §3.4 y §4 Angular (`core/ shared/ features/`, `AuthFacade`, `ChatStore`, `MarkdownService`, componentes divididos, `OnPush`, accesibilidad) | 7 | #22 |
+| Specs y documentación desactualizados | 8 | este cierre |
+
+**Pendiente (fuera de alcance, registrado en `tasks.md`):**
+- Purgar el binario de Go del historial con `git filter-repo` (reescribe la historia de `main`).
+- BOPMA sigue sin activar por Cloudflare Turnstile.
+- Tests del hub de chat con cliente SignalR, reinicio del broker e idempotencia Postgres + Qdrant con Testcontainers.
+- Tabla de dead-letter persistente para `ChatPersistenceWorker` y notificación de estado por lote.
+- El bundle inicial de Angular (~616 kB) supera el presupuesto de 500 kB.
+- Separar el rol `administrador` en administrador de plataforma y de tenant, si hiciera falta.
+
 ---
 
 ## 1. Seguridad y multi-tenancy (lo primero que hay que tocar)

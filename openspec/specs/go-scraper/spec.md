@@ -1,166 +1,100 @@
-# Specification: Go Scraper Worker (BOE, BOJA, BOPMA)
+# Specification: Go Scraper (BOE, BOJA)
 
 ## Purpose
-Provide a Go-based scraper service (Echo + Air) that daily fetches official gazette documents from BOE, BOJA, and BOPMA, uploads each PDF to Cloudflare R2, and publishes an ingestion event to RabbitMQ for the .NET worker to process.
+A Go service (`src/go-scraper`, binary `cmd/scraper`) downloads the documents of the official bulletins, keeps those that pass the filter rules, stores them in the shared S3-compatible bucket and queues them for the .NET ingestion workers. BOE and BOJA are implemented; BOPMA is a draft that is not registered (see "BOPMA" below).
 
----
+Configuration and the package layout are documented in `docs/go-scraper-integration.md`; the queue contract in `docs/messaging-contract.md`.
 
-## Source Analysis
+## Sources
 
-### BOE — Official Open Data REST API
-**Approach:** REST API (`GET /datosabiertos/api/boe/sumario/{YYYYMMDD}`) returns JSON with all daily items including direct PDF URLs. No authentication, no anti-scraping protection.
+### BOE — open data API
+- Summary: `GET https://www.boe.es/datosabiertos/api/boe/sumario/{YYYYMMDD}` (JSON, `Accept: application/json`).
+- Document: `GET https://www.boe.es/diario_boe/xml.php?id={id}` (XML with metadata and text).
+- Only `BOE-A-*` documents under the selected sections are kept (default `1`, `2B`, `3`, `5A`).
 
-**URL Pattern:**
-- Sumario: `https://www.boe.es/datosabiertos/api/boe/sumario/20260715`
-- PDF: `https://www.boe.es/boe/dias/{year}/{month}/{day}/pdfs/{id}.pdf`
+### BOJA — Atom feeds and bulletin index pages
+- Today: the section feeds `/boja/distribucion/s51.xml`–`s55.xml` list the latest bulletin (they carry no date).
+- Past days: the numbered index pages `/boja/{year}/{number}/index.html` are binary-searched by the date in their heading (`BOJA nº 130 de 08/07/2026`).
+- Document ids derive from the URL: `/boja/2026/123/1` → `BOJA-2026-123-1`; the publication date is the bulletin's.
 
-**Complexity:** ✅ Low — pure HTTP, JSON parsing, direct PDF download.
-
----
-
-### BOJA — Official Atom/RSS Feed per Section
-**Approach:** Parse the official Atom feeds published per gazette section (`/boja/distribucion/s{N}.xml`). Each `<entry>` contains a direct PDF URL. No authentication.
-
-**Feed URLs (section-based):**
-- `https://www.juntadeandalucia.es/boja/distribucion/s51.xml` (Disposiciones Generales)
-- `https://www.juntadeandalucia.es/boja/distribucion/s52.xml` (Autoridades y Personal)
-- `https://www.juntadeandalucia.es/boja/distribucion/s53.xml` (Otras Disposiciones)
-- `https://www.juntadeandalucia.es/boja/distribucion/s54.xml` (Administración de Justicia)
-- `https://www.juntadeandalucia.es/boja/distribucion/s55.xml` (Anuncios)
-
-**PDF URL Pattern:**
-`http://www.juntadeandalucia.es/boja/{year}/{num_boja}/BOJA{yy}-{num}-{xxx}-{id}.pdf`
-
-**Complexity:** ✅ Low-Medium — XML Atom parsing, direct PDF download, multiple feeds.
-
----
-
-### BOPMA — Cloudflare Turnstile Protected
-**Approach:** UNCERTAIN — requires investigation spike before implementation.
-
-**What we know (from live HTML analysis):**
-- The index page (`index.php?fecha=DD-MM-YYYY`) renders the full daily sumario in HTML without Turnstile blocking.
-- Each edicto has a predictable filename pattern: `{YYYYMMDD}-{edictoid}-{year}-{supplement}.pdf`
-- PDF download goes through a PHP handler: `/verificacion.php?archivo={filename}.pdf`
-- The handler is protected by **Cloudflare Turnstile** (client-side JS token: `0x4AAAAAACh9RT4ulRL2covD`)
-- The `descargarConVerificacion()` JS function attaches the Turnstile token to the download request.
-
-**Investigation required (spike task):**
-Attempt a direct `GET /verificacion.php?archivo={filename}.pdf` with browser-realistic headers and a valid session cookie. If Turnstile is purely client-side validation (not server-side), the PDF may be reachable directly.
-
-```
-# Spike test:
-GET https://www.bopmalaga.es/verificacion.php?archivo=20260715-02598-2026-00.pdf
-Headers:
-  User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)...
-  Referer: https://www.bopmalaga.es/index.php
-  Cookie: {session cookie from prior page load}
-```
-
-**Fallback options if direct download is blocked:**
-1. **Headless Browser (Playwright for Go / `go-rod`)** — resolves Turnstile automatically but adds ~300MB Chromium dependency and increases complexity significantly.
-2. **Contact Diputación de Málaga** — request official feed or bulk data access; BOPMA is legally public information.
-3. **Implement partial support** — scrape the HTML sumario for metadata (without PDFs) and trigger manual download via CVE verification URL.
-
-**Complexity:** ⚠️ High / Unknown — blocked pending spike investigation.
-
----
+### BOPMA — not active
+The PDF download is protected by Cloudflare Turnstile. `internal/bopma` holds a draft that is not registered in `cmd/scraper` until its summary is implemented and the download is solved (headless browser, or an official feed from the Diputación de Málaga). Manual scrapes do not offer it.
 
 ## Requirements
 
-### Requirement: BOE Daily Scraping via Open Data API
-The scraper SHALL fetch the BOE daily sumario and download all PDFs using the official REST API.
+### Requirement: Polite, Resilient HTTP Access
+All requests to the bulletin sites SHALL go through the shared client (`internal/httpx`): per-site rate limit (BOE 2 req/s, BOJA 1 req/s), per-attempt timeout, retries with exponential backoff and jitter on network errors, 429 and 5xx, and no retries on other 4xx.
 
-#### Scenario: Successful BOE daily run
-- **WHEN** the scraper scheduler triggers for BOE at the configured daily time
-- **THEN** it SHALL call `GET /datosabiertos/api/boe/sumario/{YYYYMMDD}` and parse the JSON item list
-- **AND** for each item, download the PDF from its `urlPdf` field
-- **AND** upload each PDF to R2 at path `raw-documents/boe/{year}/{month}/{day}/{id}.pdf`
-- **AND** publish one RabbitMQ ingestion event per document with source `BOE`
+#### Scenario: Temporary server error
+- **WHEN** boe.es answers 503 and then 200
+- **THEN** the request SHALL succeed after the retry
 
-#### Scenario: BOE API unavailable
-- **WHEN** the BOE API returns a non-200 status code or times out
-- **THEN** the scraper SHALL log the error and skip that run without crashing
-- **AND** SHALL retry the next day at the scheduled time
+#### Scenario: Day without bulletin
+- **WHEN** the BOE summary answers 404 (Sundays, holidays) or no BOJA bulletin has that date
+- **THEN** the day SHALL produce no documents and no error
 
-### Requirement: BOJA Daily Scraping via Atom Feed
-The scraper SHALL fetch all configured BOJA section feeds and download individual disposition PDFs.
+#### Scenario: Shutdown during a retry wait
+- **WHEN** the process is stopping while a request waits to retry
+- **THEN** the wait SHALL end immediately with the cancellation
 
-#### Scenario: Successful BOJA daily run
-- **WHEN** the scraper scheduler triggers for BOJA
-- **THEN** it SHALL fetch all configured section Atom feeds (`s51.xml` through `s55.xml`)
-- **AND** parse each `<entry>` to extract the PDF link and metadata (organism, section, title)
-- **AND** download each PDF directly from the official URL
-- **AND** upload to R2 at path `raw-documents/boja/{year}/{boja_num}/{filename}.pdf`
-- **AND** publish one RabbitMQ ingestion event per document with source `BOJA`
+### Requirement: Filter Rules, Fail Closed
+Every job SHALL load the active filter rules from the .NET API (`FilterConfigService.GetActiveFilters` over gRPC, with `x-internal-key`). `Keyword` and `Department` rules filter documents; `Section` (BOE) and `BojaFeed` (BOJA) rules select what is fetched. Sections passed in a manual request take precedence over `Section` rules.
 
-#### Scenario: Deduplication on re-run
-- **WHEN** the scraper runs and a document with the same `documentId` was already uploaded to R2
-- **THEN** it SHALL skip the upload and NOT publish a duplicate RabbitMQ event
+#### Scenario: Rules unavailable
+- **WHEN** the rules cannot be loaded (API down, invalid key)
+- **THEN** the job SHALL fail without downloading anything, instead of downloading every document
 
-### Requirement: BOPMA Scraping (Spike Required)
-The scraper SHALL provide a BOPMA implementation after investigation of the Cloudflare Turnstile bypass feasibility.
+#### Scenario: Document without a matching rule
+- **WHEN** a source has content rules and a document matches none of them
+- **THEN** the document SHALL be discarded and counted as filtered
 
-#### Scenario: Spike — direct PDF download attempt
-- **WHEN** a developer runs the BOPMA spike test
-- **THEN** they SHALL attempt `GET /verificacion.php?archivo={filename}` with browser-realistic headers
-- **AND** document whether the Turnstile check is enforced server-side or client-side only
-- **AND** report the result to determine the implementation strategy
+### Requirement: Storage Before Queueing
+For each kept document the scraper SHALL write the original to `raw-{ext}/{SOURCE}/{id}.{ext}` with its real MIME type (BOE XML, BOJA HTML), then the parsed document to `json/{SOURCE}/{id}.json`, and only then publish the ingestion message.
 
-#### Scenario: BOPMA sumario HTML parsing (always feasible)
-- **WHEN** the scraper fetches `https://www.bopmalaga.es/index.php?fecha={DD-MM-YYYY}`
-- **THEN** it SHALL parse the HTML to extract all edicto IDs, titles, and organism names from the `<article>` elements
-- **AND** build the filename pattern `{YYYYMMDD}-{edictoid}-{year}-{supplement}.pdf`
-- **AND** attempt the PDF download via `/verificacion.php?archivo={filename}`
+#### Scenario: Bucket write fails
+- **WHEN** the JSON document cannot be stored
+- **THEN** no message SHALL be published and the document SHALL be counted as an error at the `store` stage
 
-#### Scenario: BOPMA blocked by Turnstile
-- **WHEN** the direct PDF download returns a Turnstile challenge (non-PDF content-type or 403)
-- **THEN** the scraper SHALL log a warning with the blocked document ID and continue
-- **AND** SHALL NOT crash or block the BOE/BOJA pipelines
+#### Scenario: Backup of the original fails
+- **WHEN** only the raw original cannot be stored
+- **THEN** the document SHALL still be stored and queued, and a warning logged
 
-### Requirement: Cloudflare R2 Storage Upload
-The scraper SHALL upload all downloaded PDFs to Cloudflare R2 using the S3-compatible API.
+### Requirement: Durable Ingestion Messages
+The scraper SHALL publish `{ "source", "document_id", "blob_path" }` as a persistent message with publisher confirms to both `documents_to_process_baseline` and `documents_to_process_hierarchical`, declaring the queues exactly as the .NET topology (retry and dead-letter queues). Without `ConnectionStrings__messaging`, documents are stored but not queued.
 
-#### Scenario: Uploading a PDF to R2
-- **WHEN** a PDF is successfully downloaded
-- **THEN** the scraper SHALL upload it to R2 with `Content-Type: application/pdf`
-- **AND** set the object key to the source-specific path pattern
-- **AND** confirm upload success before publishing the RabbitMQ event
+#### Scenario: Broker restarts
+- **WHEN** RabbitMQ is restarted after a message was confirmed
+- **THEN** the message SHALL still be in the queue
 
-#### Scenario: R2 upload failure
-- **WHEN** an R2 upload fails (network error, credentials issue)
-- **THEN** the scraper SHALL NOT publish a RabbitMQ event for that document
-- **AND** SHALL log the failure with the document ID for manual retry
+#### Scenario: Connection lost between documents
+- **WHEN** the AMQP connection was closed
+- **THEN** the publisher SHALL reconnect once and retry before reporting the error
 
-### Requirement: RabbitMQ Ingestion Event Publishing
-After each successful upload, the scraper SHALL publish a structured JSON event to RabbitMQ.
+### Requirement: One Job at a Time
+Scrape jobs SHALL come from the daily schedule (previous day at `SCRAPE_SCHEDULE_HOUR`, providers `SCRAPE_SCHEDULED_PROVIDERS`), the HTTP API (`/api/scrape`, asynchronous, status at `/api/jobs/{id}`) or the gRPC command `ForceScrape` (synchronous, used by the .NET API). All three SHALL share one lock. Ranges SHALL be validated: start required, end not before start nor in the future, at most `SCRAPE_MAX_RANGE_DAYS` days.
 
-#### Scenario: Publishing a valid ingestion event
-- **WHEN** a PDF is successfully uploaded to R2
-- **THEN** the scraper SHALL publish a JSON message to the `gazette-ingest-queue` with the following fields:
-  - `eventId` (UUID v4)
-  - `source` (enum: `BOE`, `BOJA`, `BOPMA`)
-  - `documentId` (unique identifier from the source)
-  - `title` (document title from metadata)
-  - `originalUrl` (source URL of the document)
-  - `storagePath` (R2 object key)
-  - `publishedAt` (official publication date, ISO 8601)
-  - `scrapedAt` (timestamp of scraping, ISO 8601)
-  - `metadata` (organism, section, department, file size)
+#### Scenario: Job requested while another runs
+- **WHEN** a job is requested while one is running
+- **THEN** the HTTP API SHALL answer 409, the gRPC command SHALL answer `Success = false`, and the schedule SHALL skip its run
 
-### Requirement: Scheduler and Echo Health Endpoint
-The scraper SHALL run on a daily schedule and expose an HTTP health endpoint for Aspire monitoring.
+#### Scenario: Invalid range
+- **WHEN** a manual job asks for 60 days
+- **THEN** it SHALL be rejected (HTTP 400 / `Success = false`) before any download
 
-#### Scenario: Daily scheduled execution
-- **WHEN** the configured cron expression triggers (e.g. `0 7 * * 1-5` — weekdays at 7:00 AM)
-- **THEN** the scraper SHALL run BOE and BOJA scrapers sequentially
-- **AND** run the BOPMA scraper if its implementation is available
+### Requirement: Authenticated Command Service
+The gRPC `ScraperCommandService` SHALL require the shared `x-internal-key` when `INTERNAL_GRPC_KEY` is set; the .NET API sends it on every call.
 
-#### Scenario: Health check endpoint
-- **WHEN** the .NET Aspire AppHost or a load balancer calls `GET /health`
-- **THEN** the Echo server SHALL return HTTP 200 with `{ "status": "healthy" }`
+#### Scenario: Call without the key
+- **WHEN** a caller invokes `ForceScrape` without the key or with a wrong one
+- **THEN** the call SHALL fail with `Unauthenticated`
 
-#### Scenario: Manual trigger endpoint (development only)
-- **WHEN** a developer calls `POST /scrape?source=BOE` during development
-- **THEN** the scraper SHALL run the requested source's pipeline immediately
-- **AND** this endpoint SHALL be disabled or protected in production
+### Requirement: Graceful Shutdown and Observability
+On SIGINT/SIGTERM the scraper SHALL stop accepting requests, let in-flight gRPC calls finish, cancel the running job between documents and flush telemetry, within 30 seconds. Logs SHALL be JSON (`slog`) with `trace_id`/`span_id`; spans SHALL be nested per job and document; counters SHALL report saved, filtered and failed documents (by stage) and failed summaries.
+
+#### Scenario: Deploy during a job
+- **WHEN** the container is stopped while a job runs
+- **THEN** the job SHALL end as failed (cancelled) and the process SHALL exit cleanly
+
+#### Scenario: Health check
+- **WHEN** Aspire or the load balancer calls `GET /health`
+- **THEN** the scraper SHALL answer 200

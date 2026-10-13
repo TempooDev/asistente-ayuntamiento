@@ -28,7 +28,7 @@ The system SHALL allow authenticated users to view and update their institutiona
 - **AND** return the empty or default profile to the client.
 
 #### Scenario: Updating profile details
-- **WHEN** a user submits changes to their profile via the Blazor web app (`PUT /api/users/me`)
+- **WHEN** a user submits changes to their profile via the Angular profile page (`PUT /api/users/me`)
 - **THEN** the API SHALL update the `FullName`, `Department`, `Position`, and `PhoneNumber`
 - **AND** the `Auth0UserId` and `TenantId` SHALL remain immutable
 - **AND** the database schema `identity` SHALL store these updates securely.

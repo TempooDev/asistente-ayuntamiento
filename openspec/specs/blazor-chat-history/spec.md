@@ -1,5 +1,7 @@
 # Specification: Blazor Chat with Conversation History
 
+> **Frontend note.** The chat UI is now the Angular SPA (`features/chat`, state in `ChatStore`) talking to `/hubs/chat` (see `signalr-integration`). The persistence and history requirements below still apply; Blazor-specific details do not.
+
 ## Purpose
 Provide a responsive chat interface that saves, lists, and reloads conversation sessions and their respective message history in PostgreSQL.
 
