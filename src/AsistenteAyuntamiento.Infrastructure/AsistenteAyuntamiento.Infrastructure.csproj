@@ -24,7 +24,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Infrastructure\Data\Migrations\Scripts\**\*.sql" />
+    <EmbeddedResource Include="Data\Migrations\Scripts\**\*.sql" />
   </ItemGroup>
 
 </Project>

@@ -141,7 +141,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                 column: "TsvContent")
                 .Annotation("Npgsql:IndexMethod", "gin");
 
-            using var stream = typeof(AddRagQuestionArena).Assembly.GetManifestResourceStream("AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations.Scripts.Up_AddChildFragmentsTsvTrigger.sql")
+            using var stream = typeof(AddRagQuestionArena).Assembly.GetManifestResourceStream("AsistenteAyuntamiento.Infrastructure.Data.Migrations.Scripts.Up_AddChildFragmentsTsvTrigger.sql")
                 ?? throw new InvalidOperationException("No se pudo cargar el script SQL 'Up_AddChildFragmentsTsvTrigger.sql'. Verifica que esté marcado como EmbeddedResource y la ruta coincida.");
 
             using var reader = new System.IO.StreamReader(stream);
@@ -151,7 +151,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            using var stream = typeof(AddRagQuestionArena).Assembly.GetManifestResourceStream("AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations.Scripts.Down_DropChildFragmentsTsvTrigger.sql")
+            using var stream = typeof(AddRagQuestionArena).Assembly.GetManifestResourceStream("AsistenteAyuntamiento.Infrastructure.Data.Migrations.Scripts.Down_DropChildFragmentsTsvTrigger.sql")
                 ?? throw new InvalidOperationException("No se pudo cargar el script SQL 'Down_DropChildFragmentsTsvTrigger.sql'. Verifica que esté marcado como EmbeddedResource y la ruta coincida.");
 
             using var reader = new System.IO.StreamReader(stream);

@@ -3,7 +3,7 @@ using Pgvector;
 
 #nullable disable
 
-namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
+namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
     public partial class RemovePgvectorFromDocumentChunks : Migration

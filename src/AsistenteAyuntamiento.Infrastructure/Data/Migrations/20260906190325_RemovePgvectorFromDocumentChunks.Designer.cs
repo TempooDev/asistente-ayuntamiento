@@ -8,15 +8,14 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
-using Pgvector;
 
 #nullable disable
 
-namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
+namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260906184712_RemoveQdrantVectorFromPostgres")]
-    partial class RemoveQdrantVectorFromPostgres
+    [Migration("20260906190325_RemovePgvectorFromDocumentChunks")]
+    partial class RemovePgvectorFromDocumentChunks
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -276,9 +275,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
                     b.Property<string>("DocumentId")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<Vector>("Embedding")
-                        .HasColumnType("vector(4096)");
 
                     b.Property<DateTime>("PublicationDate")
                         .HasColumnType("timestamp with time zone");

@@ -12,7 +12,7 @@ using Pgvector;
 
 #nullable disable
 
-namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
+namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260905151402_AddUserPreference")]

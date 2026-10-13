@@ -11,11 +11,11 @@ using NpgsqlTypes;
 
 #nullable disable
 
-namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
+namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261012235229_UniqueParentDocumentAndJobStatus")]
-    partial class UniqueParentDocumentAndJobStatus
+    [Migration("20261012231507_AddArenaBattleOwnership")]
+    partial class AddArenaBattleOwnership
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -421,9 +421,6 @@ namespace AsistenteAyuntamiento.Infrastructure.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DocumentId")
-                        .IsUnique();
 
                     b.ToTable("ParentDocuments", "ingestion");
                 });
