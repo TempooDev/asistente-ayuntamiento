@@ -6,6 +6,8 @@ using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Infrastructure.Background;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
 using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using AsistenteAyuntamiento.Infrastructure.Storage;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
@@ -48,7 +50,9 @@ public static class DependencyInjection
             var s3Config = new AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
             var credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
             builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(credentials, s3Config));
+            builder.Services.AddSingleton<IBlobStorage, S3BlobStorage>();
         }
+        builder.Services.AddOptions<BlobStorageOptions>().Bind(builder.Configuration.GetSection(BlobStorageOptions.SectionName));
 
 
         if (builder.Environment.IsProduction())

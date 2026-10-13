@@ -1,9 +1,7 @@
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Amazon.S3;
-using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using System.Text.Json;
@@ -13,10 +11,8 @@ using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, IVectorStore vectorStore, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
+public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext dbContext, Kernel kernel, IVectorStore vectorStore, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
 {
-    private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
@@ -31,20 +27,10 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
-        try
+        await using (var stream = await blobStorage.OpenReadAsync(blobPath, cancellationToken))
+        using (var reader = new StreamReader(stream))
         {
-            var request = new GetObjectRequest
-            {
-                BucketName = _bucketName,
-                Key = blobPath
-            };
-            using var response = await s3Client.GetObjectAsync(request, cancellationToken);
-            using var reader = new StreamReader(response.ResponseStream);
             jsonContent = await reader.ReadToEndAsync(cancellationToken);
-        }
-        catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchKey")
-        {
-            throw new Exception($"El blob {blobPath} no existe en S3/MinIO.", ex);
         }
 
         logger.LogInformation("JSON descargado ({Length} caracteres). Deserializando", jsonContent.Length);

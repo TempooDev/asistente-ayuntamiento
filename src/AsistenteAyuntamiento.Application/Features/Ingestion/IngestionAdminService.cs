@@ -1,34 +1,32 @@
-using Amazon.S3;
-using Amazon.S3.Model;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Common.Storage;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 public class IngestionAdminService : IIngestionAdminService
 {
-    private readonly IAmazonS3 _s3Client;
-    private readonly IConfiguration _config;
+    private readonly IBlobStorage _blobStorage;
     private readonly IAppDbContext _dbContext;
     private readonly IMemoryCache _cache;
     private readonly IIngestionQueuePublisher _publisher;
     private readonly IVectorStore _vectorStore;
     private readonly INotificationService _notificationService;
     private readonly ILogger<IngestionAdminService> _logger;
-    private readonly string _bucketName;
+    private const string BlobListCacheKey = "blobs_list";
+    private const string ScrapedJsonPrefix = "json/";
+    private const int ReprocessBatchSize = 1000;
     private static readonly SemaphoreSlim _cacheLock = new SemaphoreSlim(1, 1);
 
     public IngestionAdminService(
-        IAmazonS3 s3Client,
-        IConfiguration config,
+        IBlobStorage blobStorage,
         IAppDbContext dbContext,
         IMemoryCache cache,
         IIngestionQueuePublisher publisher,
@@ -36,20 +34,18 @@ public class IngestionAdminService : IIngestionAdminService
         INotificationService notificationService,
         ILogger<IngestionAdminService> logger)
     {
-        _s3Client = s3Client;
-        _config = config;
+        _blobStorage = blobStorage;
         _dbContext = dbContext;
         _cache = cache;
         _publisher = publisher;
         _vectorStore = vectorStore;
         _notificationService = notificationService;
         _logger = logger;
-        _bucketName = _config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
     }
 
     public async Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"blobs_list_{_bucketName}";
+        var cacheKey = BlobListCacheKey;
         if (!_cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
         {
             await _cacheLock.WaitAsync(cancellationToken);
@@ -65,28 +61,17 @@ public class IngestionAdminService : IIngestionAdminService
 
                     try
                     {
-                        var request = new ListObjectsV2Request { BucketName = _bucketName, Prefix = "json/" };
-                        ListObjectsV2Response response;
-                        do
+                        await foreach (var blob in _blobStorage.ListAsync(ScrapedJsonPrefix, cancellationToken))
                         {
-                            response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
-                            if (response?.S3Objects != null)
-                            {
-                                foreach (var s3Obj in response.S3Objects)
-                                {
-                                    if (s3Obj?.Key == null) continue;
-                                    var docId = s3Obj.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-                                    var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : nameof(JobStatus.Pending);
+                            var docId = blob.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
+                            var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : nameof(JobStatus.Pending);
 
-                                    allBlobs.Add(new BlobItemDto(s3Obj.Key, s3Obj.Size, s3Obj.LastModified, objStatus == nameof(JobStatus.Completed), objStatus));
-                                }
-                            }
-                            request.ContinuationToken = response?.NextContinuationToken;
-                        } while (response?.IsTruncated == true);
+                            allBlobs.Add(new BlobItemDto(blob.Key, blob.Size, blob.LastModified, objStatus == nameof(JobStatus.Completed), objStatus));
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error fetching objects from S3");
+                        _logger.LogError(ex, "Error listing objects from blob storage");
                     }
 
                     _cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
@@ -208,7 +193,7 @@ public class IngestionAdminService : IIngestionAdminService
             "TRUNCATE TABLE ingestion.\"DocumentChunks\"; TRUNCATE TABLE public.\"DocumentJobStates\";", cancellationToken);
 
         await _vectorStore.DropCollectionAsync(VectorCollection.DocumentChunks, cancellationToken);
-        _cache.Remove($"blobs_list_{_bucketName}");
+        _cache.Remove(BlobListCacheKey);
     }
 
     public Task<EnqueueResult> EnqueueBulkAsync(List<ProcessBlobRequest> requests, string? pipelineMode, CancellationToken cancellationToken = default)
@@ -225,32 +210,30 @@ public class IngestionAdminService : IIngestionAdminService
     {
         var pipelines = IngestionPipelinesParser.Parse(pipelineMode);
         var total = new EnqueueResult(0, 0);
-        string? continuationToken = null;
+        var batch = new List<DocumentMessage>(ReprocessBatchSize);
 
-        do
+        await foreach (var blob in _blobStorage.ListAsync(ScrapedJsonPrefix, cancellationToken))
         {
-            var response = await _s3Client.ListObjectsV2Async(new ListObjectsV2Request
+            if (ToMessage(blob.Key, source: null) is { } message)
             {
-                BucketName = _bucketName,
-                Prefix = "json/",
-                ContinuationToken = continuationToken
-            }, cancellationToken);
-
-            if (response?.S3Objects is { Count: > 0 } objects)
-            {
-                var documents = objects
-                    .Select(o => ToMessage(o.Key, source: null))
-                    .OfType<DocumentMessage>()
-                    .ToList();
-
-                var page = await EnqueueAsync(documents, pipelines, cancellationToken);
-                total = new EnqueueResult(total.Enqueued + page.Enqueued, total.Failed + page.Failed);
+                batch.Add(message);
             }
 
-            continuationToken = response?.NextContinuationToken;
-        } while (!string.IsNullOrEmpty(continuationToken));
+            if (batch.Count == ReprocessBatchSize)
+            {
+                total = Add(total, await EnqueueAsync(batch, pipelines, cancellationToken));
+                batch = new List<DocumentMessage>(ReprocessBatchSize);
+            }
+        }
+
+        if (batch.Count > 0)
+        {
+            total = Add(total, await EnqueueAsync(batch, pipelines, cancellationToken));
+        }
 
         return total;
+
+        static EnqueueResult Add(EnqueueResult a, EnqueueResult b) => new(a.Enqueued + b.Enqueued, a.Failed + b.Failed);
     }
 
     /// <summary>
@@ -318,7 +301,7 @@ public class IngestionAdminService : IIngestionAdminService
             await _notificationService.NotifyDocumentStatusChangedAsync(docId, jobStates[docId].Status.ToString());
         }
 
-        _cache.Remove($"blobs_list_{_bucketName}");
+        _cache.Remove(BlobListCacheKey);
         _dbContext.ChangeTracker.Clear();
 
         var failedCount = failed.Distinct().Count();

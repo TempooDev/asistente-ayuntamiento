@@ -1,11 +1,9 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using System.Text.Json;
 using System.Xml.Linq;
-using Amazon.S3;
-using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
@@ -18,22 +16,19 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 /// </summary>
 public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 {
-    private readonly IAmazonS3 _s3Client;
-    private readonly string _bucketName;
+    private readonly IBlobStorage _blobStorage;
 
     public BoeIngestionService(
-        IAmazonS3 s3Client,
+        IBlobStorage blobStorage,
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
         IVectorStore vectorStore,
         ILogger<BoeIngestionService> logger,
-        Kernel kernel,
-        IConfiguration configuration)
+        Kernel kernel)
         : base(dbContext, enrichmentService, metricsService, vectorStore, logger, kernel)
     {
-        _s3Client = s3Client;
-        _bucketName = configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
+        _blobStorage = blobStorage;
     }
 
     protected override BulletinType Bulletin => BulletinType.BOE;
@@ -66,8 +61,8 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
     protected override async Task<IEnumerable<RawFragment>> ExtractFragmentsAsync(string blobPath, string documentId, ParentDocument parentDoc, CancellationToken cancellationToken)
     {
         var xmlBlobPath = $"raw-xml/BOE/{documentId}.xml";
-        using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = xmlBlobPath }, cancellationToken);
-        var xDoc = await XDocument.LoadAsync(response.ResponseStream, LoadOptions.None, cancellationToken);
+        await using var stream = await _blobStorage.OpenReadAsync(xmlBlobPath, cancellationToken);
+        var xDoc = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
 
         var articulos = xDoc.Descendants("articulo").ToList();
         if (!articulos.Any())
@@ -106,7 +101,7 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 
     private async Task<ScrapedDocument?> LoadScrapedDocumentAsync(string blobPath, CancellationToken cancellationToken)
     {
-        using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = blobPath }, cancellationToken);
-        return await JsonSerializer.DeserializeAsync<ScrapedDocument>(response.ResponseStream, cancellationToken: cancellationToken);
+        await using var stream = await _blobStorage.OpenReadAsync(blobPath, cancellationToken);
+        return await JsonSerializer.DeserializeAsync<ScrapedDocument>(stream, cancellationToken: cancellationToken);
     }
 }

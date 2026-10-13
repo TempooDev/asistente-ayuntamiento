@@ -1,5 +1,5 @@
 using AsistenteAyuntamiento.Application.Common.VectorStore;
-using Amazon.S3;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
@@ -10,7 +10,6 @@ using AsistenteAyuntamiento.Infrastructure.Data;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -26,9 +25,8 @@ public class IngestionEnqueueTests
         new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(_databaseName).Options,
         Mock.Of<ICurrentTenantService>(t => t.TenantId == "system"));
 
-    private IngestionAdminService CreateSut(AppDbContext db, IIngestionQueuePublisher publisher) => new(
-        Mock.Of<IAmazonS3>(),
-        new ConfigurationBuilder().Build(),
+    private IngestionAdminService CreateSut(AppDbContext db, IIngestionQueuePublisher publisher, IBlobStorage? blobs = null) => new(
+        blobs ?? Mock.Of<IBlobStorage>(),
         db,
         new MemoryCache(new MemoryCacheOptions()),
         publisher,
@@ -37,6 +35,22 @@ public class IngestionEnqueueTests
         NullLogger<IngestionAdminService>.Instance);
 
     private static ProcessBlobRequest Blob(string id) => new() { BlobPath = $"json/BOE/{id}.json" };
+
+    [Fact]
+    public async Task ReprocessAll_enqueues_every_listed_json_blob_in_batches()
+    {
+        var keys = Enumerable.Range(1, 2_500).Select(i => $"json/BOE/BOE-A-{i}.json").ToList();
+        var blobs = new Mock<IBlobStorage>();
+        blobs.Setup(b => b.ListAsync("json/", It.IsAny<CancellationToken>()))
+            .Returns(keys.Select(k => new BlobObjectInfo(k, 1, null)).ToAsyncEnumerable());
+        var publisher = new FakePublisher(_ => Task.CompletedTask);
+
+        await using var db = NewContext();
+        var result = await CreateSut(db, publisher, blobs.Object).ReprocessAllAsync("HIERARCHICAL");
+
+        result.Should().Be(new EnqueueResult(Enqueued: 2_500, Failed: 0));
+        publisher.Pipelines.Should().HaveCount(2_500).And.AllBeEquivalentTo(IngestionPipelines.Hierarchical);
+    }
 
     [Fact]
     public async Task Documents_are_already_Queued_in_the_database_when_they_are_published()

@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Infrastructure;
 
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -168,32 +169,10 @@ using (var scope = app.Services.CreateScope())
         dbContext.Database.Migrate();
     }
 
-    var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();
-    if (s3Client != null)
+    var blobStorage = scope.ServiceProvider.GetService<IBlobStorage>();
+    if (blobStorage != null)
     {
-        try
-        {
-            var bucketName = app.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-            s3Client.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest
-            {
-                BucketName = bucketName,
-                UseClientRegion = true
-            }).GetAwaiter().GetResult();
-        }
-        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "BucketAlreadyOwnedByYou" || e.ErrorCode == "BucketAlreadyExists")
-        {
-            // Bucket already exists, all good
-        }
-        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "AccessDenied")
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("Access Denied when trying to create S3 bucket. It must be created manually or credentials lack s3:CreateBucket permissions.");
-        }
-        catch (Exception ex)
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning(ex, "Could not automatically create S3 bucket. It might already exist or require manual creation.");
-        }
+        blobStorage.EnsureContainerAsync().GetAwaiter().GetResult();
     }
 }
 
