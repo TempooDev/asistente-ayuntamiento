@@ -232,7 +232,10 @@ public static class DependencyInjection
         var handler = new SocketsHttpHandler();
         if (allowInsecureTls)
         {
+            // Only reachable in Development (guarded by AllowInsecureTls above).
+#pragma warning disable CA5359
             handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+#pragma warning restore CA5359
         }
         return handler;
     }

@@ -454,7 +454,7 @@ public sealed class AiChatService(
                 {
                     logger.LogError(ex, "Error saving shadow testing ArenaBattle");
                 }
-            });
+            }, CancellationToken.None);
         }
     }
 
@@ -706,7 +706,7 @@ public sealed class AiChatService(
                 TotalTokens = totalInputTokens + totalOutputTokens
             };
             dbContext.AiCallLogs.Add(callLog);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(CancellationToken.None);
 
             metricsService.RecordCall(new AiCallRecord
             {
@@ -957,7 +957,7 @@ public sealed class AiChatService(
             {
                 alfaChannel.Writer.Complete();
             }
-        });
+        }, CancellationToken.None);
 
         var betaTask = Task.Run(async () =>
         {
@@ -995,7 +995,7 @@ public sealed class AiChatService(
             {
                 betaChannel.Writer.Complete();
             }
-        });
+        }, CancellationToken.None);
 
         var alfaReader = alfaChannel.Reader.ReadAllAsync(cancellationToken);
         var betaReader = betaChannel.Reader.ReadAllAsync(cancellationToken);

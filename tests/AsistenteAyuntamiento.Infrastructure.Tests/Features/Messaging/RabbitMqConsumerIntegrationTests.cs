@@ -23,7 +23,7 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         if (!DockerFactAttribute.IsDockerAvailable) return;
-        _broker = new RabbitMqBuilder().Build();
+        _broker = new RabbitMqBuilder("rabbitmq:4-management-alpine").Build();
         await _broker.StartAsync();
         _factory = new ConnectionFactory { Uri = new Uri(_broker.GetConnectionString()) };
     }

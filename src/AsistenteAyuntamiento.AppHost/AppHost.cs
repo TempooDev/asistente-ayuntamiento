@@ -119,7 +119,7 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
 WithBlobStorage(apiService);
 apiService.WithEnvironment("Internal__GrpcApiKey", internalGrpcKey);
 
-var webfrontend = builder.AddNpmApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
+var webfrontend = builder.AddJavaScriptApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
     .WithHttpEndpoint(port: 4200, targetPort: 4201, env: "PORT")
     .WithExternalHttpEndpoints()
     .WithReference(apiService)
