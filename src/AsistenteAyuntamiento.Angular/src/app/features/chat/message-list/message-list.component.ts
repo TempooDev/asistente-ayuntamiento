@@ -39,7 +39,7 @@ export const STICK_TO_BOTTOM_PX = 150;
             <div class="w-full flex flex-col" [class.items-end]="msg.kind === 'user'" [class.items-start]="msg.kind !== 'user'">
               @switch (msg.kind) {
                 @case ('user') {
-                  <div class="chat-bubble shadow-sm citizen">
+                  <div class="chat-bubble shadow-xs citizen">
                     <p class="whitespace-pre-wrap m-0">{{ msg.text }}</p>
                   </div>
                 }
@@ -47,7 +47,7 @@ export const STICK_TO_BOTTOM_PX = 150;
                   <app-arena-message [message]="msg" [canVote]="!(last && generating())" (vote)="vote.emit({ messageId: msg.id, winner: $event })" />
                 }
                 @default {
-                  <div class="chat-bubble shadow-sm assistant">
+                  <div class="chat-bubble shadow-xs assistant">
                     @if (msg.arenaWinner) {
                       <div class="text-xs font-bold text-green-600 mb-1">Ganador: {{ msg.arenaWinner }}</div>
                     }
@@ -58,7 +58,7 @@ export const STICK_TO_BOTTOM_PX = 150;
             </div>
           }
           @if (waiting()) {
-            <div class="chat-bubble assistant flex items-center gap-2 shadow-sm" role="status">
+            <div class="chat-bubble assistant flex items-center gap-2 shadow-xs" role="status">
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s" aria-hidden="true"></span>

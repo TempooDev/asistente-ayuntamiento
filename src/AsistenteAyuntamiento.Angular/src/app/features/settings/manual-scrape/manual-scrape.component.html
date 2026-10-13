@@ -1,4 +1,4 @@
-<section class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-8" aria-labelledby="manual-scrape-title">
+<section class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-xs mb-8" aria-labelledby="manual-scrape-title">
   <h3 id="manual-scrape-title" class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
   <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de documentos para un rango de fechas. Si las dejas vacías, usará el día de hoy.</p>
 
@@ -16,7 +16,7 @@
     <div class="flex flex-wrap gap-4">
       @for (section of sections; track section.value) {
         <label class="flex items-center gap-2 cursor-pointer text-sm">
-          <input #check type="checkbox" [checked]="boeSections().includes(section.value)" (change)="toggleSection(section.value, check.checked)" class="w-4 h-4 text-primary rounded border-outline focus:ring-primary" />
+          <input #check type="checkbox" [checked]="boeSections().includes(section.value)" (change)="toggleSection(section.value, check.checked)" class="w-4 h-4 text-primary rounded-sm border-outline focus:ring-primary" />
           <span class="text-on-surface-variant">{{ section.label }}</span>
         </label>
       }

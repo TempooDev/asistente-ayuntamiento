@@ -26,7 +26,7 @@
 
     <div class="space-y-6">
       <!-- Tarjeta Principal: Información Pública -->
-      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-xs">
         <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest">
           <h3 class="font-title-md text-on-surface">Información Pública</h3>
         </div>
@@ -35,7 +35,7 @@
           <!-- Avatar -->
           <div class="flex flex-col items-center gap-4">
             <div class="relative">
-              <img [src]="user.picture || 'assets/default-avatar.png'" alt="Avatar de usuario" class="w-28 h-28 rounded-full object-cover border-4 border-surface shadow-sm" />
+              <img [src]="user.picture || 'assets/default-avatar.png'" alt="Avatar de usuario" class="w-28 h-28 rounded-full object-cover border-4 border-surface shadow-xs" />
               @if (isEditing()) {
                 <button class="absolute bottom-0 right-0 p-2 bg-primary text-on-primary rounded-full shadow-md hover:bg-primary-container hover:text-on-primary-container transition-colors" title="Cambiar foto">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -62,7 +62,7 @@
                     }
                   </div>
                 } @else {
-                  <input type="text" formControlName="fullName" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                  <input type="text" formControlName="fullName" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
                 }
               </div>
 
@@ -78,7 +78,7 @@
                     }
                   </div>
                 } @else {
-                  <input type="text" formControlName="department" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                  <input type="text" formControlName="department" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
                 }
               </div>
 
@@ -94,7 +94,7 @@
                     }
                   </div>
                 } @else {
-                  <input type="text" formControlName="position" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                  <input type="text" formControlName="position" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
                 }
               </div>
 
@@ -110,7 +110,7 @@
                     }
                   </div>
                 } @else {
-                  <input type="tel" formControlName="phoneNumber" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                  <input type="tel" formControlName="phoneNumber" class="w-full bg-surface-container-lowest border border-outline px-4 py-2 rounded-lg text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
                 }
               </div>
             </div>
@@ -134,7 +134,7 @@
       </div>
 
       <!-- Tarjeta Secundaria: Seguridad y Cuenta -->
-      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-xs">
         <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest">
           <h3 class="font-title-md text-on-surface">Cuenta y Seguridad</h3>
         </div>
@@ -167,7 +167,7 @@
       </div>
 
       <!-- Tarjeta Terciaria: Preferencias y Contexto -->
-      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+      <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-xs">
         <div class="border-b border-outline-variant px-6 py-4 bg-surface-container-lowest flex justify-between items-center">
           <h3 class="font-title-md text-on-surface">Contexto y Preferencias</h3>
           <button (click)="analyzeHistory()" [disabled]="isAnalyzing()" class="px-3 py-1 bg-secondary-container text-on-secondary-container text-xs rounded-full hover:bg-secondary hover:text-on-secondary transition-colors">
@@ -192,8 +192,8 @@
             </div>
             @if (isEditing()) {
               <div class="flex gap-2">
-                <input type="text" [(ngModel)]="newTopic" placeholder="Añadir tema" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded text-sm text-on-surface focus:outline-none focus:border-primary" (keyup.enter)="addTopic()" />
-                <button (click)="addTopic()" class="px-3 py-1 bg-primary text-on-primary rounded text-sm">+</button>
+                <input type="text" [(ngModel)]="newTopic" placeholder="Añadir tema" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded-sm text-sm text-on-surface focus:outline-hidden focus:border-primary" (keyup.enter)="addTopic()" />
+                <button (click)="addTopic()" class="px-3 py-1 bg-primary text-on-primary rounded-sm text-sm">+</button>
               </div>
             }
           </div>
@@ -214,8 +214,8 @@
             </div>
             @if (isEditing()) {
               <div class="flex gap-2">
-                <input type="text" [(ngModel)]="newLocation" placeholder="Añadir zona" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded text-sm text-on-surface focus:outline-none focus:border-primary" (keyup.enter)="addLocation()" />
-                <button (click)="addLocation()" class="px-3 py-1 bg-primary text-on-primary rounded text-sm">+</button>
+                <input type="text" [(ngModel)]="newLocation" placeholder="Añadir zona" class="flex-1 bg-surface-container-lowest border border-outline px-3 py-1 rounded-sm text-sm text-on-surface focus:outline-hidden focus:border-primary" (keyup.enter)="addLocation()" />
+                <button (click)="addLocation()" class="px-3 py-1 bg-primary text-on-primary rounded-sm text-sm">+</button>
               </div>
             }
           </div>

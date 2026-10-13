@@ -3,7 +3,7 @@
 } @else {
   <form [formGroup]="form" (ngSubmit)="save()">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm" aria-labelledby="model-title">
+      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-xs" aria-labelledby="model-title">
         <div class="flex items-center gap-sm mb-md">
           <span class="material-symbols-outlined text-primary" aria-hidden="true">model_training</span>
           <h3 id="model-title" class="font-headline-md text-headline-md text-on-surface">Selección de Modelo</h3>
@@ -40,7 +40,7 @@
         </div>
       </section>
 
-      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm flex flex-col justify-between" aria-labelledby="params-title">
+      <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-xs flex flex-col justify-between" aria-labelledby="params-title">
         <div>
           <div class="flex items-center gap-sm mb-md">
             <span class="material-symbols-outlined text-primary" aria-hidden="true">tune</span>

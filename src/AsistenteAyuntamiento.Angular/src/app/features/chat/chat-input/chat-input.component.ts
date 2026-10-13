@@ -21,7 +21,7 @@ const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
         <textarea
           #box
           id="chat-message"
-          class="gov-input flex-1 max-h-32 resize-none shadow-sm"
+          class="gov-input flex-1 max-h-32 resize-none shadow-xs"
           rows="1"
           placeholder="Escribe tu consulta aquí..."
           [value]="text()"
@@ -30,7 +30,7 @@ const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
           [disabled]="busy()"></textarea>
         <button
           type="submit"
-          class="gov-btn gov-btn-primary shadow-sm"
+          class="gov-btn gov-btn-primary shadow-xs"
           style="padding: 12px; min-height: unset; border-radius: 12px; margin-bottom: 2px"
           aria-label="Enviar mensaje"
           [disabled]="!canSend()">

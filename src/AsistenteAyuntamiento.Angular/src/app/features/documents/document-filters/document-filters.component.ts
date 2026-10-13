@@ -11,34 +11,34 @@ export type DocumentFilters = Omit<BlobQuery, 'page'>;
     <div class="mb-md flex flex-col gap-4" role="search" aria-label="Filtrar documentos">
       <div class="flex gap-4 items-center flex-wrap">
         <label class="sr-only" for="doc-search">Buscar por nombre</label>
-        <input id="doc-search" #search type="search" class="px-3 py-2 border rounded bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..."
+        <input id="doc-search" #search type="search" class="px-3 py-2 border rounded-sm bg-transparent w-full max-w-xs" placeholder="Buscar por nombre..."
                [value]="filters().search ?? ''" (input)="changed.emit({ search: search.value })" />
 
         <label class="sr-only" for="doc-status">Estado</label>
-        <select id="doc-status" #status class="px-3 py-2 border rounded bg-transparent" (change)="changed.emit({ status: asStatus(status.value) })">
+        <select id="doc-status" #status class="px-3 py-2 border rounded-sm bg-transparent" (change)="changed.emit({ status: asStatus(status.value) })">
           @for (option of statuses; track option.value) {
             <option [value]="option.value" [selected]="filters().status === option.value">{{ option.label }}</option>
           }
         </select>
 
         <label class="flex items-center gap-2 text-sm font-medium">Desde:
-          <input #from type="date" class="px-2 py-1 border rounded bg-transparent font-normal" [value]="filters().dateFrom ?? ''" (change)="changed.emit({ dateFrom: from.value || null })" />
+          <input #from type="date" class="px-2 py-1 border rounded-sm bg-transparent font-normal" [value]="filters().dateFrom ?? ''" (change)="changed.emit({ dateFrom: from.value || null })" />
         </label>
         <label class="flex items-center gap-2 text-sm font-medium">Hasta:
-          <input #to type="date" class="px-2 py-1 border rounded bg-transparent font-normal" [value]="filters().dateTo ?? ''" (change)="changed.emit({ dateTo: to.value || null })" />
+          <input #to type="date" class="px-2 py-1 border rounded-sm bg-transparent font-normal" [value]="filters().dateTo ?? ''" (change)="changed.emit({ dateTo: to.value || null })" />
         </label>
       </div>
 
       <div class="flex gap-4 items-center flex-wrap">
         <label class="flex items-center gap-2 text-sm font-medium">Tamaño Min (KB):
-          <input #min type="number" min="0" class="px-2 py-1 border rounded bg-transparent w-24 font-normal" placeholder="Min" [value]="filters().minSizeKb ?? ''" (change)="changed.emit({ minSizeKb: toNumber(min.value) })" />
+          <input #min type="number" min="0" class="px-2 py-1 border rounded-sm bg-transparent w-24 font-normal" placeholder="Min" [value]="filters().minSizeKb ?? ''" (change)="changed.emit({ minSizeKb: toNumber(min.value) })" />
         </label>
         <label class="flex items-center gap-2 text-sm font-medium">Tamaño Max (KB):
-          <input #max type="number" min="0" class="px-2 py-1 border rounded bg-transparent w-24 font-normal" placeholder="Max" [value]="filters().maxSizeKb ?? ''" (change)="changed.emit({ maxSizeKb: toNumber(max.value) })" />
+          <input #max type="number" min="0" class="px-2 py-1 border rounded-sm bg-transparent w-24 font-normal" placeholder="Max" [value]="filters().maxSizeKb ?? ''" (change)="changed.emit({ maxSizeKb: toNumber(max.value) })" />
         </label>
 
         <label class="flex items-center gap-2 ml-auto text-sm font-medium">Por página:
-          <select #size class="px-2 py-1 border rounded bg-transparent font-normal" (change)="changed.emit({ pageSize: +size.value })">
+          <select #size class="px-2 py-1 border rounded-sm bg-transparent font-normal" (change)="changed.emit({ pageSize: +size.value })">
             @for (n of pageSizes; track n) {
               <option [value]="n" [selected]="filters().pageSize === n">{{ n }}</option>
             }
