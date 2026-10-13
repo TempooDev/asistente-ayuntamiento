@@ -1,13 +1,13 @@
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Storage;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.SemanticKernel;
-using System.Text.Json;
-using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 

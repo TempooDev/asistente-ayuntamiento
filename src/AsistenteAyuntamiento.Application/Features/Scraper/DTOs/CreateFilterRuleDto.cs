@@ -1,6 +1,6 @@
-namespace AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
-
 using System.ComponentModel.DataAnnotations;
+
+namespace AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
 
 public class CreateFilterRuleDto
 {

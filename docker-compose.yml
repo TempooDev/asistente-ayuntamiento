@@ -1,3 +1,5 @@
+# Application images use ${IMAGE_TAG:-latest}. To roll back, set IMAGE_TAG to a previous sha-<7 chars> tag
+# (every deploy tags all application images with it) and redeploy; see docs/deploy-dokploy.md.
 services:
   qdrant:
     image: qdrant/qdrant:latest
@@ -23,7 +25,7 @@ services:
       - dokploy-network
 
   apiservice:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-apiservice:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-apiservice:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: asistente-api
     restart: always
@@ -72,7 +74,7 @@ services:
       - "postgres:host-gateway"
 
   worker-baseline:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: asistente-worker-baseline
     restart: always
@@ -118,7 +120,7 @@ services:
       - "postgres:host-gateway"
 
   worker-hierarchical:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: asistente-worker-hierarchical
     restart: always
@@ -164,7 +166,7 @@ services:
       - "postgres:host-gateway"
 
   go-scraper:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: asistente-scraper
     restart: always
@@ -189,7 +191,7 @@ services:
       - dokploy-network
 
   gateway:
-    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-gateway:latest
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-gateway:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: asistente-gateway
     restart: always

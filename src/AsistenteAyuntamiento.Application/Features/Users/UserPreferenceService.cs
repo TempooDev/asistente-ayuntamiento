@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Domain.Features.Users;
+using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
 

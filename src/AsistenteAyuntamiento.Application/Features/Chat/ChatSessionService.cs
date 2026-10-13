@@ -1,6 +1,5 @@
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Chat;

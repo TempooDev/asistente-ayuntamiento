@@ -1,13 +1,13 @@
 using AsistenteAyuntamiento.Application;
-using AsistenteAyuntamiento.Domain.Common.Enums;
-using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Common;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
-using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using AsistenteAyuntamiento.Application.Common;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using AsistenteAyuntamiento.Worker;
+using Microsoft.EntityFrameworkCore;
 
 // Container healthcheck: the runtime image ships no curl or wget, so the Worker probes itself.
 if (args is [HealthProbe.Argument, var probeUrl])

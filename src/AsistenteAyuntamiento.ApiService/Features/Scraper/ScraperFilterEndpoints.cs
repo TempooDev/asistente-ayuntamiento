@@ -1,11 +1,11 @@
+using AsistenteAyuntamiento.ApiService.Features.Notifications;
+using AsistenteAyuntamiento.ApiService.Protos;
+using AsistenteAyuntamiento.ApiService.Security;
 using AsistenteAyuntamiento.Application.Common.Background;
-using AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
 using AsistenteAyuntamiento.Application.Features.Scraper;
+using AsistenteAyuntamiento.Application.Features.Scraper.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using AsistenteAyuntamiento.ApiService.Protos;
-using AsistenteAyuntamiento.ApiService.Features.Notifications;
-using AsistenteAyuntamiento.ApiService.Security;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Scraper;
 

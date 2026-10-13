@@ -1,8 +1,8 @@
 using System.Security.Claims;
+using AsistenteAyuntamiento.ApiService.Security;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
-using AsistenteAyuntamiento.ApiService.Security;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Arena;
 
