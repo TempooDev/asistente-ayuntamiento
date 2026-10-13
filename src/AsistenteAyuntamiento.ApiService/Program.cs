@@ -18,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.ApiService.Features.Users;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
+using Polly;
 using Scalar.AspNetCore;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Application.Features.Metrics;
@@ -95,18 +96,18 @@ builder.Services.AddSingleton<InternalApiKeyInterceptor>();
 builder.Services.AddGrpc().AddServiceOptions<FilterConfigServiceImpl>(options =>
     options.Interceptors.Add<InternalApiKeyInterceptor>());
 builder.Services.AddSingleton<InternalApiKeyClientInterceptor>();
+#pragma warning disable EXTEXP0001 // RemoveAllResilienceHandlers is experimental.
 builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCommandService.ScraperCommandServiceClient>(o =>
 {
     var goScraperUrl = builder.Configuration["GoScraper:GrpcUrl"] ?? "http://localhost:50051";
     o.Address = new Uri(goScraperUrl);
 })
 .AddInterceptor<InternalApiKeyClientInterceptor>()
-.AddStandardResilienceHandler(options =>
-{
-    options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(30);
-    options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
-    options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(60);
-});
+// ForceScrape runs a whole scrape (minutes) and is not idempotent, so the ServiceDefaults handler (10 s per attempt,
+// 30 s total, retries) is removed: only a 30-minute timeout applies and a failed call is never sent again.
+.RemoveAllResilienceHandlers()
+.AddResilienceHandler("scraper-command", pipeline => pipeline.AddTimeout(TimeSpan.FromMinutes(30)));
+#pragma warning restore EXTEXP0001
 
 // Register Semantic Kernel and S3 using the Infrastructure extension
 builder.Services.AddApplicationServices(builder.Configuration);

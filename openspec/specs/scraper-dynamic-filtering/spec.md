@@ -51,7 +51,7 @@ The Go scraper SHALL fetch the active rules from `GetActiveFilters()` once per j
 - **AND** SHALL NOT disable certificate verification
 
 ### Requirement: On-Demand Scrape
-Platform administrators SHALL be able to trigger a scrape from the UI with `POST /api/scraper/filters/trigger` (`{ provider, startDate?, endDate?, sections? }`). The API SHALL allow one manual scrape per instance at a time (`ScraperStateService`), run the gRPC `ForceScrape` call as tracked background work and report the outcome over SignalR. `ForceScrape` SHALL run the job synchronously in the scraper and report business failures as `Success = false` with a message, not as gRPC error statuses.
+Platform administrators SHALL be able to trigger a scrape from the UI with `POST /api/scraper/filters/trigger` (`{ provider, startDate?, endDate?, sections? }`). The API SHALL allow one manual scrape per instance at a time (`ScraperStateService`), run the gRPC `ForceScrape` call as tracked background work and report the outcome over SignalR. `ForceScrape` SHALL run the job synchronously in the scraper and report business failures as `Success = false` with a message, not as gRPC error statuses. The API's `ForceScrape` client SHALL allow up to 30 minutes per call and SHALL NOT retry it (a retry would start a second scrape); it SHALL NOT inherit the default HTTP resilience handler (10-second attempts with retries).
 
 #### Scenario: Triggering a scrape
 - **WHEN** a platform administrator triggers a BOE scrape from 2026-10-01 to 2026-10-05
@@ -80,6 +80,10 @@ Platform administrators SHALL be able to trigger a scrape from the UI with `POST
 #### Scenario: Unauthorized trigger
 - **WHEN** a user without `admin-plataforma` calls `POST /api/scraper/filters/trigger`
 - **THEN** the API SHALL respond `403 Forbidden` and SHALL NOT call the scraper
+
+#### Scenario: Long manual scrape
+- **WHEN** a manual scrape takes several minutes, or the scraper answers the call with a transport error
+- **THEN** the API SHALL wait for the result (up to 30 minutes) and SHALL send `ForceScrape` only once
 
 ### Requirement: Filter Semantics
 Rules SHALL apply to the provider they name, compared case-insensitively (a rule without provider applies to both). A `Keyword` rule SHALL match when its normalized value (lower case, Spanish accents folded) is a substring of the document's normalized title or full text. A `Department` rule SHALL match when its normalized value equals the document's normalized department. A document SHALL pass when its provider has no content rules or when at least one of them matches. `BojaFeed` and `Section` rules (documents carry no feed or section metadata) and rules with an empty value SHALL NOT count as content rules.

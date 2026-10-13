@@ -30,14 +30,16 @@
 
 ## 3. Robustness and hygiene
 
-- [ ] 3.1 `IngestionKernel` is transient: with Google, every resolution creates a new `HttpClient`/handler (`Infrastructure/DependencyInjection.cs:200`). Ollama tenant clients are created per request outside the `llm` pool (`ChatModelFactory.cs:49`).
-- [ ] 3.2 The Worker has no startup validation of required settings, and no HTTP health endpoint.
-- [ ] 3.3 Naming, CA2254 and CA2016 are warnings and CI only runs `dotnet format whitespace`, so they never fail the build.
-- [ ] 3.4 `docker-compose.yml` pins every application image to `:latest`, so the `sha-*` tags are unused and there is no rollback procedure.
-- [ ] 3.5 `Ai__Embeddings__ChunkMaxLines` in compose is ignored (lines are fixed at 200 in `FixedOverlapChunkingStrategy`).
-- [ ] 3.6 The admin endpoint test matches `/api/arena` by exact paths, so a new unprotected Arena admin route would not be caught.
-- [ ] 3.7 `IngestionMetricsService` resolves `IAppDbContext` from `IServiceProvider` (service locator).
-- [ ] 3.8 Minor: `DocumentJobStates` lives in the `public` schema; `src/go-scraper/.gitignore` does not ignore the `scraper` binary built by `go build ./cmd/scraper`; stale "Azurite" comment in `AppHost.cs:24`; `IReadabilityService` is registered but unused.
+- [x] 3.1 `IngestionKernel` is transient: with Google, every resolution creates a new `HttpClient`/handler (`Infrastructure/DependencyInjection.cs:200`). Ollama tenant clients are created per request outside the `llm` pool (`ChatModelFactory.cs:49`).
+- [x] 3.2 The Worker has no startup validation of required settings, and no HTTP health endpoint.
+- [x] 3.3 Naming, CA2254 and CA2016 are warnings and CI only runs `dotnet format whitespace`, so they never fail the build.
+- [x] 3.4 `docker-compose.yml` pins every application image to `:latest`, so the `sha-*` tags are unused and there is no rollback procedure.
+- [x] 3.5 `Ai__Embeddings__ChunkMaxLines` in compose is ignored (lines are fixed at 200 in `FixedOverlapChunkingStrategy`).
+- [x] 3.6 The admin endpoint test matches `/api/arena` by exact paths, so a new unprotected Arena admin route would not be caught.
+- [x] 3.7 `IngestionMetricsService` resolves `IAppDbContext` from `IServiceProvider` (service locator).
+- [x] 3.8 Minor: `src/go-scraper/.gitignore` does not ignore the `scraper` binary built by `go build ./cmd/scraper`; stale "Azurite" comment in `AppHost.cs:24`; `IReadabilityService` is registered but unused.
+- [ ] 3.9 `DocumentJobStates` lives in the `public` schema (moving it needs a migration).
+- [x] 3.10 The API → scraper `ForceScrape` client inherited the ServiceDefaults resilience handler (10 s per attempt, 30 s total, retries): a manual scrape was cut off after 30 s and could be sent again.
 
 ## 4. Never implemented (removed from the main specs)
 
