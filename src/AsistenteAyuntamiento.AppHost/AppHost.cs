@@ -21,7 +21,7 @@ var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: t
 
 // ── Cloudflare R2 secrets (Optional) ────────────────────────────────────────
 // To use R2, set these in user-secrets or appsettings.json instead of parameters.
-// If missing, it will fallback to the local Azurite emulator.
+// If missing, the local MinIO container below is used.
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
@@ -158,6 +158,9 @@ goScraper.WithEnvironment("INTERNAL_GRPC_KEY", internalGrpcKey);
 apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
 var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-baseline")
+    // Health endpoints only; each replica gets its own port.
+    .WithHttpEndpoint()
+    .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WithReference(rabbitmq)
     .WithReference(ollama)
@@ -177,6 +180,9 @@ var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("
 WithBlobStorage(workerBaseline);
 
 var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-hierarchical")
+    // Health endpoints only; each replica gets its own port.
+    .WithHttpEndpoint()
+    .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WithReference(rabbitmq)
     .WithReference(ollama)

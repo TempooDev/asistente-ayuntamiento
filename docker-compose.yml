@@ -85,6 +85,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=BASELINE
+      # Internal only (no published port): serves /health and /alive for the healthcheck below.
+      - ASPNETCORE_HTTP_PORTS=8080
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
@@ -102,6 +104,13 @@ services:
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    # The image has no curl/wget: the Worker binary probes its own /health.
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/AsistenteAyuntamiento.Worker.dll", "--health-probe", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       - rabbitmq
       - apiservice
@@ -122,6 +131,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - ASPNETCORE_ENVIRONMENT=Production
       - WORKER_PIPELINE_MODE=HIERARCHICAL
+      # Internal only (no published port): serves /health and /alive for the healthcheck below.
+      - ASPNETCORE_HTTP_PORTS=8080
       - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
       - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
@@ -139,6 +150,13 @@ services:
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
       - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    # The image has no curl/wget: the Worker binary probes its own /health.
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/AsistenteAyuntamiento.Worker.dll", "--health-probe", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       - rabbitmq
       - apiservice

@@ -110,12 +110,19 @@ The ApiService SHALL validate configuration at startup (`RequiredConfiguration.V
 - in every environment: `Auth0:Domain`, `Auth0:Audience`;
 - in Production only: `Auth0:CustomClaimsNamespace`, `Blob:Endpoint`, `Blob:AccessKeyId`, `Blob:SecretAccessKey`, `Internal:GrpcApiKey`.
 
+The Worker SHALL validate its own configuration at startup (`AsistenteAyuntamiento.Worker.RequiredConfiguration.Validate`), in every environment, and refuse to start when any of these is missing: `ConnectionStrings:asistente-ayuntamiento-db`, `ConnectionStrings:messaging`, `ConnectionStrings:qdrant`, `Blob:Endpoint`, `Blob:AccessKeyId`, `Blob:SecretAccessKey`; `Ai:Embeddings:ApiKey` when `Ai:Embeddings:Provider` is `google`, `openai` or `openrouter`; and the ingestion model key (`Ai:Ingestion:ApiKey`, falling back to `Ai:Chat:ApiKey`) when the ingestion provider (`Ai:Ingestion:Provider`, falling back to `Ai:Chat:Provider`) is one of those. Local `ollama` models need no key.
+
 The shared Infrastructure registration (ApiService and Worker) SHALL also fail when `Blob:Endpoint` is set without its access keys, and, in Production only, when `ConnectionStrings:qdrant` has no `Key=`. In `docker-compose.yml`, `QDRANT_API_KEY`, `RABBITMQ_PASS` and `INTERNAL_GRPC_KEY` SHALL be mandatory (`${VAR:?}`), and `.env.example` SHALL contain no secret values. The Go scraper SHALL refuse to start when `INTERNAL_GRPC_KEY` is missing.
 
 #### Scenario: Missing blob credentials in production
 - **GIVEN** `ASPNETCORE_ENVIRONMENT=Production` and an empty `Blob:SecretAccessKey`
 - **WHEN** the ApiService starts
 - **THEN** startup SHALL fail with an `InvalidOperationException` naming the missing key
+
+#### Scenario: Worker without embedding key
+- **GIVEN** `Ai:Embeddings:Provider=google` and an empty `Ai:Embeddings:ApiKey`
+- **WHEN** the Worker starts
+- **THEN** startup SHALL fail with an `InvalidOperationException` naming `Ai:Embeddings:ApiKey`, before any message is consumed
 
 #### Scenario: Missing compose secret
 - **WHEN** `docker compose up` runs without `INTERNAL_GRPC_KEY` in the environment

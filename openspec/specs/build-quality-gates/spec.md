@@ -87,6 +87,7 @@ The repository SHALL NOT track files larger than 5 MB; the CI `hygiene` job SHAL
 ### Requirement: Test Baseline
 Each codebase SHALL keep tests for its critical paths, run by CI:
 - **.NET integration (ApiService.Tests):** `WebApplicationFactory` with header-based test authentication and an EF Core InMemory database for the authorization matrix, tenant isolation, hub isolation and hub stream errors and the internal gRPC key; plus unit tests of the startup configuration checks.
+- **.NET integration (Worker.Tests):** `WebApplicationFactory` over the Worker in Production (no consumers, only `live` checks) for `/health`, `/alive` and the `--health-probe` mode; plus unit tests of the Worker startup configuration checks.
 - **.NET integration (Infrastructure.Tests):** Testcontainers (RabbitMQ, PostgreSQL, Qdrant) for the consumer ack/nack/DLQ cycle, ingestion idempotency and job-state concurrency; these tests are skipped when Docker is unavailable.
 - **.NET unit:** Application.Tests (e.g. `HybridRetrievalService`, arena analytics, chat streaming fallback, LLM metrics), Domain.Tests (document job state), Gateway.Tests (Faro forwarding) and ArchitectureTests.
 - **Angular:** specs for the guards, the hub connection factory, `ChatStore`, `MarkdownService` and the stream-error mapping, among others.
