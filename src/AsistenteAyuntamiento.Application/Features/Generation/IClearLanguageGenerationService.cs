@@ -9,5 +9,7 @@ public interface IClearLanguageGenerationService
 {
     Task<string> GenerateResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope, CancellationToken cancellationToken = default);
     /// <param name="scope">Tenant and pipeline for the LLM metrics of the call.</param>
-    IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope, CancellationToken cancellationToken = default);
+    /// <param name="previousMessages">The conversation before the question, so a follow-up is answered about the same topic.</param>
+    IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope,
+        IReadOnlyList<ChatMessageContent>? previousMessages = null, CancellationToken cancellationToken = default);
 }

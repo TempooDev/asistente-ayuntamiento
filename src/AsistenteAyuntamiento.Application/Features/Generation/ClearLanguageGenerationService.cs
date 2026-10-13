@@ -47,9 +47,10 @@ public class ClearLanguageGenerationService(
         string userQuery,
         List<RetrievalResult> retrievedContext,
         LlmCallScope scope,
+        IReadOnlyList<ChatMessageContent>? previousMessages = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var (chatHistory, sources) = BuildChatHistory(userQuery, retrievedContext);
+        var (chatHistory, sources) = BuildChatHistory(userQuery, retrievedContext, previousMessages);
         if (chatHistory == null)
         {
             yield return new StreamingChatMessageContent(AuthorRole.Assistant, "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta.");
@@ -159,7 +160,8 @@ public class ClearLanguageGenerationService(
     }
 
     /// <summary>The prompt, and the "Fuentes consultadas" of the documents it includes (not of those left out).</summary>
-    private (ChatHistory? History, string Sources) BuildChatHistory(string userQuery, List<RetrievalResult> retrievedContext)
+    private (ChatHistory? History, string Sources) BuildChatHistory(string userQuery, List<RetrievalResult> retrievedContext,
+        IReadOnlyList<ChatMessageContent>? previousMessages = null)
     {
         if (!retrievedContext.Any())
         {
@@ -175,6 +177,7 @@ public class ClearLanguageGenerationService(
 
         var systemPrompt = string.Format(PromptCatalog.ClearLanguageGeneration, context.Text);
         var chatHistory = new ChatHistory(systemPrompt);
+        chatHistory.AddRange(previousMessages ?? []);
         chatHistory.AddUserMessage(userQuery);
 
         return (chatHistory, SourceCitations.FromRetrieval(context.Included));

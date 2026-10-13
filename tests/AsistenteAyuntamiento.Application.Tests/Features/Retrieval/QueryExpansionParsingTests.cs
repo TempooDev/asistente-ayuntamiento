@@ -1,6 +1,14 @@
 using System.Text.Json;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Moq;
 
 namespace AsistenteAyuntamiento.Application.Tests.Features.Retrieval;
 
@@ -48,5 +56,40 @@ public class QueryExpansionParsingTests
 
         act.Should().Throw<JsonException>();
         QueryExpansionService.Fallback("plazo  matrícula").LexicalQuery.Should().Be("plazo & matrícula");
+    }
+
+    [Fact]
+    public void The_fallback_of_a_follow_up_searches_with_the_previous_questions()
+    {
+        var previous = new List<ChatMessageContent>
+        {
+            new(AuthorRole.User, "Convenio entre el Ministerio de Sanidad y la Comunidad de Madrid"),
+            new(AuthorRole.Assistant, "El convenio BOE-A-2026-18557..."),
+        };
+
+        var fallback = QueryExpansionService.Fallback("¿Quién preside la Comisión de Seguimiento?", previous);
+
+        fallback.SemanticQuery.Should().Be("Convenio entre el Ministerio de Sanidad y la Comunidad de Madrid\n¿Quién preside la Comisión de Seguimiento?");
+        fallback.LexicalQuery.Should().NotContain("Sanidad", "the lexical query requires every word, so it stays on the question");
+    }
+
+    [Fact]
+    public async Task The_expansion_prompt_carries_the_conversation()
+    {
+        string? prompt = null;
+        var chat = new Mock<IChatCompletionService>();
+        chat.Setup(c => c.GetChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatHistory, PromptExecutionSettings?, Kernel?, CancellationToken>((history, _, _, _) => prompt = history[^1].Content)
+            .ReturnsAsync([new ChatMessageContent(AuthorRole.Assistant, """{"query_lexica": "comision & seguimiento", "query_semantica": "Comisión de Seguimiento del Convenio BOE-A-2026-18557"}""")]);
+        var builder = Kernel.CreateBuilder();
+        builder.Services.AddSingleton(chat.Object);
+        var sut = new QueryExpansionService(builder.Build(), new ConfigurationBuilder().Build(), Mock.Of<ILlmUsageMetrics>(),
+            Mock.Of<IAiCallRecorder>(), NullLogger<QueryExpansionService>.Instance);
+
+        var expanded = await sut.ExpandQueryAsync("¿Quién preside la Comisión de Seguimiento?",
+            [new(AuthorRole.User, "Háblame del convenio BOE-A-2026-18557")], new LlmCallScope("org_A", LlmPipelines.Hierarchical));
+
+        prompt.Should().Contain("Usuario: Háblame del convenio BOE-A-2026-18557").And.Contain("¿Quién preside la Comisión de Seguimiento?");
+        expanded.SemanticQuery.Should().Contain("BOE-A-2026-18557");
     }
 }
