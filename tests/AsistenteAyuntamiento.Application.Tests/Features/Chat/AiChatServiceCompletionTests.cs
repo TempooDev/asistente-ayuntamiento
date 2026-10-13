@@ -3,12 +3,12 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using FluentAssertions;
-using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +16,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using Xunit;
 
 namespace AsistenteAyuntamiento.Application.Tests.Features.Chat;
@@ -38,7 +37,7 @@ public class AiChatServiceCompletionTests
     {
         var configService = new Mock<IAiConfigurationService>();
         configService
-            .Setup(s => s.GetFullConfigurationAsync(It.IsAny<string?>()))
+            .Setup(s => s.GetFullConfigurationAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new AiConfigurationDto { Provider = "openai", Model = "tenant-model" }, (string?)TenantKey));
 
         var preferences = new Mock<IUserPreferenceService>();
@@ -54,18 +53,25 @@ public class AiChatServiceCompletionTests
 
         _modelFactory.Setup(f => f.Create(It.IsAny<AiConfigurationDto>(), It.IsAny<string?>())).Returns(_primary.Object);
 
-        return new AiChatService(
+        var streaming = new ChatStreamingService(
             configService.Object,
-            Mock.Of<IAiMetricsService>(),
-            NullLogger<AiChatService>.Instance,
-            db.Object,
+            _modelFactory.Object,
+            new AiCallRecorder(db.Object, Mock.Of<IAiMetricsService>(), NullLogger<AiCallRecorder>.Instance),
+            NullLogger<ChatStreamingService>.Instance);
+
+        var baseline = new BaselineRagPipeline(
             kernelBuilder.Build(),
-            Mock.Of<IHybridRetrievalService>(),
-            Mock.Of<IServiceScopeFactory>(),
-            Mock.Of<IClearLanguageGenerationService>(),
+            EmptyVectorStore(),
             preferences.Object,
-            new QdrantClient(new QdrantGrpcClient(new EmptyQueryCallInvoker())),
-            _modelFactory.Object);
+            streaming,
+            NullLogger<BaselineRagPipeline>.Instance);
+
+        return new AiChatService(
+            baseline,
+            [baseline],
+            Mock.Of<IWinningPipelineSelector>(),
+            Mock.Of<IShadowTestScheduler>(),
+            Mock.Of<IArenaStreamingService>());
     }
 
     private static ChatHistory History()
@@ -169,31 +175,13 @@ public class AiChatServiceCompletionTests
         public void Dispose() { }
     }
 
-    /// <summary>Qdrant gRPC transport that answers every unary call with an empty response (no matches).</summary>
-    private sealed class EmptyQueryCallInvoker : CallInvoker
+    /// <summary>Vector store with no matches.</summary>
+    private static IVectorStore EmptyVectorStore()
     {
-        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
-            Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
-        {
-            var response = (TResponse)Activator.CreateInstance(typeof(TResponse))!;
-            return new AsyncUnaryCall<TResponse>(
-                Task.FromResult(response),
-                Task.FromResult(new Metadata()),
-                () => Status.DefaultSuccess,
-                () => new Metadata(),
-                () => { });
-        }
-
-        public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request) =>
-            throw new NotSupportedException();
-
-        public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request) =>
-            throw new NotSupportedException();
-
-        public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options) =>
-            throw new NotSupportedException();
-
-        public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options) =>
-            throw new NotSupportedException();
+        var store = new Mock<IVectorStore>();
+        store
+            .Setup(v => v.SearchAsync(It.IsAny<VectorCollection>(), It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<VectorSearchHit>());
+        return store.Object;
     }
 }

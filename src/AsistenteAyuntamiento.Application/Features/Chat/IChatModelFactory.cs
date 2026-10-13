@@ -20,5 +20,3 @@ public interface IChatModelFactory
     /// </summary>
     FallbackChatModel? CreateFallback();
 }
-
-public sealed record FallbackChatModel(string ModelId, IChatCompletionService Service);

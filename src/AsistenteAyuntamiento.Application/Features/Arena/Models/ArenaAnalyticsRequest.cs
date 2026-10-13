@@ -1,5 +1,3 @@
-using System;
-
 namespace AsistenteAyuntamiento.Application.Features.Arena.Models;
 
 public class ArenaAnalyticsRequest

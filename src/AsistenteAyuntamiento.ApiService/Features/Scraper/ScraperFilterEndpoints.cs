@@ -16,25 +16,26 @@ public static class ScraperFilterEndpoints
         var group = app.MapGroup("/api/scraper/filters").RequireAuthorization(Policies.Admin);
 
         // 1. Get all rules. Errors propagate as 500 (never an empty list that looks like "no filters").
-        group.MapGet("/", async (IScraperFilterService service) =>
+        group.MapGet("/", async (IScraperFilterService service, CancellationToken cancellationToken) =>
         {
-            var rules = await service.GetAllRulesAsync();
+            var rules = await service.GetAllRulesAsync(cancellationToken);
             return Results.Ok(rules);
         });
 
         // 2. Get rule by id
-        group.MapGet("/{id:int}", async (int id, IScraperFilterService service) =>
+        group.MapGet("/{id:int}", async (int id, IScraperFilterService service, CancellationToken cancellationToken) =>
         {
-            var rule = await service.GetRuleByIdAsync(id);
+            var rule = await service.GetRuleByIdAsync(id, cancellationToken);
             return rule is not null ? Results.Ok(rule) : Results.NotFound();
         });
 
         // 3. Create rule
         group.MapPost("/", async (
             IScraperFilterService service,
-            [FromBody] CreateFilterRuleDto dto) =>
+            [FromBody] CreateFilterRuleDto dto,
+            CancellationToken cancellationToken) =>
         {
-            var rule = await service.CreateRuleAsync(dto);
+            var rule = await service.CreateRuleAsync(dto, cancellationToken);
             return Results.Created($"/api/scraper/filters/{rule.Id}", rule);
         });
 
@@ -42,17 +43,18 @@ public static class ScraperFilterEndpoints
         group.MapPut("/{id:int}", async (
             int id,
             IScraperFilterService service,
-            [FromBody] UpdateFilterRuleDto dto) =>
+            [FromBody] UpdateFilterRuleDto dto,
+            CancellationToken cancellationToken) =>
         {
-            var updated = await service.UpdateRuleAsync(id, dto);
+            var updated = await service.UpdateRuleAsync(id, dto, cancellationToken);
             if (!updated) return Results.NotFound();
             return Results.NoContent();
         });
 
         // 5. Delete rule
-        group.MapDelete("/{id:int}", async (int id, IScraperFilterService service) =>
+        group.MapDelete("/{id:int}", async (int id, IScraperFilterService service, CancellationToken cancellationToken) =>
         {
-            var deleted = await service.DeleteRuleAsync(id);
+            var deleted = await service.DeleteRuleAsync(id, cancellationToken);
             if (!deleted) return Results.NotFound();
             return Results.NoContent();
         });

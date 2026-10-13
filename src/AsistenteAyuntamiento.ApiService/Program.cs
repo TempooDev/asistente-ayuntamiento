@@ -1,3 +1,5 @@
+using AsistenteAyuntamiento.Application;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Infrastructure;
 
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -23,6 +25,7 @@ using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Scraper;
+using AsistenteAyuntamiento.ApiService.Grpc;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Config;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
@@ -40,30 +43,20 @@ builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddSingleton<ICurrentTenantService, CurrentTenantService>();
-builder.Services.AddSingleton<IAiMetricsService, AiMetricsService>();
-builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
-builder.Services.AddScoped<IAiChatService, AiChatService>();
-builder.Services.AddSingleton<ChatMessageBuffer>();
 
-// Move ScraperStateService to DI
-builder.Services.AddSingleton<ScraperStateService>();
-builder.Services.AddScoped<IScraperFilterService, ScraperFilterService>();
 
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
 builder.Services.AddDataProtection();
-builder.Services.AddScoped<IAiConfigurationService, AiConfigurationService>();
 
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
     configureDbContextOptions: options => options
-        .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector())
-        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+        .UseNpgsql(npgsqlOptions => npgsqlOptions.UseVector()));
 
 var auth0Domain = builder.Configuration["Auth0:Domain"];
 var auth0Audience = builder.Configuration["Auth0:Audience"];
 
-builder.Services.AddMemoryCache();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -112,28 +105,11 @@ builder.Services.AddGrpcClient<AsistenteAyuntamiento.ApiService.Protos.ScraperCo
 });
 
 // Register Semantic Kernel and S3 using the Infrastructure extension
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.AddInfrastructureServices();
 builder.AddRabbitMQClient("messaging");
 
-builder.Services.AddSingleton<IChunkingStrategy>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    var maxTokens = config.GetValue<int>("Ai:Embeddings:ChunkMaxTokens", 400);
-    var overlapTokens = config.GetValue<int>("Ai:Embeddings:ChunkOverlapTokens", 50);
-    return new FixedOverlapChunkingStrategy(maxTokens, overlapTokens);
-});
-builder.Services.AddScoped<IIngestionAdminService, IngestionAdminService>();
-builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 
-// Arena Services
-builder.Services.AddScoped<IQueryExpansionService, QueryExpansionService>();
-builder.Services.AddScoped<IHybridRetrievalService, HybridRetrievalService>();
-builder.Services.AddScoped<IClearLanguageGenerationService, ClearLanguageGenerationService>();
-builder.Services.AddScoped<IArenaService, ArenaService>();
-builder.Services.AddScoped<IArenaAnalyticsService, ArenaAnalyticsService>();
-builder.Services.AddScoped<IReadabilityService, ReadabilityService>();
-builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
-builder.Services.AddScoped<IHistoryAnalyzerService, HistoryAnalyzerService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -164,36 +140,14 @@ using (var scope = app.Services.CreateScope())
 {
     if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AsistenteAyuntamiento.Infrastructure.Data.AppDbContext>();
         dbContext.Database.Migrate();
     }
 
-    var s3Client = scope.ServiceProvider.GetService<Amazon.S3.IAmazonS3>();
-    if (s3Client != null)
+    var blobStorage = scope.ServiceProvider.GetService<IBlobStorage>();
+    if (blobStorage != null)
     {
-        try
-        {
-            var bucketName = app.Configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-            s3Client.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest
-            {
-                BucketName = bucketName,
-                UseClientRegion = true
-            }).GetAwaiter().GetResult();
-        }
-        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "BucketAlreadyOwnedByYou" || e.ErrorCode == "BucketAlreadyExists")
-        {
-            // Bucket already exists, all good
-        }
-        catch (Amazon.S3.AmazonS3Exception e) when (e.ErrorCode == "AccessDenied")
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("Access Denied when trying to create S3 bucket. It must be created manually or credentials lack s3:CreateBucket permissions.");
-        }
-        catch (Exception ex)
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning(ex, "Could not automatically create S3 bucket. It might already exist or require manual creation.");
-        }
+        blobStorage.EnsureContainerAsync().GetAwaiter().GetResult();
     }
 }
 

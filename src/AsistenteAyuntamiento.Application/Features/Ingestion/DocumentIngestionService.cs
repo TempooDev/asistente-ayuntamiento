@@ -1,23 +1,18 @@
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Amazon.S3;
-using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using System.Text.Json;
-using Qdrant.Client;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using static Qdrant.Client.Grpc.Conditions;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config, IAppDbContext dbContext, Kernel kernel, QdrantClient qdrantClient, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService, IVectorCollections vectorCollections) : IDocumentIngestionService
+public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext dbContext, Kernel kernel, IVectorStore vectorStore, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
 {
-    private readonly string _bucketName = config["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
-
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
@@ -32,20 +27,10 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
         // 1. Descargar JSON desde S3/MinIO
         string jsonContent;
-        try
+        await using (var stream = await blobStorage.OpenReadAsync(blobPath, cancellationToken))
+        using (var reader = new StreamReader(stream))
         {
-            var request = new GetObjectRequest
-            {
-                BucketName = _bucketName,
-                Key = blobPath
-            };
-            using var response = await s3Client.GetObjectAsync(request, cancellationToken);
-            using var reader = new StreamReader(response.ResponseStream);
             jsonContent = await reader.ReadToEndAsync(cancellationToken);
-        }
-        catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchKey")
-        {
-            throw new Exception($"El blob {blobPath} no existe en S3/MinIO.", ex);
         }
 
         logger.LogInformation("JSON descargado ({Length} caracteres). Deserializando", jsonContent.Length);
@@ -102,24 +87,19 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
 
         try
         {
-            var strategy = dbContext.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await dbContext.ExecuteInTransactionAsync(async ct =>
             {
                 // The execution strategy may re-run this block: start each attempt from a clean state.
                 dbContext.ChangeTracker.Clear();
                 foreach (var chunk in chunks) chunk.Id = 0;
 
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-
                 await dbContext.DocumentChunks
                     .Where(c => c.DocumentId == document.DocumentId)
-                    .ExecuteDeleteAsync(cancellationToken);
+                    .ExecuteDeleteAsync(ct);
 
-                await dbContext.DocumentChunks.AddRangeAsync(chunks, cancellationToken);
-                await dbContext.SaveChangesAsync(cancellationToken);
-
-                await transaction.CommitAsync(cancellationToken);
-            });
+                await dbContext.DocumentChunks.AddRangeAsync(chunks, ct);
+                await dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -131,26 +111,21 @@ public class DocumentIngestionService(IAmazonS3 s3Client, IConfiguration config,
         try
         {
             var vectors = allEmbeddings.Select(e => e.Vector.ToArray()).ToList();
-            await vectorCollections.EnsureAsync(VectorCollectionNames.DocumentChunks, vectors[0].Length, cancellationToken);
-            await qdrantClient.DeleteAsync(VectorCollectionNames.DocumentChunks, MatchKeyword("DocumentId", document.DocumentId), cancellationToken: cancellationToken);
+            await vectorStore.EnsureCollectionAsync(VectorCollection.DocumentChunks, vectors[0].Length, cancellationToken);
+            await vectorStore.DeleteDocumentAsync(VectorCollection.DocumentChunks, document.DocumentId, cancellationToken: cancellationToken);
 
-            var points = chunks.Select((chunk, i) => new Qdrant.Client.Grpc.PointStruct
+            var points = chunks.Select((chunk, i) => new VectorPoint(chunk.Id, vectors[i], new Dictionary<string, object>
             {
-                Id = new Qdrant.Client.Grpc.PointId { Num = (ulong)chunk.Id },
-                Vectors = vectors[i],
-                Payload =
-                {
-                    ["DocumentId"] = chunk.DocumentId,
-                    ["Source"] = chunk.Source,
-                    ["Title"] = chunk.Title ?? "",
-                    ["Department"] = chunk.Department ?? "",
-                    ["Content"] = chunk.Content,
-                    ["ChunkIndex"] = chunk.ChunkIndex,
-                    ["PublicationDate"] = chunk.PublicationDate.ToString("O")
-                }
-            }).ToList();
+                [VectorPayloadKeys.DocumentId] = chunk.DocumentId,
+                [VectorPayloadKeys.Source] = chunk.Source,
+                [VectorPayloadKeys.Title] = chunk.Title ?? "",
+                [VectorPayloadKeys.Department] = chunk.Department ?? "",
+                [VectorPayloadKeys.Content] = chunk.Content,
+                [VectorPayloadKeys.ChunkIndex] = chunk.ChunkIndex,
+                [VectorPayloadKeys.PublicationDate] = chunk.PublicationDate.ToString("O")
+            })).ToList();
 
-            await qdrantClient.UpsertAsync(VectorCollectionNames.DocumentChunks, points, cancellationToken: cancellationToken);
+            await vectorStore.UpsertAsync(VectorCollection.DocumentChunks, points, cancellationToken);
         }
         catch (Exception ex)
         {

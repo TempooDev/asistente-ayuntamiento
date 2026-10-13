@@ -11,15 +11,15 @@ public static class AiConfigEndpoints
         // The tenant's AI provider and API key are managed only from the admin settings page.
         var group = app.MapGroup("/api/settings").RequireAuthorization(Policies.Admin);
 
-        group.MapGet("/ai", async (IAiConfigurationService service) =>
+        group.MapGet("/ai", async (IAiConfigurationService service, CancellationToken cancellationToken) =>
         {
-            var config = await service.GetConfigurationAsync();
+            var config = await service.GetConfigurationAsync(cancellationToken);
             return Results.Ok(config);
         });
 
-        group.MapPut("/ai", async (SaveAiConfigurationDto dto, IAiConfigurationService service) =>
+        group.MapPut("/ai", async (SaveAiConfigurationDto dto, IAiConfigurationService service, CancellationToken cancellationToken) =>
         {
-            await service.SaveConfigurationAsync(dto);
+            await service.SaveConfigurationAsync(dto, cancellationToken);
             return Results.Ok();
         });
     }

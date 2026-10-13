@@ -1,7 +1,6 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using AsistenteAyuntamiento.Domain.Features.Arena;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;

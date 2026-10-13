@@ -1,123 +1,58 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Embeddings;
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Common.Search;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 
 public class HybridRetrievalService(
     IAppDbContext dbContext,
     Kernel kernel,
-    QdrantClient qdrantClient,
+    IVectorStore vectorStore,
+    IFullTextSearch fullTextSearch,
     ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-    private const string QdrantCollectionName = "child_fragments";
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {
         try
         {
             // 1. Generate Embeddings
-            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.QuerySemantica }, cancellationToken: cancellationToken);
+            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.SemanticQuery }, cancellationToken: cancellationToken);
             var embeddingVector = embeddings[0].Vector.ToArray();
 
-            // 2. Query Qdrant (Dense Vector Search)
-            var qdrantPoints = new List<Qdrant.Client.Grpc.ScoredPoint>();
+            // 2. Dense vector search
+            IReadOnlyList<VectorSearchHit> vectorHits = [];
             try
             {
-                // Prepare filter if needed
-                Qdrant.Client.Grpc.Filter? qdrantFilter = null;
-                if (!string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio))
-                {
-                    qdrantFilter = new Qdrant.Client.Grpc.Filter
-                    {
-                        Must =
-                        {
-                            new Qdrant.Client.Grpc.Condition
-                            {
-                                Field = new Qdrant.Client.Grpc.FieldCondition
-                                {
-                                    Key = "Municipality",
-                                    Match = new Qdrant.Client.Grpc.Match
-                                    {
-                                        Text = queryInfo.FiltroMunicipio
-                                    }
-                                }
-                            }
-                        }
-                    };
-                }
+                var textFilter = string.IsNullOrWhiteSpace(queryInfo.MunicipalityFilter)
+                    ? ((string Field, string Text)?)null
+                    : (VectorPayloadKeys.Municipality, queryInfo.MunicipalityFilter);
 
-                qdrantPoints = (await qdrantClient.QueryAsync(
-                    collectionName: QdrantCollectionName,
-                    query: embeddingVector,
-                    filter: qdrantFilter,
-                    limit: (ulong)limit,
-                    cancellationToken: cancellationToken
-                )).ToList();
+                vectorHits = await vectorStore.SearchAsync(
+                    VectorCollection.ChildFragments,
+                    new VectorSearchRequest(embeddingVector, limit, TextFilter: textFilter),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Qdrant search failed, falling back to text search only.");
+                logger.LogWarning(ex, "Vector search failed, falling back to text search only.");
             }
 
-            // 3. Query PostgreSQL (Sparse Text Search)
-            var sql = """
-                SELECT "Id" as "FragmentId"
-                FROM ingestion."ChildFragments"
-                WHERE "TsvContent" @@ websearch_to_tsquery('spanish', @tsquery)
-                  AND (@municipio IS NULL OR "Municipality" ILIKE '%' || @municipio || '%')
-                ORDER BY ts_rank_cd("TsvContent", websearch_to_tsquery('spanish', @tsquery)) DESC
-                LIMIT @limit
-                """;
+            // 3. Sparse (full-text) search
+            var pgResults = await fullTextSearch.SearchChildFragmentsAsync(queryInfo.LexicalQuery ?? string.Empty, queryInfo.MunicipalityFilter, limit, cancellationToken);
 
-            var municipioParam = string.IsNullOrWhiteSpace(queryInfo.FiltroMunicipio) ? (object)DBNull.Value : queryInfo.FiltroMunicipio;
-            var parameters = new[]
-            {
-                new Npgsql.NpgsqlParameter("@tsquery", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object)queryInfo.QueryLexica ?? DBNull.Value },
-                new Npgsql.NpgsqlParameter("@municipio", NpgsqlTypes.NpgsqlDbType.Text) { Value = municipioParam },
-                new Npgsql.NpgsqlParameter("@limit", NpgsqlTypes.NpgsqlDbType.Integer) { Value = limit }
-            };
-
-            var pgResults = await dbContext.Database.SqlQueryRaw<long>(sql, parameters).ToListAsync(cancellationToken);
-
-            // 4. In-memory Reciprocal Rank Fusion (RRF)
-            var scores = new Dictionary<long, double>();
-
-            // Add Qdrant ranks
-            for (int i = 0; i < qdrantPoints.Count; i++)
-            {
-                long id = (long)qdrantPoints[i].Id.Num;
-                scores[id] = 1.0 / (60.0 + i + 1); // RRF formula: 1 / (k + rank), rank is 1-based
-            }
-
-            // Add Postgres ranks
-            for (int i = 0; i < pgResults.Count; i++)
-            {
-                long id = pgResults[i];
-                if (scores.ContainsKey(id))
-                {
-                    scores[id] += 1.0 / (60.0 + i + 1);
-                }
-                else
-                {
-                    scores[id] = 1.0 / (60.0 + i + 1);
-                }
-            }
-
-            if (!scores.Any())
+            // 4. Reciprocal Rank Fusion
+            var fused = Fuse(vectorHits.Select(h => h.Id).ToList(), pgResults, limit);
+            if (fused.Count == 0)
                 return new List<RetrievalResult>();
 
-            // Get top combined results
-            var topIds = scores.OrderByDescending(kvp => kvp.Value)
-                               .Take(limit)
-                               .Select(kvp => kvp.Key)
-                               .ToList();
+            var scores = fused.ToDictionary(f => f.Id, f => f.Score);
+            var topIds = fused.Select(f => f.Id).ToList();
 
             // 5. Fetch full entities
             var fragmentsWithParents = await dbContext.ChildFragments
@@ -146,19 +81,33 @@ public class HybridRetrievalService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error executing Hybrid RRF Retrieval for query: {Query}", queryInfo.QuerySemantica);
+            logger.LogError(ex, "Error executing Hybrid RRF Retrieval for query: {Query}", queryInfo.SemanticQuery);
             throw;
         }
     }
+
+    /// <summary>RRF constant: dampens the weight of the top ranks (Cormack et al. use 60).</summary>
+    internal const int RrfK = 60;
+
+    /// <summary>
+    /// Reciprocal Rank Fusion: each list adds <c>1 / (k + rank)</c> (1-based rank) to an id's score; the best
+    /// <paramref name="limit"/> ids are returned, highest score first (ties keep dense-search order).
+    /// </summary>
+    internal static IReadOnlyList<(long Id, double Score)> Fuse(IReadOnlyList<long> denseRanking, IReadOnlyList<long> sparseRanking, int limit)
+    {
+        var scores = new Dictionary<long, double>();
+        foreach (var ranking in new[] { denseRanking, sparseRanking })
+        {
+            for (var i = 0; i < ranking.Count; i++)
+            {
+                scores[ranking[i]] = scores.GetValueOrDefault(ranking[i]) + 1.0 / (RrfK + i + 1);
+            }
+        }
+
+        return scores
+            .OrderByDescending(kvp => kvp.Value)
+            .Take(limit)
+            .Select(kvp => (kvp.Key, kvp.Value))
+            .ToList();
+    }
 }
-
-
-
-
-
-
-
-
-
-
-

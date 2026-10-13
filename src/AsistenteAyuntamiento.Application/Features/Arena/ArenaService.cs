@@ -1,22 +1,20 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using System.Diagnostics;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
-using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Arena;
-using AsistenteAyuntamiento.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Arena;
 
@@ -24,11 +22,11 @@ public class ArenaService(
     IAppDbContext dbContext,
     IServiceScopeFactory serviceScopeFactory,
     Kernel kernel,
-    QdrantClient qdrantClient,
+    IVectorStore vectorStore,
     ILogger<ArenaService> logger) : IArenaService
 {
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    private readonly QdrantClient _qdrantClient = qdrantClient;
+    private readonly IVectorStore _vectorStore = vectorStore;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
@@ -40,15 +38,18 @@ public class ArenaService(
         var baselineTask = RunBaselinePipelineAsync(request.Query, cancellationToken);
 
         // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
-        var hierarchicalTask = Task.Run(async () =>
+        var hierarchicalTask = RunHierarchicalInOwnScopeAsync();
+
+        async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalInOwnScopeAsync()
         {
+            await Task.Yield();
             using var scope = serviceScopeFactory.CreateScope();
             var scopedExpansion = scope.ServiceProvider.GetRequiredService<IQueryExpansionService>();
             var scopedRetrieval = scope.ServiceProvider.GetRequiredService<IHybridRetrievalService>();
             var scopedGeneration = scope.ServiceProvider.GetRequiredService<IClearLanguageGenerationService>();
 
             return await RunHierarchicalPipelineScopedAsync(request.Query, scopedExpansion, scopedRetrieval, scopedGeneration, cancellationToken);
-        }, cancellationToken);
+        }
 
         await Task.WhenAll(baselineTask, hierarchicalTask);
         var baselineResult = baselineTask.Result;
@@ -70,10 +71,11 @@ public class ArenaService(
             RightSystem = isHierarchicalAlfa ? PipelineType.Baseline : PipelineType.Hierarchical,
             LeftResponse = alfaResult.Response,
             RightResponse = betaResult.Response,
-            LeftLatencyMs = (int)(isHierarchicalAlfa ? alfaResult.Latency : betaResult.Latency),
-            RightLatencyMs = (int)(isHierarchicalAlfa ? betaResult.Latency : alfaResult.Latency),
-            LeftTokens = isHierarchicalAlfa ? alfaResult.Tokens : betaResult.Tokens,
-            RightTokens = isHierarchicalAlfa ? betaResult.Tokens : alfaResult.Tokens,
+            // Left is always Alfa and right is always Beta.
+            LeftLatencyMs = (int)alfaResult.Latency,
+            RightLatencyMs = (int)betaResult.Latency,
+            LeftTokens = alfaResult.Tokens,
+            RightTokens = betaResult.Tokens,
             Winner = BattleWinner.Pending
         };
 
@@ -113,7 +115,13 @@ public class ArenaService(
         return new ArenaVoteResponse
         {
             AlfaSystem = battle.LeftSystem.ToString(),
-            BetaSystem = battle.RightSystem.ToString()
+            BetaSystem = battle.RightSystem.ToString(),
+            WinningResponse = w switch
+            {
+                BattleWinner.Alfa => battle.LeftResponse,
+                BattleWinner.Beta => battle.RightResponse,
+                _ => null
+            }
         };
     }
 
@@ -125,18 +133,14 @@ public class ArenaService(
             var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
             var queryVector = embeddings[0].Vector.ToArray();
 
-            var searchResult = await _qdrantClient.QueryAsync(
-                "document_chunks",
-                queryVector,
-                limit: 5,
-                cancellationToken: cancellationToken);
+            var searchResult = await _vectorStore.SearchAsync(
+                VectorCollection.DocumentChunks,
+                new VectorSearchRequest(queryVector, Limit: 5),
+                cancellationToken);
 
-            var sources = searchResult.Select(p => p.Payload["Content"].StringValue).ToArray();
+            var sources = searchResult.Select(p => p.GetString(VectorPayloadKeys.Content)).ToArray();
             var contextText = string.Join("\n\n", sources);
-            var prompt = $@"Eres un asistente del Ayuntamiento. Responde a la consulta basándote únicamente en los siguientes documentos.
-Consulta: {query}
-Documentos:
-{contextText}";
+            var prompt = string.Format(PromptCatalog.ArenaBaselineTemplate, query, contextText);
 
             var result = await _chatCompletionService.GetChatMessageContentAsync(prompt, cancellationToken: cancellationToken);
             sw.Stop();

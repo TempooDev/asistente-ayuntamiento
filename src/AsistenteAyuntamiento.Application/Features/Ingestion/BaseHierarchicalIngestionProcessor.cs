@@ -5,46 +5,34 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.Extensions.AI;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using Microsoft.EntityFrameworkCore;
-using static Qdrant.Client.Grpc.Conditions;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
-
-public class RawFragment
-{
-    public string Section { get; set; } = string.Empty;
-    public string ElementType { get; set; } = string.Empty;
-    public string OriginalText { get; set; } = string.Empty;
-}
 
 public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestionProcessor
 {
     protected readonly IAppDbContext _dbContext;
     protected readonly IFragmentEnrichmentService _enrichmentService;
     protected readonly IIngestionMetricsService _metricsService;
-    protected readonly QdrantClient _qdrantClient;
+    protected readonly IVectorStore _vectorStore;
     protected readonly ILogger _logger;
     protected readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService;
-    protected readonly IVectorCollections _vectorCollections;
 
     protected BaseHierarchicalIngestionProcessor(
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
-        QdrantClient qdrantClient,
+        IVectorStore vectorStore,
         ILogger logger,
-        Kernel kernel,
-        IVectorCollections vectorCollections)
+        Kernel kernel)
     {
         _dbContext = dbContext;
         _enrichmentService = enrichmentService;
         _metricsService = metricsService;
-        _qdrantClient = qdrantClient;
+        _vectorStore = vectorStore;
         _logger = logger;
         _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-        _vectorCollections = vectorCollections;
     }
 
     protected abstract BulletinType Bulletin { get; }
@@ -127,8 +115,7 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
             // 2. Replace the previous version of the document atomically.
             var previousParentIds = new List<long>();
-            var strategy = _dbContext.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await _dbContext.ExecuteInTransactionAsync(async ct =>
             {
                 // The execution strategy may re-run this block: start each attempt from a clean state.
                 _dbContext.ChangeTracker.Clear();
@@ -140,25 +127,22 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
                     parentDoc.Children.Add(child);
                 }
 
-                await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
                 previousParentIds = await _dbContext.ParentDocuments
                     .Where(p => p.DocumentId == documentId)
                     .Select(p => p.Id)
-                    .ToListAsync(cancellationToken);
+                    .ToListAsync(ct);
 
                 if (previousParentIds.Count > 0)
                 {
                     // Child fragments are removed by the ON DELETE CASCADE foreign key.
                     await _dbContext.ParentDocuments
                         .Where(p => p.DocumentId == documentId)
-                        .ExecuteDeleteAsync(cancellationToken);
+                        .ExecuteDeleteAsync(ct);
                 }
 
                 _dbContext.ParentDocuments.Add(parentDoc);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            });
+                await _dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
 
             // 3. Vector store, after the commit.
             await SyncVectorsAsync(documentId, previousParentIds, children, vectors, cancellationToken);
@@ -175,46 +159,35 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
     private async Task SyncVectorsAsync(string documentId, IReadOnlyCollection<long> previousParentIds, IReadOnlyList<ChildFragment> children, IReadOnlyList<float[]> vectors, CancellationToken cancellationToken)
     {
-        var collection = VectorCollectionNames.ChildFragments;
+        const VectorCollection collection = VectorCollection.ChildFragments;
 
         if (vectors.Count > 0)
         {
-            await _vectorCollections.EnsureAsync(collection, vectors[0].Length, cancellationToken);
+            await _vectorStore.EnsureCollectionAsync(collection, vectors[0].Length, cancellationToken);
         }
-        else if (!await _qdrantClient.CollectionExistsAsync(collection, cancellationToken))
+        else if (!await _vectorStore.CollectionExistsAsync(collection, cancellationToken))
         {
             return;
         }
 
         // Points of previous versions: matched by DocumentId (new payload) or by their old ParentId.
-        var stale = new Filter();
-        stale.Should.Add(MatchKeyword("DocumentId", documentId));
-        foreach (var parentId in previousParentIds)
-        {
-            stale.Should.Add(Match("ParentId", parentId));
-        }
-        await _qdrantClient.DeleteAsync(collection, stale, cancellationToken: cancellationToken);
+        await _vectorStore.DeleteDocumentAsync(collection, documentId, previousParentIds, cancellationToken);
 
         if (vectors.Count == 0)
         {
             return;
         }
 
-        var points = children.Select((fragment, i) => new PointStruct
+        var points = children.Select((fragment, i) => new VectorPoint(fragment.Id, vectors[i], new Dictionary<string, object>
         {
-            Id = new PointId { Num = (ulong)fragment.Id },
-            Vectors = vectors[i],
-            Payload =
-            {
-                ["DocumentId"] = documentId,
-                ["ParentId"] = fragment.ParentId,
-                ["Bulletin"] = (int)fragment.Bulletin,
-                ["Municipality"] = fragment.Municipality ?? "",
-                ["SubSection"] = fragment.SubSection ?? "",
-                ["ChunkText"] = fragment.ChunkText ?? ""
-            }
-        }).ToList();
+            [VectorPayloadKeys.DocumentId] = documentId,
+            [VectorPayloadKeys.ParentId] = fragment.ParentId,
+            [VectorPayloadKeys.Bulletin] = (int)fragment.Bulletin,
+            [VectorPayloadKeys.Municipality] = fragment.Municipality ?? "",
+            [VectorPayloadKeys.SubSection] = fragment.SubSection ?? "",
+            [VectorPayloadKeys.ChunkText] = fragment.ChunkText ?? ""
+        })).ToList();
 
-        await _qdrantClient.UpsertAsync(collection, points, cancellationToken: cancellationToken);
+        await _vectorStore.UpsertAsync(collection, points, cancellationToken);
     }
 }

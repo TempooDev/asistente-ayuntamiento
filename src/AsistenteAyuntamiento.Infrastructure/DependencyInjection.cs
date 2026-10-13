@@ -6,6 +6,9 @@ using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Infrastructure.Background;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
 using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using AsistenteAyuntamiento.Infrastructure.Storage;
+using AsistenteAyuntamiento.Application.Common.Storage;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +18,9 @@ using Amazon.Runtime;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Infrastructure.Ai;
 using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Data.Search;
+using AsistenteAyuntamiento.Application.Common.Search;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 
 namespace AsistenteAyuntamiento.Infrastructure;
@@ -24,6 +30,8 @@ public static class DependencyInjection
     public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+        builder.Services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
+        builder.Services.AddScoped<IIngestionMaintenance, IngestionMaintenance>();
 
         // Hosts with a real transport (SignalR in ApiService, RabbitMQ in Worker) register their own.
         builder.Services.TryAddSingleton<INotificationService, NullNotificationService>();
@@ -47,7 +55,9 @@ public static class DependencyInjection
             var s3Config = new AmazonS3Config { ServiceURL = blobEndpoint, ForcePathStyle = true };
             var credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
             builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(credentials, s3Config));
+            builder.Services.AddSingleton<IBlobStorage, S3BlobStorage>();
         }
+        builder.Services.AddOptions<BlobStorageOptions>().Bind(builder.Configuration.GetSection(BlobStorageOptions.SectionName));
 
 
         if (builder.Environment.IsProduction())
@@ -62,8 +72,8 @@ public static class DependencyInjection
         }
 
         builder.AddQdrantClient("qdrant");
-        builder.Services.AddQdrantVectorStore();
-        builder.Services.AddSingleton<IVectorCollections, QdrantVectorCollections>();
+        builder.Services.AddOptions<VectorStoreOptions>().Bind(builder.Configuration.GetSection(VectorStoreOptions.SectionName));
+        builder.Services.AddSingleton<IVectorStore, QdrantVectorStore>();
 
         AddMessaging(builder);
         AddSemanticKernelServices(builder);

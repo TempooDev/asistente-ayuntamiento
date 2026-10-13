@@ -188,6 +188,20 @@ dotnet user-secrets list --project src/AsistenteAyuntamiento.Web
 
 ---
 
+## Migraciones de base de datos
+
+Se conserva todo el historial de migraciones (hay datos en producción). La ApiService aplica las pendientes al arrancar (`Database:MigrateOnStartup`, `true` por defecto).
+
+```bash
+# Añadir una migración tras cambiar el modelo (no necesita base de datos)
+dotnet ef migrations add <Nombre> --project src/AsistenteAyuntamiento.Infrastructure --startup-project src/AsistenteAyuntamiento.Infrastructure --output-dir Data/Migrations
+```
+
+- `dotnet ef` usa `AppDbContextFactory`, que lee la cadena de conexión de `ConnectionStrings__asistente-ayuntamiento-db` (o `DESIGN_TIME_CONNECTION_STRING`). Solo hace falta para comandos que tocan la base de datos (`database update`, `migrations list`).
+- El test `MigrationAssemblyTests.The_model_matches_the_latest_migration_snapshot` falla si el modelo cambia sin su migración; ya no se suprime `PendingModelChangesWarning`.
+
+---
+
 ## Estructura del proyecto
 
 ```

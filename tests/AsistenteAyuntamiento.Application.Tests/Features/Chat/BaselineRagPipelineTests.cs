@@ -1,0 +1,106 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Users;
+using FluentAssertions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Moq;
+
+namespace AsistenteAyuntamiento.Application.Tests.Features.Chat;
+
+/// <summary>How the baseline pipeline injects retrieved context and user preferences into the prompt.</summary>
+public class BaselineRagPipelineTests
+{
+    private readonly Mock<IVectorStore> _vectorStore = new();
+    private readonly Mock<IChatStreamingService> _streaming = new();
+    private ChatHistory? _sentHistory;
+
+    private BaselineRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null)
+    {
+        var embeddings = new Mock<IEmbeddingGenerator<string, Embedding<float>>>();
+        embeddings.Setup(e => e.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[] { 1f, 0f })]));
+        var kernelBuilder = Kernel.CreateBuilder();
+        kernelBuilder.Services.AddSingleton(embeddings.Object);
+
+        _vectorStore.Setup(v => v.SearchAsync(VectorCollection.DocumentChunks, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(hits);
+
+        _streaming.Setup(s => s.StreamAsync(It.IsAny<ChatHistory>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatHistory, string, string, CancellationToken>((history, _, _, _) => _sentHistory = history)
+            .Returns(new[] { "ok" }.ToAsyncEnumerable());
+
+        var userPreferences = new Mock<IUserPreferenceService>();
+        userPreferences.Setup(p => p.GetPreferencesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(preferences ?? new UserPreferenceDto());
+
+        return new BaselineRagPipeline(kernelBuilder.Build(), _vectorStore.Object, userPreferences.Object, _streaming.Object, NullLogger<BaselineRagPipeline>.Instance);
+    }
+
+    private static VectorSearchHit Hit(string title) => new(1, 0.9f, new Dictionary<string, object?>
+    {
+        [VectorPayloadKeys.Title] = title,
+        [VectorPayloadKeys.Source] = "BOE",
+        [VectorPayloadKeys.DocumentId] = "BOE-A-2026-1",
+        [VectorPayloadKeys.Department] = "Ministerio",
+        [VectorPayloadKeys.Content] = "Texto del boletín",
+        [VectorPayloadKeys.PublicationDate] = "2026-10-01T00:00:00.0000000Z",
+    });
+
+    private static ChatTurn Turn(string question = "¿Ayudas al alquiler?")
+    {
+        var history = new ChatHistory();
+        history.AddUserMessage(question);
+        return new ChatTurn(history, "org_A", "u1");
+    }
+
+    [Fact]
+    public async Task Streaming_with_matches_injects_the_context_and_a_system_prompt()
+    {
+        await CreateSut([Hit("Bono alquiler")]).StreamAsync(Turn()).ToListAsync();
+
+        _sentHistory.Should().NotBeNull();
+        _sentHistory![0].Role.Should().Be(AuthorRole.System);
+        _sentHistory[0].Content.Should().StartWith(PromptCatalog.StreamingSystem);
+        var question = _sentHistory[^1].Content;
+        question.Should().Contain("Bono alquiler").And.Contain("https://www.boe.es/buscar/doc.php?id=BOE-A-2026-1")
+            .And.Contain("Fecha: 2026-10-01").And.EndWith("Pregunta: ¿Ayudas al alquiler?");
+        _vectorStore.Verify(v => v.SearchAsync(VectorCollection.DocumentChunks, It.Is<VectorSearchRequest>(r => r.Limit == 3 && r.ScoreThreshold == 0.65f), It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task Streaming_without_matches_sends_the_conversation_unchanged()
+    {
+        await CreateSut([]).StreamAsync(Turn()).ToListAsync();
+
+        _sentHistory.Should().ContainSingle().Which.Content.Should().Be("¿Ayudas al alquiler?");
+    }
+
+    [Fact]
+    public async Task User_preferences_are_added_to_the_system_prompt()
+    {
+        var preferences = new UserPreferenceDto { Topics = ["Vivienda"], Locations = ["Málaga"] };
+
+        await CreateSut([Hit("Bono")], preferences).StreamAsync(Turn()).ToListAsync();
+
+        _sentHistory![0].Content.Should().Contain("Temas de interés principales: Vivienda").And.Contain("Zonas geográficas de interés: Málaga");
+    }
+
+    [Fact]
+    public async Task A_failed_search_answers_without_context()
+    {
+        var sut = CreateSut([]);
+        _vectorStore.Setup(v => v.SearchAsync(It.IsAny<VectorCollection>(), It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("qdrant down"));
+
+        var chunks = await sut.StreamAsync(Turn()).ToListAsync();
+
+        chunks.Should().Equal("ok");
+        _sentHistory.Should().ContainSingle();
+    }
+}

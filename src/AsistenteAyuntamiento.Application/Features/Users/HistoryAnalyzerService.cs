@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -5,11 +6,6 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
-
-public interface IHistoryAnalyzerService
-{
-    Task AnalyzeAndMergeUserHistoryAsync(string auth0UserId, CancellationToken cancellationToken = default);
-}
 
 public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceService preferenceService, Kernel kernel) : IHistoryAnalyzerService
 {
@@ -38,7 +34,7 @@ public class HistoryAnalyzerService(IAppDbContext dbContext, IUserPreferenceServ
 
         // 2. Extract using LLM
         var chatCompletion = kernel.GetRequiredService<IChatCompletionService>();
-        var systemPrompt = AsistenteAyuntamiento.Application.Features.Chat.Prompts.HistoryAnalyzerSystemPrompt;
+        var systemPrompt = PromptCatalog.HistoryAnalyzerSystem;
 
         var history = new ChatHistory(systemPrompt);
         history.AddUserMessage(messagesContext);

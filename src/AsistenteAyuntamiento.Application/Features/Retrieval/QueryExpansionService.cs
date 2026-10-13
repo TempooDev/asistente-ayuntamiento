@@ -17,42 +17,51 @@ public class QueryExpansionService(
     {
         try
         {
-            var prompt = string.Format(SystemPrompts.QueryExpansion, userQuery);
+            var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
 
             var result = await chatCompletionService.GetChatMessageContentAsync(
                 prompt,
                 cancellationToken: cancellationToken);
 
-            var content = result.Content?.Trim() ?? "";
-
-            // Clean up possible markdown code blocks
-            if (content.StartsWith("```json"))
-            {
-                content = content.Substring(7);
-                if (content.EndsWith("```"))
-                {
-                    content = content.Substring(0, content.Length - 3);
-                }
-            }
-            content = content.Trim();
-
-            var expanded = JsonSerializer.Deserialize<ExpandedQueryInfo>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            return expanded ?? new ExpandedQueryInfo
-            {
-                QueryLexica = userQuery,
-                QuerySemantica = userQuery
-            };
+            return Parse(result.Content, userQuery);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
-            return new ExpandedQueryInfo
-            {
-                QueryLexica = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
-                QuerySemantica = userQuery
-            };
+            return Fallback(userQuery);
         }
     }
+
+    /// <summary>
+    /// Reads the model's JSON answer (optionally inside a ```json fence). Missing queries fall back to the user's
+    /// text; unparseable answers throw <see cref="JsonException"/>.
+    /// </summary>
+    internal static ExpandedQueryInfo Parse(string? modelAnswer, string userQuery)
+    {
+        var content = (modelAnswer ?? string.Empty).Trim();
+        if (content.StartsWith("```", StringComparison.Ordinal))
+        {
+            content = content[(content.IndexOf('\n') is var newline and >= 0 ? newline + 1 : 3)..];
+            if (content.EndsWith("```", StringComparison.Ordinal))
+            {
+                content = content[..^3];
+            }
+        }
+
+        var expanded = JsonSerializer.Deserialize<ExpandedQueryInfo>(content.Trim(), JsonOptions) ?? new ExpandedQueryInfo();
+        if (string.IsNullOrWhiteSpace(expanded.LexicalQuery)) expanded.LexicalQuery = userQuery;
+        if (string.IsNullOrWhiteSpace(expanded.SemanticQuery)) expanded.SemanticQuery = userQuery;
+        if (string.IsNullOrWhiteSpace(expanded.MunicipalityFilter)) expanded.MunicipalityFilter = null;
+        return expanded;
+    }
+
+    /// <summary>Used when the model fails: every word is required lexically, the raw question is used semantically.</summary>
+    internal static ExpandedQueryInfo Fallback(string userQuery) => new()
+    {
+        LexicalQuery = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+        SemanticQuery = userQuery
+    };
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 }
 

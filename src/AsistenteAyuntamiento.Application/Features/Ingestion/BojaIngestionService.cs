@@ -1,13 +1,11 @@
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using System.Text.Json;
-using Amazon.S3;
-using Amazon.S3.Model;
+using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Qdrant.Client;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -19,26 +17,22 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
 {
     private const int ChunkSize = 1000;
 
-    private readonly IAmazonS3 _s3Client;
-    private readonly string _bucketName;
+    private readonly IBlobStorage _blobStorage;
 
     // Both extraction steps need the same document: download it once per (scoped) service instance.
     private (string BlobPath, ScrapedDocument? Document)? _cached;
 
     public BojaIngestionService(
-        IAmazonS3 s3Client,
+        IBlobStorage blobStorage,
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
-        QdrantClient qdrantClient,
+        IVectorStore vectorStore,
         ILogger<BojaIngestionService> logger,
-        Kernel kernel,
-        IConfiguration configuration,
-        IVectorCollections vectorCollections)
-        : base(dbContext, enrichmentService, metricsService, qdrantClient, logger, kernel, vectorCollections)
+        Kernel kernel)
+        : base(dbContext, enrichmentService, metricsService, vectorStore, logger, kernel)
     {
-        _s3Client = s3Client;
-        _bucketName = configuration["Blob:BucketName"] ?? AsistenteAyuntamiento.Shared.AppConstants.BlobStorage.DefaultBucketName;
+        _blobStorage = blobStorage;
     }
 
     protected override BulletinType Bulletin => BulletinType.BOJA;
@@ -100,8 +94,8 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
             return cached.Document;
         }
 
-        using var response = await _s3Client.GetObjectAsync(new GetObjectRequest { BucketName = _bucketName, Key = blobPath }, cancellationToken);
-        var document = await JsonSerializer.DeserializeAsync<ScrapedDocument>(response.ResponseStream, cancellationToken: cancellationToken);
+        await using var stream = await _blobStorage.OpenReadAsync(blobPath, cancellationToken);
+        var document = await JsonSerializer.DeserializeAsync<ScrapedDocument>(stream, cancellationToken: cancellationToken);
         _cached = (blobPath, document);
         return document;
     }
