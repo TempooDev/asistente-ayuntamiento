@@ -9,7 +9,7 @@ public interface IFragmentEnrichmentService
         string issuingBody,
         string normTitle,
         string normSection,
-        string subSection,
+        string? subSection,
         string originalText,
         CancellationToken cancellationToken = default);
 }

@@ -69,7 +69,7 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
                 current++;
                 if (current % 10 == 0 || current == fragments.Count)
                 {
-                    _logger.LogInformation("[{Bulletin} {DocumentId}] Procesando fragmento {Current}/{Total} de la sección '{Section}'", Bulletin, documentId, current, fragments.Count, frag.Section);
+                    _logger.LogInformation("[{Bulletin} {DocumentId}] Procesando fragmento {Current}/{Total} de la sección '{Section}'", Bulletin, documentId, current, fragments.Count, frag.Label);
                 }
 
                 var enrichmentResult = await _enrichmentService.EnrichFragmentAsync(
@@ -77,7 +77,7 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
                     parentDoc.IssuingBody ?? "Estado",
                     parentDoc.NormTitle,
                     frag.Section,
-                    frag.ElementType,
+                    frag.SubSection,
                     frag.OriginalText,
                     cancellationToken);
 
@@ -86,10 +86,13 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
 
                 if (string.IsNullOrWhiteSpace(enrichmentResult.EnrichedText)) continue;
 
+                // Fragments inherit the document's municipality (null for state and regional norms), so the
+                // municipality filter of the retrieval sees the same value on the parent and its fragments.
                 children.Add(new ChildFragment
                 {
                     Bulletin = Bulletin,
-                    SubSection = frag.Section,
+                    Municipality = parentDoc.Municipality,
+                    SubSection = frag.Label,
                     ChunkText = enrichmentResult.EnrichedText
                 });
             }
