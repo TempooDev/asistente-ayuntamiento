@@ -7,8 +7,17 @@ using AsistenteAyuntamiento.Infrastructure.Data;
 using AsistenteAyuntamiento.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using AsistenteAyuntamiento.Application.Common;
+using AsistenteAyuntamiento.Worker;
 
-var builder = Host.CreateApplicationBuilder(args);
+// Container healthcheck: the runtime image ships no curl or wget, so the Worker probes itself.
+if (args is [HealthProbe.Argument, var probeUrl])
+{
+    return await HealthProbe.RunAsync(probeUrl);
+}
+
+var builder = WebApplication.CreateBuilder(args);
+
+RequiredConfiguration.Validate(builder.Configuration);
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -45,6 +54,15 @@ else
 
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();
 
-var host = builder.Build();
-host.Run();
+var app = builder.Build();
+
+// The Worker has no public ingress (no published port, no gateway route), so its health endpoints are served in
+// every environment for the compose healthcheck and the Aspire dashboard.
+app.MapHealthEndpoints();
+
+app.Run();
+return 0;
+
+// Exposed for WebApplicationFactory-based tests.
+public partial class Program;
 

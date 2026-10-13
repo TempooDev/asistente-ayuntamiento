@@ -6,16 +6,20 @@ using Microsoft.Extensions.Logging;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class IngestionMetricsService(IServiceProvider serviceProvider, ILogger<IngestionMetricsService> logger) : IIngestionMetricsService
+/// <summary>
+/// Saves each metric in its own scope (its own <see cref="IAppDbContext"/>), so a failed save never leaves a
+/// tracked entity behind in the ingestion's unit of work, and the ingestion's pending changes are never flushed here.
+/// </summary>
+public class IngestionMetricsService(IServiceScopeFactory scopeFactory, ILogger<IngestionMetricsService> logger) : IIngestionMetricsService
 {
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly ILogger<IngestionMetricsService> _logger = logger;
 
     public async Task TrackIngestionAsync(PipelineType pipeline, BulletinType bulletin, string documentId, int tokensEmbedded, int llmCalls, int llmTokens, int chunksGenerated, long processingDurationMs, CancellationToken cancellationToken)
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
+            await using var scope = _scopeFactory.CreateAsyncScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
             var metric = new IngestionMetric
