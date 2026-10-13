@@ -7,6 +7,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
+using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -17,9 +18,11 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 {
     private readonly IBlobStorage _blobStorage;
+    private readonly IChunkingStrategy _chunking;
 
     public BoeIngestionService(
         IBlobStorage blobStorage,
+        IChunkingStrategy chunking,
         IAppDbContext dbContext,
         IFragmentEnrichmentService enrichmentService,
         IIngestionMetricsService metricsService,
@@ -29,6 +32,7 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
         : base(dbContext, enrichmentService, metricsService, vectorStore, logger, kernel)
     {
         _blobStorage = blobStorage;
+        _chunking = chunking;
     }
 
     protected override BulletinType Bulletin => BulletinType.BOE;
@@ -79,8 +83,8 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 
             if (string.IsNullOrWhiteSpace(originalText)) continue;
 
-            var lines = Microsoft.SemanticKernel.Text.TextChunker.SplitPlainTextLines(originalText, 200);
-            var paragraphs = Microsoft.SemanticKernel.Text.TextChunker.SplitPlainTextParagraphs(lines, 400, 50);
+            // Long articles are split with the configured strategy (Ai:Embeddings:ChunkMaxTokens / ChunkOverlapTokens).
+            var paragraphs = _chunking.ChunkText(originalText).Select(c => c.Text).ToList();
 
             for (int i = 0; i < paragraphs.Count; i++)
             {
