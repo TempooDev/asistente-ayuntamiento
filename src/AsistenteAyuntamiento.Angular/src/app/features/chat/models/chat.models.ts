@@ -13,10 +13,14 @@ export interface ChatMessageDto {
   createdAt: string;
 }
 
-/** Chunk of an Arena stream: the battle id first, then text of either side. */
+/**
+ * Chunk of an Arena stream: the battle id first, then text of either side. A side that failed ends with a chunk
+ * carrying its typed `errorCode` (`INTERNAL` or `LLM_*`) and no text.
+ */
 export interface ArenaStreamChunk {
   option: 'Alfa' | 'Beta' | 'SessionId';
   content: string;
+  errorCode?: string | null;
 }
 
 export type ArenaSide = 'Alfa' | 'Beta';
@@ -44,6 +48,8 @@ export interface ArenaMessage extends MessageBase {
   battleId?: string;
   alfa: string;
   beta: string;
+  /** Sides that failed. A battle with a failed side is not stored by the server and cannot be voted on. */
+  failed?: readonly ArenaSide[];
 }
 
 export type ChatMessage = UserMessage | AssistantMessage | ArenaMessage;

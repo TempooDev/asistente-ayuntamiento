@@ -207,7 +207,11 @@ public class ChatHub(
         // The winning message will be saved by the VoteArenaMessage endpoint or SignalR method.
     }
 
-    public async Task VoteArenaMessage(ArenaChatVoteRequest request)
+    /// <summary>
+    /// Records a chat Arena vote and stores the answer the chat keeps (the chosen side, or both for a tie). Returns
+    /// that answer so the client shows exactly what a reload will show.
+    /// </summary>
+    public async Task<string?> VoteArenaMessage(ArenaChatVoteRequest request)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId))
@@ -228,26 +232,33 @@ public class ChatHub(
         {
             throw new HubException(HubErrors.Message(HubErrors.InvalidRequest));
         }
+        catch (ArenaVoteConflictException)
+        {
+            // Votes are final: nothing changes and no second answer is added to the chat.
+            throw new HubException(HubErrors.Message(HubErrors.AlreadyVoted));
+        }
 
         // Unknown battle or owned by someone else: same answer, so existence is not revealed.
         if (voteResult is null)
             throw new HubException(HubErrors.Message(HubErrors.NotFound));
 
-        // The winning answer becomes the assistant message of the chat; ties and "both bad" add nothing.
-        if (voteResult.WinningResponse is not null)
+        // The chosen answer (both for a tie) becomes the assistant message of the chat; "both bad" adds nothing.
+        if (voteResult.ChatAnswer is not null)
         {
             var session = await _sessionService.GetSessionByIdAsync(request.ChatSessionId, userId, tenantId, Context.ConnectionAborted);
             if (session != null)
             {
-                _sessionService.EnqueueAssistantMessage(session, voteResult.WinningResponse);
+                _sessionService.EnqueueAssistantMessage(session, voteResult.ChatAnswer);
             }
         }
+
+        return voteResult.ChatAnswer;
     }
 
     /// <summary>
     /// SignalR enumerates a stream after the hub method has returned, outside any try/catch in it. This turns an
     /// unexpected failure in the middle of a stream into the typed <c>Error [INTERNAL]</c> (details only in the logs),
-    /// which the client maps like any other hub error.
+    /// and a model failure after some text into its <c>[LLM_*]</c> code; the client maps them like any other hub error.
     /// </summary>
     private async IAsyncEnumerable<T> Guarded<T>(IAsyncEnumerable<T> source, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -258,6 +269,12 @@ public class ChatHub(
             try
             {
                 hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (LlmStreamInterruptedException ex)
+            {
+                // The model failed after part of the answer was sent: the client keeps it and shows the typed code.
+                _logger.LogWarning("Chat stream interrupted ({ErrorCode}) for {User}", ex.ErrorCode, CurrentUserId);
+                throw new HubException(ex.Message);
             }
             catch (Exception ex) when (ex is not HubException && !(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {

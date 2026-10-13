@@ -111,10 +111,15 @@ public class ArenaService(
         if (battle == null)
             return null;
 
+        // Votes are final: a second vote would change the winner and add another answer to the chat.
+        if (battle.Winner != BattleWinner.Pending)
+            throw new ArenaVoteConflictException(battle.SessionId);
+
         battle.Winner = w;
         if (Enum.TryParse<EvaluationPreference>(request.ClarityReason, true, out var c)) battle.ClarityReason = c;
         if (Enum.TryParse<EvaluationPreference>(request.PrecisionReason, true, out var p)) battle.PrecisionReason = p;
-        battle.OptionalComment = request.OptionalComment;
+        // The chat vote sends no comment; never overwrite one with null.
+        if (request.OptionalComment is not null) battle.OptionalComment = request.OptionalComment;
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -122,14 +127,18 @@ public class ArenaService(
         {
             AlfaSystem = battle.LeftSystem.ToString(),
             BetaSystem = battle.RightSystem.ToString(),
-            WinningResponse = w switch
-            {
-                BattleWinner.Alfa => battle.LeftResponse,
-                BattleWinner.Beta => battle.RightResponse,
-                _ => null
-            }
+            ChatAnswer = ChatAnswer(w, battle.LeftResponse, battle.RightResponse),
         };
     }
+
+    /// <summary>What the chat shows (and stores) after a vote: the chosen answer, or both for a tie.</summary>
+    internal static string? ChatAnswer(BattleWinner winner, string alfa, string beta) => winner switch
+    {
+        BattleWinner.Alfa => alfa,
+        BattleWinner.Beta => beta,
+        BattleWinner.Tie => $"*(Empate)*\n\n**Respuesta Alfa:**\n{alfa}\n\n**Respuesta Beta:**\n{beta}",
+        _ => null
+    };
 
     private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunBaselinePipelineAsync(string query, LlmCallScope llmScope, CancellationToken cancellationToken)
     {

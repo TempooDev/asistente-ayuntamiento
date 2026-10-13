@@ -27,5 +27,13 @@ internal sealed class FakeRagPipeline(PipelineType type, params string[] chunks)
             await Task.Yield();
             yield return chunk;
         }
+
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
     }
+
+    /// <summary>When set, thrown after the last chunk.</summary>
+    public Exception? Failure { get; set; }
 }

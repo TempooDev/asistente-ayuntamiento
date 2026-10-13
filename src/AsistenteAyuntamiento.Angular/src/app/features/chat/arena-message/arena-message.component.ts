@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { MarkdownPipe } from '../../../shared/markdown/markdown.pipe';
 import { ArenaMessage, ArenaVote } from '../models/chat.models';
 
@@ -15,7 +15,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
             <button
               type="button"
               class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
-              [disabled]="!canVote()"
+              [disabled]="!votable()"
               (click)="vote.emit('Tie')">
               Empate
             </button>
@@ -27,7 +27,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           <button
             type="button"
             class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary text-primary text-sm font-medium hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
-            [disabled]="!canVote()"
+            [disabled]="!votable()"
             [attr.aria-label]="'Elegir la respuesta del modelo ' + side.vote"
             (click)="vote.emit(side.vote)">
             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">thumb_up</span>
@@ -36,6 +36,9 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
         </div>
       }
     </div>
+    @if (hasFailedSide()) {
+      <p class="text-xs text-gray-500 mb-2" role="status">No se puede votar esta comparación porque una de las respuestas ha fallado.</p>
+    }
   `,
 })
 export class ArenaMessageComponent {
@@ -43,6 +46,10 @@ export class ArenaMessageComponent {
   /** False while the answers are still streaming. */
   readonly canVote = input(true);
   readonly vote = output<ArenaVote>();
+
+  /** A battle with a failed side is not stored, so it cannot be voted on. */
+  protected readonly hasFailedSide = computed(() => (this.message().failed?.length ?? 0) > 0);
+  protected readonly votable = computed(() => this.canVote() && !this.hasFailedSide());
 
   protected readonly sides: readonly { vote: 'Alfa' | 'Beta' }[] = [{ vote: 'Alfa' }, { vote: 'Beta' }];
 }

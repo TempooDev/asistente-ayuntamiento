@@ -54,7 +54,8 @@ export class ChatService {
     return this.hub.connection.stream('StreamArenaMessage', sessionId, message);
   }
 
-  voteArena(chatSessionId: string, battleId: string, winner: ArenaVote): Promise<void> {
+  /** Returns the answer the server stored in the conversation (the chosen side, or both for a tie). */
+  voteArena(chatSessionId: string, battleId: string, winner: ArenaVote): Promise<string | null> {
     return this.invoke('VoteArenaMessage', { chatSessionId, battleId, winner });
   }
 

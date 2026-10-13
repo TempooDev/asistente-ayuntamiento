@@ -24,6 +24,12 @@ For each Arena question the system SHALL run both pipelines concurrently, each i
 - **WHEN** one pipeline throws while the other answers
 - **THEN** the failure SHALL be logged and the other side SHALL still be delivered; on the Arena page the failed side's answer SHALL be a generic error text
 
+#### Scenario: One side fails in the chat Arena
+- **WHEN** one side of a chat Arena stream throws
+- **THEN** after that side's text the hub SHALL send `{ option: <side>, content: "", errorCode: <code> }`, where the code is the side's `LLM_*` code when the model stream was interrupted and `INTERNAL` otherwise
+- **AND** the battle SHALL NOT be stored, so it cannot be voted on
+- **AND** the client SHALL keep the side's partial text, append the message mapped from the code, and disable the vote buttons with a note that the comparison cannot be voted on (also when the whole Arena stream fails)
+
 #### Scenario: Arena request cannot start
 - **WHEN** the chat session id is invalid or not the caller's
 - **THEN** `StreamArenaMessage` SHALL fail the stream with a `HubException` (`Error [INVALID_REQUEST]` or `Error [NOT_FOUND]`), shown in both columns
@@ -32,17 +38,22 @@ For each Arena question the system SHALL run both pipelines concurrently, each i
 The system SHALL randomly assign (50/50) which pipeline is "Alfa" and which is "Beta", and SHALL NOT reveal the assignment before the vote. Each battle SHALL be stored as an `ArenaBattle` with `LeftSystem`/`LeftResponse` for Alfa and `RightSystem`/`RightResponse` for Beta, both latencies, token counts estimated from the text length, and `Winner = Pending`.
 
 #### Scenario: Chat battle stored
-- **WHEN** both sides of a chat Arena stream have finished
+- **WHEN** both sides of a chat Arena stream have finished without failing
 - **THEN** the battle SHALL be saved with the battle id sent first in the stream and the trace id of the request
 
 ### Requirement: Vote Capture
-A vote SHALL only be accepted from the user who owns the battle, within the owner's tenant. The winner SHALL be one of `Alfa`, `Beta`, `Tie` or `BothBad`, read case-insensitively with underscores ignored (so the Arena page's `ALFA`, `BETA`, `TIE`, `BOTH_BAD` are valid); any other value SHALL be rejected.
+A vote SHALL only be accepted from the user who owns the battle, within the owner's tenant. The winner SHALL be one of `Alfa`, `Beta`, `Tie` or `BothBad`, read case-insensitively with underscores ignored (so the Arena page's `ALFA`, `BETA`, `TIE`, `BOTH_BAD` are valid); any other value SHALL be rejected. Votes SHALL be final: a battle that already has a winner SHALL NOT accept another vote. A vote without a comment SHALL NOT clear a stored comment.
 
 #### Scenario: Voting in the chat
 - **WHEN** the user picks "Alfa", "Beta" or "Empate" under a chat Arena answer
-- **THEN** the client SHALL call the hub method `VoteArenaMessage({ chatSessionId, battleId, winner })` with `Alfa`, `Beta` or `Tie`
-- **AND** the battle SHALL store the winner, and the chosen answer (for Alfa or Beta) SHALL become the assistant message of the conversation
-- **AND** the client SHALL replace the two answers with the chosen one, or show both for a tie
+- **THEN** the client SHALL call the hub method `VoteArenaMessage({ chatSessionId, battleId, winner })` with `Alfa`, `Beta` or `Tie`, at most once per battle
+- **AND** the battle SHALL store the winner, and the chosen answer (for Alfa or Beta) or, for a tie, both answers (`*(Empate)*`, then "Respuesta Alfa" and "Respuesta Beta") SHALL become the assistant message of the conversation
+- **AND** the hub SHALL return that stored answer, and the client SHALL replace the two answers with it, so reloading the conversation shows the same text
+
+#### Scenario: Voting twice
+- **WHEN** a battle that already has a winner receives another vote (chat or Arena page)
+- **THEN** REST SHALL answer `409 Conflict` and the hub SHALL throw `Error [ALREADY_VOTED]`
+- **AND** the winner, preferences and comment SHALL NOT change, and no answer SHALL be added to the conversation
 
 #### Scenario: Voting on the Arena page
 - **WHEN** the administrator submits a vote with `POST /api/arena/vote`

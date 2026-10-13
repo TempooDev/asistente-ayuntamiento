@@ -51,6 +51,11 @@ public static class ArenaEndpoints
                     [ex.ParamName ?? nameof(request.Winner)] = ["Valor de voto no válido."]
                 });
             }
+            catch (ArenaVoteConflictException)
+            {
+                // Votes are final.
+                return Results.Conflict();
+            }
         })
         .WithName("VoteArena");
 

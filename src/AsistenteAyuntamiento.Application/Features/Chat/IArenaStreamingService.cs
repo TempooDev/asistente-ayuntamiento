@@ -7,7 +7,8 @@ public interface IArenaStreamingService
 {
     /// <summary>
     /// First yields the battle id (<c>Option = "SessionId"</c>), then chunks of either side as soon as they arrive.
-    /// The battle is stored when both sides finish.
+    /// A side that fails ends with a chunk carrying its <see cref="ArenaStreamChunk.ErrorCode"/>. The battle is stored
+    /// when both sides finish, unless one of them failed.
     /// </summary>
     IAsyncEnumerable<ArenaStreamChunk> StreamAsync(ChatTurn turn, CancellationToken cancellationToken = default);
 }

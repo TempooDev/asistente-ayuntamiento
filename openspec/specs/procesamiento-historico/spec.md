@@ -22,7 +22,7 @@ Suggest topics and locations for a user's profile by analyzing their recent conv
 - **THEN** the API SHALL answer 401 and queue nothing
 
 ### Requirement: Extraction from Recent Sessions
-The analysis (`HistoryAnalyzerService`) SHALL read the user's 5 most recent chat sessions in the tenant, cut the text to at most 8000 characters, ask the platform chat model (`Ai:Chat:*`, prompt `PromptCatalog.HistoryAnalyzerSystem`) for topics and locations as JSON, and merge the result into the stored preferences without duplicates (case-insensitive). Its LLM call SHALL be measured like the chat ones (`app.pipeline=profile`, `app.llm.operation=history_analysis`).
+The analysis (`HistoryAnalyzerService`) SHALL read the user's 5 most recent chat sessions in the tenant, cut the text to at most 8000 characters, ask the platform chat model (`Ai:Chat:*`, prompt `PromptCatalog.HistoryAnalyzerSystem`) for topics and locations as JSON, and merge the result into the stored preferences without duplicates (case-insensitive). An answer that is not valid JSON SHALL be ignored, and a `null` or missing `Topics` or `Locations` SHALL be read as an empty list. Its LLM call SHALL be measured like the chat ones (`app.pipeline=profile`, `app.llm.operation=history_analysis`).
 
 #### Scenario: New interests found
 - **WHEN** the model returns topics or locations the user does not have yet
@@ -35,6 +35,10 @@ The analysis (`HistoryAnalyzerService`) SHALL read the user's 5 most recent chat
 #### Scenario: Invalid model answer
 - **WHEN** the model does not return valid JSON (Markdown code fences are removed first)
 - **THEN** the preferences SHALL stay unchanged
+
+#### Scenario: Null lists in the model answer
+- **WHEN** the model returns `"Topics": null` or `"Locations": null`
+- **THEN** that list SHALL be treated as empty, the other list SHALL still be merged, and the analysis SHALL NOT fail
 
 #### Scenario: User without conversations
 - **WHEN** the user has no chat sessions in the tenant
