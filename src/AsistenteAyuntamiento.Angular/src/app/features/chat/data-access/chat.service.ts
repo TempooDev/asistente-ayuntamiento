@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { IStreamResult } from '@microsoft/signalr';
+import type { IStreamResult } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { HubConnectionFactory } from '../../../core/realtime/hub-connection.factory';
 import { ArenaStreamChunk, ArenaVote, ChatMessageDto, ChatSessionSummaryDto, ConnectionState } from '../models/chat.models';
@@ -31,19 +31,19 @@ export class ChatService {
   }
 
   getSessions(): Promise<ChatSessionSummaryDto[]> {
-    return this.hub.connection.invoke('GetSessions');
+    return this.invoke('GetSessions');
   }
 
   loadSession(sessionId: string): Promise<ChatMessageDto[]> {
-    return this.hub.connection.invoke('LoadSession', sessionId);
+    return this.invoke('LoadSession', sessionId);
   }
 
   createSession(): Promise<string> {
-    return this.hub.connection.invoke('CreateNewSession');
+    return this.invoke('CreateNewSession');
   }
 
   deleteSession(sessionId: string): Promise<void> {
-    return this.hub.connection.invoke('DeleteSession', sessionId);
+    return this.invoke('DeleteSession', sessionId);
   }
 
   streamMessage(sessionId: string, message: string): IStreamResult<string> {
@@ -55,6 +55,12 @@ export class ChatService {
   }
 
   voteArena(chatSessionId: string, battleId: string, winner: ArenaVote): Promise<void> {
-    return this.hub.connection.invoke('VoteArenaMessage', { chatSessionId, battleId, winner });
+    return this.invoke('VoteArenaMessage', { chatSessionId, battleId, winner });
+  }
+
+  /** Calls a hub method, connecting first (the connection is created lazily). */
+  private async invoke<T>(method: string, ...args: unknown[]): Promise<T> {
+    await this.hub.ensureConnected();
+    return this.hub.connection.invoke<T>(method, ...args);
   }
 }

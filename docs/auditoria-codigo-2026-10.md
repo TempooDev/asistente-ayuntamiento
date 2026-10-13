@@ -30,7 +30,7 @@ Todos los hallazgos se corrigieron en el cambio `openspec/changes/audit-remediat
 - BOPMA sigue sin activar por Cloudflare Turnstile.
 - ~~Tests del hub de chat con cliente SignalR, reinicio del broker e idempotencia Postgres + Qdrant con Testcontainers.~~ Hechos. El test del hub destapó que, sin WebSockets (long polling o SSE), las llamadas al hub perdían el tenant; lo corrige `TenantHubFilter`.
 - Tabla de dead-letter persistente para `ChatPersistenceWorker` y notificación de estado por lote.
-- El bundle inicial de Angular (~616 kB) supera el presupuesto de 500 kB.
+- ~~El bundle inicial de Angular supera el presupuesto de 500 kB.~~ Resuelto: SignalR, Faro, Markdown y las features se cargan bajo demanda; el inicial queda en ~579 kB (Angular + Auth0 son ~450 kB), con aviso en 600 kB y error en 750 kB.
 - Separar el rol `administrador` en administrador de plataforma y de tenant, si hiciera falta.
 
 ---
