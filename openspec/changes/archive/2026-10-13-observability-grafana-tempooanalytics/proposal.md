@@ -1,3 +1,5 @@
+> **Archived 2026-10-13 without TempooAnalytics and the homelab Collector installation**, which moved to `tempooanalytics-and-homelab` with the `user-experience-tempooanalytics` spec.
+
 ## Why
 
 Currently, the application lacks visibility into production errors, persistent warnings in user flows, and detailed metrics about user interaction and token consumption. We need to introduce robust observability (using Grafana/OpenTelemetry) and user experience tracing (using TempooAnalytics) to understand how the system performs in the real world, track the chat's reaction time, measure time spent in the app or opening links, and monitor token usage metrics similar to what we have in Aspire.
