@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Observable, catchError, debounce, distinctUntilChanged, finalize, of, switchMap, tap, timer } from 'rxjs';
-import { NotificationService } from '../../../core/realtime/notification.service';
+import { DocumentStatusNotification, NotificationService } from '../../../core/realtime/notification.service';
 import { ConfirmService } from '../../../shared/ui/confirm.service';
 import { ToastService } from '../../../shared/ui/toast.service';
 import { IngestionService } from '../data-access/ingestion.service';
@@ -76,9 +76,9 @@ export class DocumentsPageComponent {
       });
 
     void this.notifications.connect();
-    this.notifications.documentStatusChanged$
+    this.notifications.documentStatusUpdates$
       .pipe(takeUntilDestroyed())
-      .subscribe(({ documentId, status }) => this.applyStatus(documentId, status as IngestionStatus));
+      .subscribe(changes => this.applyStatuses(changes));
   }
 
   protected changeFilters(change: Partial<DocumentFilters>): void {
@@ -178,15 +178,30 @@ export class DocumentsPageComponent {
   }
 
   /** Live status from the ingestion workers; the counters are updated optimistically. */
-  private applyStatus(documentId: string, status: IngestionStatus): void {
+  /** Applies a batch of status changes in one update of the list and the counters. */
+  private applyStatuses(changes: readonly DocumentStatusNotification[]): void {
+    if (changes.length === 0) return;
+    const statusById = new Map(changes.map(c => [c.documentId, c.status as IngestionStatus]));
+
     this.blobs.update(list =>
-      list.map(b => (documentIdOf(b.name) === documentId ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b)),
+      list.map(b => {
+        const status = statusById.get(documentIdOf(b.name));
+        return status ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b;
+      }),
     );
     this.stats.update(s => {
       if (!s) return s;
-      if (status === IngestionStatus.Processing && s.queued > 0) return { ...s, queued: s.queued - 1, processing: s.processing + 1 };
-      if (status === IngestionStatus.Completed && s.processing > 0) return { ...s, processing: s.processing - 1, completed: s.completed + 1 };
-      return s;
+      let { queued, processing, completed } = s;
+      for (const status of statusById.values()) {
+        if (status === IngestionStatus.Processing && queued > 0) {
+          queued--;
+          processing++;
+        } else if (status === IngestionStatus.Completed && processing > 0) {
+          processing--;
+          completed++;
+        }
+      }
+      return { ...s, queued, processing, completed };
     });
   }
 }

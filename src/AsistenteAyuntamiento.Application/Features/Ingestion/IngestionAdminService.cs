@@ -295,11 +295,10 @@ public class IngestionAdminService : IIngestionAdminService
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        // Notify after the state is persisted, so the UI never shows a state that was rolled back.
-        foreach (var docId in docIds)
-        {
-            await _notificationService.NotifyDocumentStatusChangedAsync(docId, jobStates[docId].Status.ToString());
-        }
+        // Notify after the state is persisted, so the UI never shows a state that was rolled back; one batch for
+        // the whole request instead of one message per document.
+        await _notificationService.NotifyDocumentStatusesChangedAsync(
+            docIds.Select(docId => new DocumentStatusChange(docId, jobStates[docId].Status.ToString())).ToList());
 
         _cache.Remove(BlobListCacheKey);
         _dbContext.ChangeTracker.Clear();
