@@ -1,0 +1,10 @@
+# Build outputs and local tooling
+/go-scraper
+/bin/
+/tmp/
+/vendor/
+*.exe
+*.log
+.air.toml
+Dockerfile
+.dockerignore

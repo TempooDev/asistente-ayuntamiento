@@ -1,50 +1,146 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [ "main", "feature/*" ]
+    branches: [ "main", "feature/**", "feat/**", "fix/**" ]
   pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  backend-tests:
-    name: Backend Build & Tests
+  hygiene:
+    name: Repository hygiene
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup .NET 10.0
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '10.0.x'
+      - name: Reject tracked files over 5 MB
+        run: |
+          # Extended regex of paths allowed to exceed the limit (empty = none).
+          allow_list=''
+          too_big=''
+          while IFS= read -r -d '' f; do
+            [ -f "$f" ] || continue
+            size=$(wc -c < "$f")
+            if [ "$size" -gt 5242880 ] && { [ -z "$allow_list" ] || ! echo "$f" | grep -qE "$allow_list"; }; then
+              too_big+="$f ($size bytes)"$'\n'
+            fi
+          done < <(git ls-files -z)
+          if [ -n "$too_big" ]; then
+            echo "::error::Tracked files over 5 MB:"
+            printf '%s' "$too_big"
+            exit 1
+          fi
 
-    - name: Restore dependencies
-      run: dotnet restore AsistenteAyuntamiento.slnx
+  dotnet:
+    name: .NET build, format and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Build
-      run: dotnet build AsistenteAyuntamiento.slnx --no-restore --configuration Release
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
-    - name: Run Unit Tests
-      run: dotnet test AsistenteAyuntamiento.slnx --no-build --verbosity normal --configuration Release
+      - name: Restore
+        run: dotnet restore AsistenteAyuntamiento.slnx
 
-  frontend-build:
-    name: Angular Frontend Build
+      - name: Verify formatting
+        run: dotnet format whitespace AsistenteAyuntamiento.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build AsistenteAyuntamiento.slnx --no-restore --configuration Release
+
+      # Integration tests use Testcontainers (Docker is available on ubuntu-latest runners).
+      - name: Test
+        run: dotnet test AsistenteAyuntamiento.slnx --no-build --configuration Release --logger "trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  angular:
+    name: Angular tests and build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: src/AsistenteAyuntamiento.Angular
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: src/AsistenteAyuntamiento.Angular/package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/AsistenteAyuntamiento.Angular/package-lock.json
 
-    - name: Install dependencies
-      run: npm install --no-audit
+      - name: Install dependencies
+        run: npm ci --no-audit
 
-    - name: Build Angular App
-      run: npm run build -- --configuration production
+      - name: Unit tests
+        run: npx ng test --watch=false
+
+      - name: Production build
+        run: npm run build -- --configuration production
+
+  go:
+    name: Go vet, tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/go-scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go-scraper/go.mod
+          cache-dependency-path: src/go-scraper/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: CGO_ENABLED=0 go build -trimpath -o /dev/null .
+
+  protos:
+    name: Generated protobuf code is up to date
+    runs-on: ubuntu-latest
+    env:
+      PROTOC_VERSION: '33.2'
+      PROTOC_GEN_GO_VERSION: 'v1.36.12'
+      PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.2'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go-scraper/go.mod
+          cache: false
+
+      - name: Install protoc and Go plugins
+        run: |
+          curl -sSL -o /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -q -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          go install "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}"
+          go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Regenerate Go code
+        run: protoc -I src/Protos --go_out=src/go-scraper/internal --go-grpc_out=src/go-scraper/internal scraper.proto
+
+      - name: Fail on drift
+        run: git diff --exit-code -- src/go-scraper/internal/protos
