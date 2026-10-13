@@ -59,4 +59,41 @@ public class DocumentJobStateTests
         (state.BaselineStatus, state.HierarchicalStatus, state.Status, state.ErrorMessage)
             .Should().Be(((JobStatus?)null, (JobStatus?)null, JobStatus.Pending, (string?)null));
     }
+
+    [Fact]
+    public void Clearing_the_baseline_keeps_the_hierarchical_status_and_error()
+    {
+        var state = new DocumentJobState { DocumentId = "BOE-A-1" };
+        state.SetPipelineStatus(PipelineType.Hierarchical, JobStatus.Failed, "llm down");
+        state.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
+
+        state.ClearPipeline(PipelineType.Baseline);
+
+        (state.BaselineStatus, state.HierarchicalStatus, state.Status, state.ErrorMessage)
+            .Should().Be(((JobStatus?)null, (JobStatus?)JobStatus.Failed, JobStatus.Failed, "[Hierarchical] llm down"));
+    }
+
+    [Fact]
+    public void Clearing_a_pipeline_drops_its_own_error_and_recomputes_the_summary()
+    {
+        var state = new DocumentJobState { DocumentId = "BOE-A-1" };
+        state.SetPipelineStatus(PipelineType.Hierarchical, JobStatus.Completed);
+        state.SetPipelineStatus(PipelineType.Baseline, JobStatus.VectorSyncFailed, "qdrant down");
+
+        state.ClearPipeline(PipelineType.Baseline);
+
+        (state.BaselineStatus, state.Status, state.ErrorMessage)
+            .Should().Be(((JobStatus?)null, JobStatus.Completed, (string?)null));
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Pending)]
+    [InlineData(JobStatus.Queued)]
+    [InlineData(JobStatus.Processing)]
+    [InlineData(JobStatus.Completed)]
+    [InlineData(JobStatus.Failed)]
+    [InlineData(JobStatus.VectorSyncFailed)]
+    public void Without_a_baseline_the_summary_is_the_hierarchical_status(JobStatus hierarchical) =>
+        // The baseline reset relies on this to recompute the summary in SQL.
+        DocumentJobState.Summarize(null, hierarchical).Should().Be(hierarchical);
 }

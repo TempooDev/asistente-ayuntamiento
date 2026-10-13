@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using Microsoft.Extensions.Configuration;
@@ -170,7 +171,7 @@ public class ClearLanguageGenerationService(
         foreach (var ctx in uniqueParents)
         {
             contextBuilder.AppendLine("--- INICIO DE DOCUMENTO LEGAL ---");
-            contextBuilder.AppendLine($"ID Documento Padre: {ctx.ParentId}");
+            contextBuilder.AppendLine(DocumentLabel(ctx));
             contextBuilder.AppendLine(ctx.ParentFullText);
             contextBuilder.AppendLine("--- FIN DE DOCUMENTO LEGAL ---\n");
         }
@@ -180,5 +181,25 @@ public class ClearLanguageGenerationService(
         chatHistory.AddUserMessage(userQuery);
 
         return chatHistory;
+    }
+
+    /// <summary>
+    /// Header of a parent document in the prompt: title, bulletin, identifier, issuing body, date and public URL (the
+    /// same link as the baseline pipeline), so the model can cite the norm in "Fuentes consultadas".
+    /// </summary>
+    internal static string DocumentLabel(RetrievalResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result.ParentDocumentId) || result.Bulletin is not { } bulletin)
+        {
+            // Without the parent's data, the database id is the only reference available.
+            return $"[Documento: {(string.IsNullOrWhiteSpace(result.ParentTitle) ? $"ID {result.ParentId}" : result.ParentTitle)}]";
+        }
+
+        var title = string.IsNullOrWhiteSpace(result.ParentTitle) ? result.ParentDocumentId : result.ParentTitle;
+        var label = new StringBuilder($"[Documento: {title} | Boletín: {bulletin} | Referencia: {result.ParentDocumentId}");
+        if (!string.IsNullOrWhiteSpace(result.IssuingBody)) label.Append($" | Organismo: {result.IssuingBody}");
+        if (result.PublicationDate is { } date) label.Append($" | Fecha: {date:yyyy-MM-dd}");
+        label.Append($" | URL: {BaselineRagPipeline.GetPublicUrl(bulletin.ToString(), result.ParentDocumentId)}]");
+        return label.ToString();
     }
 }

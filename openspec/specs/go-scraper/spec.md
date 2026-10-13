@@ -57,7 +57,7 @@ For each kept document the scraper SHALL write the original to `raw-{ext}/{SOURC
 #### Scenario: Backup of the original fails
 - **WHEN** only the original cannot be stored
 - **THEN** the document SHALL still be stored and queued, and a warning logged
-- **AND** for BOE the hierarchical ingestion of that document SHALL fail, because it reads the articles from `raw-xml/BOE/{id}.xml`
+- **AND** for BOE the hierarchical ingestion SHALL still ingest the document, splitting the JSON text as a single article instead of the XML articles
 
 ### Requirement: Durable Ingestion Messages
 The scraper SHALL publish `{ "source", "document_id", "blob_path" }` as a persistent message with publisher confirms to both `documents_to_process_baseline` and `documents_to_process_hierarchical`, declaring the queues exactly as the .NET topology (retry and dead-letter queues). Without `ConnectionStrings__messaging`, documents are stored but not queued.

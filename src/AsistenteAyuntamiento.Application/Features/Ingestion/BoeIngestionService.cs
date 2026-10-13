@@ -13,7 +13,8 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 /// <summary>
 /// BOE hierarchical ingestion. Metadata (title, department, publication date) comes from the scraper's
-/// JSON document (<c>blobPath</c>); the article structure comes from the raw BOE XML.
+/// JSON document (<c>blobPath</c>); the article structure comes from the raw BOE XML. The scraper stores that XML
+/// only as a best-effort backup, so without it the JSON text is split as a single article.
 /// </summary>
 public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 {
@@ -64,14 +65,12 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 
     protected override async Task<IEnumerable<RawFragment>> ExtractFragmentsAsync(string blobPath, string documentId, ParentDocument parentDoc, CancellationToken cancellationToken)
     {
-        var xmlBlobPath = $"raw-xml/BOE/{documentId}.xml";
-        await using var stream = await _blobStorage.OpenReadAsync(xmlBlobPath, cancellationToken);
-        var xDoc = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        var xDoc = await LoadRawXmlAsync(documentId, cancellationToken);
 
-        var articulos = xDoc.Descendants("articulo").ToList();
+        var articulos = xDoc?.Descendants("articulo").ToList() ?? [];
         if (!articulos.Any())
         {
-            articulos.Add(new XElement("articulo", new XAttribute("id", "1"), xDoc.Root?.Element("texto")?.Value ?? parentDoc.FullText));
+            articulos.Add(new XElement("articulo", new XAttribute("id", "1"), xDoc?.Root?.Element("texto")?.Value ?? parentDoc.FullText));
         }
 
         var result = new List<RawFragment>();
@@ -88,19 +87,32 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
 
             for (int i = 0; i < paragraphs.Count; i++)
             {
-                var paragraph = paragraphs[i];
-                var currentSection = paragraphs.Count > 1 ? $"{normSection} (parte {i + 1})" : normSection;
-
                 result.Add(new RawFragment
                 {
-                    Section = currentSection,
-                    ElementType = "General",
-                    OriginalText = paragraph
+                    Section = normSection,
+                    SubSection = paragraphs.Count > 1 ? $"parte {i + 1}" : null,
+                    OriginalText = paragraphs[i]
                 });
             }
         }
 
         return result;
+    }
+
+    /// <summary>The raw BOE XML, or <c>null</c> when the scraper could not store it (its backup is optional).</summary>
+    private async Task<XDocument?> LoadRawXmlAsync(string documentId, CancellationToken cancellationToken)
+    {
+        var xmlBlobPath = $"raw-xml/BOE/{documentId}.xml";
+        try
+        {
+            await using var stream = await _blobStorage.OpenReadAsync(xmlBlobPath, cancellationToken);
+            return await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        }
+        catch (BlobNotFoundException)
+        {
+            _logger.LogWarning("BOE document {DocumentId} has no raw XML ({XmlBlobPath}); using the text of the JSON document", documentId, xmlBlobPath);
+            return null;
+        }
     }
 
     private async Task<ScrapedDocument?> LoadScrapedDocumentAsync(string blobPath, CancellationToken cancellationToken)

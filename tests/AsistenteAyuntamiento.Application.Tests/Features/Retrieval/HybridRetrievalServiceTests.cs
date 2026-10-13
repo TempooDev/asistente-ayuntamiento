@@ -2,6 +2,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Search;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
@@ -54,7 +55,15 @@ public class HybridRetrievalServiceTests
     {
         Id = id,
         ChunkText = $"fragmento {id}",
-        Parent = new ParentDocument { Id = id * 100, FullText = $"artículo {id}" }
+        Parent = new ParentDocument
+        {
+            Id = id * 100,
+            DocumentId = $"BOE-A-2026-{id}",
+            NormTitle = $"Orden {id}",
+            Bulletin = BulletinType.BOE,
+            IssuingBody = "Ministerio",
+            FullText = $"artículo {id}"
+        }
     };
 
     private static VectorSearchHit Hit(long id) => new(id, 0.9f, new Dictionary<string, object?>());
@@ -72,6 +81,9 @@ public class HybridRetrievalServiceTests
 
         results.Select(r => r.FragmentId).Should().Equal(2, 1, 3);
         results[0].ParentFullText.Should().Be("artículo 2");
+        // The parent's citation data travels with the result, for "Fuentes consultadas".
+        (results[0].ParentDocumentId, results[0].ParentTitle, results[0].Bulletin, results[0].IssuingBody)
+            .Should().Be(("BOE-A-2026-2", "Orden 2", (BulletinType?)BulletinType.BOE, "Ministerio"));
     }
 
     [Fact]
