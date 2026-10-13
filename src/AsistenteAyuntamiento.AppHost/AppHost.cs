@@ -10,14 +10,42 @@ var auth0ClientId = builder.AddParameter("auth0-client-id", secret: false);
 var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true);
 
 // ── AI configuration ─────────────────────────────────────────────────────────
-// Stored in user-secrets on AppHost for local dev
-var aiChatProvider = builder.AddParameter("ai-chat-provider", secret: false);
-var aiChatModel = builder.AddParameter("ai-chat-model", secret: false);
-var aiChatApiKey = builder.AddParameter("ai-chat-api-key", secret: true);
+// Local runs use the Ollama container (llama3.2 + nomic-embed-text) so development spends no provider tokens.
+// To use the cloud provider from the ai-* parameters (user-secrets) locally:
+// dotnet user-secrets set "Ai:UseCloud" "true" --project src/AsistenteAyuntamiento.AppHost
+// Publishing always uses the parameters.
+var useCloudAi = !builder.ExecutionContext.IsRunMode || string.Equals(builder.Configuration["Ai:UseCloud"], "true", StringComparison.OrdinalIgnoreCase);
 
-var aiEmbeddingsProvider = builder.AddParameter("ai-embeddings-provider", secret: false);
-var aiEmbeddingsModel = builder.AddParameter("ai-embeddings-model", secret: false);
-var aiEmbeddingsApiKey = builder.AddParameter("ai-embeddings-api-key", secret: true);
+void WithAi(IResourceBuilder<IResourceWithEnvironment> resource)
+{
+    if (!useCloudAi)
+    {
+        resource.WithEnvironment("Ai__Chat__Provider", "ollama")
+                .WithEnvironment("Ai__Chat__Model", "llama3.2")
+                .WithEnvironment("Ai__Embeddings__Provider", "ollama")
+                .WithEnvironment("Ai__Embeddings__Model", "nomic-embed-text");
+        return;
+    }
+
+    resource.WithEnvironment("Ai__Chat__Provider", AiParameter("ai-chat-provider", secret: false))
+            .WithEnvironment("Ai__Chat__Model", AiParameter("ai-chat-model", secret: false))
+            .WithEnvironment("Ai__Chat__ApiKey", AiParameter("ai-chat-api-key", secret: true))
+            .WithEnvironment("Ai__Embeddings__Provider", AiParameter("ai-embeddings-provider", secret: false))
+            .WithEnvironment("Ai__Embeddings__Model", AiParameter("ai-embeddings-model", secret: false))
+            .WithEnvironment("Ai__Embeddings__ApiKey", AiParameter("ai-embeddings-api-key", secret: true));
+}
+
+// Declared only when used, so a local Ollama run does not ask for them.
+var aiParameters = new Dictionary<string, IResourceBuilder<ParameterResource>>();
+IResourceBuilder<ParameterResource> AiParameter(string name, bool secret)
+{
+    if (!aiParameters.TryGetValue(name, out var parameter))
+    {
+        parameter = builder.AddParameter(name, secret: secret);
+        aiParameters[name] = parameter;
+    }
+    return parameter;
+}
 
 // ── Cloudflare R2 secrets (Optional) ────────────────────────────────────────
 // To use R2, set these in user-secrets or appsettings.json instead of parameters.
@@ -90,6 +118,13 @@ var ollama = builder.AddOllama("ollama")
     // Ollama's default 4,096-token window drops a system prompt that does not fit (documents included) without
     // an error; the hierarchical answer sends up to ~6,500 tokens of legal text (Ai:Hierarchical:MaxContextChars).
     .WithEnvironment("OLLAMA_CONTEXT_LENGTH", "16384");
+// On CPU, local ingestion calls time out. With an NVIDIA GPU visible to the container runtime (Docker, or Podman
+// with the NVIDIA Container Toolkit and its CDI spec):
+// dotnet user-secrets set "Ollama:Gpu" "true" --project src/AsistenteAyuntamiento.AppHost
+if (string.Equals(builder.Configuration["Ollama:Gpu"], "true", StringComparison.OrdinalIgnoreCase))
+{
+    ollama.WithGPUSupport();
+}
 ollama.AddModel("llama3.2");
 ollama.AddModel("nomic-embed-text");
 
@@ -105,14 +140,9 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithEnvironment("Auth0__Domain", auth0Domain)
     .WithEnvironment("Auth0__ClientId", auth0ClientId)
     .WithEnvironment("Auth0__ClientSecret", auth0ClientSecret)
-    .WithEnvironment("Auth0__Audience", auth0Audience)
-    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
-    .WithEnvironment("Ai__Chat__Model", aiChatModel)
-    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
-    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
-    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
-    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+    .WithEnvironment("Auth0__Audience", auth0Audience);
 
+WithAi(apiService);
 WithBlobStorage(apiService);
 if (string.IsNullOrEmpty(blobEndpoint))
 {
@@ -140,9 +170,9 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
     .WaitFor(webfrontend)
     .WithReference(webfrontend);
 
+// No mod tidy / mod vendor on start: they rewrite go.mod, go.sum and vendor/ while go vet and go run read them
+// (go vet failed on missing vendor files). Dependencies come from the module cache (mod download).
 var goScraper = builder.AddGoApp("go-scraper", "../go-scraper", "./cmd/scraper")
-    .WithModTidy()
-    .WithModVendor()
     .WithModDownload()
     .WithVetTool()
     .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
@@ -171,14 +201,9 @@ var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("
     .WaitFor(rabbitmq)
     .WaitFor(ollama)
     .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE")
-    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
-    .WithEnvironment("Ai__Chat__Model", aiChatModel)
-    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
-    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
-    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
-    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+    .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE");
 
+WithAi(workerBaseline);
 WithBlobStorage(workerBaseline);
 
 var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-hierarchical")
@@ -193,14 +218,9 @@ var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worke
     .WaitFor(rabbitmq)
     .WaitFor(ollama)
     .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL")
-    .WithEnvironment("Ai__Chat__Provider", aiChatProvider)
-    .WithEnvironment("Ai__Chat__Model", aiChatModel)
-    .WithEnvironment("Ai__Chat__ApiKey", aiChatApiKey)
-    .WithEnvironment("Ai__Embeddings__Provider", aiEmbeddingsProvider)
-    .WithEnvironment("Ai__Embeddings__Model", aiEmbeddingsModel)
-    .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
+    .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL");
 
+WithAi(workerHierarchical);
 WithBlobStorage(workerHierarchical);
 
 builder.Build().Run();
