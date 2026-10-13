@@ -231,15 +231,16 @@ layer(base);
   }
 
   [data-theme='dark'] {
-    --primary: #63b3ed;
-    /* White on #2b6cb0 is 5.6:1; on --primary (#63b3ed) it was 2.3:1. */
+    /* The legacy variables read the theme tokens below, so dark mode has one primary, one card colour, etc. */
+    --primary: var(--color-primary);
+    /* White on #2b6cb0 is 5.6:1; on the light dark-mode primary it would be under 2:1. */
     --primary-strong: #2b6cb0;
     --placeholder: #a0aec0;
-    --secondary-bg: #1a202c;
-    --text-primary: #e2e8f0;
+    --secondary-bg: var(--color-surface);
+    --text-primary: var(--color-on-surface);
     --accent: #48bb78;
-    --surface: #2d3748;
-    --border: #4a5568;
+    --surface: var(--color-surface-container-lowest);
+    --border: var(--color-outline-variant);
 
     /* Form controls (Field, FieldText, scrollbars) follow the theme. */
     color-scheme: dark;
@@ -500,11 +501,12 @@ layer(base);
     box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.2);
   }
 
+  /* Theme tokens (the same #f3f4f6, #9ca3af and #e5e7eb in light mode), so the box stays dark while an answer streams. */
   .gov-input:disabled {
-    background-color: #f3f4f6;
-    color: #9ca3af;
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-400);
     cursor: not-allowed;
-    border-color: #e5e7eb;
+    border-color: var(--color-gray-200);
   }
 
   /* Buttons */
@@ -537,13 +539,19 @@ layer(base);
     background-color: #112440;
   }
 
-  /* Dark mode: the same light primary with dark text as the rest of the app's primary buttons (bg-primary). */
-  [data-theme='dark'] .gov-btn-primary {
+  /*
+    Dark mode: every primary button (.gov-btn-primary, .btn-primary, bg-primary) is the light primary with dark text.
+    Only enabled ones, so a disabled button keeps the grey .gov-btn:disabled background as in light mode.
+  */
+  [data-theme='dark'] .gov-btn-primary:not(:disabled),
+  [data-theme='dark'] .btn-primary:not(:disabled) {
     background-color: var(--color-primary);
+    border-color: var(--color-primary);
     color: var(--color-on-primary);
   }
 
-  [data-theme='dark'] .gov-btn-primary:hover:not(:disabled) {
+  [data-theme='dark'] .gov-btn-primary:hover:not(:disabled),
+  [data-theme='dark'] .btn-primary:hover:not(:disabled) {
     background-color: var(--color-on-primary-fixed-variant);
   }
 
