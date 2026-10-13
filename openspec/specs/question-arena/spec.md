@@ -16,6 +16,11 @@ For each Arena question the system SHALL run both pipelines concurrently, each i
 - **WHEN** an organization administrator submits a query on the `/arena` page (`POST /api/arena/compare`, policy `OrganizationAdmin`)
 - **THEN** the API SHALL run both pipelines with `Task.WhenAll` and return the battle id (`SessionId`), both answers, both latencies and the fragments each side used (`SourcesAlfa`, `SourcesBeta`)
 
+#### Scenario: Arena page comparison with a failed side
+- **WHEN** either side of an Arena page comparison fails (its model, search or generation)
+- **THEN** no battle SHALL be saved, the API SHALL answer `502 Bad Gateway` with a problem whose title is the typed code (`LLM_*`) and whose detail is the user message, without provider details
+- **AND** the page SHALL show "No se ha podido generar una de las respuestas." with that message and offer nothing to vote on
+
 #### Scenario: One side is slower
 - **WHEN** Alfa finishes in 2 s and Beta in 8 s
 - **THEN** the stored latencies SHALL be about 2 s and 8 s, and Alfa's chunks SHALL reach the client without waiting for Beta

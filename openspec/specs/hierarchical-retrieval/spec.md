@@ -141,6 +141,11 @@ The system SHALL resolve the retrieved fragments to their parent documents and g
 - **WHEN** the retrieval returns no fragments
 - **THEN** the service SHALL answer the fixed message "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta." without calling the model
 
+#### Scenario: Model failure
+- **WHEN** the plain-language model fails, whether the stream cannot start or fails after some text
+- **THEN** the call SHALL be recorded as failed with its typed code and the stream SHALL throw `LlmStreamInterruptedException` with that code (never a generic answer text), so the chat shows the typed error, the hub keeps the partial text with the notice, and the Arena marks the side as failed
+- **AND** the non-streaming generation (Arena page) SHALL rethrow the failure instead of returning an error text
+
 #### Scenario: Recording a user's answer
 - **WHEN** the hierarchical pipeline streams an answer for a user (chat, Arena side or shadow test)
 - **THEN** the call SHALL be recorded through `IAiCallRecorder` in the tenant's `AiCallLogs` (platform chat model, tenant, user, pipeline, success, duration and tokens) and in the `gen_ai.*` metrics, like the baseline's answers

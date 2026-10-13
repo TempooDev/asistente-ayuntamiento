@@ -27,7 +27,7 @@
 - [x] 2.17 When a chat stream fails midway, the partial answer is not saved, so a reload shows the question with no answer.
 - [x] 2.18 The Arena vote reads, checks and writes without a concurrency token: two simultaneous votes could both pass (the client blocks double clicks). Needs a row version (migration).
 - [x] 2.19 Fragments now inherit `ParentDocument.Municipality`, but neither the scraper JSON nor the baseline fills a municipality, so it is always null and the municipality filter never matches a real value.
-- [ ] 2.20 The hierarchical pipeline (`ClearLanguageGenerationService`) returns a generic "Lo siento, ha ocurrido un error interno…" text when its stream cannot start, so in the Arena that side still counts as an answer and can be voted on.
+- [x] 2.20 The hierarchical pipeline (`ClearLanguageGenerationService`) returns a generic "Lo siento, ha ocurrido un error interno…" text when its stream cannot start, so in the Arena that side still counts as an answer and can be voted on. The Arena page comparison had the same gap on both sides: a failed side is now a 502 and no battle is saved.
 
 ## 3. Robustness and hygiene
 

@@ -75,14 +75,54 @@ public class ClearLanguageGenerationServiceTests
     }
 
     [Fact]
-    public async Task A_failed_stream_is_recorded_as_a_failure()
+    public async Task A_stream_that_cannot_start_is_recorded_and_thrown_with_its_code()
     {
         _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
             .Throws(new InvalidOperationException("provider down"));
 
-        await StreamAsync(new LlmCallScope("org_A", LlmPipelines.Hierarchical) { UserId = "auth0|ana" });
+        // Typed like the baseline, never a generic text the Arena would treat as an answer.
+        var act = () => StreamAsync(new LlmCallScope("org_A", LlmPipelines.Hierarchical) { UserId = "auth0|ana" });
 
-        _recorded.Should().ContainSingle().Which.Should().Match<AiCallOutcome>(o => !o.Success && o.ErrorDetail == "provider down");
+        (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        _recorded.Should().ContainSingle().Which.Should().Match<AiCallOutcome>(o =>
+            !o.Success && o.ErrorCode == LlmErrorCodes.Unavailable && o.ErrorDetail == "provider down");
+    }
+
+    [Fact]
+    public async Task A_stream_failing_midway_is_thrown_with_its_code_after_the_text()
+    {
+        _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Returns(FailAfter("Tienes "));
+        var received = new System.Text.StringBuilder();
+
+        var act = async () =>
+        {
+            await foreach (var chunk in _sut.GenerateStreamingResponseAsync("¿Qué plazo hay?", Context, new LlmCallScope("org_A", LlmPipelines.Hierarchical)))
+            {
+                received.Append(chunk.Content);
+            }
+        };
+
+        await act.Should().ThrowAsync<LlmStreamInterruptedException>();
+        received.ToString().Should().Be("Tienes ");
+    }
+
+    [Fact]
+    public async Task A_failed_non_streaming_answer_is_thrown_instead_of_returned_as_text()
+    {
+        _chat.Setup(s => s.GetChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("provider down"));
+
+        var act = () => _sut.GenerateResponseAsync("¿Qué plazo hay?", Context, new LlmCallScope("org_A", LlmPipelines.Hierarchical));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    private static async IAsyncEnumerable<StreamingChatMessageContent> FailAfter(string text)
+    {
+        yield return new StreamingChatMessageContent(AuthorRole.Assistant, text);
+        await Task.Yield();
+        throw new InvalidOperationException("connection reset");
     }
 
     [Fact]
