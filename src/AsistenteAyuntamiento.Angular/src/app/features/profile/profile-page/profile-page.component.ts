@@ -1,90 +1,80 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
-import { AuthService } from '@auth0/auth0-angular';
-import { CommonModule } from '@angular/common';
-import { UserService } from '../data-access/user.service';
-import { UserProfileDto } from '../models/profile.models';
-import { UserPreferencesService } from '../data-access/user-preferences.service';
-import { UserPreferenceDto } from '../models/profile.models';
-import { finalize, switchMap, catchError } from 'rxjs/operators';
-import { forkJoin, of } from 'rxjs';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, finalize, forkJoin, of, switchMap } from 'rxjs';
 import { AuthFacade } from '../../../core/auth/auth-facade.service';
 import { ToastService } from '../../../shared/ui/toast.service';
+import { UserPreferencesService } from '../data-access/user-preferences.service';
+import { UserService } from '../data-access/user.service';
 
 @Component({
   selector: 'app-profile-page',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [ReactiveFormsModule, FormsModule],
   templateUrl: './profile-page.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfilePageComponent implements OnInit {
-  public auth = inject(AuthService);
-  private fb = inject(FormBuilder);
-  private userService = inject(UserService);
-  private prefsService = inject(UserPreferencesService);
-  private authFacade = inject(AuthFacade);
-  private toast = inject(ToastService);
+  protected readonly auth = inject(AuthFacade);
+  private readonly userService = inject(UserService);
+  private readonly prefsService = inject(UserPreferencesService);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  profileForm: FormGroup;
-  isEditing = signal(false);
-  isSaving = signal(false);
-  isLoading = signal(true);
-  saveSuccess = signal(false);
-  saveError = signal(false);
+  readonly profileForm = inject(NonNullableFormBuilder).group({
+    fullName: ['', Validators.required],
+    department: [''],
+    position: [''],
+    phoneNumber: [''],
+  });
+  readonly isEditing = signal(false);
+  readonly isSaving = signal(false);
+  readonly isLoading = signal(true);
+  readonly saveSuccess = signal(false);
+  readonly saveError = signal(false);
 
   // Preferences
-  topics = signal<string[]>([]);
-  locations = signal<string[]>([]);
-  newTopic = signal('');
-  newLocation = signal('');
-  isAnalyzing = signal(false);
-
-  constructor() {
-    this.profileForm = this.fb.group({
-      fullName: ['', Validators.required],
-      department: [''],
-      position: [''],
-      phoneNumber: ['']
-    });
-  }
+  readonly topics = signal<string[]>([]);
+  readonly locations = signal<string[]>([]);
+  readonly newTopic = signal('');
+  readonly newLocation = signal('');
+  readonly isAnalyzing = signal(false);
 
   ngOnInit() {
     this.loadProfile();
   }
 
+  /** Loads the profile and preferences once (not on every token refresh of the user stream). */
   loadProfile() {
     this.isLoading.set(true);
-    
-    this.auth.user$.pipe(
-      switchMap(authUser => {
-        if (!authUser) return of(null);
-        
-        this.profileForm.patchValue({ fullName: authUser.name || '' });
-        
-        return forkJoin({
-          authUser: of(authUser),
-          profile: this.userService.getProfile().pipe(catchError(() => of(null))),
-          prefs: this.prefsService.getPreferences().pipe(catchError(() => of(null)))
-        });
-      }),
-      finalize(() => this.isLoading.set(false))
-    ).subscribe({
-      next: (res) => {
-        if (res && res.profile) {
+    const user = this.auth.user();
+    if (!user) {
+      this.isLoading.set(false);
+      return;
+    }
+    this.profileForm.patchValue({ fullName: user.name ?? '' });
+
+    forkJoin({
+      profile: this.userService.getProfile().pipe(catchError(() => of(null))),
+      prefs: this.prefsService.getPreferences().pipe(catchError(() => of(null))),
+    })
+      .pipe(
+        finalize(() => this.isLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(({ profile, prefs }) => {
+        if (profile) {
           this.profileForm.patchValue({
-            fullName: res.profile.fullName || res.authUser.name || '',
-            department: res.profile.department || '',
-            position: res.profile.position || '',
-            phoneNumber: res.profile.phoneNumber || ''
+            fullName: profile.fullName || user.name || '',
+            department: profile.department || '',
+            position: profile.position || '',
+            phoneNumber: profile.phoneNumber || '',
           });
         }
-        if (res && res.prefs) {
-          this.topics.set(res.prefs.topics || []);
-          this.locations.set(res.prefs.locations || []);
+        if (prefs) {
+          this.topics.set(prefs.topics ?? []);
+          this.locations.set(prefs.locations ?? []);
         }
-      },
-      error: (err) => console.error('Error loading profile data', err)
-    });
+      });
   }
 
   addTopic() {
@@ -111,7 +101,7 @@ export class ProfilePageComponent implements OnInit {
 
   analyzeHistory() {
     this.isAnalyzing.set(true);
-    this.prefsService.analyzeHistory().subscribe({
+    this.prefsService.analyzeHistory().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toast.info('Se ha iniciado el análisis. Recarga la página en unos segundos.');
         this.isAnalyzing.set(false);
@@ -137,14 +127,13 @@ export class ProfilePageComponent implements OnInit {
     this.saveSuccess.set(false);
     this.saveError.set(false);
     
-    const profileData: UserProfileDto = this.profileForm.value;
-    
-    this.userService.updateProfile(profileData).pipe(
+    this.userService.updateProfile(this.profileForm.getRawValue()).pipe(
       switchMap(updatedProfile => {
         this.profileForm.patchValue(updatedProfile);
         return this.prefsService.updatePreferences({ topics: this.topics(), locations: this.locations() });
       }),
-      finalize(() => this.isSaving.set(false))
+      finalize(() => this.isSaving.set(false)),
+      takeUntilDestroyed(this.destroyRef),
     ).subscribe({
       next: () => {
         this.isEditing.set(false);
@@ -160,7 +149,7 @@ export class ProfilePageComponent implements OnInit {
 
   changePassword(email: string | undefined) {
     if (!email) return;
-    this.authFacade.requestPasswordReset(email).subscribe({
+    this.auth.requestPasswordReset(email).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.toast.success('Se ha enviado un correo para restablecer tu contraseña. Revisa tu bandeja de entrada.'),
       error: () => this.toast.error('No se ha podido restablecer la contraseña. Si inicias sesión con Google u otra red social, cámbiala en ese proveedor.'),
     });

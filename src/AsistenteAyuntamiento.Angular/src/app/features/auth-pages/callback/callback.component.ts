@@ -1,10 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
+/** Auth0 redirect target; the SDK completes the login and navigates on. */
 @Component({
   selector: 'app-callback',
-  standalone: true,
-  templateUrl: './callback.component.html'
+  templateUrl: './callback.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CallbackComponent implements OnInit {
-  ngOnInit() {}
-}
+export class CallbackComponent {}

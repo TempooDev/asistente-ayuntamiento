@@ -12,7 +12,7 @@
     }
   </div>
 
-  @if (auth.user$ | async; as user) {
+  @if (auth.user(); as user) {
     
     <!-- Alerta de éxito -->
     @if (saveSuccess()) {

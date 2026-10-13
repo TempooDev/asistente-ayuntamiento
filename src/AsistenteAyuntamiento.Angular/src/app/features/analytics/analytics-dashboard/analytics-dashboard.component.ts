@@ -1,68 +1,59 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe, PercentPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AnalyticsService } from '../data-access/analytics.service';
-import { AiMetricsSummary, ArenaAnalyticsRequest } from '../models/analytics.models';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { switchMap } from 'rxjs/operators';
+import { catchError, of, switchMap } from 'rxjs';
+import { ToastService } from '../../../shared/ui/toast.service';
+import { AnalyticsService } from '../data-access/analytics.service';
+import { ArenaAnalyticsRequest, ArenaAnalyticsResponse } from '../models/analytics.models';
 
+/** Admin metrics: Arena results per pipeline (filterable by date) and AI usage. */
 @Component({
   selector: 'app-analytics-dashboard',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './analytics-dashboard.component.html'
+  imports: [FormsModule, DecimalPipe, PercentPipe],
+  templateUrl: './analytics-dashboard.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AnalyticsDashboardComponent implements OnInit {
-  private analyticsService = inject(AnalyticsService);
-  
-  // Date filters
-  startDate = signal<string>('');
-  endDate = signal<string>('');
-  
-  // Segmentation filter
-  selectedPipeline = signal<string>('ALL');
+export class AnalyticsDashboardComponent {
+  private readonly api = inject(AnalyticsService);
+  private readonly toast = inject(ToastService);
 
-  // AI Metrics
-  aiMetrics = signal<AiMetricsSummary | null>(null);
+  readonly startDate = signal('');
+  readonly endDate = signal('');
+  readonly selectedPipeline = signal('ALL');
 
-  ngOnInit() {
-    this.analyticsService.getAiMetricsSummary().subscribe(data => {
-      this.aiMetrics.set(data);
-    });
-  }
-
-  // Trigger for refetching
-  private filterTrigger = computed(() => {
-    return {
-      startDate: this.startDate(),
-      endDate: this.endDate()
-    } as ArenaAnalyticsRequest;
-  });
-
-  // Reactive data fetching
-  analytics = toSignal(
-    toObservable(this.filterTrigger).pipe(
-      switchMap(filters => this.analyticsService.getArenaAnalytics(filters))
-    )
+  /** A failed request shows a toast and leaves the section empty instead of breaking the page. */
+  readonly aiMetrics = toSignal(
+    this.api.getAiMetricsSummary().pipe(
+      catchError(() => {
+        this.toast.error('No se han podido cargar las métricas de IA.');
+        return of(null);
+      }),
+    ),
+    { initialValue: null },
   );
 
-  // Filtered metrics for the table
-  filteredMetrics = computed(() => {
-    const data = this.analytics();
-    if (!data) return [];
-    
-    if (this.selectedPipeline() === 'ALL') {
-      return data.metrics;
-    }
-    
-    return data.metrics.filter((m: any) => m.pipeline === this.selectedPipeline());
+  private readonly filters = computed<ArenaAnalyticsRequest>(() => ({ startDate: this.startDate(), endDate: this.endDate() }));
+
+  readonly analytics = toSignal(
+    toObservable(this.filters).pipe(
+      switchMap(filters =>
+        this.api.getArenaAnalytics(filters).pipe(
+          catchError(() => {
+            this.toast.error('No se han podido cargar las métricas de Arena.');
+            return of<ArenaAnalyticsResponse | null>(null);
+          }),
+        ),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  readonly filteredMetrics = computed(() => {
+    const metrics = this.analytics()?.metrics ?? [];
+    const pipeline = this.selectedPipeline();
+    return pipeline === 'ALL' ? metrics : metrics.filter(m => m.pipeline === pipeline);
   });
 
-  // Available pipelines for the dropdown
-  availablePipelines = computed(() => {
-    const data = this.analytics();
-    if (!data) return [];
-    return data.metrics.map((m: any) => m.pipeline);
-  });
+  readonly availablePipelines = computed(() => (this.analytics()?.metrics ?? []).map(m => m.pipeline));
 }
-
