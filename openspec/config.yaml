@@ -10,7 +10,7 @@ context: |
   - Frontend: Angular SPA (signals, OnPush, lazy routes; core/ shared/ features/), served by the YARP Gateway
   - API: ASP.NET Core (AsistenteAyuntamiento.ApiService) — minimal APIs, SignalR hubs (/hubs/chat, /hubs/notifications), gRPC
   - Ingestion workers: .NET Worker in BASELINE or HIERARCHICAL mode (Semantic Kernel)
-  - Scraper: Go service (src/go-scraper, cmd/scraper) for BOE and BOJA; BOPMA is NOT active (Cloudflare Turnstile)
+  - Scraper: Go service (src/go-scraper, cmd/scraper) for BOE and BOJA (the only bulletins in scope)
 
   ### Data & Storage
   - PostgreSQL (EF Core): users, chat, tenant AI configuration, job states, document chunks, parent/child fragments

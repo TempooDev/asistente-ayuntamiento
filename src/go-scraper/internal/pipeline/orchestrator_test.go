@@ -147,7 +147,7 @@ func TestRequestsAreValidated(t *testing.T) {
 		"end before":       {Start: date("2026-10-05"), End: date("2026-10-01")},
 		"future":           {Start: date("2026-10-14")},
 		"range too long":   {Start: date("2026-09-01"), End: date("2026-09-30")},
-		"unknown provider": {Providers: []string{"BOPMA"}, Start: date("2026-10-01")},
+		"unknown provider": {Providers: []string{"DOUE"}, Start: date("2026-10-01")},
 	}
 	for name, req := range cases {
 		var invalid *ValidationError

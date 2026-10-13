@@ -5,7 +5,7 @@ public class ScraperFilterRule
     public int Id { get; set; }
 
     /// <summary>
-    /// The provider this rule applies to, e.g., "BOE", "BOJA", "BOPMA".
+    /// The provider this rule applies to, "BOE" or "BOJA".
     /// </summary>
     public string Provider { get; set; } = string.Empty;
 

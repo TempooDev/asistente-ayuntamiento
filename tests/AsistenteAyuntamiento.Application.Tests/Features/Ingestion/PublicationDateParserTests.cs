@@ -8,7 +8,7 @@ public class PublicationDateParserTests
 {
     [Theory]
     [InlineData("20260915")]            // BOE XML fecha_publicacion
-    [InlineData("2026-09-15")]          // BOJA / BOPMA
+    [InlineData("2026-09-15")]          // BOJA
     [InlineData("2026-09-15T00:00:00Z")]
     public void Parses_the_formats_written_by_the_scraper(string value)
     {

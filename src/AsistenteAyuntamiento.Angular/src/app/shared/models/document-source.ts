@@ -2,6 +2,5 @@
 export enum DocumentSource {
   BOE = 'BOE',
   BOJA = 'BOJA',
-  BOPMA = 'BOPMA',
   Unknown = 'Unknown'
 }

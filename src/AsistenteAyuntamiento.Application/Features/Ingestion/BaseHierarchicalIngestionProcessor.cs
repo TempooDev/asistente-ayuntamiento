@@ -49,12 +49,6 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
     /// </summary>
     public async Task ProcessDocumentAsync(string blobPath, string documentId, CancellationToken cancellationToken)
     {
-        if (Bulletin == BulletinType.BOPMA)
-        {
-            _logger.LogWarning("BOPMA document ingestion is discarded. Skipping {DocumentId}.", documentId);
-            return;
-        }
-
         var sw = Stopwatch.StartNew();
         int totalLlmCalls = 0;
         int totalLlmTokens = 0;

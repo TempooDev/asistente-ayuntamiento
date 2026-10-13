@@ -46,7 +46,7 @@ El blob `json/{SOURCE}/{document_id}.json` lo escribe el scraper:
 }
 ```
 
-- **`fecha_publicacion`:** el BOE la escribe como `yyyyMMdd`; BOJA y BOPMA, como `yyyy-MM-dd`.
+- **`fecha_publicacion`:** el BOE la escribe como `yyyyMMdd` y BOJA como `yyyy-MM-dd`.
 - **BOE:** guarda además el XML original en `raw-xml/BOE/{document_id}.xml`, que la ingesta jerárquica usa para obtener los artículos.
 
 ### Cabeceras

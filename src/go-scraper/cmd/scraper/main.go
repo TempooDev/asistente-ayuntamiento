@@ -84,7 +84,7 @@ func run() error {
 	}
 	defer filters.Close()
 
-	// BOPMA is not registered until its summary is implemented (internal/bopma).
+	// Only BOE and BOJA are in the project's scope.
 	orchestrator := pipeline.New(pipeline.Config{
 		Providers: []provider.Provider{
 			boe.NewProvider(boe.NewHTTPClient(), ""),

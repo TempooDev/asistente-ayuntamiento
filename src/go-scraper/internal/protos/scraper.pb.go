@@ -171,7 +171,7 @@ func (x *FilterRulesResponse) GetRules() []*FilterRule {
 
 type ForceScrapeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                    // "BOE", "BOJA", "BOPMA"
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                    // "BOE" or "BOJA"
 	StartDate     string                 `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // YYYY-MM-DD
 	EndDate       string                 `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`       // YYYY-MM-DD
 	Sections      []string               `protobuf:"bytes,4,rep,name=sections,proto3" json:"sections,omitempty"`

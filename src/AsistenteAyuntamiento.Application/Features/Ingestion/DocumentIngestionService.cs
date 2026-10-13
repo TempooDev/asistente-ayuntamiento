@@ -17,9 +17,10 @@ public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext db
     {
         var docIdFromPath = blobPath.Split('/').LastOrDefault()?.Replace(".json", "") ?? blobPath;
 
-        if (source.Equals("BOPMA", StringComparison.OrdinalIgnoreCase))
+        // Only the bulletins in scope (BOE, BOJA) are ingested.
+        if (!Enum.GetNames<BulletinType>().Contains(source, StringComparer.OrdinalIgnoreCase))
         {
-            logger.LogWarning("BOPMA document ingestion is discarded. Skipping {DocumentId}.", docIdFromPath);
+            logger.LogWarning("Unsupported source {Source}; document {DocumentId} is discarded", source, docIdFromPath);
             return;
         }
 

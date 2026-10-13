@@ -4,7 +4,7 @@ namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 /// <summary>
 /// Parses the official publication date written by the Go scraper in <c>metadata.fecha_publicacion</c>:
-/// <c>yyyyMMdd</c> for BOE (as in the BOE XML), <c>yyyy-MM-dd</c> for BOJA/BOPMA, or ISO 8601.
+/// <c>yyyyMMdd</c> for BOE (as in the BOE XML), <c>yyyy-MM-dd</c> for BOJA, or ISO 8601.
 /// </summary>
 public static class PublicationDateParser
 {

@@ -23,7 +23,7 @@ export class ManualScrapeComponent {
   protected readonly progress = signal('');
   protected readonly boeSections = signal<readonly string[]>(['1', '2B', '3', '5A']);
 
-  /** BOPMA is not offered: the scraper does not implement it yet. */
+  /** The bulletins in the project's scope. */
   protected readonly providers = [DocumentSource.BOE, DocumentSource.BOJA];
   protected readonly sections: readonly { value: string; label: string }[] = [
     { value: '1', label: 'Sección I (Disposiciones Generales)' },

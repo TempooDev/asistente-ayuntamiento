@@ -1,7 +1,7 @@
 # Specification: Go Scraper (BOE, BOJA)
 
 ## Purpose
-A Go service (`src/go-scraper`, binary `cmd/scraper`) downloads the documents of the official bulletins, keeps those that pass the filter rules, stores them in the shared S3-compatible bucket and queues them for the .NET ingestion workers. BOE and BOJA are implemented; BOPMA is a draft that is not registered (see "BOPMA" below).
+A Go service (`src/go-scraper`, binary `cmd/scraper`) downloads the documents of the official bulletins, keeps those that pass the filter rules, stores them in the shared S3-compatible bucket and queues them for the .NET ingestion workers. The project covers two bulletins: BOE and BOJA.
 
 Configuration and the package layout are documented in `docs/go-scraper-integration.md`; the queue contract in `docs/messaging-contract.md`.
 
@@ -16,9 +16,6 @@ Configuration and the package layout are documented in `docs/go-scraper-integrat
 - Today: the section feeds `/boja/distribucion/s51.xml`–`s55.xml` list the latest bulletin (they carry no date).
 - Past days: the numbered index pages `/boja/{year}/{number}/index.html` are binary-searched by the date in their heading (`BOJA nº 130 de 08/07/2026`).
 - Document ids derive from the URL: `/boja/2026/123/1` → `BOJA-2026-123-1`; the publication date is the bulletin's.
-
-### BOPMA — not active
-The PDF download is protected by Cloudflare Turnstile. `internal/bopma` holds a draft that is not registered in `cmd/scraper` until its summary is implemented and the download is solved (headless browser, or an official feed from the Diputación de Málaga). Manual scrapes do not offer it.
 
 ## Requirements
 
