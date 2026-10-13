@@ -45,14 +45,8 @@ var minio = builder.AddContainer("minio", "minio/minio")
 
 var minioEndpoint = minio.GetEndpoint("api");
 
-// Init container to create the (private) bucket
-var minioInit = builder.AddContainer("minio-init", "minio/mc")
-    .WithEntrypoint("sh")
-    .WithArgs("-c", $"sleep 5; mc alias set myminio $MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD; mc mb myminio/{blobBucketName} || true")
-    .WithEnvironment("MINIO_ENDPOINT", minioEndpoint)
-    .WithEnvironment("MINIO_ROOT_USER", minioUser)
-    .WithEnvironment("MINIO_ROOT_PASSWORD", minioPassword)
-    .WaitFor(minio);
+// No init container: the ApiService creates the bucket on startup (IBlobStorage.EnsureContainerAsync), and the
+// scraper, the only writer, waits for the ApiService.
 
 // Blob credentials: R2 values from configuration when set, otherwise the local MinIO ones.
 void WithBlobStorage(IResourceBuilder<IResourceWithEnvironment> resource)
@@ -117,6 +111,11 @@ var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("
     .WithEnvironment("Ai__Embeddings__ApiKey", aiEmbeddingsApiKey);
 
 WithBlobStorage(apiService);
+if (string.IsNullOrEmpty(blobEndpoint))
+{
+    // The ApiService creates the local bucket on startup, so MinIO must be up first.
+    apiService.WaitFor(minio);
+}
 apiService.WithEnvironment("Internal__GrpcApiKey", internalGrpcKey);
 
 var webfrontend = builder.AddJavaScriptApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
