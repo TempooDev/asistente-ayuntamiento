@@ -11,6 +11,7 @@ using AsistenteAyuntamiento.Application.Common.Storage;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Amazon.S3;
@@ -118,9 +119,22 @@ public static class DependencyInjection
 
         var allowInsecureTls = AllowInsecureTls(builder);
 
-        // Per-tenant chat clients (and the platform fallback) are built over this pooled client.
+        // Per-tenant chat clients, the platform fallback and the IngestionKernel are built over this pooled client.
+        // LLM calls are slow and each tenant may point at its own host, so the default resilience handler (10 s per
+        // attempt, one circuit for the whole client) is replaced by one with LLM-sized timeouts and a circuit per host.
+        // RemoveAllResilienceHandlers is the documented way to replace the ServiceDefaults handler (experimental API).
+#pragma warning disable EXTEXP0001
         builder.Services.AddHttpClient(ChatModelFactory.HttpClientName)
-            .ConfigurePrimaryHttpMessageHandler(() => CreateLlmHandler(allowInsecureTls));
+            .ConfigurePrimaryHttpMessageHandler(() => CreateLlmHandler(allowInsecureTls))
+            .RemoveAllResilienceHandlers()
+            .AddStandardResilienceHandler(options =>
+            {
+                options.AttemptTimeout.Timeout = LlmAttemptTimeout;
+                options.TotalRequestTimeout.Timeout = LlmTotalRequestTimeout;
+                options.CircuitBreaker.SamplingDuration = 2 * LlmAttemptTimeout;
+            })
+            .SelectPipelineByAuthority();
+#pragma warning restore EXTEXP0001
         builder.Services.AddSingleton<IChatModelFactory, ChatModelFactory>();
 
         var kernelBuilder = builder.Services.AddKernel();
@@ -187,17 +201,26 @@ public static class DependencyInjection
         var ingestionModel = builder.Configuration["Ai:Ingestion:Model"] ?? chatModel;
         var ingestionApiKey = builder.Configuration["Ai:Ingestion:ApiKey"] ?? chatApiKey;
 
-        builder.Services.AddHttpClient("IngestionClient");
-
+        // Transient because a Kernel is mutable (plugins, filters); building one is cheap since its HttpClient comes
+        // from the pooled "llm" handlers instead of a new handler per resolution.
         builder.Services.AddKeyedTransient<Kernel>("IngestionKernel", (sp, key) =>
         {
             var kBuilder = Kernel.CreateBuilder();
             var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
 
+            HttpClient CreateLlmClient(string? baseAddress = null)
+            {
+                var client = httpClientFactory.CreateClient(ChatModelFactory.HttpClientName);
+                if (!string.IsNullOrEmpty(baseAddress))
+                {
+                    client.BaseAddress = new Uri(baseAddress);
+                }
+                return client;
+            }
+
             if (ingestionProvider.Equals("google", StringComparison.OrdinalIgnoreCase))
             {
-                var handler = CreateLlmHandler(allowInsecureTls);
-                kBuilder.AddGoogleAIGeminiChatCompletion(ingestionModel, ingestionApiKey, httpClient: new HttpClient(handler));
+                kBuilder.AddGoogleAIGeminiChatCompletion(ingestionModel, ingestionApiKey, httpClient: CreateLlmClient());
             }
             else if (ingestionProvider.Equals("openai", StringComparison.OrdinalIgnoreCase) || ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
             {
@@ -205,18 +228,11 @@ public static class DependencyInjection
                 if (ingestionProvider.Equals("openrouter", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(endpointUrl))
                     endpointUrl = "https://openrouter.ai/api/v1";
 
-                if (!string.IsNullOrEmpty(endpointUrl))
-                {
-                    var client = httpClientFactory.CreateClient("IngestionClient");
-                    client.BaseAddress = new Uri(endpointUrl);
-                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey, httpClient: client);
-                }
-                else
-                    kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey);
+                kBuilder.AddOpenAIChatCompletion(ingestionModel, ingestionApiKey, httpClient: CreateLlmClient(endpointUrl));
             }
             else
             {
-                kBuilder.AddOllamaChatCompletion(ingestionModel, new Uri(ollamaEndpoint));
+                kBuilder.AddOllamaChatCompletion(ingestionModel, CreateLlmClient(ollamaEndpoint));
             }
 
             return kBuilder.Build();
@@ -236,6 +252,9 @@ public static class DependencyInjection
         }
         return allow;
     }
+
+    private static readonly TimeSpan LlmAttemptTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan LlmTotalRequestTimeout = TimeSpan.FromMinutes(5);
 
     private static SocketsHttpHandler CreateLlmHandler(bool allowInsecureTls)
     {

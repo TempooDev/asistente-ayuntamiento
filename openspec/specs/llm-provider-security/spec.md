@@ -46,11 +46,21 @@ The API's commands to the Go scraper (`ScraperCommandService`, `GoScraper:GrpcUr
 - **THEN** the API SHALL send the command to the scraper with the `x-internal-key` header
 
 ### Requirement: Pooled HTTP Clients for Per-tenant Models
-Per-tenant chat clients and the fallback model SHALL be built by `IChatModelFactory` (Infrastructure) over the `IHttpClientFactory` named client `llm`. Code in the Application and API layers SHALL NOT instantiate `HttpClient` or HTTP handlers. The platform `Kernel` and the keyed `IngestionKernel` are built in Infrastructure with their own HTTP clients (the OpenAI-compatible ingestion client comes from the named client `IngestionClient`).
+Per-tenant chat clients (every provider, `ollama` included) and the fallback model SHALL be built by `IChatModelFactory` (Infrastructure) over the `IHttpClientFactory` named client `llm`. The keyed `IngestionKernel` SHALL stay transient (a `Kernel` is mutable) and SHALL take its `HttpClient` from the same `llm` client for every provider, so resolving it never creates an HTTP handler. Code in the Application and API layers SHALL NOT instantiate `HttpClient` or HTTP handlers; only the platform `Kernel`, built once at startup in Infrastructure, keeps its own clients.
+
+The `llm` client SHALL replace the ServiceDefaults resilience handler with a standard one sized for LLM calls (2 minutes per attempt, 5 minutes in total) whose pipeline, and therefore circuit breaker, is selected per host, so a failing tenant endpoint does not open the circuit for other tenants or the platform.
 
 #### Scenario: Many sequential chat requests
-- **WHEN** many chat requests of a tenant using `google`, `openai` or `openrouter` are processed
+- **WHEN** many chat requests of a tenant using `google`, `openai`, `openrouter` or `ollama` are processed
 - **THEN** their HTTP connections SHALL come from the `llm` handler pool instead of one new `HttpClient` per request
+
+#### Scenario: Ingestion kernel resolution
+- **WHEN** the `IngestionKernel` is resolved for a new scope with any provider
+- **THEN** a new `Kernel` SHALL be returned and its requests SHALL go through the `llm` named client
+
+#### Scenario: Slow LLM answer
+- **WHEN** a provider takes 30 seconds to answer a non-streaming enrichment request
+- **THEN** the request SHALL NOT be cancelled by the resilience handler
 
 ### Requirement: Embedding Generator Resolution
 Retrieval SHALL resolve the embedding generator from the platform `Kernel`, configured by `Ai:Embeddings:*` (provider `ollama` by default, or `google`, `openai`, `openrouter`), never from a per-tenant chat client.

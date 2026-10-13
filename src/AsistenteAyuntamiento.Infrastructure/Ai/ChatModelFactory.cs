@@ -46,7 +46,7 @@ public sealed class ChatModelFactory(IHttpClientFactory httpClientFactory, IConf
                 break;
 
             default:
-                kernelBuilder.AddOllamaChatCompletion(modelId, new Uri(OllamaEndpoint()));
+                kernelBuilder.AddOllamaChatCompletion(modelId, CreateHttpClient(OllamaEndpoint()));
                 break;
         }
 

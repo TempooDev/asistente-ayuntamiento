@@ -17,5 +17,6 @@
     <Project Path="tests/AsistenteAyuntamiento.Domain.Tests/AsistenteAyuntamiento.Domain.Tests.csproj" />
     <Project Path="tests/AsistenteAyuntamiento.Gateway.Tests/AsistenteAyuntamiento.Gateway.Tests.csproj" />
     <Project Path="tests/AsistenteAyuntamiento.Infrastructure.Tests/AsistenteAyuntamiento.Infrastructure.Tests.csproj" />
+    <Project Path="tests/AsistenteAyuntamiento.Worker.Tests/AsistenteAyuntamiento.Worker.Tests.csproj" />
   </Folder>
 </Solution>

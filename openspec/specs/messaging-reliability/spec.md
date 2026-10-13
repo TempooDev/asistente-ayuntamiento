@@ -48,13 +48,18 @@ Consumers derived from `RabbitMqConsumerBase<TMessage>` SHALL ack a message only
 - **THEN** the message SHALL be left unacked so the broker redelivers it
 
 ### Requirement: Resilient Consumer Lifecycle
-Consumers SHALL inherit from `RabbitMqConsumerBase<TMessage>`, which retries the connection indefinitely with exponential backoff (up to 60 seconds), reconnects when the connection closes, reports its state to `RabbitMqConsumerHealth` (health check `rabbitmq-consumers`), and does not leave `ExecuteAsync` while the host runs. The Worker exposes no HTTP endpoint; the health check is only served over HTTP by hosts that map the default endpoints (the API, in Development).
+Consumers SHALL inherit from `RabbitMqConsumerBase<TMessage>`, which retries the connection indefinitely with exponential backoff (up to 60 seconds), reconnects when the connection closes, reports its state to `RabbitMqConsumerHealth` (health check `rabbitmq-consumers`), and does not leave `ExecuteAsync` while the host runs. The API serves its health checks over HTTP only in Development (`MapDefaultEndpoints`). The Worker, which has no public ingress, SHALL serve `/health` (every check) and `/alive` (checks tagged `live`) in every environment (`MapHealthEndpoints`); in `docker-compose.yml` each Worker container SHALL listen on port 8080 without publishing it and SHALL declare a healthcheck that runs the Worker binary in probe mode (`--health-probe http://localhost:8080/health`, exit code 0 only on a 2xx answer), since the runtime image has no curl or wget. The AppHost SHALL give each Worker replica its own HTTP endpoint with an HTTP health check on `/health`.
 
 #### Scenario: Broker unavailable at startup
 - **GIVEN** RabbitMQ is down when the Worker starts
 - **WHEN** RabbitMQ becomes available 5 minutes later
 - **THEN** the consumer SHALL connect and start consuming without restarting the Worker
 - **AND** `rabbitmq-consumers` SHALL report Unhealthy until the connection succeeds
+
+#### Scenario: Probing a Worker container
+- **WHEN** the compose healthcheck runs while the consumer is connected and the database, broker and vector store are reachable
+- **THEN** `GET /health` SHALL answer `200 Healthy` and the container SHALL be reported healthy
+- **AND** while `rabbitmq-consumers` is Unhealthy, `/health` SHALL answer 503 and the probe SHALL exit with 1
 
 #### Scenario: Connection drop while consuming
 - **WHEN** the broker closes the connection

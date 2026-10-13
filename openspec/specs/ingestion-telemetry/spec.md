@@ -6,7 +6,7 @@ Record the processing cost of every document ingested by the baseline and hierar
 ## Requirements
 
 ### Requirement: Ingestion Metrics Recording
-Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetrics"`) per successfully ingested document through `IIngestionMetricsService.TrackIngestionAsync`, with: `Pipeline` (`PipelineType`), `Bulletin` (`BulletinType`), `DocumentId`, `TotalTokensEmbedded`, `TotalLlmCalls`, `TotalLlmTokens`, `ProcessingDurationMs`, `ChunksGenerated` and `CreatedAt`. A failure to save the metric SHALL be logged and SHALL NOT fail the ingestion.
+Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetrics"`) per successfully ingested document through `IIngestionMetricsService.TrackIngestionAsync`, with: `Pipeline` (`PipelineType`), `Bulletin` (`BulletinType`), `DocumentId`, `TotalTokensEmbedded`, `TotalLlmCalls`, `TotalLlmTokens`, `ProcessingDurationMs`, `ChunksGenerated` and `CreatedAt`. Each metric SHALL be saved through its own `IAppDbContext`, in a DI scope created from `IServiceScopeFactory`, so it never flushes or keeps tracked entities of the ingestion's unit of work. A failure to save the metric SHALL be logged and SHALL NOT fail the ingestion.
 
 #### Scenario: Recording hierarchical ingestion metrics
 - **WHEN** the BOE or BOJA processor finishes a document, including the vector sync
@@ -19,6 +19,10 @@ Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetr
 #### Scenario: Document that fails
 - **WHEN** a document fails before its vectors are synced
 - **THEN** no `IngestionMetrics` row SHALL be recorded for that attempt
+
+#### Scenario: Metric save fails
+- **WHEN** saving the `IngestionMetrics` row throws
+- **THEN** the error SHALL be logged, the ingestion SHALL complete, and the ingestion's own database context SHALL NOT be saved by the metrics service
 
 #### Scenario: Re-ingestion
 - **WHEN** a document is ingested again
@@ -39,14 +43,3 @@ Each pipeline SHALL record one `IngestionMetrics` row (`ingestion."IngestionMetr
 #### Scenario: Only ties and "both bad" votes
 - **WHEN** a pipeline has no win or loss
 - **THEN** its `WinRate` SHALL be 0
-
-### Requirement: Readability Score Calculation (IFSZ)
-The Application layer SHALL provide `IReadabilityService.CalculateIfsz(text)`, which computes the Flesch-Szigriszt index for Spanish as `206.835 - 62.3 * (syllables / words) - (words / sentences)`, counting syllables with Spanish diphthong and triphthong rules. It is registered in DI but not yet called by any endpoint or pipeline.
-
-#### Scenario: Calculating IFSZ
-- **WHEN** `CalculateIfsz` receives a non-empty Spanish text
-- **THEN** it SHALL return the index computed from its syllable, word and sentence counts
-
-#### Scenario: Empty text
-- **WHEN** `CalculateIfsz` receives an empty or whitespace text
-- **THEN** it SHALL return 0
