@@ -17,7 +17,7 @@ public class SignalRNotificationServiceTests
             .Callback<string, object?[], CancellationToken>((method, args, _) => sent.Add((method, args)))
             .Returns(Task.CompletedTask);
         var clients = new Mock<IHubClients>();
-        clients.Setup(c => c.Group(NotificationGroups.Admins)).Returns(admins.Object);
+        clients.Setup(c => c.Group(NotificationGroups.PlatformAdmins)).Returns(admins.Object);
         var hub = new Mock<IHubContext<NotificationHub>>();
         hub.Setup(h => h.Clients).Returns(clients.Object);
 

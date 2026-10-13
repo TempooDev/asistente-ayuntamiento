@@ -14,7 +14,7 @@ public static class IngestionEndpoints
     public static void MapIngestionEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ingestion")
-            .RequireAuthorization(Policies.Admin)
+            .RequireAuthorization(Policies.PlatformAdmin)
             .WithTags("Ingestion");
 
         group.MapPost("/process-blob", async (

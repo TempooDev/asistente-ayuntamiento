@@ -8,10 +8,13 @@ public static class AiMetricsEndpoints
 {
     public static void MapAiMetricsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/ai").RequireAuthorization(Policies.Admin);
+        // The in-memory snapshot and health cover every tenant's calls: platform administrators only. The persisted
+        // summary and history are filtered by tenant: organization administrators.
+        var platform = app.MapGroup("/api/ai").RequireAuthorization(Policies.PlatformAdmin);
+        var organization = app.MapGroup("/api/ai").RequireAuthorization(Policies.OrganizationAdmin);
 
-        // GET /api/ai/metrics — Full metrics snapshot (aggregates + recent calls)
-        group.MapGet("/metrics", (IAiMetricsService metricsService) =>
+        // GET /api/ai/metrics — Full metrics snapshot of all tenants (aggregates + recent calls)
+        platform.MapGet("/metrics", (IAiMetricsService metricsService) =>
         {
             var snapshot = metricsService.GetSnapshot();
             return Results.Ok(snapshot);
@@ -20,13 +23,13 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns AI model invocation metrics and recent call history");
 
         // GET /api/ai/metrics/summary — Persisted usage of the tenant (chat) and of ingestion, aggregated in SQL
-        group.MapGet("/metrics/summary", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
+        organization.MapGet("/metrics/summary", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
             Results.Ok(await metricsQuery.GetSummaryAsync(cancellationToken)))
         .WithName("GetAiMetricsSummary")
         .WithSummary("Returns a lightweight AI metrics summary without recent call details");
 
         // GET /api/ai/health — Quick health check: is the AI model reachable?
-        group.MapGet("/health", (IAiMetricsService metricsService) =>
+        platform.MapGet("/health", (IAiMetricsService metricsService) =>
         {
             var snapshot = metricsService.GetSnapshot();
 
@@ -47,7 +50,7 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns AI model health status based on recent call success rate");
 
         // GET /api/ai/metrics/history — Paginated call log of the tenant
-        group.MapGet("/metrics/history", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken, int page = 1, int pageSize = AiMetricsQueryService.DefaultPageSize) =>
+        organization.MapGet("/metrics/history", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken, int page = 1, int pageSize = AiMetricsQueryService.DefaultPageSize) =>
             Results.Ok(await metricsQuery.GetHistoryAsync(page, pageSize, cancellationToken)))
         .WithName("GetAiMetricsHistory")
         .WithSummary("Returns paginated historical AI metrics from the database");

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace AsistenteAyuntamiento.ApiService.Features.Notifications;
 
 /// <summary>
-/// Document ingestion works on the shared knowledge base, so only administrators (who manage it) are notified.
+/// Document ingestion works on the shared knowledge base, so only platform administrators (who manage it) are notified.
 /// </summary>
 public class SignalRNotificationService(IHubContext<NotificationHub> hubContext) : INotificationService
 {
@@ -15,7 +15,7 @@ public class SignalRNotificationService(IHubContext<NotificationHub> hubContext)
 
     public async Task NotifyDocumentStatusChangedAsync(string documentId, string newStatus)
     {
-        await _hubContext.Clients.Group(NotificationGroups.Admins)
+        await _hubContext.Clients.Group(NotificationGroups.PlatformAdmins)
             .SendAsync("DocumentStatusChanged", new DocumentStatusNotification(documentId, newStatus));
     }
 
@@ -24,7 +24,7 @@ public class SignalRNotificationService(IHubContext<NotificationHub> hubContext)
     {
         foreach (var batch in changes.Chunk(BatchSize))
         {
-            await _hubContext.Clients.Group(NotificationGroups.Admins)
+            await _hubContext.Clients.Group(NotificationGroups.PlatformAdmins)
                 .SendAsync("DocumentStatusesChanged", batch.Select(c => new DocumentStatusNotification(c.DocumentId, c.Status)).ToArray());
         }
     }

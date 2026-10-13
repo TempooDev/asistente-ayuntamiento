@@ -9,7 +9,7 @@ public static class AiConfigEndpoints
     public static void MapAiConfigEndpoints(this IEndpointRouteBuilder app)
     {
         // The tenant's AI provider and API key are managed only from the admin settings page.
-        var group = app.MapGroup("/api/settings").RequireAuthorization(Policies.Admin);
+        var group = app.MapGroup("/api/settings").RequireAuthorization(Policies.OrganizationAdmin);
 
         group.MapGet("/ai", async (IAiConfigurationService service, CancellationToken cancellationToken) =>
         {
