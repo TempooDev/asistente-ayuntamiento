@@ -3,6 +3,7 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
@@ -56,7 +57,7 @@ public class AiChatServiceCompletionTests
         var streaming = new ChatStreamingService(
             configService.Object,
             _modelFactory.Object,
-            new AiCallRecorder(db.Object, Mock.Of<IAiMetricsService>(), NullLogger<AiCallRecorder>.Instance),
+            new AiCallRecorder(db.Object, Mock.Of<IAiMetricsService>(), Mock.Of<ILlmUsageMetrics>(), NullLogger<AiCallRecorder>.Instance),
             NullLogger<ChatStreamingService>.Instance);
 
         var baseline = new BaselineRagPipeline(

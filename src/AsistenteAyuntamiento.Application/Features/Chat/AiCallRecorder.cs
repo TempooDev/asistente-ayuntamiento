@@ -1,10 +1,15 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using Microsoft.Extensions.Logging;
 
 namespace AsistenteAyuntamiento.Application.Features.Chat;
 
-public sealed class AiCallRecorder(IAppDbContext dbContext, IAiMetricsService metricsService, ILogger<AiCallRecorder> logger) : IAiCallRecorder
+public sealed class AiCallRecorder(
+    IAppDbContext dbContext,
+    IAiMetricsService metricsService,
+    ILlmUsageMetrics usageMetrics,
+    ILogger<AiCallRecorder> logger) : IAiCallRecorder
 {
     public async Task RecordAsync(AiCallOutcome outcome, CancellationToken cancellationToken = default)
     {
@@ -30,6 +35,19 @@ public sealed class AiCallRecorder(IAppDbContext dbContext, IAiMetricsService me
             logger.LogError(ex, "Failed to save AiCallLog for tenant {TenantId}", outcome.TenantId);
         }
 
+        usageMetrics.Record(new LlmCallMetrics(
+            outcome.Provider,
+            outcome.ModelId,
+            outcome.TenantId,
+            outcome.Pipeline,
+            outcome.Fallback,
+            TimeSpan.FromMilliseconds(outcome.DurationMs),
+            outcome.Usage.InputTokens,
+            outcome.Usage.OutputTokens,
+            outcome.TimeToFirstToken,
+            outcome.Success ? null : outcome.ErrorCode ?? LlmErrorCodes.Unavailable));
+
+        // Legacy ai.* metrics and the /api/ai/metrics snapshot; the gen_ai.* metrics above replace them.
         metricsService.RecordCall(new AiCallRecord
         {
             ModelId = outcome.ModelId,

@@ -3,6 +3,7 @@ using System.Text;
 using AsistenteAyuntamiento.Application.Common.Background;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,7 @@ public sealed class ShadowTestScheduler(IBackgroundWorkQueue queue, ILogger<Shad
             var pipeline = services.GetServices<IRagPipeline>().Get(shadowPipeline);
             var stopwatch = Stopwatch.StartNew();
             var shadowAnswer = new StringBuilder();
-            await foreach (var chunk in pipeline.StreamAsync(turn, stoppingToken))
+            await foreach (var chunk in pipeline.StreamAsync(turn with { TelemetryPipeline = LlmPipelines.Shadow }, stoppingToken))
             {
                 shadowAnswer.Append(chunk);
             }
@@ -53,7 +54,8 @@ public sealed class ShadowTestScheduler(IBackgroundWorkQueue queue, ILogger<Shad
                 RightLatencyMs = (int)right.LatencyMs,
                 LeftTokens = TokenUsageInfo.Estimate(left.Answer),
                 RightTokens = TokenUsageInfo.Estimate(right.Answer),
-                Winner = BattleWinner.Pending
+                Winner = BattleWinner.Pending,
+                TraceId = Activity.Current?.TraceId.ToHexString(),
             });
             await db.SaveChangesAsync(stoppingToken);
         });

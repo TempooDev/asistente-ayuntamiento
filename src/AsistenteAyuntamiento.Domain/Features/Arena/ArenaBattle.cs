@@ -50,4 +50,8 @@ public class ArenaBattle
     public string? OptionalComment { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>W3C trace id of the request that produced the answers, to find their LLM spans from a vote.</summary>
+    [MaxLength(32)]
+    public string? TraceId { get; set; }
 }

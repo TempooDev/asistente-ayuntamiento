@@ -2,6 +2,7 @@ using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Users;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
@@ -19,6 +20,7 @@ public class BaselineRagPipelineTests
     private readonly Mock<IVectorStore> _vectorStore = new();
     private readonly Mock<IChatStreamingService> _streaming = new();
     private ChatHistory? _sentHistory;
+    private string? _sentPipeline;
 
     private BaselineRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null)
     {
@@ -31,8 +33,12 @@ public class BaselineRagPipelineTests
         _vectorStore.Setup(v => v.SearchAsync(VectorCollection.DocumentChunks, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(hits);
 
-        _streaming.Setup(s => s.StreamAsync(It.IsAny<ChatHistory>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Callback<ChatHistory, string, string, CancellationToken>((history, _, _, _) => _sentHistory = history)
+        _streaming.Setup(s => s.StreamAsync(It.IsAny<ChatHistory>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatHistory, string, string, string, CancellationToken>((history, _, _, pipeline, _) =>
+            {
+                _sentHistory = history;
+                _sentPipeline = pipeline;
+            })
             .Returns(new[] { "ok" }.ToAsyncEnumerable());
 
         var userPreferences = new Mock<IUserPreferenceService>();
@@ -71,6 +77,16 @@ public class BaselineRagPipelineTests
         question.Should().Contain("Bono alquiler").And.Contain("https://www.boe.es/buscar/doc.php?id=BOE-A-2026-1")
             .And.Contain("Fecha: 2026-10-01").And.EndWith("Pregunta: ¿Ayudas al alquiler?");
         _vectorStore.Verify(v => v.SearchAsync(VectorCollection.DocumentChunks, It.Is<VectorSearchRequest>(r => r.Limit == 3 && r.ScoreThreshold == 0.65f), It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task Labels_the_call_as_baseline_unless_the_caller_set_a_pipeline()
+    {
+        await CreateSut([]).StreamAsync(Turn()).ToListAsync();
+        _sentPipeline.Should().Be(LlmPipelines.Baseline);
+
+        await CreateSut([]).StreamAsync(Turn() with { TelemetryPipeline = LlmPipelines.Shadow }).ToListAsync();
+        _sentPipeline.Should().Be(LlmPipelines.Shadow);
     }
 
     [Fact]

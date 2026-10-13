@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Domain.Common.Enums;
@@ -23,7 +24,8 @@ public sealed class HierarchicalRagPipeline(
         var expandedQuery = await queryExpansionService.ExpandQueryAsync(turn.UserQuery, cancellationToken);
         var retrieved = await hybridRetrievalService.RetrieveAsync(expandedQuery, RetrievalLimit, cancellationToken);
 
-        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(turn.UserQuery, retrieved, cancellationToken))
+        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(
+            turn.UserQuery, retrieved, new LlmCallScope(turn.TenantId, turn.TelemetryPipeline ?? LlmPipelines.Hierarchical), cancellationToken))
         {
             if (chunk.Content is not null)
             {

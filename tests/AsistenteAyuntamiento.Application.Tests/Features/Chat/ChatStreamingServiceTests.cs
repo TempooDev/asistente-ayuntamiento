@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.AiConfig.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.SemanticKernel;
@@ -65,7 +66,7 @@ public class ChatStreamingServiceTests
         throw error;
     }
 
-    private async Task<List<string>> CollectAsync() => await CreateSut().StreamAsync(History(), "org_A", "u1").ToListAsync();
+    private async Task<List<string>> CollectAsync() => await CreateSut().StreamAsync(History(), "org_A", "u1", LlmPipelines.ArenaAlfa).ToListAsync();
 
     [Fact]
     public async Task Streams_the_model_chunks_and_records_a_successful_call()
@@ -76,7 +77,8 @@ public class ChatStreamingServiceTests
 
         chunks.Should().Equal("Hola", ", ", "mundo");
         _recorded.Should().ContainSingle().Which.Should().Match<AiCallOutcome>(o =>
-            o.Success && o.ModelId == "tenant-model" && o.ResponseLength == "Hola, mundo".Length && o.ErrorCode == null);
+            o.Success && o.ModelId == "tenant-model" && o.ResponseLength == "Hola, mundo".Length && o.ErrorCode == null
+            && o.Pipeline == LlmPipelines.ArenaAlfa && !o.Fallback && o.TimeToFirstToken != null);
     }
 
     [Fact]
@@ -92,7 +94,7 @@ public class ChatStreamingServiceTests
         chunks.Should().HaveCount(2);
         chunks[0].Should().Contain("modelo de respaldo");
         chunks[1].Should().Be("respaldo");
-        _recorded.Single().ModelId.Should().Be("fallback-model");
+        _recorded.Single().Should().Match<AiCallOutcome>(o => o.ModelId == "fallback-model" && o.Fallback && o.Provider == "openrouter");
     }
 
     [Fact]
@@ -136,7 +138,7 @@ public class ChatStreamingServiceTests
         _modelFactory.Setup(f => f.Create(It.IsAny<AiConfigurationDto>(), It.IsAny<string?>()))
             .Throws(new LlmNotConfiguredException("No API key"));
 
-        var chunks = await sut.StreamAsync(History(), "org_A", "u1").ToListAsync();
+        var chunks = await sut.StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline).ToListAsync();
 
         chunks.Should().Equal(LlmErrorCodes.UserMessage(LlmErrorCodes.NotConfigured));
         _recorded.Should().BeEmpty();

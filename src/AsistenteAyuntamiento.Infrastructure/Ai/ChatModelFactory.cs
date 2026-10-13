@@ -71,7 +71,7 @@ public sealed class ChatModelFactory(IHttpClientFactory httpClientFactory, IConf
             .Build()
             .GetRequiredService<IChatCompletionService>();
 
-        return new FallbackChatModel(modelId, service);
+        return new FallbackChatModel(modelId, service, section["Provider"] ?? "openrouter");
     }
 
     private HttpClient CreateHttpClient(string? baseAddress = null)
