@@ -15,7 +15,7 @@ const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
   selector: 'app-chat-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="p-4 md:p-margin-desktop bg-white border-t border-gray-200 shrink-0">
+    <div class="p-4 md:p-margin-desktop bg-surface-container-lowest border-t border-gray-200 shrink-0">
       <form class="max-w-3xl mx-auto flex items-end gap-2" (submit)="$event.preventDefault(); submit()">
         <label for="chat-message" class="sr-only">Mensaje para el asistente</label>
         <textarea

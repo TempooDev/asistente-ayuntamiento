@@ -12,11 +12,11 @@ import { ChatSessionSummaryDto } from '../models/chat.models';
   template: `
     <nav
       aria-label="Conversaciones"
-      class="chat-sidebar bg-white border-r border-gray-200 flex flex-col w-[280px] shrink-0 transition-[transform,visibility] duration-300 md:translate-x-0 absolute md:relative z-10 h-full shadow-lg md:shadow-none"
+      class="chat-sidebar bg-surface-container-lowest border-r border-gray-200 flex flex-col w-[280px] shrink-0 transition-[transform,visibility] duration-300 md:translate-x-0 absolute md:relative z-10 h-full shadow-lg md:shadow-none"
       [class.translate-x-0]="open()"
       [class.-translate-x-full]="!open()"
       [class.max-md:invisible]="!open()">
-      <div class="chat-sidebar-header p-4 border-b border-gray-100 sticky top-0 bg-white z-20 flex justify-between items-center">
+      <div class="chat-sidebar-header p-4 border-b border-gray-100 sticky top-0 bg-surface-container-lowest z-20 flex justify-between items-center">
         <button type="button" class="gov-btn gov-btn-primary w-full flex items-center justify-center gap-2" (click)="create.emit()">
           <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
           Nuevo Chat
@@ -51,7 +51,7 @@ import { ChatSessionSummaryDto } from '../models/chat.models';
                 </button>
                 <button
                   type="button"
-                  class="text-gray-500 hover:text-red-600 transition-colors p-3"
+                  class="text-gray-500 hover:text-red-600 dark:hover:text-red-300 transition-colors p-3"
                   [attr.aria-label]="'Eliminar conversación: ' + (session.preview || 'Nueva conversación')"
                   title="Eliminar chat"
                   (click)="deleted.emit(session.id)">

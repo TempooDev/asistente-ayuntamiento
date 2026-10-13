@@ -62,7 +62,7 @@
           <td class="p-4">
             <button type="button" (click)="toggle(rule)" role="switch" [attr.aria-checked]="rule.isActive"
                     [attr.aria-label]="'Filtro ' + rule.value + (rule.isActive ? ' activo' : ' inactivo')"
-                    [class]="rule.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                    [class]="rule.isActive ? 'bg-green-100 text-green-700 dark:text-green-300' : 'bg-red-100 text-red-700 dark:text-red-300'"
                     class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors">
               <span class="w-2 h-2 rounded-full" [class]="rule.isActive ? 'bg-green-500' : 'bg-red-500'" aria-hidden="true"></span>
               {{ rule.isActive ? 'Activo' : 'Inactivo' }}

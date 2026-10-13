@@ -17,7 +17,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           <div class="flex items-center justify-center shrink-0">
             <button
               type="button"
-              class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
+              class="px-3 py-1 bg-surface-container-lowest border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
               [disabled]="!votable()"
               (click)="vote.emit('Tie')">
               Empate
@@ -25,7 +25,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           </div>
         }
         <div class="chat-bubble shadow-xs assistant flex-1 relative group">
-          <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">Modelo {{ side.vote }}</div>
+          <div class="text-xs font-bold text-gray-600 mb-1">Modelo {{ side.vote }}</div>
           <div class="markdown-content" [innerHTML]="(side.vote === 'Alfa' ? message().alfa : message().beta) | markdown"></div>
           <button
             type="button"
@@ -40,7 +40,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
       }
     </div>
     @if (hasFailedSide()) {
-      <p class="text-xs text-gray-600 dark:text-gray-300 mb-2" role="status">No se puede votar esta comparación porque una de las respuestas ha fallado.</p>
+      <p class="text-xs text-gray-600 mb-2" role="status">No se puede votar esta comparación porque una de las respuestas ha fallado.</p>
     }
   `,
 })
