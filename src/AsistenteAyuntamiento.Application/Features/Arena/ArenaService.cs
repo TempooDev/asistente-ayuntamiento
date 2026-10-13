@@ -45,7 +45,7 @@ public class ArenaService(
         // Start hierarchical pipeline in a new DI scope to avoid DbContext concurrency
         var hierarchicalTask = RunHierarchicalInOwnScopeAsync();
 
-        async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalInOwnScopeAsync()
+        async Task<ArenaSideResult> RunHierarchicalInOwnScopeAsync()
         {
             await Task.Yield();
             using var scope = serviceScopeFactory.CreateScope();
@@ -59,6 +59,12 @@ public class ArenaService(
         await Task.WhenAll(baselineTask, hierarchicalTask);
         var baselineResult = baselineTask.Result;
         var hierarchicalResult = hierarchicalTask.Result;
+
+        // A failed side is not a vote option: nothing is saved (the chat Arena mode does the same).
+        if ((baselineResult.ErrorCode ?? hierarchicalResult.ErrorCode) is { } errorCode)
+        {
+            throw new ArenaComparisonFailedException(errorCode);
+        }
 
         var isHierarchicalAlfa = Random.Shared.Next(2) == 0;
 
@@ -148,7 +154,7 @@ public class ArenaService(
         _ => null
     };
 
-    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunBaselinePipelineAsync(string query, LlmCallScope llmScope, CancellationToken cancellationToken)
+    private async Task<ArenaSideResult> RunBaselinePipelineAsync(string query, LlmCallScope llmScope, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -169,17 +175,16 @@ public class ArenaService(
             sw.Stop();
 
             int estimatedTokens = (prompt.Length + (result.Content?.Length ?? 0)) / 4;
-            return (result.Content ?? "Error baseline", sw.ElapsedMilliseconds, sources, estimatedTokens);
+            return new(result.Content ?? string.Empty, sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Error in Baseline pipeline");
-            sw.Stop();
-            return ("Error en el procesamiento estándar.", sw.ElapsedMilliseconds, [], 0);
+            return ArenaSideResult.Failed(ex, sw.ElapsedMilliseconds);
         }
     }
 
-    private async Task<(string Response, long Latency, string[] Sources, int Tokens)> RunHierarchicalPipelineScopedAsync(
+    private async Task<ArenaSideResult> RunHierarchicalPipelineScopedAsync(
         string query,
         LlmCallScope llmScope,
         IQueryExpansionService scopedExpansion,
@@ -200,14 +205,20 @@ public class ArenaService(
             var contextText = string.Join("\n", retrievalResults.Select(r => r.ParentFullText));
             int estimatedTokens = (query.Length + contextText.Length + response.Length) / 4;
 
-            return (response, sw.ElapsedMilliseconds, sources, estimatedTokens);
+            return new(response, sw.ElapsedMilliseconds, sources, estimatedTokens);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Error in Hierarchical pipeline");
-            sw.Stop();
-            return ("Error en el procesamiento jerárquico.", sw.ElapsedMilliseconds, [], 0);
+            return ArenaSideResult.Failed(ex, sw.ElapsedMilliseconds);
         }
+    }
+
+    /// <summary>One side of a comparison; <see cref="ErrorCode"/> is set when it failed.</summary>
+    private sealed record ArenaSideResult(string Response, long Latency, string[] Sources, int Tokens, string? ErrorCode = null)
+    {
+        public static ArenaSideResult Failed(Exception ex, long latency) =>
+            new(string.Empty, latency, [], 0, ex is LlmStreamInterruptedException typed ? typed.ErrorCode : LlmErrorClassifier.Classify(ex));
     }
 }
 

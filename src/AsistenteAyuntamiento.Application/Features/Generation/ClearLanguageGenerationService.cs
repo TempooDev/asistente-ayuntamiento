@@ -30,16 +30,9 @@ public class ClearLanguageGenerationService(
         if (chatHistory == null)
             return "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta.";
 
-        try
-        {
-            var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken, recorder: callRecorder);
-            return result.Content ?? "Lo siento, hubo un problema al generar la respuesta.";
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error al generar la respuesta en lenguaje claro para la consulta: {Query}", userQuery);
-            return "Lo siento, ha ocurrido un error interno al intentar procesar la respuesta. Por favor, inténtalo de nuevo más tarde.";
-        }
+        // A model failure is recorded and rethrown: the caller (the Arena page) must not present it as an answer.
+        var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken, recorder: callRecorder);
+        return result.Content ?? string.Empty;
     }
 
     public async IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(
@@ -77,17 +70,13 @@ public class ClearLanguageGenerationService(
             {
                 enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // Typed like the baseline: the chat shows it as the answer, the Arena marks this side as failed.
                 logger.LogError(ex, "Could not start the plain-language answer stream");
-                errorType = ex.GetType().Name;
+                errorType = LlmErrorClassifier.Classify(ex);
                 errorDetail = ex.Message;
-            }
-
-            if (enumerator is null)
-            {
-                yield return new StreamingChatMessageContent(AuthorRole.Assistant, "Lo siento, ha ocurrido un error interno al intentar procesar la respuesta. Por favor, inténtalo de nuevo más tarde.");
-                yield break;
+                throw new LlmStreamInterruptedException(errorType, ex);
             }
 
             while (true)
@@ -99,9 +88,9 @@ public class ClearLanguageGenerationService(
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    errorType = ex.GetType().Name;
+                    errorType = LlmErrorClassifier.Classify(ex);
                     errorDetail = ex.Message;
-                    throw;
+                    throw new LlmStreamInterruptedException(errorType, ex);
                 }
                 if (!hasChunk) break;
 

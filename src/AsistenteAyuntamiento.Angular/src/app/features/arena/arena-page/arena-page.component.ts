@@ -89,7 +89,9 @@ export class ArenaPageComponent {
       .subscribe({
         next: res => this.compareData.set(res),
         error: err => {
-          this.error.set('Error al comparar respuestas.');
+          // 502: a side's model failed; the comparison was not saved, so there is nothing to vote on.
+          const detail = err?.status === 502 ? err.error?.detail : undefined;
+          this.error.set(detail ? `No se ha podido generar una de las respuestas. ${detail}` : 'Error al comparar respuestas.');
           console.error(err);
         },
       });

@@ -23,8 +23,15 @@ public static class ArenaEndpoints
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(tenantService.TenantId)) return Results.Unauthorized();
 
-            var response = await arenaService.CompareAsync(request, tenantService.TenantId, userId, ct);
-            return Results.Ok(response);
+            try
+            {
+                return Results.Ok(await arenaService.CompareAsync(request, tenantService.TenantId, userId, ct));
+            }
+            catch (ArenaComparisonFailedException ex)
+            {
+                // A side failed: nothing was saved and there is nothing to vote on.
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status502BadGateway, title: ex.ErrorCode);
+            }
         })
         .RequireAuthorization(Policies.OrganizationAdmin)
         .WithName("CompareArena");
