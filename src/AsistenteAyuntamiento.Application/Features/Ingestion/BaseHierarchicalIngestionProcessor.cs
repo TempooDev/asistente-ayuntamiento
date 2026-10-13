@@ -139,7 +139,14 @@ public abstract class BaseHierarchicalIngestionProcessor : IHierarchicalIngestio
             }, cancellationToken);
 
             // 3. Vector store, after the commit.
-            await SyncVectorsAsync(documentId, previousParentIds, children, vectors, cancellationToken);
+            try
+            {
+                await SyncVectorsAsync(documentId, previousParentIds, children, vectors, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new VectorSyncFailedException(documentId, ex);
+            }
 
             sw.Stop();
             await _metricsService.TrackIngestionAsync(PipelineType.Hierarchical, Bulletin, documentId, totalTokensEmbedded, totalLlmCalls, totalLlmTokens, children.Count, sw.ElapsedMilliseconds, cancellationToken);

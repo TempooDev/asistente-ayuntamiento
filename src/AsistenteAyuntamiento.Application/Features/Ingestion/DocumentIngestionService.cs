@@ -11,7 +11,15 @@ using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
-public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext dbContext, Kernel kernel, IVectorStore vectorStore, ILogger<DocumentIngestionService> logger, IChunkingStrategy chunkingStrategy, INotificationService notificationService) : IDocumentIngestionService
+public class DocumentIngestionService(
+    IBlobStorage blobStorage,
+    IAppDbContext dbContext,
+    Kernel kernel,
+    IVectorStore vectorStore,
+    ILogger<DocumentIngestionService> logger,
+    IChunkingStrategy chunkingStrategy,
+    INotificationService notificationService,
+    IIngestionMetricsService metricsService) : IDocumentIngestionService
 {
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
@@ -24,6 +32,7 @@ public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext db
             return;
         }
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         await SetJobStateAsync(docIdFromPath, JobStatus.Processing, null, cancellationToken);
 
         // 1. Descargar JSON desde S3/MinIO
@@ -137,6 +146,19 @@ public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext db
 
         await SetJobStateAsync(document.DocumentId, JobStatus.Completed, null, cancellationToken);
         logger.LogInformation("Documento {DocumentId} vectorizado con {ChunkCount} chunks", document.DocumentId, chunks.Count);
+
+        // Same IngestionMetrics as the hierarchical pipeline, so both can be compared (no LLM calls here).
+        stopwatch.Stop();
+        await metricsService.TrackIngestionAsync(
+            PipelineType.Baseline,
+            Enum.Parse<BulletinType>(source, ignoreCase: true),
+            document.DocumentId,
+            tokensEmbedded: paragraphs.Sum(p => p.Length) / 4, // estimate, as in the hierarchical pipeline
+            llmCalls: 0,
+            llmTokens: 0,
+            chunksGenerated: chunks.Count,
+            processingDurationMs: stopwatch.ElapsedMilliseconds,
+            cancellationToken);
     }
 
     /// <summary>Records the job state and notifies; failures here are logged so they never mask the original error.</summary>
@@ -144,20 +166,9 @@ public class DocumentIngestionService(IBlobStorage blobStorage, IAppDbContext db
     {
         try
         {
-            var jobState = await dbContext.DocumentJobStates.FirstOrDefaultAsync(j => j.DocumentId == documentId, cancellationToken);
-            if (jobState is null)
-            {
-                dbContext.DocumentJobStates.Add(new DocumentJobState { DocumentId = documentId, Status = status, ErrorMessage = error });
-            }
-            else
-            {
-                jobState.Status = status;
-                jobState.ErrorMessage = error;
-                jobState.LastUpdatedAt = DateTime.UtcNow;
-            }
-
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await notificationService.NotifyDocumentStatusChangedAsync(documentId, status.ToString());
+            // Only the baseline column changes; the notification carries the document's summary.
+            var state = await DocumentJobStateUpdates.SetPipelineStatusAsync(dbContext, documentId, PipelineType.Baseline, status, error, cancellationToken);
+            await notificationService.NotifyDocumentStatusChangedAsync(documentId, state.Status.ToString());
         }
         catch (Exception ex)
         {

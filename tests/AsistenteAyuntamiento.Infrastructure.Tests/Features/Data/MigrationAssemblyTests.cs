@@ -37,7 +37,7 @@ public class MigrationAssemblyTests
 
         var migrations = db.Database.GetMigrations().ToList();
 
-        migrations.Should().HaveCount(26);
+        migrations.Should().HaveCount(27);
         migrations.Should().BeInAscendingOrder(StringComparer.Ordinal);
         migrations.Should().Contain("20260904162245_AddRagQuestionArena");
     }

@@ -77,7 +77,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
             _vectors,
             NullLogger<DocumentIngestionService>.Instance,
             new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 0),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>());
         await sut.ProcessBlobAsync($"json/BOE/{documentId}.json", "BOE");
     }
 
@@ -158,7 +158,21 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
         sparse.Should().NotBeEmpty();
     }
 
-    private async Task IngestBojaAsync(string documentId, string text)
+    [DockerFact]
+    public async Task A_vector_store_failure_after_the_commit_is_reported_as_a_vector_sync_failure()
+    {
+        var failing = new Mock<IVectorStore>();
+        failing.Setup(v => v.EnsureCollectionAsync(It.IsAny<VectorCollection>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("qdrant unavailable"));
+
+        var act = () => IngestBojaAsync("BOJA-2026-10-3", Paragraphs(2, "texto"), failing.Object);
+
+        (await act.Should().ThrowAsync<VectorSyncFailedException>()).WithInnerException<InvalidOperationException>();
+        await using var db = NewContext();
+        (await db.ParentDocuments.CountAsync(p => p.DocumentId == "BOJA-2026-10-3")).Should().Be(1, "PostgreSQL is committed first");
+    }
+
+    private async Task IngestBojaAsync(string documentId, string text, IVectorStore? vectors = null)
     {
         _texts[documentId] = text;
         await using var db = NewContext();
@@ -172,7 +186,7 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
             db,
             enrichment.Object,
             Mock.Of<IIngestionMetricsService>(),
-            _vectors,
+            vectors ?? _vectors,
             NullLogger<BojaIngestionService>.Instance,
             KernelWithFakeEmbeddings());
         await sut.ProcessDocumentAsync($"json/BOJA/{documentId}.json", documentId, CancellationToken.None);

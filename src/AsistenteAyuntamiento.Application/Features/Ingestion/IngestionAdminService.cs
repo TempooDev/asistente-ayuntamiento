@@ -151,8 +151,7 @@ public class IngestionAdminService : IIngestionAdminService
         var jobState = await _dbContext.DocumentJobStates.FindAsync(new object[] { documentId }, cancellationToken);
         if (jobState != null)
         {
-            jobState.Status = JobStatus.Pending;
-            jobState.LastUpdatedAt = DateTime.UtcNow;
+            jobState.Reset();
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
         else
@@ -161,26 +160,51 @@ public class IngestionAdminService : IIngestionAdminService
         }
     }
 
+    /// <summary>
+    /// Documents left in Processing (a worker died): each stuck pipeline becomes Completed if its data exists
+    /// (baseline chunks, hierarchical parent document) and Pending otherwise. Counts are by resulting summary.
+    /// </summary>
     public async Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync(CancellationToken cancellationToken = default)
     {
-        var processedDocIds = await _dbContext.DocumentChunks
-            .Select(c => c.DocumentId)
-            .Distinct()
-            .AsNoTracking().ToListAsync(cancellationToken);
+        var stuck = await _dbContext.DocumentJobStates
+            .Where(j => j.Status == JobStatus.Processing)
+            .ToListAsync(cancellationToken);
+        if (stuck.Count == 0)
+        {
+            return (0, 0);
+        }
 
-        var completedCount = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == JobStatus.Processing && processedDocIds.Contains(j.DocumentId))
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(j => j.Status, JobStatus.Completed)
-                .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
+        var ids = stuck.Select(j => j.DocumentId).ToList();
+        var withChunks = (await _dbContext.DocumentChunks.Where(c => ids.Contains(c.DocumentId)).Select(c => c.DocumentId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
+        var withParents = (await _dbContext.ParentDocuments.Where(p => ids.Contains(p.DocumentId)).Select(p => p.DocumentId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
 
-        var pendingCount = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == JobStatus.Processing && !processedDocIds.Contains(j.DocumentId))
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(j => j.Status, JobStatus.Pending)
-                .SetProperty(j => j.LastUpdatedAt, DateTime.UtcNow), cancellationToken);
+        foreach (var state in stuck)
+        {
+            if (state.BaselineStatus == JobStatus.Processing)
+            {
+                state.SetPipelineStatus(PipelineType.Baseline, withChunks.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+            }
+            if (state.HierarchicalStatus == JobStatus.Processing)
+            {
+                state.SetPipelineStatus(PipelineType.Hierarchical, withParents.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+            }
+            if (state.Status == JobStatus.Processing)
+            {
+                // Rows from before per-pipeline statuses: decide on the baseline data, as before.
+                state.SetPipelineStatus(PipelineType.Baseline, withChunks.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+            }
+        }
 
-        return (completedCount, pendingCount);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return (stuck.Count(s => s.Status == JobStatus.Completed), stuck.Count(s => s.Status != JobStatus.Completed));
+    }
+
+    private static List<PipelineType> RequestedPipelines(IngestionPipelines pipelines)
+    {
+        var requested = new List<PipelineType>();
+        if (pipelines.HasFlag(IngestionPipelines.Baseline)) requested.Add(PipelineType.Baseline);
+        if (pipelines.HasFlag(IngestionPipelines.Hierarchical)) requested.Add(PipelineType.Hierarchical);
+        return requested;
     }
 
     /// <summary>
@@ -248,6 +272,7 @@ public class IngestionAdminService : IIngestionAdminService
         }
 
         var docIds = documents.Select(d => d.DocumentId).Distinct().ToList();
+        var requested = RequestedPipelines(pipelines);
         var jobStates = await _dbContext.DocumentJobStates
             .Where(j => docIds.Contains(j.DocumentId))
             .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
@@ -261,9 +286,11 @@ public class IngestionAdminService : IIngestionAdminService
                 jobStates[docId] = jobState;
             }
 
-            jobState.Status = JobStatus.Queued;
-            jobState.ErrorMessage = null;
-            jobState.LastUpdatedAt = DateTime.UtcNow;
+            // Only the requested pipelines are queued; the other one keeps its own status.
+            foreach (var pipeline in requested)
+            {
+                jobState.SetPipelineStatus(pipeline, JobStatus.Queued);
+            }
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -285,9 +312,10 @@ public class IngestionAdminService : IIngestionAdminService
         foreach (var docId in failed.Distinct())
         {
             var jobState = jobStates[docId];
-            jobState.Status = JobStatus.Pending;
-            jobState.ErrorMessage = "No se pudo encolar el documento.";
-            jobState.LastUpdatedAt = DateTime.UtcNow;
+            foreach (var pipeline in requested)
+            {
+                jobState.SetPipelineStatus(pipeline, JobStatus.Pending, "No se pudo encolar el documento.");
+            }
         }
 
         if (failed.Count > 0)
