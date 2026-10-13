@@ -2,20 +2,20 @@
   <div class="flex justify-between items-center mb-8">
     <h1 class="text-3xl font-bold text-gray-900">Panel de Analíticas del Arena</h1>
     
-    <div class="flex space-x-4 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+    <div class="flex space-x-4 bg-white p-3 rounded-lg shadow-xs border border-gray-200">
       <div class="flex flex-col">
         <label class="text-xs text-gray-500 font-medium mb-1">Fecha Inicio</label>
         <input type="date" 
                [ngModel]="startDate()" 
                (ngModelChange)="startDate.set($event)"
-               class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+               class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500">
       </div>
       <div class="flex flex-col">
         <label class="text-xs text-gray-500 font-medium mb-1">Fecha Fin</label>
         <input type="date" 
                [ngModel]="endDate()" 
                (ngModelChange)="endDate.set($event)"
-               class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+               class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500">
       </div>
     </div>
   </div>
@@ -23,19 +23,19 @@
   @if (aiMetrics(); as metrics) {
     <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de IA / Tokens</h2>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Llamadas (Éxito)</h3>
         <p class="text-2xl font-bold text-gray-900 mt-1">{{ metrics.totalCalls }} <span class="text-sm font-normal text-green-600">({{ metrics.successRate | percent:'1.0-1' }})</span></p>
       </div>
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Tokens Input</h3>
         <p class="text-2xl font-bold text-indigo-600 mt-1">{{ metrics.totalInputTokens | number:'1.0-0' }}</p>
       </div>
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Tokens Output</h3>
         <p class="text-2xl font-bold text-indigo-600 mt-1">{{ metrics.totalOutputTokens | number:'1.0-0' }}</p>
       </div>
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Total Tokens</h3>
         <p class="text-2xl font-bold text-purple-600 mt-1">{{ metrics.totalTokens | number:'1.0-0' }}</p>
       </div>
@@ -44,7 +44,7 @@
     <h3 class="text-lg font-bold text-gray-700 mb-3 mt-2">Desglose por Modelo</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
       @for (model of metrics.consumptions; track model.modelId) {
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
+        <div class="bg-white p-5 rounded-xl shadow-xs border border-gray-100 flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start mb-2">
               <h4 class="font-bold text-gray-900 truncate" [title]="model.modelId">{{ model.modelId }}</h4>
@@ -73,21 +73,21 @@
   <h2 class="text-xl font-bold text-gray-800 mb-4">Resultados de la Arena</h2>
   @if (analytics(); as data) {
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-6 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Batallas Totales</h3>
         <p class="text-3xl font-bold text-gray-900 mt-2">{{ data.totalBattles }}</p>
       </div>
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-6 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Completadas</h3>
         <p class="text-3xl font-bold text-green-600 mt-2">{{ data.completedBattles }}</p>
       </div>
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-6 rounded-xl shadow-xs border border-gray-100">
         <h3 class="text-gray-500 text-sm font-medium">Pendientes (Shadow)</h3>
         <p class="text-3xl font-bold text-amber-600 mt-2">{{ data.pendingBattles }}</p>
       </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden">
       <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
         <h2 class="text-lg font-medium text-gray-900">Rendimiento por Pipeline</h2>
         
@@ -95,7 +95,7 @@
           <label class="text-sm text-gray-600 mr-2">Segmentar por:</label>
           <select [ngModel]="selectedPipeline()" 
                   (ngModelChange)="selectedPipeline.set($event)"
-                  class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1.5">
+                  class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500 py-1.5">
             <option value="ALL">Todos los Pipelines</option>
             @for (pipe of availablePipelines(); track pipe) {
               <option [value]="pipe">{{ pipe }}</option>

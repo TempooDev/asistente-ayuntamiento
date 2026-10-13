@@ -4,20 +4,20 @@
     <p class="m-0">Aquí puedes ver los documentos alojados en el sistema y si han sido procesados por el motor de búsqueda.</p>
     <div class="flex gap-2 items-center flex-wrap">
       <label class="sr-only" for="pipeline-mode">Pipeline de procesamiento</label>
-      <select id="pipeline-mode" #mode class="px-2 py-1 border rounded bg-surface" (change)="setPipelineMode(mode.value)">
+      <select id="pipeline-mode" #mode class="px-2 py-1 border rounded-sm bg-surface" (change)="setPipelineMode(mode.value)">
         <option value="BOTH" [selected]="pipelineMode() === 'BOTH'">Ambos pipelines</option>
         <option value="BASELINE" [selected]="pipelineMode() === 'BASELINE'">Solo Flat-Chunk (Antiguo)</option>
         <option value="HIERARCHICAL" [selected]="pipelineMode() === 'HIERARCHICAL'">Solo Jerárquico (Nuevo)</option>
       </select>
       @if (selected().size > 0) {
-        <button type="button" class="btn btn-sm btn-primary rounded px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors" (click)="enqueueSelected()">
+        <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 bg-blue-600 text-white hover:bg-blue-700! transition-colors" (click)="enqueueSelected()">
           Encolar seleccionados ({{ selected().size }})
         </button>
       }
-      <button type="button" class="btn btn-sm btn-primary rounded px-3 py-1 bg-green-600 text-white hover:bg-green-700 transition-colors" (click)="reprocessAll()">
+      <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 bg-green-600 text-white hover:bg-green-700! transition-colors" (click)="reprocessAll()">
         Reprocesar todo el histórico
       </button>
-      <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded px-3 py-1 hover:bg-red-500 hover:text-white transition-colors" (click)="resetStuck()">
+      <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded-sm px-3 py-1 hover:bg-red-500 hover:text-white transition-colors" (click)="resetStuck()">
         Reiniciar colgados en 'Procesando'
       </button>
     </div>
@@ -47,14 +47,14 @@
 
     @if (totalPages() > 1) {
       <nav class="mt-md flex justify-center items-center gap-4" aria-label="Paginación">
-        <button type="button" class="btn btn-sm btn-outline border border-outline rounded px-3 py-1" [disabled]="page() === 1" (click)="changePage(page() - 1)">Anterior</button>
+        <button type="button" class="btn btn-sm btn-outline border border-outline rounded-sm px-3 py-1" [disabled]="page() === 1" (click)="changePage(page() - 1)">Anterior</button>
         <span class="text-sm font-medium">Página {{ page() }} de {{ totalPages() }}</span>
-        <button type="button" class="btn btn-sm btn-outline border border-outline rounded px-3 py-1" [disabled]="page() === totalPages()" (click)="changePage(page() + 1)">Siguiente</button>
+        <button type="button" class="btn btn-sm btn-outline border border-outline rounded-sm px-3 py-1" [disabled]="page() === totalPages()" (click)="changePage(page() + 1)">Siguiente</button>
       </nav>
     }
   }
 
   @if (statusMessage()) {
-    <div class="mt-md p-sm bg-primary/10 text-primary rounded" role="status">{{ statusMessage() }}</div>
+    <div class="mt-md p-sm bg-primary/10 text-primary rounded-sm" role="status">{{ statusMessage() }}</div>
   }
 </div>

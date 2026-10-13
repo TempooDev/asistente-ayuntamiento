@@ -11,14 +11,14 @@ import { BlobStats, BlobStatusFilter } from '../models/documents.models';
         @if (card.filter) {
           <button
             type="button"
-            class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm text-left hover:bg-surface-variant transition-colors"
+            class="p-4 bg-surface rounded-sm border border-outline flex-1 min-w-[150px] shadow-xs text-left hover:bg-surface-variant transition-colors"
             [attr.aria-pressed]="selected() === card.filter"
             (click)="filterSelected.emit(card.filter)">
             <div class="text-sm opacity-70">{{ card.label }}</div>
             <div class="text-2xl font-bold" [class]="card.color">{{ stats()[card.key] }}</div>
           </button>
         } @else {
-          <div class="p-4 bg-surface rounded border border-outline flex-1 min-w-[150px] shadow-sm">
+          <div class="p-4 bg-surface rounded-sm border border-outline flex-1 min-w-[150px] shadow-xs">
             <div class="text-sm opacity-70">{{ card.label }}</div>
             <div class="text-2xl font-bold" [class]="card.color">{{ stats()[card.key] }}</div>
           </div>

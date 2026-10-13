@@ -5,7 +5,7 @@
 } @else {
   <div class="bg-background text-on-background font-body-md antialiased min-h-screen flex w-full">
       <!-- TopNavBar (Mobile Only) -->
-      <header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 fixed top-0 z-50 bg-surface border-b border-outline-variant shadow-sm transition-all duration-200">
+      <header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 fixed top-0 z-50 bg-surface border-b border-outline-variant shadow-xs transition-all duration-200">
           <div class="flex items-center gap-sm">
               @if (auth.isAuthenticated()) {
                   <button type="button" class="material-symbols-outlined text-secondary hover:bg-surface-container-high transition-colors p-sm rounded-full cursor-pointer" aria-label="Abrir menú" aria-controls="mobile-menu" [attr.aria-expanded]="mobileMenuOpen()" (click)="toggleMobileMenu()">menu</button>
@@ -23,7 +23,7 @@
       <!-- SideNavBar (Desktop) -->
       <aside aria-label="Navegación principal" class="hidden md:flex fixed left-0 top-0 h-full flex-col py-lg border-r z-40 bg-surface-container-low border-outline-variant w-64">
           <div class="px-md mb-xl flex items-center gap-sm">
-              <div class="w-10 h-10 rounded bg-primary flex items-center justify-center text-on-primary">
+              <div class="w-10 h-10 rounded-sm bg-primary flex items-center justify-center text-on-primary">
                   <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assured_workload</span>
               </div>
               <div>
@@ -41,7 +41,7 @@
             </div>
             <div class="flex-1 px-md flex flex-col gap-xs font-label-md text-label-md">
                 @for (item of navItems(); track item.path) {
-                    <a [routerLink]="item.path" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                    <a [routerLink]="item.path" routerLinkActive="bg-primary-container text-on-primary!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                         <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
                         <span class="truncate">{{ item.label }}</span>
                     </a>
@@ -64,16 +64,16 @@
 
       <!-- Mobile menu (off-canvas) -->
       @if (mobileMenuOpen() && auth.isAuthenticated()) {
-          <div class="md:hidden fixed inset-0 z-[60] bg-black/50" aria-hidden="true" data-testid="mobile-menu-backdrop" (click)="closeMobileMenu()"></div>
+          <div class="md:hidden fixed inset-0 z-60 bg-black/50" aria-hidden="true" data-testid="mobile-menu-backdrop" (click)="closeMobileMenu()"></div>
           <nav id="mobile-menu" appDialogFocus (escape)="closeMobileMenu()" role="dialog" aria-modal="true" aria-label="Menú principal"
-               class="md:hidden fixed left-0 top-0 z-[70] h-full w-72 max-w-[85vw] flex flex-col py-lg bg-surface-container-low border-r border-outline-variant shadow-xl">
+               class="md:hidden fixed left-0 top-0 z-70 h-full w-72 max-w-[85vw] flex flex-col py-lg bg-surface-container-low border-r border-outline-variant shadow-xl">
               <div class="px-md mb-lg flex items-center justify-between">
                   <span class="font-headline-md text-headline-md font-bold text-on-surface">AdminAI</span>
                   <button type="button" class="material-symbols-outlined text-secondary hover:bg-surface-container-high p-sm rounded-full" aria-label="Cerrar menú" (click)="closeMobileMenu()">close</button>
               </div>
               <div class="flex-1 overflow-y-auto px-md flex flex-col gap-xs font-label-md text-label-md">
                   @for (item of navItems(); track item.path) {
-                      <a [routerLink]="item.path" (click)="closeMobileMenu()" routerLinkActive="bg-primary-container !text-on-primary" class="flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
+                      <a [routerLink]="item.path" (click)="closeMobileMenu()" routerLinkActive="bg-primary-container text-on-primary!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
                           <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
                           <span class="truncate">{{ item.label }}</span>
                       </a>

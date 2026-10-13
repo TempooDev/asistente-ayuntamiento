@@ -2,19 +2,19 @@
   <h1 class="text-3xl font-bold mb-6 text-gray-800">Question Arena (Pruebas A/B)</h1>
 
   <!-- Input Section -->
-  <div class="bg-white rounded-lg shadow p-6 mb-6">
+  <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
     <label class="block text-sm font-medium text-gray-700 mb-2">Consulta del ciudadano</label>
     <div class="flex gap-4">
       <textarea
         [(ngModel)]="query"
         rows="3"
-        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
         placeholder="Ej. ¿Qué plazo tengo para solicitar la ayuda de vivienda?"
       ></textarea>
       <button
         (click)="onCompare()"
         [disabled]="loading() || !query().trim()"
-        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap self-end"
+        class="bg-blue-600 text-white px-4 py-2 rounded-sm hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap self-end"
       >
         @if (loading()) {
           <span>Procesando...</span>
@@ -33,7 +33,7 @@
   @if (loading()) {
     <div class="grid grid-cols-2 gap-6 mb-6">
       <div
-        class="bg-white rounded-lg shadow p-8 flex flex-col items-center justify-center min-h-[300px]"
+        class="bg-white rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
       >
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">
@@ -41,7 +41,7 @@
         </p>
       </div>
       <div
-        class="bg-white rounded-lg shadow p-8 flex flex-col items-center justify-center min-h-[300px]"
+        class="bg-white rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
       >
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">
@@ -55,9 +55,9 @@
   @if (compareData() && !loading()) {
     <div class="grid grid-cols-2 gap-6 mb-6">
       <!-- Asistente Alfa -->
-      <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500 flex flex-col">
+      <div class="bg-white rounded-lg shadow-sm p-6 border-t-4 border-blue-500 flex flex-col">
         <h2 class="text-xl font-semibold mb-4 text-gray-800">Asistente Alfa</h2>
-        <div class="prose prose-sm max-w-none flex-grow mb-4 text-gray-700 whitespace-pre-wrap">
+        <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionAlfa }}
         </div>
         <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
@@ -65,9 +65,9 @@
         </div>
       </div>
       <!-- Asistente Beta -->
-      <div class="bg-white rounded-lg shadow p-6 border-t-4 border-green-500 flex flex-col">
+      <div class="bg-white rounded-lg shadow-sm p-6 border-t-4 border-green-500 flex flex-col">
         <h2 class="text-xl font-semibold mb-4 text-gray-800">Asistente Beta</h2>
-        <div class="prose prose-sm max-w-none flex-grow mb-4 text-gray-700 whitespace-pre-wrap">
+        <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionBeta }}
         </div>
         <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
@@ -79,7 +79,7 @@
 
   <!-- Voting Section -->
   @if (compareData() && !loading()) {
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
       <h3 class="text-lg font-medium text-gray-900 mb-4">Votación y Evaluación</h3>
       @if (!voteResult()) {
         <div class="space-y-6">
@@ -93,7 +93,7 @@
                 (click)="setWinner('ALFA')"
                 [class.ring-2]="selectedWinner() === 'ALFA'"
                 [class.ring-blue-500]="selectedWinner() === 'ALFA'"
-                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100"
+                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-sm hover:bg-gray-100"
               >
                 🏆 Prefiero Alfa
               </button>
@@ -101,7 +101,7 @@
                 (click)="setWinner('BETA')"
                 [class.ring-2]="selectedWinner() === 'BETA'"
                 [class.ring-green-500]="selectedWinner() === 'BETA'"
-                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100"
+                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-sm hover:bg-gray-100"
               >
                 🏆 Prefiero Beta
               </button>
@@ -109,7 +109,7 @@
                 (click)="setWinner('TIE')"
                 [class.ring-2]="selectedWinner() === 'TIE'"
                 [class.ring-gray-500]="selectedWinner() === 'TIE'"
-                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100"
+                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-sm hover:bg-gray-100"
               >
                 🤝 Empate Técnico
               </button>
@@ -117,7 +117,7 @@
                 (click)="setWinner('BOTH_BAD')"
                 [class.ring-2]="selectedWinner() === 'BOTH_BAD'"
                 [class.ring-red-500]="selectedWinner() === 'BOTH_BAD'"
-                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100"
+                class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-sm hover:bg-gray-100"
               >
                 ❌ Ambas Deficientes
               </button>
@@ -162,7 +162,7 @@
             <textarea
               [(ngModel)]="optionalComment"
               rows="2"
-              class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+              class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
               placeholder="¿Por qué elegiste esta opción?"
             ></textarea>
           </div>
@@ -171,7 +171,7 @@
             <button
               (click)="onVote()"
               [disabled]="!selectedWinner() || voteLoading()"
-              class="bg-indigo-600 text-white px-6 py-2 rounded font-medium hover:bg-indigo-700 disabled:opacity-50"
+              class="bg-indigo-600 text-white px-6 py-2 rounded-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
             >
               {{ voteLoading() ? 'Enviando...' : 'Enviar Votación' }}
             </button>
@@ -184,11 +184,11 @@
           <h3 class="text-xl font-bold text-indigo-900 mb-4">🎉 ¡Voto Registrado!</h3>
           <p class="text-indigo-800 mb-4">Estos son los sistemas que generaron cada respuesta:</p>
           <div class="grid grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded shadow-sm border-l-4 border-blue-500">
+            <div class="bg-white p-4 rounded-sm shadow-xs border-l-4 border-blue-500">
               <span class="text-sm text-gray-500 font-medium">ASISTENTE ALFA</span>
               <p class="text-lg font-bold text-gray-900 mt-1">{{ voteResult()!.alfaSystem }}</p>
             </div>
-            <div class="bg-white p-4 rounded shadow-sm border-l-4 border-green-500">
+            <div class="bg-white p-4 rounded-sm shadow-xs border-l-4 border-green-500">
               <span class="text-sm text-gray-500 font-medium">ASISTENTE BETA</span>
               <p class="text-lg font-bold text-gray-900 mt-1">{{ voteResult()!.betaSystem }}</p>
             </div>
@@ -206,7 +206,7 @@
       <!-- Collapsible Sources Section (6.3) -->
       @if (voteResult()) {
         <div class="mt-6">
-          <details class="bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+          <details class="bg-gray-50 border border-gray-200 rounded-lg shadow-xs">
             <summary class="px-6 py-4 font-semibold text-gray-800 cursor-pointer hover:bg-gray-100">
               Ver documentos fuente utilizados por cada asistente
             </summary>
@@ -217,7 +217,7 @@
                 </h4>
                 <div class="space-y-4">
                   @for (source of compareData()!.sourcesAlfa; track source; let i = $index) {
-                    <div class="p-3 bg-white border border-gray-300 rounded text-sm text-gray-600">
+                    <div class="p-3 bg-white border border-gray-300 rounded-sm text-sm text-gray-600">
                       <strong>Documento {{ i + 1 }}:</strong><br />
                       {{ source }}
                     </div>
@@ -230,7 +230,7 @@
                 </h4>
                 <div class="space-y-4">
                   @for (source of compareData()!.sourcesBeta; track source; let i = $index) {
-                    <div class="p-3 bg-white border border-gray-300 rounded text-sm text-gray-600">
+                    <div class="p-3 bg-white border border-gray-300 rounded-sm text-sm text-gray-600">
                       <strong>Documento {{ i + 1 }}:</strong><br />
                       {{ source }}
                     </div>
