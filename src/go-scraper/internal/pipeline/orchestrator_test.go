@@ -218,13 +218,17 @@ func TestStopCancelsAJobRunningUnderAnotherContextAndWaitWaitsForIt(t *testing.T
 	o.Stop()
 	o.Wait()
 
+	// Wait returns once the job has ended and Run is returning; the goroutine above may not have sent it yet.
+	if o.isRunning() {
+		t.Fatal("Wait returned before the Run job ended")
+	}
 	select {
 	case job := <-finished:
 		if job.Status != StatusFailed || len(f.boe.days) > 1 {
 			t.Fatalf("job = %+v, days = %v", job, f.boe.days)
 		}
-	default:
-		t.Fatal("Wait returned before the Run job ended")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after Wait")
 	}
 	if _, err := o.Run(context.Background(), "schedule", Request{Start: date("2026-10-01")}); !errors.Is(err, ErrStopping) {
 		t.Fatalf("job after Stop: err = %v, want ErrStopping", err)
