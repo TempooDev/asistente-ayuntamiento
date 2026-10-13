@@ -8,7 +8,7 @@
 - [x] 1.4 Go: tracer and meter providers with W3C propagation (`src/go-scraper/internal/telemetry/otel.go`).
 - [x] 1.5 Go: add the `otelgrpc` stats handlers to `internal/commandserver/server.go` and `internal/filterclient/client.go`. Inject `traceparent`/`tracestate` into the AMQP headers in `internal/messaging/rabbitmq.go`, following `docs/messaging-contract.md`. **Done:** the `otelgrpc` handlers were already added in audit phase 6; `messaging.TraceHeaders` injects the context into the AMQP headers (`rabbitmq_test.go`). `ForceScrape` runs the job under the request context, so the chain is gRPC → job → message → Worker.
 - [x] 1.6 Add `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production` to `apiservice`, `worker-*` and `go-scraper` in `docker-compose.yml`, plus `.env.example`. Document the homelab endpoint and its secure channel in `docs/observability-architecture.md`. **Done:** also on `gateway`; `OTEL_EXPORTER_OTLP_HEADERS` carries the Collector token, and the attributes use `deployment.environment.name` (current convention) plus the old key.
-- [ ] 1.7 Add an OpenTelemetry Collector to the homelab stack (config in `docs/observability-architecture.md`) with an exporter to Tempo, Mimir and Loki. Add a second exporter slot for the LLM tool (section 6). **Config ready, deployment pending:** the Collector configuration (fan-out, bearer token, TLS, attribute filter, spare LLM exporter) and the secure-channel recommendation are in `docs/observability-architecture.md`; installing it in the homelab is still to be done.
+- 1.7 **Moved** to `tempooanalytics-and-homelab` (task 1.1): installing the Collector in the homelab. Its configuration is in `docs/observability-architecture.md`.
 
 ## 2. LLM Telemetry: Level 1 (self-owned, Grafana)
 
@@ -27,16 +27,9 @@
 - [x] 3.3 Register an Angular `ErrorHandler` that forwards to Faro. **Done:** `FaroErrorHandler` keeps Angular's default logging and forwards to Faro. Faro's own error and console instrumentations are off to avoid duplicates.
 - [x] 3.4 Limit `propagateTraceHeaderCorsUrls` to the API origin. Verify that browser → API → Worker appears as a single trace. **Done:** only `/api/` and `/hubs/` on the API origin. Faro data goes through the gateway (`/telemetry/faro`: Collector token, no cookies, size and rate limits) instead of exposing the Collector. Verified locally that `traceparent` reaches `/api` and that Faro does not trace its own sends (that bug was found and fixed during the check). The full browser → API → Worker trace in Tempo needs the Collector from 1.7.
 
-## 4. TempooAnalytics Setup (Frontend), blocked until the SDK or API is available
+## 4–5. TempooAnalytics
 
-- [ ] 4.1 Add the TempooAnalytics client (package or a thin internal HTTP client) in `core/analytics/tempoo-analytics.service.ts`.
-- [ ] 4.2 Initialize it with a runtime configuration key, not a build-time `environment` constant.
-- [ ] 4.3 Disable any automatic capture of input values, text content or query strings.
-
-## 5. TempooAnalytics UX Telemetry (Frontend)
-
-- [ ] 5.1 Measure the client-side `chat_reaction_time` (send → first chunk) in `ChatStore` (or `chat-panel.ts` before audit task 7.5) and capture it with `{ latency_ms, pipeline }`.
-- [ ] 5.2 Track clicks on source citations and external links as `link_clicked` with `{ source_type }` only (BOE/BOJA), never the query or the full URL with parameters.
+**Moved** to the change `tempooanalytics-and-homelab` (sections 2 and 3), together with the `user-experience-tempooanalytics` spec; it is blocked until the SDK or API is available.
 
 ## 6. LLM Telemetry: Level 2 Spike (self-hosted LLM observability UI)
 
