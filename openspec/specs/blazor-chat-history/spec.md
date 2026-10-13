@@ -30,6 +30,16 @@ The system SHALL persist each user and assistant message as a `ChatMessage` (ses
 - **WHEN** the user sends a message and the streamed answer finishes
 - **THEN** the user message and the full assistant answer SHALL be enqueued and saved by the next flush
 
+#### Scenario: Answer interrupted by an error
+- **WHEN** a chat stream fails (a model failure with an `LLM_*` code, or an internal error) after part of the answer was sent
+- **THEN** the partial answer followed by the notice the client appends for that error (`\n\n**⚠️ <message>**`, the same text as `mapStreamError`; `HubErrors.StreamFailureNotice`) SHALL be enqueued as the assistant message
+- **AND** reloading the conversation SHALL show the same text the user saw
+- **AND** when no text was sent before the failure, no assistant message SHALL be stored
+
+#### Scenario: Stream cancelled by the client
+- **WHEN** the client cancels the stream (it disconnects or deletes the conversation) before the answer finishes
+- **THEN** no assistant message SHALL be stored for that turn
+
 #### Scenario: Database temporarily unavailable
 - **WHEN** a flush fails with a transient database error
 - **THEN** the messages SHALL stay buffered (up to 10,000) and be retried on the next flush

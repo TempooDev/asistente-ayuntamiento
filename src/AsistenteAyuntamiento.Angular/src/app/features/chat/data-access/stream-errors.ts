@@ -21,7 +21,10 @@ export function streamErrorCode(error: unknown): string | null {
   return match && match[1] in STREAM_ERROR_MESSAGES ? match[1] : null;
 }
 
-/** Markdown shown in place of (or after) the partial answer. */
+/**
+ * Markdown shown in place of (or after) the partial answer. The hub stores a partial answer with the same notice
+ * (`HubErrors.StreamFailureNotice`), so keep both in sync.
+ */
 export function mapStreamError(error: unknown): string {
   const code = streamErrorCode(error);
   const message = code ? STREAM_ERROR_MESSAGES[code] : CONNECTION_LOST_MESSAGE;

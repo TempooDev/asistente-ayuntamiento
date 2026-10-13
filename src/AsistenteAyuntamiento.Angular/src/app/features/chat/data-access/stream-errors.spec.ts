@@ -12,6 +12,14 @@ describe('mapStreamError', () => {
     expect(mapStreamError('[LLM_QUOTA_EXCEEDED] Hemos alcanzado el límite')).toContain(STREAM_ERROR_MESSAGES['LLM_QUOTA_EXCEEDED']);
   });
 
+  it('produces the notice the hub stores after a partial answer, so a reload shows the same', () => {
+    // Must match HubErrors.StreamFailureNotice in the ApiService.
+    expect(mapStreamError('[LLM_UNAVAILABLE]')).toBe(
+      '\n\n**⚠️ El modelo de IA no está disponible en este momento. Inténtalo de nuevo más tarde.**',
+    );
+    expect(mapStreamError('Error [INTERNAL]: x')).toBe('\n\n**⚠️ Se ha producido un error interno. Inténtalo de nuevo más tarde.**');
+  });
+
   it('treats unknown errors as a lost connection without echoing them', () => {
     const text = mapStreamError(new Error('WebSocket closed with status code: 1006 (secret detail)'));
 

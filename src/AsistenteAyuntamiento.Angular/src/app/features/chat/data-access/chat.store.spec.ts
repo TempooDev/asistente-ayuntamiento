@@ -228,6 +228,22 @@ describe('ChatStore', () => {
     expect(store.messages().at(-1)).toEqual(expect.objectContaining({ kind: 'arena' }));
   });
 
+  it('blocks the vote when a side failed before sending any text', async () => {
+    store.arenaMode.set(true);
+    await store.init();
+    await store.send('Compara');
+    hub.arenaStream.observer!.next({ option: 'SessionId', content: 'battle-1' });
+    hub.arenaStream.observer!.next({ option: 'Alfa', content: '', errorCode: 'LLM_QUOTA_EXCEEDED' });
+    hub.arenaStream.observer!.next({ option: 'Beta', content: 'Respuesta B' });
+    hub.arenaStream.observer!.complete();
+    const battle = store.messages().at(-1) as ArenaMessage;
+
+    expect(battle.alfa).toContain(STREAM_ERROR_MESSAGES['LLM_QUOTA_EXCEEDED']);
+    expect(battle.failed).toEqual(['Alfa']);
+    await store.vote(battle.id, 'Beta');
+    expect(hub.voteArena).not.toHaveBeenCalled();
+  });
+
   it('marks both sides as failed when the whole Arena stream fails', async () => {
     store.arenaMode.set(true);
     await store.init();

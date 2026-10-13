@@ -13,9 +13,9 @@ public interface IChatStreamingService
     Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Streams text chunks. A model error before any text is streamed as a user-facing message; after some text it is
-    /// recorded as a failure and thrown as <see cref="LlmStreamInterruptedException"/>. A stream the caller cancelled
-    /// just ends.
+    /// Streams text chunks. A model error, before or after some text, is recorded as a failure and thrown as
+    /// <see cref="LlmStreamInterruptedException"/> (the chat turns one before any text into a message, see
+    /// <see cref="AiChatService"/>). A stream the caller cancelled just ends.
     /// </summary>
     IAsyncEnumerable<string> StreamAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
 }

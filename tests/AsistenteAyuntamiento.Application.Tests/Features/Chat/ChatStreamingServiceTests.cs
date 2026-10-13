@@ -98,14 +98,14 @@ public class ChatStreamingServiceTests
     }
 
     [Fact]
-    public async Task Quota_exceeded_without_fallback_streams_the_quota_message()
+    public async Task Quota_exceeded_without_fallback_throws_the_quota_error()
     {
         Streams(_primary, () => ChunksThenThrow(QuotaExceeded()));
         _modelFactory.Setup(f => f.CreateFallback()).Returns((FallbackChatModel?)null);
 
-        var chunks = await CollectAsync();
+        var act = () => CollectAsync();
 
-        chunks.Should().Equal(LlmErrorCodes.UserMessage(LlmErrorCodes.QuotaExceeded));
+        (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which.ErrorCode.Should().Be(LlmErrorCodes.QuotaExceeded);
         _recorded.Single().Should().Match<AiCallOutcome>(o => !o.Success && o.ErrorCode == LlmErrorCodes.QuotaExceeded);
     }
 
@@ -161,26 +161,50 @@ public class ChatStreamingServiceTests
     }
 
     [Fact]
-    public async Task A_failure_before_content_streams_the_typed_error_without_provider_details()
+    public async Task A_failure_before_content_throws_the_typed_error_without_provider_details()
     {
         Streams(_primary, () => ChunksThenThrow(new InvalidOperationException("internal provider detail")));
+        var chunks = new List<string>();
 
-        var chunks = await CollectAsync();
+        var act = async () =>
+        {
+            await foreach (var chunk in CreateSut().StreamAsync(History(), "org_A", "u1", LlmPipelines.ArenaAlfa))
+            {
+                chunks.Add(chunk);
+            }
+        };
 
-        chunks.Should().ContainSingle().Which.Should().Contain(LlmErrorCodes.UserMessage(LlmErrorCodes.Unavailable)).And.NotContain("provider detail");
-        _recorded.Single().ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        // A typed error rather than a text message, so an Arena side can be marked as failed (spec: question-arena).
+        var error = (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which;
+        error.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        error.Message.Should().Be(LlmErrorCodes.UserMessage(LlmErrorCodes.Unavailable)).And.NotContain("provider detail");
+        chunks.Should().BeEmpty();
+        _recorded.Single().Should().Match<AiCallOutcome>(o => !o.Success && o.ErrorCode == LlmErrorCodes.Unavailable && o.ResponseLength == 0);
     }
 
     [Fact]
-    public async Task Missing_api_key_streams_the_not_configured_message_and_records_nothing()
+    public async Task A_stream_cancelled_by_the_caller_before_content_just_ends()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        Streams(_primary, () => ChunksThenThrow(new OperationCanceledException()));
+
+        var chunks = await CreateSut().StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline, cancellation.Token).ToListAsync();
+
+        chunks.Should().BeEmpty();
+        _recorded.Single().ErrorCode.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Missing_api_key_throws_the_not_configured_error_and_records_nothing()
     {
         var sut = CreateSut();
         _modelFactory.Setup(f => f.Create(It.IsAny<AiConfigurationDto>(), It.IsAny<string?>()))
             .Throws(new LlmNotConfiguredException("No API key"));
 
-        var chunks = await sut.StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline).ToListAsync();
+        var act = async () => await sut.StreamAsync(History(), "org_A", "u1", LlmPipelines.Baseline).ToListAsync();
 
-        chunks.Should().Equal(LlmErrorCodes.UserMessage(LlmErrorCodes.NotConfigured));
+        (await act.Should().ThrowAsync<LlmStreamInterruptedException>()).Which.ErrorCode.Should().Be(LlmErrorCodes.NotConfigured);
         _recorded.Should().BeEmpty();
     }
 }

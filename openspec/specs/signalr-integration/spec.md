@@ -44,17 +44,19 @@ The chat hub SHALL stream the assistant's answer as it is generated, using `IAsy
 - **AND** none of these SHALL reveal whether the session exists
 
 ### Requirement: Typed Errors Without Details
-Hub failures SHALL reach the client as a stable code (`UNAUTHORIZED`, `NOT_FOUND`, `INVALID_REQUEST`, `ALREADY_VOTED`, `INTERNAL`) and never include exception details, which SHALL only be written to the server logs. Errors detected before a chat stream starts SHALL be sent as the stream's single message; Arena set-up errors and failures in the middle of any stream (chat or Arena) SHALL be thrown as a `HubException` with `Error [INTERNAL]` (or the set-up code). Model failures before any text is produced SHALL arrive in the stream as `[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]` or `[LLM_UNAVAILABLE]` messages; a model failure after some text was streamed SHALL end the chat stream with a `HubException` carrying that `[LLM_*]` message.
+Hub failures SHALL reach the client as a stable code (`UNAUTHORIZED`, `NOT_FOUND`, `INVALID_REQUEST`, `ALREADY_VOTED`, `INTERNAL`) and never include exception details, which SHALL only be written to the server logs. Errors detected before a chat stream starts SHALL be sent as the stream's single message; Arena set-up errors and failures in the middle of any stream (chat or Arena) SHALL be thrown as a `HubException` with `Error [INTERNAL]` (or the set-up code). Model failures before any text is produced SHALL arrive in the stream as `[LLM_QUOTA_EXCEEDED]`, `[LLM_NOT_CONFIGURED]` or `[LLM_UNAVAILABLE]` messages; a model failure after some text was streamed SHALL end the chat stream with a `HubException` carrying that `[LLM_*]` message. When a chat stream fails after some text, the hub SHALL store the partial answer followed by the same notice the client shows, so a reload shows the same; a stream the client cancelled stores no answer.
 
 #### Scenario: Model failure after some text
 - **WHEN** the model stream fails (other than a cancellation by the client) after part of the answer was sent
 - **THEN** the chat stream SHALL end with a `HubException` whose message is the typed `[LLM_*]` message (no provider details), never a silent end
 - **AND** the client SHALL keep the partial answer and append the message mapped from the code (`mapStreamError`)
+- **AND** the hub SHALL store the partial answer with that same notice as the assistant message
 
 #### Scenario: Internal error during a stream
 - **WHEN** an unexpected exception escapes the pipeline while streaming
 - **THEN** the stream SHALL end with a `HubException` carrying `Error [INTERNAL]: …`, and the details SHALL only be logged
 - **AND** the client SHALL keep the partial answer and append the message mapped from the code (`mapStreamError`)
+- **AND** the hub SHALL store the partial answer, if any, with that same notice as the assistant message
 
 #### Scenario: Connection lost during a stream
 - **WHEN** the stream fails with an error that carries no known code
