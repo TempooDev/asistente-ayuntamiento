@@ -1,16 +1,27 @@
 import { ChangeDetectionStrategy, Component, ElementRef, effect, input, output, viewChild } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { interval, map, of, startWith, switchMap } from 'rxjs';
 import { MarkdownPipe } from '../../../shared/markdown/markdown.pipe';
 import { ArenaMessageComponent } from '../arena-message/arena-message.component';
 import { ArenaVote, ChatMessage } from '../models/chat.models';
 
-/** Messages of the current conversation; follows new content to the bottom. */
+/** Shown in turn while waiting for the first chunk of the answer. */
+export const WAITING_MESSAGES = ['Procesando mensaje...', 'Buscando referencias...', 'Redactando respuesta...'] as const;
+export const WAITING_MESSAGE_INTERVAL_MS = 2500;
+/** Distance from the bottom (px) under which the list keeps following new content. */
+export const STICK_TO_BOTTOM_PX = 150;
+
+/**
+ * Messages of the current conversation. Follows new content to the bottom unless the user scrolled up to read;
+ * sending a message or opening another conversation always jumps to the bottom.
+ */
 @Component({
   selector: 'app-message-list',
   imports: [MarkdownPipe, ArenaMessageComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex-1 min-h-0 relative block' },
   template: `
-    <div #scroller class="h-full overflow-y-auto p-4 md:p-margin-desktop" aria-live="polite" [attr.aria-busy]="generating()">
+    <div #scroller class="h-full overflow-y-auto p-4 md:p-margin-desktop" aria-live="polite" [attr.aria-busy]="generating()" (scroll)="onScroll()">
       @if (loading()) {
         <div class="h-full flex flex-col items-center justify-center text-gray-400 max-w-md mx-auto text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4" aria-hidden="true"></div>
@@ -51,7 +62,7 @@ import { ArenaVote, ChatMessage } from '../models/chat.models';
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s" aria-hidden="true"></span>
-              <span class="text-sm text-gray-500 ml-1">Procesando...</span>
+              <span class="text-sm text-gray-500 ml-1" data-testid="waiting-text">{{ waitingText() }}</span>
             </div>
           }
         </div>
@@ -68,15 +79,51 @@ export class MessageListComponent {
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
+  /** Rotates while waiting; the interval stops with the first chunk (waiting turns false) or on destroy. */
+  protected readonly waitingText = toSignal(
+    toObservable(this.waiting).pipe(
+      switchMap(waiting =>
+        waiting
+          ? interval(WAITING_MESSAGE_INTERVAL_MS).pipe(
+              map(tick => WAITING_MESSAGES[(tick + 1) % WAITING_MESSAGES.length]),
+              startWith(WAITING_MESSAGES[0]),
+            )
+          : of(WAITING_MESSAGES[0]),
+      ),
+    ),
+    { initialValue: WAITING_MESSAGES[0] },
+  );
+
+  private followBottom = true;
+  private previous: readonly ChatMessage[] = [];
+
   constructor() {
-    // New messages or streamed text: keep the latest content in view.
     effect(() => {
-      this.messages();
+      const messages = this.messages();
       this.waiting();
+      if (this.isNewConversation(messages) || this.userJustSent(messages)) {
+        this.followBottom = true;
+      }
+      this.previous = messages;
       const element = this.scroller()?.nativeElement;
-      if (element) {
+      if (element && this.followBottom) {
         queueMicrotask(() => (element.scrollTop = element.scrollHeight));
       }
     });
+  }
+
+  protected onScroll(): void {
+    const element = this.scroller()?.nativeElement;
+    if (!element) return;
+    this.followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < STICK_TO_BOTTOM_PX;
+  }
+
+  private isNewConversation(messages: readonly ChatMessage[]): boolean {
+    return messages[0]?.id !== this.previous[0]?.id;
+  }
+
+  private userJustSent(messages: readonly ChatMessage[]): boolean {
+    const known = new Set(this.previous.map(m => m.id));
+    return messages.some(m => m.kind === 'user' && !known.has(m.id));
   }
 }

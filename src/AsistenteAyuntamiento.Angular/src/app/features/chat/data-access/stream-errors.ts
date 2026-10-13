@@ -13,6 +13,7 @@ export const STREAM_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export const CONNECTION_LOST_MESSAGE = 'Se ha perdido la conexión con el servidor. Inténtalo de nuevo.';
+export const RECONNECT_FAILED_MESSAGE = 'No se ha podido conectar con el servidor. Comprueba tu conexión y vuelve a enviar el mensaje.';
 
 export function streamErrorCode(error: unknown): string | null {
   const text = error instanceof Error ? error.message : String(error ?? '');

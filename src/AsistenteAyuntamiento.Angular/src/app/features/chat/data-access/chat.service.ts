@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { IStreamResult } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { HubConnectionFactory } from '../../../core/realtime/hub-connection.factory';
-import { ArenaStreamChunk, ArenaVote, ChatMessageDto, ChatSessionSummaryDto } from '../models/chat.models';
+import { ArenaStreamChunk, ArenaVote, ChatMessageDto, ChatSessionSummaryDto, ConnectionState } from '../models/chat.models';
 
 /** Stateless client of the chat hub (/hubs/chat). State lives in ChatStore. */
 @Injectable({ providedIn: 'root' })
@@ -10,9 +10,15 @@ export class ChatService {
   private readonly receivedSource = new Subject<string>();
   /** Assistant messages pushed by the server outside a stream. */
   readonly messageReceived$ = this.receivedSource.asObservable();
+  private readonly connectionSource = new Subject<ConnectionState>();
+  /** Changes made by SignalR's automatic reconnection (the phone was locked, the network changed…). */
+  readonly connectionChanges$ = this.connectionSource.asObservable();
 
   private readonly hub = inject(HubConnectionFactory).get('/hubs/chat', connection => {
     connection.on('ReceiveMessage', (message: string) => this.receivedSource.next(message));
+    connection.onreconnecting(() => this.connectionSource.next('reconnecting'));
+    connection.onreconnected(() => this.connectionSource.next('connected'));
+    connection.onclose(() => this.connectionSource.next('disconnected'));
   });
 
   get isConnected(): boolean {

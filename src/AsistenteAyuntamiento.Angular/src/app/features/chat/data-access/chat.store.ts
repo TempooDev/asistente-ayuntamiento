@@ -2,6 +2,7 @@ import { Injectable, WritableSignal, computed, inject, signal } from '@angular/c
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ISubscription } from '@microsoft/signalr';
 import { environment } from '../../../../environments/environment';
+import { InactivityService } from '../../../core/auth/inactivity.service';
 import {
   ArenaMessage,
   ArenaStreamChunk,
@@ -12,7 +13,7 @@ import {
   ConnectionState,
 } from '../models/chat.models';
 import { ChatService } from './chat.service';
-import { mapStreamError } from './stream-errors';
+import { RECONNECT_FAILED_MESSAGE, mapStreamError } from './stream-errors';
 
 /** Pending text per message and field, flushed into the state once per animation frame. */
 type PendingChunks = Map<string, { text?: string; alfa?: string; beta?: string; battleId?: string }>;
@@ -30,6 +31,7 @@ const newId = () => `m${++messageCounter}`;
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
   private readonly hub = inject(ChatService);
+  private readonly inactivity = inject(InactivityService);
 
   private readonly messagesBySession = signal<ReadonlyMap<string, readonly ChatMessage[]>>(new Map());
   private readonly streaming = signal<ReadonlySet<string>>(new Set());
@@ -53,6 +55,7 @@ export class ChatStore {
 
   constructor() {
     this.hub.messageReceived$.pipe(takeUntilDestroyed()).subscribe(text => this.receive(text));
+    this.hub.connectionChanges$.pipe(takeUntilDestroyed()).subscribe(state => this.connection.set(state));
   }
 
   /** Connects and opens the latest conversation, unless one is already loaded (returning to the page). */
@@ -128,10 +131,23 @@ export class ChatStore {
     this.arenaMode.update(on => !on);
   }
 
-  /** Sends text in the current session (creating one if needed) and streams the answer. */
+  /**
+   * Sends text in the current session (creating one if needed) and streams the answer. A dropped connection (for
+   * example after the phone was locked) is re-established first instead of blocking the message.
+   */
   async send(text: string): Promise<void> {
     const message = text.trim();
-    if (!message || !this.isConnected() || this.isGenerating()) return;
+    if (!message || this.isGenerating()) return;
+
+    if (!(await this.reconnect())) {
+      const sessionId = this.currentSessionId();
+      this.updateMessages(sessionId, list => [
+        ...list,
+        { kind: 'user', id: newId(), text: message },
+        { kind: 'assistant', id: newId(), text: `**⚠️ ${RECONNECT_FAILED_MESSAGE}**` },
+      ]);
+      return;
+    }
 
     const sessionId = this.currentSessionId() || (await this.createSession());
     const answer: AssistantMessage | ArenaMessage = this.arenaMode()
@@ -140,8 +156,11 @@ export class ChatStore {
     this.updateMessages(sessionId, list => [...list, { kind: 'user', id: newId(), text: message }, answer]);
     this.mark(this.streaming, sessionId, true);
     this.mark(this.waiting, sessionId, true);
+    // The session must not expire while the answer is still arriving.
+    const releaseHold = this.inactivity.hold();
 
     const finish = (error?: unknown) => {
+      releaseHold();
       if (error !== undefined) {
         console.error('Chat stream failed', error);
         const notice = mapStreamError(error);
@@ -192,6 +211,24 @@ export class ChatStore {
     this.updateMessages(sessionId, list =>
       list.map(m => (m.id === messageId ? { kind: 'assistant', id: m.id, text, arenaWinner: winner } : m)),
     );
+  }
+
+  /** True when the hub is (or could be made) connected; shows "reconnecting" meanwhile. */
+  private async reconnect(): Promise<boolean> {
+    if (this.hub.isConnected) {
+      this.connection.set('connected');
+      return true;
+    }
+    this.connection.set('reconnecting');
+    try {
+      await this.hub.connect();
+      this.connection.set('connected');
+      return true;
+    } catch (err) {
+      console.error('Chat hub reconnection failed', err);
+      this.connection.set('disconnected');
+      return false;
+    }
   }
 
   private receive(text: string): void {

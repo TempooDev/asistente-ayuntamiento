@@ -5,5 +5,7 @@ export const environment = {
     customClaimsNamespace: 'https://asistente.antoniobermudez.dev'
   },
   apiBaseUrl: '',
+  // Minutes without interaction before the session is closed (InactivityService).
+  sessionTimeoutMinutes: 30,
   enableArenaModeByDefault: false
 };

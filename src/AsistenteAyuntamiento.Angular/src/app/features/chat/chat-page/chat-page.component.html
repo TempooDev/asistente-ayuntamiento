@@ -60,7 +60,7 @@
       [generating]="store.isGenerating()"
       (vote)="vote($event)" />
 
-    <app-chat-input [connected]="store.isConnected()" [busy]="store.isGenerating()" (send)="send($event)" />
+    <app-chat-input [connection]="store.connection()" [busy]="store.isGenerating()" (send)="send($event)" />
   </div>
 
   @if (sidebarOpen()) {

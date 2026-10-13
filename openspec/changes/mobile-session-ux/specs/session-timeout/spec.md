@@ -11,3 +11,12 @@ The system SHALL monitor user interaction and automatically terminate the sessio
 #### Scenario: User interacts with the app
 - **WHEN** the user moves the mouse, presses a key, or touches the screen
 - **THEN** the inactivity timer SHALL be reset to 0.
+
+#### Scenario: Answer still streaming
+- **WHEN** the 30 minutes elapse while a chat answer is still being streamed
+- **THEN** the session SHALL NOT be closed
+- **AND** the countdown SHALL restart when the answer finishes
+
+#### Scenario: Return after locking the phone
+- **WHEN** the page becomes visible again after being hidden (screen locked, tab in the background) for longer than the timeout
+- **THEN** the system SHALL log the user out immediately, even if the browser froze the timer while hidden

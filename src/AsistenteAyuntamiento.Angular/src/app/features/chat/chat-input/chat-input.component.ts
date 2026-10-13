@@ -1,6 +1,16 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, input, output, signal, viewChild } from '@angular/core';
+import { ConnectionState } from '../models/chat.models';
 
-/** Message box: Enter sends, Shift+Enter adds a line. */
+const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
+  connecting: 'Conectando al servidor...',
+  reconnecting: 'Reconectando...',
+  disconnected: 'Sin conexión. Se volverá a conectar al enviar el mensaje.',
+};
+
+/**
+ * Message box: Enter sends, Shift+Enter adds a line. Only an ongoing (re)connection blocks sending; when the
+ * connection is down, sending triggers the reconnection.
+ */
 @Component({
   selector: 'app-chat-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,22 +37,24 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, input, output
           <span class="material-symbols-outlined text-[24px]" aria-hidden="true">send</span>
         </button>
       </form>
-      @if (!connected()) {
+      @if (notice(); as notice) {
         <div class="text-center mt-2 text-sm text-gray-500 flex items-center justify-center max-w-3xl mx-auto" role="status">
-          <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse" aria-hidden="true"></span>
-          Conectando al servidor...
+          <span class="w-2 h-2 rounded-full mr-2 animate-pulse" [class.bg-amber-500]="connection() !== 'disconnected'" [class.bg-red-500]="connection() === 'disconnected'" aria-hidden="true"></span>
+          {{ notice }}
         </div>
       }
     </div>
   `,
 })
 export class ChatInputComponent {
-  readonly connected = input(true);
+  readonly connection = input<ConnectionState>('connected');
   readonly busy = input(false);
   readonly send = output<string>();
 
   protected readonly text = signal('');
-  protected readonly canSend = computed(() => this.text().trim().length > 0 && this.connected() && !this.busy());
+  protected readonly notice = computed(() => CONNECTION_NOTICES[this.connection()] ?? null);
+  private readonly connecting = computed(() => this.connection() === 'connecting' || this.connection() === 'reconnecting');
+  protected readonly canSend = computed(() => this.text().trim().length > 0 && !this.connecting() && !this.busy());
   private readonly box = viewChild.required<ElementRef<HTMLTextAreaElement>>('box');
 
   focus(): void {

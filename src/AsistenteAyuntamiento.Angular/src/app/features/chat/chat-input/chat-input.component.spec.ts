@@ -1,10 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { ConnectionState } from '../models/chat.models';
 import { ChatInputComponent } from './chat-input.component';
 
 describe('ChatInputComponent', () => {
-  function setup(connected = true, busy = false) {
+  function setup(connection: ConnectionState = 'connected', busy = false) {
     const fixture = TestBed.createComponent(ChatInputComponent);
-    fixture.componentRef.setInput('connected', connected);
+    fixture.componentRef.setInput('connection', connection);
     fixture.componentRef.setInput('busy', busy);
     const sent: string[] = [];
     fixture.componentInstance.send.subscribe(text => sent.push(text));
@@ -31,7 +32,7 @@ describe('ChatInputComponent', () => {
     expect(box.value).toBe('');
   });
 
-  it('does not send on Shift+Enter, blank text, while busy or disconnected', () => {
+  it('does not send on Shift+Enter, blank text, while busy or while (re)connecting', () => {
     const idle = setup();
     idle.type('línea');
     idle.press(true);
@@ -39,14 +40,24 @@ describe('ChatInputComponent', () => {
     idle.press();
     expect(idle.sent).toEqual([]);
 
-    const busy = setup(true, true);
+    const busy = setup('connected', true);
     busy.type('hola');
     busy.press();
     expect(busy.sent).toEqual([]);
 
-    const offline = setup(false);
+    const reconnecting = setup('reconnecting');
+    reconnecting.type('hola');
+    reconnecting.press();
+    expect(reconnecting.sent).toEqual([]);
+    expect(reconnecting.fixture.nativeElement.textContent).toContain('Reconectando...');
+  });
+
+  it('lets the user send while disconnected, so the store can reconnect', () => {
+    const offline = setup('disconnected');
+    expect(offline.fixture.nativeElement.textContent).toContain('Sin conexión');
+
     offline.type('hola');
     offline.press();
-    expect(offline.sent).toEqual([]);
+    expect(offline.sent).toEqual(['hola']);
   });
 });
