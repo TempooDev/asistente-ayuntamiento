@@ -1,0 +1,84 @@
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-6" aria-labelledby="boja-feeds-title">
+  <h3 id="boja-feeds-title" class="font-headline-md text-headline-md text-on-surface mb-2">Secciones del BOJA</h3>
+  <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Selecciona qué distribuciones del BOJA extraer. Si no seleccionas ninguna, se usarán los valores por defecto del sistema.</p>
+  <div class="flex flex-col gap-3">
+    @for (feed of bojaFeeds; track feed.url) {
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input #check type="checkbox" [checked]="isFeedActive(feed.url)" (change)="toggleFeed(feed.url, check.checked)" class="w-5 h-5 text-primary rounded border-outline focus:ring-primary" />
+        <span class="text-on-surface">{{ feed.label }}</span>
+      </label>
+    }
+  </div>
+</section>
+
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-6" aria-labelledby="new-filter-title">
+  <h3 id="new-filter-title" class="font-headline-md text-headline-md text-on-surface mb-4">Añadir Nuevo Filtro</h3>
+  <form class="flex gap-4 items-end flex-wrap" [formGroup]="newFilter" (ngSubmit)="add()">
+    <div class="flex-1 min-w-[140px]">
+      <label for="filter-provider" class="block font-label-sm mb-1 text-on-surface">Boletín</label>
+      <select id="filter-provider" formControlName="provider" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+        @for (p of providers; track p) {
+          <option [value]="p">{{ p }}</option>
+        }
+      </select>
+    </div>
+    <div class="flex-1 min-w-[140px]">
+      <label for="filter-type" class="block font-label-sm mb-1 text-on-surface">Tipo de Filtro</label>
+      <select id="filter-type" formControlName="filterType" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2">
+        @for (t of filterTypes; track t.value) {
+          <option [value]="t.value">{{ t.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label for="filter-value" class="block font-label-sm mb-1 text-on-surface">Valor</label>
+      <input id="filter-value" formControlName="value" type="text" placeholder="Ej: Ministerio de Sanidad" class="w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2" />
+    </div>
+    <button type="submit" [disabled]="newFilter.invalid" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md disabled:opacity-50">Añadir</button>
+  </form>
+</section>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+  <table class="w-full text-left">
+    <caption class="sr-only">Filtros del scraper</caption>
+    <thead class="bg-surface-variant">
+      <tr>
+        <th scope="col" class="p-4 font-label-md text-on-surface-variant">Boletín</th>
+        <th scope="col" class="p-4 font-label-md text-on-surface-variant">Tipo</th>
+        <th scope="col" class="p-4 font-label-md text-on-surface-variant">Valor</th>
+        <th scope="col" class="p-4 font-label-md text-on-surface-variant">Estado</th>
+        <th scope="col" class="p-4 font-label-md text-on-surface-variant">Acciones</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-outline-variant">
+      @if (isLoading()) {
+        <tr><td colspan="5" class="p-6 text-center text-on-surface-variant" role="status">Cargando filtros...</td></tr>
+      }
+      @for (rule of filters(); track rule.id) {
+        <tr>
+          <td class="p-4">{{ rule.provider }}</td>
+          <td class="p-4"><span class="px-2 py-1 bg-surface-variant text-on-surface-variant rounded text-xs">{{ rule.filterType }}</span></td>
+          <td class="p-4 font-medium break-all">{{ rule.value }}</td>
+          <td class="p-4">
+            <button type="button" (click)="toggle(rule)" role="switch" [attr.aria-checked]="rule.isActive"
+                    [attr.aria-label]="'Filtro ' + rule.value + (rule.isActive ? ' activo' : ' inactivo')"
+                    [class]="rule.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                    class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors">
+              <span class="w-2 h-2 rounded-full" [class]="rule.isActive ? 'bg-green-500' : 'bg-red-500'" aria-hidden="true"></span>
+              {{ rule.isActive ? 'Activo' : 'Inactivo' }}
+            </button>
+          </td>
+          <td class="p-4">
+            <button type="button" (click)="remove(rule)" class="text-error hover:underline text-sm font-medium flex items-center gap-1" [attr.aria-label]="'Eliminar filtro ' + rule.value">
+              <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Eliminar
+            </button>
+          </td>
+        </tr>
+      } @empty {
+        @if (!isLoading()) {
+          <tr><td colspan="5" class="p-6 text-center text-on-surface-variant italic">No hay filtros configurados. Se procesarán todos los documentos.</td></tr>
+        }
+      }
+    </tbody>
+  </table>
+</div>

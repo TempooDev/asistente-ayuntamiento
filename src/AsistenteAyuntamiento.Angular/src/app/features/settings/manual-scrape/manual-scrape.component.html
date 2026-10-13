@@ -1,0 +1,37 @@
+<section class="mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm mb-8" aria-labelledby="manual-scrape-title">
+  <h3 id="manual-scrape-title" class="font-headline-md text-headline-md text-on-surface mb-2">Extracción Manual</h3>
+  <p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Fuerza la extracción de documentos para un rango de fechas. Si las dejas vacías, usará el día de hoy.</p>
+
+  <div class="flex gap-4 mb-4 flex-wrap">
+    <label class="flex-1 min-w-[160px] block font-label-sm text-on-surface">Fecha Inicio (opcional)
+      <input #startInput type="date" [value]="startDate()" (change)="startDate.set(startInput.value)" class="mt-1 w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2 font-normal" />
+    </label>
+    <label class="flex-1 min-w-[160px] block font-label-sm text-on-surface">Fecha Fin (opcional)
+      <input #endInput type="date" [value]="endDate()" (change)="endDate.set(endInput.value)" class="mt-1 w-full border border-outline-variant rounded-lg bg-surface-container-lowest p-2 font-normal" />
+    </label>
+  </div>
+
+  <fieldset class="mb-4">
+    <legend class="block font-label-sm mb-2 text-on-surface">Secciones del BOE (opcional)</legend>
+    <div class="flex flex-wrap gap-4">
+      @for (section of sections; track section.value) {
+        <label class="flex items-center gap-2 cursor-pointer text-sm">
+          <input #check type="checkbox" [checked]="boeSections().includes(section.value)" (change)="toggleSection(section.value, check.checked)" class="w-4 h-4 text-primary rounded border-outline focus:ring-primary" />
+          <span class="text-on-surface-variant">{{ section.label }}</span>
+        </label>
+      }
+    </div>
+  </fieldset>
+
+  <div class="flex gap-4">
+    @for (provider of providers; track provider) {
+      <button type="button" (click)="start(provider)" [disabled]="isScraping()" class="px-4 py-2 border border-outline text-on-surface rounded-lg hover:bg-surface-variant font-label-md disabled:opacity-50">Extraer {{ provider }}</button>
+    }
+  </div>
+  @if (isScraping()) {
+    <p class="mt-4 text-sm text-primary flex items-center gap-2" role="status">
+      <span class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full" aria-hidden="true"></span>
+      {{ progress() || 'Procesando documentos. Esto puede tardar varios minutos dependiendo del rango de fechas...' }}
+    </p>
+  }
+</section>

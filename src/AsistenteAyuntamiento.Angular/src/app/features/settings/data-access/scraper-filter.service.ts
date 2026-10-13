@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
-import { FilterType, ScraperFilterRuleDto, CreateFilterRuleDto, UpdateFilterRuleStatusDto, TriggerScrapeDto } from '../models/settings.models';
+import { FilterType, ScraperFilterRuleDto, CreateFilterRuleDto, UpdateFilterRuleStatusDto, TriggerScrapeDto, ScraperState } from '../models/settings.models';
 import { DocumentSource } from '../../../shared/models/document-source';
 
 @Injectable({
@@ -20,18 +20,18 @@ export class ScraperFilterService {
   }
 
   updateFilterStatus(id: number, dto: UpdateFilterRuleStatusDto) {
-    return this.http.put(`${this.apiUrl}/${id}`, dto);
+    return this.http.put<void>(`${this.apiUrl}/${id}`, dto);
   }
 
   deleteFilter(id: number) {
-    return this.http.delete(`${this.apiUrl}/${id}`);
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
   triggerScrape(dto: TriggerScrapeDto) {
-    return this.http.post(`${this.apiUrl}/trigger`, dto);
+    return this.http.post<void>(`${this.apiUrl}/trigger`, dto);
   }
 
   getState() {
-    return this.http.get<{ isScraping: boolean, message: string }>(`${this.apiUrl}/state`);
+    return this.http.get<ScraperState>(`${this.apiUrl}/state`);
   }
 }

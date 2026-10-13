@@ -44,6 +44,14 @@ export interface UpdateFilterRuleStatusDto {
 
 export interface TriggerScrapeDto {
   provider: DocumentSource;
+  /** YYYY-MM-DD; empty means today. */
   startDate?: string;
   endDate?: string;
+  /** BOE sections; empty uses the configured ones. */
+  sections?: string[];
+}
+
+export interface ScraperState {
+  isScraping: boolean;
+  message: string;
 }

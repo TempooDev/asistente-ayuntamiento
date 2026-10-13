@@ -1,63 +1,49 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { IngestionStatus, BlobInfo, ProcessResponse, PaginatedBlobsResponse } from '../models/documents.models';
+import { BlobQuery, EnqueueRequest, PaginatedBlobsResponse, PipelineMode, ProcessResponse } from '../models/documents.models';
 
-@Injectable({
-  providedIn: 'root'
-})
+/** Admin API of the stored documents and their ingestion. Actions return the server's message. */
+@Injectable({ providedIn: 'root' })
 export class IngestionService {
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
+  private readonly baseUrl = `${environment.apiBaseUrl}/api/ingestion`;
 
-  async getBlobs(paramsObj: any = {}): Promise<PaginatedBlobsResponse> {
+  /** Empty filters are left out of the query string. */
+  getBlobs(query: BlobQuery): Observable<PaginatedBlobsResponse> {
     let params = new HttpParams();
-    Object.keys(paramsObj).forEach(key => {
-        if (paramsObj[key] !== null && paramsObj[key] !== undefined && paramsObj[key] !== '') {
-            params = params.set(key, paramsObj[key]);
-        }
-    });
-
-    const result = await firstValueFrom(
-      this.http.get<PaginatedBlobsResponse>(`${environment.apiBaseUrl}/api/ingestion/blobs`, { params })
-    );
-    return result || { items: [], totalCount: 0, stats: { total: 0, pending: 0, processing: 0, completed: 0 } };
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== null && value !== undefined && value !== '') {
+        params = params.set(key, String(value));
+      }
+    }
+    return this.http.get<PaginatedBlobsResponse>(`${this.baseUrl}/blobs`, { params });
   }
 
-  async processBlob(blobPath: string, source: string): Promise<string> {
-    const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/process-blob`, { blobPath, source })
-    );
-    return result?.message ?? "Procesado correctamente.";
+  processBlob(blobPath: string, source: string): Observable<string> {
+    return this.message(this.http.post<ProcessResponse>(`${this.baseUrl}/process-blob`, { blobPath, source }), 'Procesado correctamente.');
   }
 
-  async enqueueBulk(blobs: { blobPath: string, source: string }[], pipelineMode: string = 'BOTH'): Promise<string> {
+  enqueueBulk(blobs: EnqueueRequest[], pipelineMode: PipelineMode = 'BOTH'): Observable<string> {
     const params = new HttpParams().set('pipelineMode', pipelineMode);
-    const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/enqueue-bulk`, blobs, { params })
-    );
-    return result?.message ?? "Documentos encolados correctamente.";
+    return this.message(this.http.post<ProcessResponse>(`${this.baseUrl}/enqueue-bulk`, blobs, { params }), 'Documentos encolados correctamente.');
   }
 
-  async resetBlobStatus(documentId: string): Promise<string> {
-    const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-status/${documentId}`, {})
-    );
-    return result?.message ?? "Estado reiniciado correctamente.";
+  resetBlobStatus(documentId: string): Observable<string> {
+    return this.message(this.http.post<ProcessResponse>(`${this.baseUrl}/reset-status/${encodeURIComponent(documentId)}`, {}), 'Estado reiniciado correctamente.');
   }
 
-  async resetStuckProcessing(): Promise<string> {
-    const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reset-stuck-processing`, {})
-    );
-    return result?.message ?? "Documentos colgados reiniciados correctamente.";
+  resetStuckProcessing(): Observable<string> {
+    return this.message(this.http.post<ProcessResponse>(`${this.baseUrl}/reset-stuck-processing`, {}), 'Documentos colgados reiniciados correctamente.');
   }
 
-  async reprocessAllBlobs(pipelineMode: string = 'BOTH'): Promise<string> {
+  reprocessAll(pipelineMode: PipelineMode = 'BOTH'): Observable<string> {
     const params = new HttpParams().set('pipelineMode', pipelineMode);
-    const result = await firstValueFrom(
-      this.http.post<ProcessResponse>(`${environment.apiBaseUrl}/api/ingestion/reprocess-all`, {}, { params })
-    );
-    return result?.message ?? "Reprocesado masivo iniciado correctamente.";
+    return this.message(this.http.post<ProcessResponse>(`${this.baseUrl}/reprocess-all`, {}, { params }), 'Reprocesado masivo iniciado correctamente.');
+  }
+
+  private message(request: Observable<ProcessResponse | null>, fallback: string): Observable<string> {
+    return request.pipe(map(response => response?.message ?? fallback));
   }
 }
