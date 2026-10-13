@@ -74,7 +74,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         {
             entity.ToTable("UserPreferences", "identity");
             entity.HasQueryFilter(p => p.TenantId == CurrentTenantId);
-            entity.HasIndex(p => p.Auth0UserId).IsUnique();
+            // One set of preferences per user and organization.
+            entity.HasIndex(p => new { p.Auth0UserId, p.TenantId }).IsUnique();
         });
 
         modelBuilder.Entity<ChatSession>(entity =>

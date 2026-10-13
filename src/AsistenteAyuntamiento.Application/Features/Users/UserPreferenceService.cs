@@ -5,97 +5,80 @@ using AsistenteAyuntamiento.Domain.Features.Users;
 namespace AsistenteAyuntamiento.Application.Features.Users;
 
 /// <summary>
-/// Preferences are unique per identity (<c>Auth0UserId</c>), so lookups are by the authenticated
-/// subject and ignore the tenant filter on purpose (allow-listed cross-tenant query).
+/// Preferences of one user in one organization (unique on <c>Auth0UserId</c> + <c>TenantId</c>): the same person in
+/// two organizations has two independent sets. Every query runs under the tenant filter and also names the tenant.
 /// </summary>
 public class UserPreferenceService(IAppDbContext context, ICurrentTenantService tenantService) : IUserPreferenceService
 {
     private string RequireTenant() => tenantService.TenantId
-        ?? throw new InvalidOperationException("A tenant is required to create user preferences.");
+        ?? throw new InvalidOperationException("A tenant is required to read or change user preferences.");
 
     public async Task<UserPreferenceDto> GetPreferencesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        var preference = await context.UserPreferences
-            .AsNoTracking()
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
-
-        if (preference == null)
+        var tenantId = tenantService.TenantId;
+        if (tenantId is null)
         {
             return new UserPreferenceDto();
         }
 
-        return new UserPreferenceDto
-        {
-            Topics = preference.Topics,
-            Locations = preference.Locations
-        };
+        var preference = await context.UserPreferences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId && p.TenantId == tenantId, cancellationToken);
+
+        return preference is null
+            ? new UserPreferenceDto()
+            : new UserPreferenceDto { Topics = preference.Topics, Locations = preference.Locations };
     }
 
     public async Task UpdatePreferencesAsync(string auth0UserId, UserPreferenceDto dto, CancellationToken cancellationToken = default)
     {
-        var preference = await context.UserPreferences
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
-
-        if (preference == null)
-        {
-            preference = new UserPreference
-            {
-                Auth0UserId = auth0UserId,
-                TenantId = RequireTenant(),
-                Topics = dto.Topics ?? new List<string>(),
-                Locations = dto.Locations ?? new List<string>()
-            };
-            context.UserPreferences.Add(preference);
-        }
-        else
-        {
-            preference.Topics = dto.Topics ?? new List<string>();
-            preference.Locations = dto.Locations ?? new List<string>();
-            preference.UpdatedAt = DateTime.UtcNow;
-        }
+        var (preference, _) = await FindOrAddAsync(auth0UserId, cancellationToken);
+        preference.Topics = Distinct(dto.Topics);
+        preference.Locations = Distinct(dto.Locations);
+        preference.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Adds the extracted interests that are new (case-insensitive), keeping the existing ones.</summary>
     public async Task MergePreferencesAsync(string auth0UserId, UserPreferenceDto extracted, CancellationToken cancellationToken = default)
     {
-        var preference = await context.UserPreferences
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId, cancellationToken);
+        var (preference, isNew) = await FindOrAddAsync(auth0UserId, cancellationToken);
+        var topics = Distinct((preference.Topics ?? []).Concat(extracted.Topics ?? []));
+        var locations = Distinct((preference.Locations ?? []).Concat(extracted.Locations ?? []));
 
-        if (preference == null)
+        if (!isNew
+            && topics.Count == (preference.Topics?.Count ?? 0)
+            && locations.Count == (preference.Locations?.Count ?? 0))
         {
-            preference = new UserPreference
-            {
-                Auth0UserId = auth0UserId,
-                TenantId = RequireTenant(),
-                Topics = extracted.Topics ?? new List<string>(),
-                Locations = extracted.Locations ?? new List<string>()
-            };
-            context.UserPreferences.Add(preference);
-        }
-        else
-        {
-            var newTopics = extracted.Topics?.Except(preference.Topics ?? new List<string>(), StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
-            var newLocations = extracted.Locations?.Except(preference.Locations ?? new List<string>(), StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
-
-            if (newTopics.Any() || newLocations.Any())
-            {
-                if (preference.Topics == null) preference.Topics = new List<string>();
-                if (preference.Locations == null) preference.Locations = new List<string>();
-
-                preference.Topics.AddRange(newTopics);
-                preference.Locations.AddRange(newLocations);
-                preference.UpdatedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                return; // Nothing to merge
-            }
+            return; // Nothing new.
         }
 
+        preference.Topics = topics;
+        preference.Locations = locations;
+        preference.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task<(UserPreference Preference, bool IsNew)> FindOrAddAsync(string auth0UserId, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenant();
+        var preference = await context.UserPreferences
+            .FirstOrDefaultAsync(p => p.Auth0UserId == auth0UserId && p.TenantId == tenantId, cancellationToken);
+        if (preference is not null)
+        {
+            return (preference, false);
+        }
+
+        preference = new UserPreference { Auth0UserId = auth0UserId, TenantId = tenantId, Topics = [], Locations = [] };
+        context.UserPreferences.Add(preference);
+        return (preference, true);
+    }
+
+    private static List<string> Distinct(IEnumerable<string>? values) =>
+        (values ?? [])
+            .Select(v => v.Trim())
+            .Where(v => v.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }

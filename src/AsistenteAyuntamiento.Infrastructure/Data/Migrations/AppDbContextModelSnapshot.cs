@@ -530,7 +530,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Auth0UserId")
+                    b.HasIndex("Auth0UserId", "TenantId")
                         .IsUnique();
 
                     b.ToTable("UserPreferences", "identity");
