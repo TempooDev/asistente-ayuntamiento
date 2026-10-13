@@ -12,6 +12,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AsistenteAyuntamiento.ApiService.Tests/AsistenteAyuntamiento.ApiService.Tests.csproj" />
+    <Project Path="tests/AsistenteAyuntamiento.ArchitectureTests/AsistenteAyuntamiento.ArchitectureTests.csproj" />
     <Project Path="tests/AsistenteAyuntamiento.Application.Tests/AsistenteAyuntamiento.Application.Tests.csproj" />
     <Project Path="tests/AsistenteAyuntamiento.Domain.Tests/AsistenteAyuntamiento.Domain.Tests.csproj" />
     <Project Path="tests/AsistenteAyuntamiento.Infrastructure.Tests/AsistenteAyuntamiento.Infrastructure.Tests.csproj" />
