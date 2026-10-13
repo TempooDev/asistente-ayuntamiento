@@ -30,20 +30,20 @@ public sealed class LlmUsageMetricsTests : IDisposable
         var dictionary = new Dictionary<string, object?>();
         foreach (var tag in tags) dictionary[tag.Key] = tag.Value;
         // Other tests may record in parallel: keep only this test's tenant.
-        if (Equals(dictionary.GetValueOrDefault(GenAiTelemetry.Attributes.TenantId), Tenant))
+        if (Equals(dictionary.GetValueOrDefault(GenAiTelemetry.Attributes.TenantId), _tenant))
         {
             lock (_measurements) _measurements.Add((instrument.Name, value, dictionary));
         }
     }
 
-    private readonly string Tenant = $"org_{Guid.NewGuid():N}";
+    private readonly string _tenant = $"org_{Guid.NewGuid():N}";
 
     private LlmUsageMetrics CreateSut(Dictionary<string, string?>? settings = null) =>
         new(new ConfigurationBuilder().AddInMemoryCollection(settings ?? []).Build(), _logger.Object);
 
     private LlmCallMetrics Call(string provider = "openai", string model = "gpt-4o-mini", long input = 1_000, long output = 500,
         bool fallback = false, TimeSpan? ttft = null, string? error = null) =>
-        new(provider, model, Tenant, LlmPipelines.Hierarchical, fallback, TimeSpan.FromMilliseconds(1500), input, output, ttft, error);
+        new(provider, model, _tenant, LlmPipelines.Hierarchical, fallback, TimeSpan.FromMilliseconds(1500), input, output, ttft, error);
 
     private (string Name, double Value, Dictionary<string, object?> Tags) Single(string name) =>
         _measurements.Should().ContainSingle(m => m.Name == name).Subject;

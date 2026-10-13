@@ -1,13 +1,13 @@
-using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.SemanticKernel.ChatCompletion;
 using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Arena.Models;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
+using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.ApiService.Features.Chat;
 

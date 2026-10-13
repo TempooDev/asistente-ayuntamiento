@@ -1,10 +1,10 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Common.Search;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using AsistenteAyuntamiento.Application.Common.VectorStore;
-using AsistenteAyuntamiento.Application.Common.Search;
 
 namespace AsistenteAyuntamiento.Application.Features.Retrieval;
 

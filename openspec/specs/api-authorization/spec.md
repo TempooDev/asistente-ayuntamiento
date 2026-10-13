@@ -40,7 +40,7 @@ The ApiService SHALL enforce two administrator scopes through named authorizatio
 - **THEN** the server SHALL treat it as `admin-plataforma`, like the SPA guard
 
 ### Requirement: Policies Applied per Route Group or per Endpoint, Verified by Enumeration
-Policies SHALL be applied at route-group level where a prefix belongs to a single scope (`/api/ingestion`, `/api/scraper/filters` → `PlatformAdmin`; `/api/settings` → `OrganizationAdmin`). Where a prefix mixes scopes, the policy SHALL be set per endpoint: `/api/ai` uses one group per policy, and `/api/arena` sets the policy on `compare` and `analytics` only. The integration test `AdminAuthorizationTests.Every_endpoint_under_an_admin_prefix_requires_its_admin_policy` SHALL enumerate every mapped route and fail when a route matching its expected-policy table lacks that policy. The table lists prefixes (`/api/ingestion`, `/api/scraper`, `/api/settings`, `/api/ai/`) and exact paths for the mixed prefixes (`/api/ai/metrics/summary`, `/api/ai/metrics/history`, `/api/arena/compare`, `/api/arena/analytics`).
+Policies SHALL be applied at route-group level where a prefix belongs to a single scope (`/api/ingestion`, `/api/scraper/filters` → `PlatformAdmin`; `/api/settings` → `OrganizationAdmin`). Where a prefix mixes scopes, the policy SHALL be set per endpoint: `/api/ai` uses one group per policy, and `/api/arena` sets the policy on `compare` and `analytics` only. The integration test `AdminAuthorizationTests.Every_endpoint_under_an_admin_prefix_requires_its_admin_policy` SHALL enumerate every mapped route (`EndpointDataSource`) under the admin areas `/api/ingestion`, `/api/scraper`, `/api/settings`, `/api/ai` and `/api/arena`, and fail when a route lacks its expected authorization, allows anonymous access, or is not classified. The classification table has prefix rules for the single-scope areas and for `/api/ai` (`PlatformAdmin` by default), and exact rules that win over prefixes: `/api/ai/metrics/summary` and `/api/ai/metrics/history` → `OrganizationAdmin`, `/api/arena/analytics` → `PlatformAdmin`, `/api/arena/compare` → `OrganizationAdmin`, `/api/arena/vote` → authenticated user. `/api/arena` has no prefix rule, so every route there must be listed explicitly. The test SHALL also fail when an exact rule no longer matches a mapped route.
 
 #### Scenario: New endpoint in a single-scope group
 - **WHEN** a developer maps a new endpoint inside the `/api/ingestion` group
@@ -52,8 +52,9 @@ Policies SHALL be applied at route-group level where a prefix belongs to a singl
 - **THEN** the enumeration test SHALL fail, because every `/api/ai/` route not listed explicitly is expected to require `PlatformAdmin`
 
 #### Scenario: New endpoint under /api/arena
-- **WHEN** a developer maps a new route under `/api/arena` other than `compare` and `analytics`
-- **THEN** the enumeration test SHALL NOT check it, and the developer SHALL set its policy explicitly
+- **WHEN** a developer maps a new route under `/api/arena` other than `compare`, `analytics` and `vote`
+- **THEN** the enumeration test SHALL fail, reporting the route as not classified, until it is added to the table with its expected authorization
+- **AND** once added, the test SHALL fail if the route does not require that policy
 
 ### Requirement: Internal gRPC Service Protection
 The ApiService `FilterConfigService` SHALL only accept calls that present the configured `Internal:GrpcApiKey` in the `x-internal-key` metadata header, compared in constant time, and SHALL NOT be routed through the public gateway (the gateway only proxies `/api`, `/openapi` and `/hubs`). The ApiService SHALL send the same key on its calls to the Go scraper's `ScraperCommandService`, which SHALL require it.

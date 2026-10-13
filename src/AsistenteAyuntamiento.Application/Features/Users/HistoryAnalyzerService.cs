@@ -1,11 +1,11 @@
+using System.Text.Json;
+using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
-using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using AsistenteAyuntamiento.Application.Common.Interfaces;
-using System.Text.Json;
 
 namespace AsistenteAyuntamiento.Application.Features.Users;
 

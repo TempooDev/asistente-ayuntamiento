@@ -1,12 +1,12 @@
 using AsistenteAyuntamiento.Application;
-using AsistenteAyuntamiento.Domain.Common.Enums;
-using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
+using AsistenteAyuntamiento.Application.Common;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
-using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Infrastructure;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
-using AsistenteAyuntamiento.Application.Common;
 
 var builder = Host.CreateApplicationBuilder(args);
 

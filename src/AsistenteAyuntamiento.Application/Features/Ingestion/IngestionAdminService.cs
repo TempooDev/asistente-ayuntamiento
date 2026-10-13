@@ -1,13 +1,13 @@
 using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Application.Common.Messaging;
+using AsistenteAyuntamiento.Application.Common.Storage;
+using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using AsistenteAyuntamiento.Application.Common.Messaging;
-using AsistenteAyuntamiento.Domain.Common.Enums;
-using AsistenteAyuntamiento.Application.Common.VectorStore;
-using AsistenteAyuntamiento.Application.Common.Storage;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
@@ -24,7 +24,7 @@ public class IngestionAdminService : IIngestionAdminService
     private const string BlobListCacheKey = "blobs_list";
     private const string ScrapedJsonPrefix = "json/";
     private const int ReprocessBatchSize = 1000;
-    private static readonly SemaphoreSlim _cacheLock = new SemaphoreSlim(1, 1);
+    private static readonly SemaphoreSlim CacheLock = new SemaphoreSlim(1, 1);
 
     public IngestionAdminService(
         IBlobStorage blobStorage,
@@ -51,7 +51,7 @@ public class IngestionAdminService : IIngestionAdminService
         var cacheKey = BlobListCacheKey;
         if (!_cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
         {
-            await _cacheLock.WaitAsync(cancellationToken);
+            await CacheLock.WaitAsync(cancellationToken);
             try
             {
                 if (!_cache.TryGetValue(cacheKey, out allBlobs) || allBlobs == null)
@@ -82,7 +82,7 @@ public class IngestionAdminService : IIngestionAdminService
             }
             finally
             {
-                _cacheLock.Release();
+                CacheLock.Release();
             }
         }
 

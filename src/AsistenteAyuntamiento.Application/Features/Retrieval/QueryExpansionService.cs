@@ -15,8 +15,8 @@ public class QueryExpansionService(
     ILlmUsageMetrics usageMetrics,
     ILogger<QueryExpansionService> logger) : IQueryExpansionService
 {
-    private readonly IChatCompletionService chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-    private readonly (string Provider, string Model) model = PlatformModels.Ingestion(configuration);
+    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly (string Provider, string Model) _model = PlatformModels.Ingestion(configuration);
 
     public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, LlmCallScope scope, CancellationToken cancellationToken = default)
     {
@@ -24,8 +24,8 @@ public class QueryExpansionService(
         {
             var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
 
-            var result = await chatCompletionService.CompleteMeteredAsync(
-                prompt, model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken);
+            var result = await _chatCompletionService.CompleteMeteredAsync(
+                prompt, _model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken);
 
             return Parse(result.Content, userQuery);
         }

@@ -35,6 +35,29 @@ Como tus imágenes Docker se subirán al registro privado de GitHub (GHCR), Dokp
 5. **MUY IMPORTANTE**: En los selectores de arriba, asegúrate de marcar tu registro `GitHub Container Registry` para que Dokploy sepa usar esas credenciales al tirar de `ghcr.io`.
 6. Haz clic en **Deploy**. Dokploy descargará las imágenes y levantará toda la arquitectura (MinIO, RabbitMQ, Web, API, Worker, Gateway, y el Scraper).
 
+## Paso 4: Versiones de las imágenes y vuelta atrás (rollback)
+
+El `docker-compose.yml` del repositorio usa `${IMAGE_TAG:-latest}` en todas las imágenes de la aplicación (`apiservice`, `worker-baseline`, `worker-hierarchical`, `go-scraper` y `gateway`). Sin `IMAGE_TAG`, o con `IMAGE_TAG=latest`, se despliega la última versión publicada.
+
+Cada despliegue de `.github/workflows/deploy.yml` publica la etiqueta `sha-<7 primeros caracteres del commit>`:
+
+- Las imágenes que cambian en ese commit se compilan con `sha-xxxxxxx` y `latest`.
+- Las que no cambian no se recompilan: el job `trigger-deployment` copia su `latest` actual a `sha-xxxxxxx` con `docker buildx imagetools create`, sin descargar ni recompilar nada. Así, cada `sha-xxxxxxx` desplegado existe para **las cuatro imágenes** y corresponde exactamente a lo que estaba en producción tras ese despliegue.
+
+**Para volver a una versión anterior:**
+
+1. Busca el commit al que quieres volver: el run de *Build and Push Docker Images* muestra `Triggering deployment of sha-xxxxxxx`, o consulta las etiquetas en GitHub > **Packages**.
+2. En Dokploy, en la pestaña **Environment** de la aplicación Compose, pon `IMAGE_TAG=sha-xxxxxxx`.
+3. Pulsa **Deploy** (o **Redeploy**). Con `pull_policy: always` se descargan exactamente esas imágenes.
+4. Comprueba que los servicios arrancan y que la incidencia ha desaparecido.
+5. Cuando el arreglo llegue a `main`, vuelve a dejar `IMAGE_TAG=latest` (o bórrala). **Mientras `IMAGE_TAG` apunte a un `sha-*`, los despliegues automáticos siguen levantando esa versión fija**, aunque el workflow publique imágenes nuevas.
+
+Limitaciones:
+
+- Los despliegues anteriores a este cambio solo tienen `sha-xxxxxxx` en las imágenes que se compilaron en ese commit. Para volver a uno de ellos, comprueba en **Packages** que la etiqueta existe en las cuatro imágenes; si falta en alguna, no uses ese `sha`.
+- La API aplica las migraciones de EF Core al arrancar (`Database:MigrateOnStartup`) y una versión anterior **no deshace** las migraciones nuevas. Si el despliegue que quieres revertir incluía una migración, revisa que el esquema siga siendo compatible con la versión anterior antes de hacer rollback.
+- Los cambios de topología de RabbitMQ siguen necesitando los pasos manuales de su sección.
+
 ---
 
 ## Archivo `docker-compose.yml` para Dokploy

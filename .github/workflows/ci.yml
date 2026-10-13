@@ -54,6 +54,12 @@ jobs:
       - name: Verify formatting
         run: dotnet format whitespace AsistenteAyuntamiento.slnx --verify-no-changes --no-restore
 
+      # .editorconfig code-style rules at warning or above, including the naming rules (IDE1006) and
+      # using placement/order, which the compiler does not report on the command line.
+      # CA2254 and CA2016 are errors in .editorconfig, so the Build step fails on them.
+      - name: Verify code style and naming
+        run: dotnet format style AsistenteAyuntamiento.slnx --verify-no-changes --severity warn --no-restore
+
       - name: Build
         run: dotnet build AsistenteAyuntamiento.slnx --no-restore --configuration Release
 

@@ -13,31 +13,31 @@ public sealed class AiMetricsService : IAiMetricsService
     // ── OpenTelemetry instruments ────────────────────────────────────────
     public static readonly string MeterName = "AsistenteAyuntamiento.Ai";
 
-    private static readonly Meter _meter = new(MeterName, "1.0.0");
+    private static readonly Meter AiMeter = new(MeterName, "1.0.0");
 
-    private static readonly Counter<long> _callsTotal =
-        _meter.CreateCounter<long>("ai.calls.total", "calls", "Total number of calls to the AI model");
+    private static readonly Counter<long> CallsTotal =
+        AiMeter.CreateCounter<long>("ai.calls.total", "calls", "Total number of calls to the AI model");
 
-    private static readonly Counter<long> _callsSucceeded =
-        _meter.CreateCounter<long>("ai.calls.succeeded", "calls", "Number of successful AI model calls");
+    private static readonly Counter<long> CallsSucceeded =
+        AiMeter.CreateCounter<long>("ai.calls.succeeded", "calls", "Number of successful AI model calls");
 
-    private static readonly Counter<long> _callsFailed =
-        _meter.CreateCounter<long>("ai.calls.failed", "calls", "Number of failed AI model calls");
+    private static readonly Counter<long> CallsFailed =
+        AiMeter.CreateCounter<long>("ai.calls.failed", "calls", "Number of failed AI model calls");
 
-    private static readonly Histogram<double> _callDuration =
-        _meter.CreateHistogram<double>("ai.call.duration", "ms", "Duration of AI model calls in milliseconds");
+    private static readonly Histogram<double> CallDuration =
+        AiMeter.CreateHistogram<double>("ai.call.duration", "ms", "Duration of AI model calls in milliseconds");
 
-    private static readonly Histogram<int> _responseLength =
-        _meter.CreateHistogram<int>("ai.response.length", "chars", "Length of AI model responses in characters");
+    private static readonly Histogram<int> ResponseLength =
+        AiMeter.CreateHistogram<int>("ai.response.length", "chars", "Length of AI model responses in characters");
 
-    private static readonly Histogram<int> _inputTokens =
-        _meter.CreateHistogram<int>("ai.tokens.input", "tokens", "Number of input/prompt tokens per request");
+    private static readonly Histogram<int> InputTokens =
+        AiMeter.CreateHistogram<int>("ai.tokens.input", "tokens", "Number of input/prompt tokens per request");
 
-    private static readonly Histogram<int> _outputTokens =
-        _meter.CreateHistogram<int>("ai.tokens.output", "tokens", "Number of output/completion tokens per request");
+    private static readonly Histogram<int> OutputTokens =
+        AiMeter.CreateHistogram<int>("ai.tokens.output", "tokens", "Number of output/completion tokens per request");
 
-    private static readonly Counter<long> _totalTokensCounter =
-        _meter.CreateCounter<long>("ai.tokens.total", "tokens", "Cumulative token consumption");
+    private static readonly Counter<long> TotalTokensCounter =
+        AiMeter.CreateCounter<long>("ai.tokens.total", "tokens", "Cumulative token consumption");
 
     // ── ActivitySource for distributed tracing ──────────────────────────
     public static readonly ActivitySource ActivitySource = new(MeterName, "1.0.0");
@@ -68,24 +68,24 @@ public sealed class AiMetricsService : IAiMetricsService
             { "ai.status", record.Success ? "success" : "error" }
         };
 
-        _callsTotal.Add(1, tags);
-        _callDuration.Record(record.DurationMs, tags);
+        CallsTotal.Add(1, tags);
+        CallDuration.Record(record.DurationMs, tags);
 
         if (record.Success)
         {
-            _callsSucceeded.Add(1, tags);
-            _responseLength.Record(record.ResponseLength, tags);
+            CallsSucceeded.Add(1, tags);
+            ResponseLength.Record(record.ResponseLength, tags);
 
             if (record.InputTokens > 0)
-                _inputTokens.Record(record.InputTokens, tags);
+                InputTokens.Record(record.InputTokens, tags);
             if (record.OutputTokens > 0)
-                _outputTokens.Record(record.OutputTokens, tags);
+                OutputTokens.Record(record.OutputTokens, tags);
             if (record.TotalTokens > 0)
-                _totalTokensCounter.Add(record.TotalTokens, tags);
+                TotalTokensCounter.Add(record.TotalTokens, tags);
         }
         else
         {
-            _callsFailed.Add(1, tags);
+            CallsFailed.Add(1, tags);
         }
 
         // In-memory aggregates

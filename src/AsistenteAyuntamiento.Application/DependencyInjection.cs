@@ -27,9 +27,11 @@ public static class DependencyInjection
         services.AddMemoryCache();
 
         // Ingestion
+        // Invalid values throw here, so a misconfigured host fails at startup instead of on the first document.
         services.AddSingleton<IChunkingStrategy>(new FixedOverlapChunkingStrategy(
-            configuration.GetValue("Ai:Embeddings:ChunkMaxTokens", 400),
-            configuration.GetValue("Ai:Embeddings:ChunkOverlapTokens", 50)));
+            configuration.GetValue("Ai:Embeddings:ChunkMaxTokens", FixedOverlapChunkingStrategy.DefaultMaxTokens),
+            configuration.GetValue("Ai:Embeddings:ChunkOverlapTokens", FixedOverlapChunkingStrategy.DefaultOverlapTokens),
+            configuration.GetValue("Ai:Embeddings:ChunkMaxLines", FixedOverlapChunkingStrategy.DefaultMaxLineTokens)));
         services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
         services.AddScoped<IIngestionAdminService, IngestionAdminService>();
         services.AddScoped<IFragmentEnrichmentService, FragmentEnrichmentService>();
