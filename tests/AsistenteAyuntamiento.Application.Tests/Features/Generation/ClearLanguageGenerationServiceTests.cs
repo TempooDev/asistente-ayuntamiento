@@ -194,6 +194,26 @@ public class ClearLanguageGenerationServiceTests
     }
 
     [Fact]
+    public async Task A_follow_up_is_answered_with_the_previous_turns_between_the_documents_and_the_question()
+    {
+        ChatHistory? sent = null;
+        _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatHistory, PromptExecutionSettings?, Kernel?, CancellationToken>((history, _, _, _) => sent = history)
+            .Returns(new[] { new StreamingChatMessageContent(AuthorRole.Assistant, "La preside el Ministerio.") }.ToAsyncEnumerable());
+        List<ChatMessageContent> previous =
+        [
+            new(AuthorRole.User, "Háblame de la orden de ayudas al alquiler"),
+            new(AuthorRole.Assistant, "La orden BOE-A-2026-1234 convoca ayudas..."),
+        ];
+
+        await foreach (var _ in _sut.GenerateStreamingResponseAsync("¿Quién la gestiona?", [Boe()], new LlmCallScope("org_A", LlmPipelines.Hierarchical), previous)) { }
+
+        sent!.Select(m => m.Role).Should().Equal(AuthorRole.System, AuthorRole.User, AuthorRole.Assistant, AuthorRole.User);
+        sent![0].Content.Should().Contain("Referencia: BOE-A-2026-1234");
+        sent[^1].Content.Should().Be("¿Quién la gestiona?");
+    }
+
+    [Fact]
     public async Task A_failed_stream_does_not_end_with_sources()
     {
         _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))

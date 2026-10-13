@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -20,11 +21,14 @@ public class QueryExpansionService(
     private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
     private readonly (string Provider, string Model) _model = PlatformModels.Ingestion(configuration);
 
-    public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, LlmCallScope scope, CancellationToken cancellationToken = default)
+    public Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, LlmCallScope scope, CancellationToken cancellationToken = default) =>
+        ExpandQueryAsync(userQuery, [], scope, cancellationToken);
+
+    public async Task<ExpandedQueryInfo> ExpandQueryAsync(string userQuery, IReadOnlyList<ChatMessageContent> previousMessages, LlmCallScope scope, CancellationToken cancellationToken = default)
     {
         try
         {
-            var prompt = string.Format(PromptCatalog.QueryExpansion, userQuery);
+            var prompt = string.Format(CultureInfo.InvariantCulture, PromptCatalog.QueryExpansion, userQuery, ConversationContext.Describe(previousMessages));
 
             var result = await _chatCompletionService.CompleteMeteredAsync(
                 prompt, _model, scope with { Operation = LlmOperations.QueryExpansion }, usageMetrics, cancellationToken, callRecorder);
@@ -34,7 +38,7 @@ public class QueryExpansionService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error al expandir la consulta: {Query}", userQuery);
-            return Fallback(userQuery);
+            return Fallback(userQuery, previousMessages);
         }
     }
 
@@ -61,11 +65,18 @@ public class QueryExpansionService(
         return expanded;
     }
 
-    /// <summary>Used when the model fails: every word is required lexically, the raw question is used semantically.</summary>
-    internal static ExpandedQueryInfo Fallback(string userQuery) => new()
+    /// <summary>
+    /// Used when the model fails: every word is required lexically; semantically, the user's previous questions go
+    /// with the raw question (as the baseline searches), so a follow-up keeps its topic.
+    /// </summary>
+    internal static ExpandedQueryInfo Fallback(string userQuery, IReadOnlyList<ChatMessageContent>? previousMessages = null) => new()
     {
         LexicalQuery = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
-        SemanticQuery = userQuery
+        SemanticQuery = string.Join("\n", (previousMessages ?? [])
+            .Where(m => m.Role == AuthorRole.User)
+            .TakeLast(2)
+            .Select(m => m.Content)
+            .Append(userQuery))
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };

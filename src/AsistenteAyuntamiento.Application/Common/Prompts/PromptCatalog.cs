@@ -20,6 +20,7 @@ public static class PromptCatalog
     /// <summary>Streaming without retrieved documents (small talk, follow-ups): stays conversational.</summary>
     public const string ConversationalSystem = """
         Eres el asistente virtual del ayuntamiento para consultas sobre boletines oficiales (BOE, BOJA). Responde de forma clara y concisa en español.
+        No se han encontrado documentos de los boletines para este mensaje. Si te piden datos concretos de una norma (cifras, fechas, plazos, nombres, cláusulas) que no estén en la conversación, di que no los has encontrado en los boletines disponibles; no los respondas de memoria.
         """;
 
     /// <summary>{0} retrieved context, {1} citizen question, {2} current date (dd/MM/yyyy).</summary>
@@ -48,12 +49,13 @@ public static class PromptCatalog
         Tu función principal es responder preguntas usando el contexto de boletines cuando sea estrictamente relevante.
         Si el usuario hace una pregunta de seguimiento (ej. "¿qué requisitos tiene?"), básate en el historial para entender a qué se refiere, e ignora cualquier documento del contexto que hable de un tema no relacionado.
         Responde siempre en español de forma clara y precisa.
+        Basa la respuesta en los documentos del contexto y en la conversación. Si no contienen el dato que se pide (cifras, fechas, plazos, nombres, cláusulas), dilo claramente; no lo completes de memoria ni lo tomes de otra norma parecida.
         Si utilizas información del contexto, menciona en el texto la norma en la que te basas. No añadas un apartado de "Fuentes consultadas": se añade automáticamente al final de tu respuesta.
         """;
 
     /// <summary>{0} retrieved context, {1} user question. Tells the model to ignore off-topic context.</summary>
     public const string StreamingUserTemplate =
-        "CONTEXTO RECUPERADO DE LOS BOLETINES:\n{0}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario.\n\nPregunta: {1}";
+        "CONTEXTO RECUPERADO DE LOS BOLETINES:\n{0}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario. Si ni el contexto ni el historial contienen el dato, dilo; no lo inventes.\n\nPregunta: {1}";
 
     /// <summary>Arena baseline side: {0} query, {1} retrieved documents.</summary>
     public const string ArenaBaselineTemplate = """
@@ -110,6 +112,11 @@ Genera un objeto JSON con los siguientes campos:
 - ""query_lexica"": Palabras clave formales para búsqueda por texto completo (tsquery), usa el formato de PostgreSQL tsquery (ej: ""subvencion & vivienda & joven"").
 - ""query_semantica"": Una frase formal y completa que traduzca la intención del ciudadano a terminología legal para búsqueda vectorial.
 - ""filtro_municipio"": Si la consulta menciona un municipio o ayuntamiento específico, ponlo aquí. Si no, null.
+
+Si la consulta se refiere a algo de la conversación anterior (""el convenio"", ""estas ayudas"", ""la cláusula segunda""), sustituye la referencia por lo que nombra: el título de la norma, su referencia (p. ej. BOE-A-2026-12345) o las partes que la firman. Ambas queries deben entenderse sin la conversación.
+
+Conversación anterior:
+{1}
 
 Consulta del usuario: ""{0}""
 
