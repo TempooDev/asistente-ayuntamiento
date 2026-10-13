@@ -34,11 +34,11 @@ API keys SHALL be stored encrypted with ASP.NET Core Data Protection (purpose `A
 - **WHEN** the stored key cannot be decrypted (for example after the key ring changed)
 - **THEN** the system SHALL log a warning and fall back to the platform key instead of failing every request
 
-### Requirement: Administrators Only
-Reading and changing the AI settings SHALL require the `administrador` role (`Policies.Admin`) and SHALL only affect the caller's tenant.
+### Requirement: Organization Administrators Only
+Reading and changing the AI settings SHALL require an organization administrator (`admin-organizacion`, or the legacy `administrador`; policy `OrganizationAdmin`) and SHALL only affect the caller's tenant. Platform administrators without the organization role SHALL NOT change a tenant's model.
 
 #### Scenario: Regular user
-- **WHEN** a user without the `administrador` role calls `GET` or `PUT /api/settings/ai`
+- **WHEN** a user without an organization administrator role calls `GET` or `PUT /api/settings/ai`
 - **THEN** the API SHALL answer 403
 
 #### Scenario: Unauthenticated caller

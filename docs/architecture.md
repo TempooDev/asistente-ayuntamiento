@@ -72,7 +72,10 @@ Los prompts están en `Common/Prompts/PromptCatalog`.
 
 - Tenant = organización de Auth0 (`org_id`). Sin tenant, la API responde 403 fuera de Development.
 - Filtros de consulta de EF por tenant; los documentos y vectores de boletines son globales.
-- Endpoints de administración con `Policies.Admin` (rol `administrador`); los guards de Angular son solo UX.
+- Dos ámbitos de administración (los guards de Angular son solo UX):
+  - **plataforma** (`admin-plataforma`, `Policies.PlatformAdmin`): ingesta, scraper, métricas en memoria de todos los tenants y analíticas de Arena;
+  - **organización** (`admin-organizacion`, `Policies.OrganizationAdmin`): configuración de IA, resumen e historial de uso del tenant y comparación de Arena;
+  - el rol antiguo `administrador` vale para los dos hasta que se retire en Auth0.
 - Claves de IA por tenant cifradas con Data Protection y de solo escritura.
 - gRPC API ↔ scraper autenticado con `x-internal-key` en ambos sentidos.
 - Errores al cliente con códigos estables, sin detalles de excepción.
@@ -83,7 +86,7 @@ Contrato completo en `docs/messaging-contract.md`:
 
 - Colas de trabajo `documents_to_process_baseline` y `documents_to_process_hierarchical`, cada una con `.retry` (30 s) y `.dlq`. Mensajes persistentes, publisher confirms y reintentos acotados en `RabbitMqConsumerBase<T>`.
 - Ingesta idempotente: Postgres primero y después se reemplazan los vectores del documento. Un fallo en Qdrant deja el estado `VectorSyncFailed`.
-- Estado de documentos: `document_notifications_exchange` (fanout) → API → SignalR (grupo `role:admin`).
+- Estado de documentos: `document_notifications_exchange` (fanout) → API → SignalR (grupo `role:platform-admin`).
 
 ## Frontend (Angular)
 

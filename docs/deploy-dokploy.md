@@ -51,7 +51,7 @@ Asegúrate de reemplazar las siguientes palabras clave antes de desplegar:
 > - `INTERNAL_GRPC_KEY`: clave compartida entre el scraper Go y el gRPC interno de la API. Por ejemplo, `openssl rand -hex 32`.
 > - `CLOUDFLARE_R2_*`: endpoint, credenciales y bucket. La API valida al arrancar que estén definidas.
 >
-> Además, las APIs de administración exigen el rol `administrador` en Auth0, y los usuarios deben pertenecer a una Organization: sin `org_id` reciben 403.
+> Además, las APIs de administración exigen los roles `admin-plataforma` (ingesta, scraper) o `admin-organizacion` (IA y métricas del tenant) en Auth0; el antiguo `administrador` vale para ambos durante la transición, y los usuarios deben pertenecer a una Organization: sin `org_id` reciben 403.
 >
 > El ejemplo de esta página es anterior y todavía usa valores por defecto (`CLAVE_QDRANT`, `SECRETO_RABBIT`). Toma como referencia el `docker-compose.yml` del repositorio.
 
