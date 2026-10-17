@@ -7,7 +7,7 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-      <div class="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-300 relative max-h-[90vh] flex flex-col bg-surface-container-lowest" role="dialog" aria-modal="true" aria-labelledby="welcome-title" appDialogFocus (escape)="close()">
+      <div class="rounded-2xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-300 relative max-h-[90vh] flex flex-col bg-surface-container-lowest" role="dialog" aria-modal="true" aria-labelledby="welcome-title" appDialogFocus (escape)="close()">
         <button type="button" (click)="close()" aria-label="Cerrar guía" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors p-2 rounded-full hover:bg-gray-100">
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -72,7 +72,7 @@ import { DialogFocusDirective } from '../../../shared/ui/dialog-focus.directive'
         </div>
         
         <div class="mt-6 flex justify-end shrink-0 pt-4 border-t border-gray-100">
-          <button type="button" class="bg-primary hover:bg-on-primary-fixed-variant text-on-primary px-6 py-2.5 rounded-xl font-medium transition-colors shadow-xs flex items-center gap-2" (click)="close()">
+          <button type="button" class="bg-primary hover:bg-primary-hover text-on-primary px-6 py-2.5 rounded-xl font-medium transition-colors shadow-xs flex items-center gap-2" (click)="close()">
             <span>¡Entendido, empezar!</span>
             <span class="material-symbols-outlined text-sm">arrow_forward</span>
           </button>

@@ -8,7 +8,7 @@
       <textarea
         [(ngModel)]="query"
         rows="3"
-        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
         placeholder="Ej. ¿Qué plazo tengo para solicitar la ayuda de vivienda?"
       ></textarea>
       <button
@@ -60,7 +60,7 @@
         <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionAlfa }}
         </div>
-        <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
+        <div class="text-xs text-gray-500 mt-auto pt-4 border-t border-gray-100">
           Latencia: {{ compareData()!.latencyAlfaMs }} ms
         </div>
       </div>
@@ -70,7 +70,7 @@
         <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionBeta }}
         </div>
-        <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
+        <div class="text-xs text-gray-500 mt-auto pt-4 border-t border-gray-100">
           Latencia: {{ compareData()!.latencyBetaMs }} ms
         </div>
       </div>
@@ -196,7 +196,7 @@
           <div class="mt-6 flex justify-center">
             <button
               (click)="query.set(''); compareData.set(null); voteResult.set(null)"
-              class="text-indigo-600 dark:text-indigo-300 font-medium hover:text-indigo-800 dark:hover:text-indigo-300 underline"
+              class="text-indigo-600 dark:text-indigo-300 font-medium hover:text-indigo-800 dark:hover:text-indigo-200 underline"
             >
               Realizar otra prueba
             </button>

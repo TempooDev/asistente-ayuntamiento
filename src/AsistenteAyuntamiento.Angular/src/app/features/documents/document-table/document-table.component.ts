@@ -90,7 +90,7 @@ export function publicUrlOf(blobName: string): string | null {
                     {{ blob.status === Status.Completed ? 'Reprocesar' : blob.status === Status.Processing ? 'Procesando...' : 'Procesar' }}
                   </button>
                   @if (blob.status === Status.Processing) {
-                    <button type="button" class="btn btn-sm btn-outline border border-red-700 text-red-700 dark:border-red-300 dark:text-red-300 rounded-sm px-3 py-1 hover:bg-red-700 hover:text-white dark:hover:bg-red-700 transition-colors"
+                    <button type="button" class="btn btn-sm btn-outline border border-red-700 text-red-700 dark:border-red-300 dark:text-red-300 rounded-sm px-3 py-1 hover:bg-red-700 hover:text-white dark:hover:bg-red-700 dark:hover:text-white transition-colors"
                             title="Reiniciar estado si se ha quedado atascado" (click)="reset.emit(blob.name)">
                       Reiniciar
                     </button>
