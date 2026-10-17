@@ -218,7 +218,8 @@ layer(base);
   :root {
     --primary: #1a365d;
     /* Background behind white text (citizen bubble, primary button): --primary is a light blue in dark mode. */
-    --primary-strong: #1a365d;
+    --primary-strong: var(--primary);
+    --primary-strong-hover: #112440;
     --placeholder: #6b7280;
     --secondary-bg: #edf2f7;
     --text-primary: #2d3748;
@@ -232,8 +233,9 @@ layer(base);
 
   [data-theme='dark'] {
     --primary: #63b3ed;
-    /* White on #2b6cb0 is 5.6:1; on --primary (#63b3ed) it was 2.3:1. */
+    /* White on #2b6cb0 is 5.4:1 (on #2c5282, the hover, 8:1); on --primary (#63b3ed) it was 2.3:1. */
     --primary-strong: #2b6cb0;
+    --primary-strong-hover: #2c5282;
     --placeholder: #a0aec0;
     --secondary-bg: #1a202c;
     --text-primary: #e2e8f0;
@@ -463,7 +465,7 @@ layer(base);
   }
 
   .gov-btn-primary:hover:not(:disabled) {
-    background-color: #112440;
+    background-color: var(--primary-strong-hover);
   }
 
   .gov-btn-ghost {

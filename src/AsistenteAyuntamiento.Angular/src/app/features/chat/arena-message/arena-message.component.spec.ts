@@ -30,6 +30,12 @@ describe('ArenaMessageComponent', () => {
     expect(votes).toEqual(['Alfa', 'Tie', 'Beta']);
   });
 
+  it('says each answer comes from the assistant, not only by position', () => {
+    const { fixture } = setup();
+    const labels: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.chat-bubble > div:first-child'));
+    expect(labels.map(l => l.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Asistente, Modelo Alfa', 'Asistente, Modelo Beta']);
+  });
+
   it('disables voting while the answers are streaming', () => {
     const { buttons } = setup(false);
     expect(buttons.every(b => b.disabled)).toBe(true);
