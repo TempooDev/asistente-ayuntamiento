@@ -6,13 +6,20 @@
     (selected)="select($event)"
     (create)="create()"
     (deleted)="delete($event)"
-    (closed)="sidebarOpen.set(false)" />
+    (closed)="closeSidebar()" />
 
   <div class="chat-main flex-1 flex flex-col h-full bg-secondary-bg min-w-0">
     <!-- Mobile header -->
     <div class="md:hidden bg-white p-3 border-b border-gray-200 flex items-center shrink-0 justify-between">
       <div class="flex items-center">
-        <button type="button" class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" aria-label="Abrir lista de conversaciones" (click)="sidebarOpen.set(true)">
+        <button
+          #menuButton
+          type="button"
+          class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+          aria-label="Abrir lista de conversaciones"
+          aria-controls="chat-sessions"
+          [attr.aria-expanded]="sidebarOpen()"
+          (click)="openSidebar()">
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
         <h1 class="text-lg font-semibold ml-2 text-primary">Asistente Virtual</h1>
@@ -25,7 +32,7 @@
           <span class="text-xs font-medium text-gray-600">Arena</span>
           <span class="relative inline-flex items-center">
             <input type="checkbox" class="sr-only peer" role="switch" [checked]="store.arenaMode()" (change)="store.toggleArenaMode()" />
-            <span class="w-9 h-5 bg-gray-200 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></span>
+            <span class="w-9 h-5 bg-gray-500 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></span>
           </span>
         </label>
       </div>
@@ -47,7 +54,7 @@
           <span class="text-sm font-medium text-gray-600">Modo Arena</span>
           <span class="relative inline-flex items-center">
             <input type="checkbox" class="sr-only peer" role="switch" [checked]="store.arenaMode()" (change)="store.toggleArenaMode()" />
-            <span class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></span>
+            <span class="w-11 h-6 bg-gray-500 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></span>
           </span>
         </label>
       </div>
@@ -64,7 +71,7 @@
   </div>
 
   @if (sidebarOpen()) {
-    <div class="md:hidden fixed inset-0 bg-black/50 z-5" aria-hidden="true" (click)="sidebarOpen.set(false)"></div>
+    <div class="md:hidden fixed inset-0 bg-black/50 z-5" aria-hidden="true" (click)="closeSidebar()"></div>
   }
 
   @if (showWelcomeGuide()) {
