@@ -27,6 +27,14 @@ describe('MessageListComponent', () => {
     return { fixture, scroller, update, scrollTo };
   }
 
+  it('announces who wrote each message, not only by colour and position', () => {
+    const { fixture } = setup([user('u1', '¿Plazo?'), assistant('a1', 'Diez días.')]);
+
+    const bubbles: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.chat-bubble'));
+
+    expect(bubbles.map(b => b.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Tú: ¿Plazo?', 'Asistente: Diez días.']);
+  });
+
   describe('waiting text', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());

@@ -4,12 +4,12 @@ import { DocumentSource } from '../../../shared/models/document-source';
 import { BlobInfo, IngestionStatus } from '../models/documents.models';
 
 const STATUS_BADGES: Record<IngestionStatus, { label: string; classes: string }> = {
-  [IngestionStatus.Completed]: { label: 'Procesado', classes: 'bg-green-100 text-green-800' },
-  [IngestionStatus.Processing]: { label: 'Procesando...', classes: 'bg-blue-100 text-blue-800 animate-pulse' },
-  [IngestionStatus.Queued]: { label: 'Encolado', classes: 'bg-orange-100 text-orange-800 animate-pulse' },
-  [IngestionStatus.Failed]: { label: 'Fallo', classes: 'bg-red-100 text-red-800' },
-  [IngestionStatus.Pending]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800' },
-  [IngestionStatus.Unknown]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800' },
+  [IngestionStatus.Completed]: { label: 'Procesado', classes: 'bg-green-100 text-green-800 dark:text-green-300' },
+  [IngestionStatus.Processing]: { label: 'Procesando...', classes: 'bg-blue-100 text-blue-800 dark:text-blue-300 animate-pulse' },
+  [IngestionStatus.Queued]: { label: 'Encolado', classes: 'bg-orange-100 text-orange-800 dark:text-orange-300 animate-pulse' },
+  [IngestionStatus.Failed]: { label: 'Fallo', classes: 'bg-red-100 text-red-800 dark:text-red-300' },
+  [IngestionStatus.Pending]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300' },
+  [IngestionStatus.Unknown]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300' },
 };
 
 /** Blob path json/<SOURCE>/<id>.json → document id. */
@@ -69,7 +69,7 @@ export function publicUrlOf(blobName: string): string | null {
               </td>
               <td class="p-sm font-body-md font-medium text-primary">
                 @if (urlOf(blob.name); as url) {
-                  <a [href]="url" target="_blank" rel="noopener noreferrer" class="hover:underline text-blue-600 flex items-center gap-1">
+                  <a [href]="url" target="_blank" rel="noopener noreferrer" class="hover:underline text-blue-600 dark:text-blue-300 flex items-center gap-1">
                     {{ blob.name }}
                     <span class="material-symbols-outlined text-[14px]" aria-hidden="true">open_in_new</span>
                     <span class="sr-only">(se abre en una pestaña nueva)</span>
@@ -90,7 +90,7 @@ export function publicUrlOf(blobName: string): string | null {
                     {{ blob.status === Status.Completed ? 'Reprocesar' : blob.status === Status.Processing ? 'Procesando...' : 'Procesar' }}
                   </button>
                   @if (blob.status === Status.Processing) {
-                    <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded-sm px-3 py-1 hover:bg-red-500 hover:text-white transition-colors"
+                    <button type="button" class="btn btn-sm btn-outline border border-red-700 text-red-700 dark:border-red-300 dark:text-red-300 rounded-sm px-3 py-1 hover:bg-red-700 hover:text-white dark:hover:bg-red-700 dark:hover:text-white transition-colors"
                             title="Reiniciar estado si se ha quedado atascado" (click)="reset.emit(blob.name)">
                       Reiniciar
                     </button>
