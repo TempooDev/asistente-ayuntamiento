@@ -25,7 +25,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           </div>
         }
         <div class="chat-bubble shadow-xs assistant flex-1 relative group">
-          <div class="text-xs font-bold text-gray-600 mb-1">Modelo {{ side.vote }}</div>
+          <div class="text-xs font-bold text-gray-600 mb-1"><span class="sr-only">Asistente, </span>Modelo {{ side.vote }}</div>
           <div class="markdown-content" [innerHTML]="(side.vote === 'Alfa' ? message().alfa : message().beta) | markdown"></div>
           <button
             type="button"

@@ -218,7 +218,8 @@ layer(base);
   :root {
     --primary: #1a365d;
     /* Background behind white text (citizen bubble, primary button): --primary is a light blue in dark mode. */
-    --primary-strong: #1a365d;
+    --primary-strong: var(--primary);
+    --primary-strong-hover: #112440;
     --placeholder: #6b7280;
     --secondary-bg: #edf2f7;
     --text-primary: #2d3748;
@@ -233,8 +234,9 @@ layer(base);
   [data-theme='dark'] {
     /* The legacy variables read the theme tokens below, so dark mode has one primary, one card colour, etc. */
     --primary: var(--color-primary);
-    /* White on #2b6cb0 is 5.6:1; on the light dark-mode primary it would be under 2:1. */
+    /* White on #2b6cb0 is 5.4:1 (on #2c5282, the hover, 8:1); on the light dark-mode primary it would be under 2:1. */
     --primary-strong: #2b6cb0;
+    --primary-strong-hover: #2c5282;
     --placeholder: #a0aec0;
     --secondary-bg: var(--color-surface);
     --text-primary: var(--color-on-surface);
@@ -536,7 +538,7 @@ layer(base);
   }
 
   .gov-btn-primary:hover:not(:disabled) {
-    background-color: #112440;
+    background-color: var(--primary-strong-hover);
   }
 
   /*
