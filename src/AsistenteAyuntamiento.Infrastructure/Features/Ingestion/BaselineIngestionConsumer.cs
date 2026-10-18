@@ -23,14 +23,16 @@ public sealed class BaselineIngestionConsumer(
         return RabbitMqTopology.BaselineQueue;
     }
 
-    protected override Task HandleAsync(DocumentMessage message, IServiceProvider services, CancellationToken cancellationToken)
+    protected override async Task HandleAsync(DocumentMessage message, IServiceProvider services, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(message.BlobPath))
         {
             throw new NonRetryableMessageException("Message without blob_path.");
         }
 
-        return services.GetRequiredService<IDocumentIngestionService>()
+        // The baseline is usually first to receive a scraped document: it records the hierarchical side as queued.
+        await IngestionJobStates.MarkRequestedAsync(services, message, cancellationToken);
+        await services.GetRequiredService<IDocumentIngestionService>()
             .ProcessBlobAsync(message.BlobPath, message.Source, cancellationToken);
     }
 

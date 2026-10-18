@@ -15,12 +15,55 @@ public static class DocumentJobStateUpdates
     private const int MaxAttempts = 4;
 
     /// <returns>The document's state after the change (its <see cref="DocumentJobState.Status"/> is the summary).</returns>
-    public static async Task<DocumentJobState> SetPipelineStatusAsync(
+    public static Task<DocumentJobState> SetPipelineStatusAsync(
         IAppDbContext dbContext,
         string documentId,
         PipelineType pipeline,
         JobStatus status,
         string? error,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(dbContext, documentId, state => state.SetPipelineStatus(pipeline, status, error), cancellationToken);
+
+    /// <summary>
+    /// Marks as <see cref="JobStatus.Queued"/> the pipelines a message was published to that have no status yet. The
+    /// scraper publishes every document to both queues; without this the slower pipeline stays unrequested (null)
+    /// until it picks the message up, and the summary shows the document as completed when only the faster one is.
+    /// A pipeline that already has a status (processing, completed, failed) is left alone.
+    /// </summary>
+    /// <returns>The state after the change, or null when every pipeline already had a status.</returns>
+    public static async Task<DocumentJobState?> MarkQueuedIfUnsetAsync(
+        IAppDbContext dbContext,
+        string documentId,
+        IReadOnlyCollection<PipelineType> pipelines,
+        CancellationToken cancellationToken)
+    {
+        if (pipelines.Count == 0)
+        {
+            return null;
+        }
+
+        var changed = false;
+        var state = await UpdateAsync(dbContext, documentId, state =>
+        {
+            changed = false;
+            foreach (var pipeline in pipelines)
+            {
+                var current = pipeline == PipelineType.Hierarchical ? state.HierarchicalStatus : state.BaselineStatus;
+                if (current is null)
+                {
+                    state.SetPipelineStatus(pipeline, JobStatus.Queued);
+                    changed = true;
+                }
+            }
+        }, cancellationToken);
+
+        return changed ? state : null;
+    }
+
+    private static async Task<DocumentJobState> UpdateAsync(
+        IAppDbContext dbContext,
+        string documentId,
+        Action<DocumentJobState> apply,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -31,7 +74,7 @@ public static class DocumentJobStateUpdates
                 state = new DocumentJobState { DocumentId = documentId };
                 dbContext.DocumentJobStates.Add(state);
             }
-            state.SetPipelineStatus(pipeline, status, error);
+            apply(state);
 
             try
             {
