@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { ConfirmService } from '../../../shared/ui/confirm.service';
 import { ToastService } from '../../../shared/ui/toast.service';
 import { ChatInputComponent } from '../chat-input/chat-input.component';
@@ -21,7 +21,10 @@ export class ChatPageComponent implements OnInit {
   protected readonly store = inject(ChatStore);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+  private readonly injector = inject(Injector);
   private readonly input = viewChild(ChatInputComponent);
+  private readonly sidebar = viewChild.required(SessionSidebarComponent);
+  private readonly menuButton = viewChild<ElementRef<HTMLButtonElement>>('menuButton');
 
   protected readonly sidebarOpen = signal(false);
   protected readonly showWelcomeGuide = signal(!readFlag(WELCOME_SEEN_KEY));
@@ -31,14 +34,29 @@ export class ChatPageComponent implements OnInit {
     this.input()?.focus();
   }
 
-  protected async select(id: string): Promise<void> {
+  /** Mobile only: opens the list and moves focus into it, since it sits before the menu button in tab order. */
+  protected openSidebar(): void {
+    this.sidebarOpen.set(true);
+    afterNextRender(() => this.sidebar().focusFirst(), { injector: this.injector });
+  }
+
+  /** Focus inside the list would be lost when it turns invisible, so it goes back to the menu button first. */
+  protected closeSidebar(): void {
+    if (!this.sidebarOpen()) return;
+    if (this.sidebar().hasFocus()) {
+      this.menuButton()?.nativeElement.focus();
+    }
     this.sidebarOpen.set(false);
+  }
+
+  protected async select(id: string): Promise<void> {
+    this.closeSidebar();
     await this.run(() => this.store.selectSession(id), 'No se ha podido abrir la conversación.');
     this.input()?.focus();
   }
 
   protected async create(): Promise<void> {
-    this.sidebarOpen.set(false);
+    this.closeSidebar();
     await this.run(() => this.store.createSession(), 'No se ha podido crear la conversación.');
     this.input()?.focus();
   }

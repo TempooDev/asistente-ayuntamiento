@@ -23,11 +23,17 @@ describe('ArenaMessageComponent', () => {
     const { buttons, votes } = setup();
     const byLabel = (label: string) => buttons.find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)!;
 
-    byLabel('Elegir la respuesta del modelo Alfa').click();
+    byLabel('Elegir esta respuesta (modelo Alfa)').click();
     byLabel('Empate').click();
-    byLabel('Elegir la respuesta del modelo Beta').click();
+    byLabel('Elegir esta respuesta (modelo Beta)').click();
 
     expect(votes).toEqual(['Alfa', 'Tie', 'Beta']);
+  });
+
+  it('says each answer comes from the assistant, not only by position', () => {
+    const { fixture } = setup();
+    const labels: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.chat-bubble > div:first-child'));
+    expect(labels.map(l => l.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Asistente, Modelo Alfa', 'Asistente, Modelo Beta']);
   });
 
   it('disables voting while the answers are streaming', () => {
