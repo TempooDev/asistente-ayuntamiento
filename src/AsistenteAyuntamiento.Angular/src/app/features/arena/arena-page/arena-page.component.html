@@ -2,13 +2,13 @@
   <h1 class="text-3xl font-bold mb-6 text-gray-800">Question Arena (Pruebas A/B)</h1>
 
   <!-- Input Section -->
-  <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+  <div class="bg-surface-container-lowest rounded-lg shadow-sm p-6 mb-6">
     <label class="block text-sm font-medium text-gray-700 mb-2">Consulta del ciudadano</label>
     <div class="flex gap-4">
       <textarea
         [(ngModel)]="query"
         rows="3"
-        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
         placeholder="Ej. ¿Qué plazo tengo para solicitar la ayuda de vivienda?"
       ></textarea>
       <button
@@ -25,7 +25,7 @@
       </button>
     </div>
     @if (error()) {
-      <div class="text-red-500 text-sm mt-2">{{ error() }}</div>
+      <div class="text-red-700 dark:text-red-300 text-sm mt-2" role="alert">{{ error() }}</div>
     }
   </div>
 
@@ -33,7 +33,7 @@
   @if (loading()) {
     <div class="grid grid-cols-2 gap-6 mb-6">
       <div
-        class="bg-white rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
+        class="bg-surface-container-lowest rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
       >
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">
@@ -41,7 +41,7 @@
         </p>
       </div>
       <div
-        class="bg-white rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
+        class="bg-surface-container-lowest rounded-lg shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]"
       >
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-gray-500 font-medium text-center animate-pulse min-h-[48px]">
@@ -55,22 +55,22 @@
   @if (compareData() && !loading()) {
     <div class="grid grid-cols-2 gap-6 mb-6">
       <!-- Asistente Alfa -->
-      <div class="bg-white rounded-lg shadow-sm p-6 border-t-4 border-blue-500 flex flex-col">
+      <div class="bg-surface-container-lowest rounded-lg shadow-sm p-6 border-t-4 border-blue-500 flex flex-col">
         <h2 class="text-xl font-semibold mb-4 text-gray-800">Asistente Alfa</h2>
         <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionAlfa }}
         </div>
-        <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
+        <div class="text-xs text-gray-500 mt-auto pt-4 border-t border-gray-100">
           Latencia: {{ compareData()!.latencyAlfaMs }} ms
         </div>
       </div>
       <!-- Asistente Beta -->
-      <div class="bg-white rounded-lg shadow-sm p-6 border-t-4 border-green-500 flex flex-col">
+      <div class="bg-surface-container-lowest rounded-lg shadow-sm p-6 border-t-4 border-green-500 flex flex-col">
         <h2 class="text-xl font-semibold mb-4 text-gray-800">Asistente Beta</h2>
         <div class="prose prose-sm max-w-none grow mb-4 text-gray-700 whitespace-pre-wrap">
           {{ compareData()!.optionBeta }}
         </div>
-        <div class="text-xs text-gray-400 mt-auto pt-4 border-t border-gray-100">
+        <div class="text-xs text-gray-500 mt-auto pt-4 border-t border-gray-100">
           Latencia: {{ compareData()!.latencyBetaMs }} ms
         </div>
       </div>
@@ -79,7 +79,7 @@
 
   <!-- Voting Section -->
   @if (compareData() && !loading()) {
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+    <div class="bg-surface-container-lowest rounded-lg shadow-sm p-6 mb-6">
       <h3 class="text-lg font-medium text-gray-900 mb-4">Votación y Evaluación</h3>
       @if (!voteResult()) {
         <div class="space-y-6">
@@ -181,14 +181,14 @@
       <!-- Resultados Revelados (6.3) -->
       @if (voteResult()) {
         <div class="mt-4 p-6 bg-indigo-50 border border-indigo-100 rounded-lg">
-          <h3 class="text-xl font-bold text-indigo-900 mb-4">🎉 ¡Voto Registrado!</h3>
-          <p class="text-indigo-800 mb-4">Estos son los sistemas que generaron cada respuesta:</p>
+          <h3 class="text-xl font-bold text-indigo-900 dark:text-indigo-300 mb-4">🎉 ¡Voto Registrado!</h3>
+          <p class="text-indigo-800 dark:text-indigo-300 mb-4">Estos son los sistemas que generaron cada respuesta:</p>
           <div class="grid grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded-sm shadow-xs border-l-4 border-blue-500">
+            <div class="bg-surface-container-lowest p-4 rounded-sm shadow-xs border-l-4 border-blue-500">
               <span class="text-sm text-gray-500 font-medium">ASISTENTE ALFA</span>
               <p class="text-lg font-bold text-gray-900 mt-1">{{ voteResult()!.alfaSystem }}</p>
             </div>
-            <div class="bg-white p-4 rounded-sm shadow-xs border-l-4 border-green-500">
+            <div class="bg-surface-container-lowest p-4 rounded-sm shadow-xs border-l-4 border-green-500">
               <span class="text-sm text-gray-500 font-medium">ASISTENTE BETA</span>
               <p class="text-lg font-bold text-gray-900 mt-1">{{ voteResult()!.betaSystem }}</p>
             </div>
@@ -196,7 +196,7 @@
           <div class="mt-6 flex justify-center">
             <button
               (click)="query.set(''); compareData.set(null); voteResult.set(null)"
-              class="text-indigo-600 font-medium hover:text-indigo-800 underline"
+              class="text-indigo-600 dark:text-indigo-300 font-medium hover:text-indigo-800 dark:hover:text-indigo-200 underline"
             >
               Realizar otra prueba
             </button>
@@ -212,12 +212,12 @@
             </summary>
             <div class="p-6 border-t border-gray-200 grid grid-cols-2 gap-6">
               <div>
-                <h4 class="font-medium text-blue-700 mb-3">
+                <h4 class="font-medium text-blue-700 dark:text-blue-300 mb-3">
                   Fuentes de Alfa ({{ voteResult()!.alfaSystem }})
                 </h4>
                 <div class="space-y-4">
                   @for (source of compareData()!.sourcesAlfa; track source; let i = $index) {
-                    <div class="p-3 bg-white border border-gray-300 rounded-sm text-sm text-gray-600">
+                    <div class="p-3 bg-surface-container-lowest border border-gray-300 rounded-sm text-sm text-gray-600">
                       <strong>Documento {{ i + 1 }}:</strong><br />
                       {{ source }}
                     </div>
@@ -225,12 +225,12 @@
                 </div>
               </div>
               <div>
-                <h4 class="font-medium text-green-700 mb-3">
+                <h4 class="font-medium text-green-700 dark:text-green-300 mb-3">
                   Fuentes de Beta ({{ voteResult()!.betaSystem }})
                 </h4>
                 <div class="space-y-4">
                   @for (source of compareData()!.sourcesBeta; track source; let i = $index) {
-                    <div class="p-3 bg-white border border-gray-300 rounded-sm text-sm text-gray-600">
+                    <div class="p-3 bg-surface-container-lowest border border-gray-300 rounded-sm text-sm text-gray-600">
                       <strong>Documento {{ i + 1 }}:</strong><br />
                       {{ source }}
                     </div>

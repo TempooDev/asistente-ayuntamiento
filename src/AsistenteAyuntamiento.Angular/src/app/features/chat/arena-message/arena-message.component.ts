@@ -17,7 +17,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           <div class="flex items-center justify-center shrink-0">
             <button
               type="button"
-              class="px-3 py-1 bg-white border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
+              class="px-3 py-1 bg-surface-container-lowest border border-gray-300 text-gray-600 rounded-full hover:bg-gray-100 text-xs shadow-xs transition-colors disabled:opacity-50"
               [disabled]="!votable()"
               (click)="vote.emit('Tie')">
               Empate
@@ -25,11 +25,11 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
           </div>
         }
         <div class="chat-bubble shadow-xs assistant flex-1 relative group">
-          <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1"><span class="sr-only">Asistente, </span>Modelo {{ side.vote }}</div>
+          <div class="text-xs font-bold text-gray-600 mb-1"><span class="sr-only">Asistente, </span>Modelo {{ side.vote }}</div>
           <div class="markdown-content" [innerHTML]="(side.vote === 'Alfa' ? message().alfa : message().beta) | markdown"></div>
           <button
             type="button"
-            class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary text-primary text-sm font-medium hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary dark:border-primary-fixed-dim dark:text-primary-fixed-dim dark:hover:bg-primary-fixed-dim/10 dark:focus-visible:ring-primary-fixed-dim disabled:opacity-50"
+            class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary text-primary text-sm font-medium hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
             [disabled]="!votable()"
             [attr.aria-label]="'Elegir esta respuesta (modelo ' + side.vote + ')'"
             (click)="vote.emit(side.vote)">
@@ -40,7 +40,7 @@ import { ArenaMessage, ArenaVote } from '../models/chat.models';
       }
     </div>
     @if (hasFailedSide()) {
-      <p class="text-xs text-gray-600 dark:text-gray-300 mb-2" role="status">No se puede votar esta comparación porque una de las respuestas ha fallado.</p>
+      <p class="text-xs text-gray-600 mb-2" role="status">No se puede votar esta comparación porque una de las respuestas ha fallado.</p>
     }
   `,
 })

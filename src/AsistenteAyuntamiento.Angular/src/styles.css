@@ -43,6 +43,8 @@ layer(base);
   --color-surface-container: #e7eeff;
   --color-surface-container-lowest: #ffffff;
   --color-on-primary-fixed-variant: #2d476f;
+  /* Hover of primary buttons; its own token so dark mode can lighten it without changing the fixed M3 roles. */
+  --color-primary-hover: #2d476f;
   --color-on-error-container: #93000a;
   --color-tertiary-container: #003f25;
   --color-on-secondary: #ffffff;
@@ -232,16 +234,88 @@ layer(base);
   }
 
   [data-theme='dark'] {
-    --primary: #63b3ed;
-    /* White on #2b6cb0 is 5.4:1 (on #2c5282, the hover, 8:1); on --primary (#63b3ed) it was 2.3:1. */
+    /* The legacy variables read the theme tokens below, so dark mode has one primary, one card colour, etc. */
+    --primary: var(--color-primary);
+    /* White on #2b6cb0 is 5.4:1 (on #2c5282, the hover, 8:1); on the light dark-mode primary it would be under 2:1. */
     --primary-strong: #2b6cb0;
     --primary-strong-hover: #2c5282;
     --placeholder: #a0aec0;
-    --secondary-bg: #1a202c;
-    --text-primary: #e2e8f0;
+    --secondary-bg: var(--color-surface);
+    --text-primary: var(--color-on-surface);
     --accent: #48bb78;
-    --surface: #2d3748;
-    --border: #4a5568;
+    --surface: var(--color-surface-container-lowest);
+    --border: var(--color-outline-variant);
+
+    /* Form controls (Field, FieldText, scrollbars) follow the theme. */
+    color-scheme: dark;
+
+    /*
+      Dark values of the Tailwind theme colours. Utilities read var(--color-*), so every page follows the theme
+      without dark: variants. Page #1a202c, cards #2d3748, borders #4a5568, text #e2e8f0: the chat's palette.
+      White is not remapped (text-white must stay white): cards use bg-surface-container-lowest instead.
+    */
+    --color-background: #1a202c;
+    --color-surface: #1a202c;
+    --color-surface-dim: #171c26;
+    --color-surface-bright: #2d3748;
+    --color-surface-container-lowest: #2d3748;
+    --color-surface-container-low: #283142;
+    --color-surface-container: #2f3a4d;
+    --color-surface-container-high: #364256;
+    --color-surface-container-highest: #3d4a60;
+    --color-surface-variant: #364256;
+    --color-on-background: #e2e8f0;
+    --color-on-surface: #e2e8f0;
+    --color-on-surface-variant: #cbd5e0;
+    --color-outline: #a0aec0;
+    --color-outline-variant: #4a5568;
+    --color-inverse-surface: #e2e8f0;
+    --color-inverse-on-surface: #1a202c;
+    --color-inverse-primary: #1a365d;
+
+    /* Material 3 dark scheme: a light primary with dark text on it (bg-primary text-on-primary). */
+    --color-primary: #adc7f7;
+    --color-on-primary: #0d2c54;
+    --color-surface-tint: #adc7f7;
+    --color-primary-container: #1a365d;
+    --color-on-primary-container: #d6e3ff;
+    --color-primary-hover: #c4d6fa;
+    --color-secondary: #c2c7cc;
+    --color-on-secondary: #2b3135;
+    --color-secondary-container: #3d4a60;
+    --color-on-secondary-container: #dbe0e5;
+    --color-tertiary: #83d8a6;
+    --color-on-tertiary: #003920;
+    --color-tertiary-container: #005231;
+    --color-on-tertiary-container: #9ff5c1;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
+
+    /* Greys keep their role: 50-100 subtle backgrounds, 200-300 borders, 400 icons, 500-600 secondary text, 700-900 text. */
+    --color-gray-50: #364152;
+    --color-gray-100: #3b475b;
+    --color-gray-200: #4a5568;
+    --color-gray-300: #5a677d;
+    --color-gray-400: #8a96a8;
+    --color-gray-500: #a0aec0;
+    --color-gray-600: #cbd5e0;
+    --color-gray-700: #d5dde7;
+    --color-gray-800: #e2e8f0;
+    --color-gray-900: #f1f5f9;
+
+    /* Pale accent backgrounds (badges, notices) become dark tints; their text gets a dark: variant. */
+    --color-blue-50: #172a46;
+    --color-blue-100: #1c3557;
+    --color-green-100: #183a2a;
+    --color-indigo-50: #23264a;
+    --color-indigo-100: #2c2f5c;
+    --color-orange-100: #452a17;
+    --color-purple-50: #2e1f47;
+    --color-purple-100: #3a2759;
+    --color-red-100: #4a1d1d;
+    --color-yellow-100: #3f3415;
   }
 
   [data-theme='dark'] .gov-card,
@@ -307,6 +381,11 @@ layer(base);
     min-height: 44px;
   }
 
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-strong-hover);
+    border-color: var(--primary-strong-hover);
+  }
+
   .btn:focus,
   .btn:active:focus,
   .btn-link.nav-link:focus,
@@ -367,7 +446,7 @@ layer(base);
 
   /* Cards */
   .gov-card {
-    background-color: #ffffff;
+    background-color: var(--color-surface-container-lowest);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 16px;
@@ -410,7 +489,7 @@ layer(base);
 
   /* Input Fields */
   .gov-input {
-    background-color: #ffffff;
+    background-color: var(--color-surface-container-lowest);
     border: 1px solid #cbd5e0;
     border-radius: 16px;
     padding: 12px 16px;
@@ -431,11 +510,12 @@ layer(base);
     box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.2);
   }
 
+  /* Theme tokens (the same #f3f4f6, #9ca3af and #e5e7eb in light mode), so the box stays dark while an answer streams. */
   .gov-input:disabled {
-    background-color: #f3f4f6;
-    color: #9ca3af;
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-400);
     cursor: not-allowed;
-    border-color: #e5e7eb;
+    border-color: var(--color-gray-200);
   }
 
   /* Buttons */
@@ -466,6 +546,22 @@ layer(base);
 
   .gov-btn-primary:hover:not(:disabled) {
     background-color: var(--primary-strong-hover);
+  }
+
+  /*
+    Dark mode: every primary button (.gov-btn-primary, .btn-primary, bg-primary) is the light primary with dark text.
+    Only enabled ones, so a disabled button keeps the grey .gov-btn:disabled background as in light mode.
+  */
+  [data-theme='dark'] .gov-btn-primary:not(:disabled),
+  [data-theme='dark'] .btn-primary:not(:disabled) {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  [data-theme='dark'] .gov-btn-primary:hover:not(:disabled),
+  [data-theme='dark'] .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
   }
 
   .gov-btn-ghost {
@@ -521,11 +617,11 @@ layer(base);
   }
 
   .chat-sidebar {
-    background-color: #ffffff;
+    background-color: var(--color-surface-container-lowest);
   }
 
   .chat-sidebar-header {
-    background-color: #ffffff;
+    background-color: var(--color-surface-container-lowest);
   }
 
   .chat-session-item {

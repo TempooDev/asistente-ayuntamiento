@@ -34,14 +34,14 @@
           
           @if (auth.isAuthenticated()) {
             <div class="px-md mb-lg">
-                <a routerLink="/chat" class="w-full bg-primary text-on-primary font-label-md text-label-md py-3 rounded-lg hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-sm min-h-[44px]">
+                <a routerLink="/chat" class="w-full bg-primary text-on-primary font-label-md text-label-md py-3 rounded-lg hover:bg-primary-hover transition-colors flex items-center justify-center gap-sm min-h-[44px]">
                     <span class="material-symbols-outlined text-[20px]">add</span>
                     Nueva Consulta
                 </a>
             </div>
             <div class="flex-1 px-md flex flex-col gap-xs font-label-md text-label-md">
                 @for (item of navItems(); track item.path) {
-                    <a [routerLink]="item.path" routerLinkActive="bg-primary-container text-on-primary!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
+                    <a [routerLink]="item.path" routerLinkActive="bg-primary-container hover:bg-primary-container! text-white!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 hover:bg-secondary-container transition-all rounded-lg">
                         <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
                         <span class="truncate">{{ item.label }}</span>
                     </a>
@@ -73,7 +73,7 @@
               </div>
               <div class="flex-1 overflow-y-auto px-md flex flex-col gap-xs font-label-md text-label-md">
                   @for (item of navItems(); track item.path) {
-                      <a [routerLink]="item.path" (click)="closeMobileMenu()" routerLinkActive="bg-primary-container text-on-primary!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
+                      <a [routerLink]="item.path" (click)="closeMobileMenu()" routerLinkActive="bg-primary-container hover:bg-primary-container! text-white!" class="flex items-center gap-md text-on-surface-variant px-4 py-3 min-h-[44px] hover:bg-secondary-container transition-all rounded-lg">
                           <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
                           <span class="truncate">{{ item.label }}</span>
                       </a>

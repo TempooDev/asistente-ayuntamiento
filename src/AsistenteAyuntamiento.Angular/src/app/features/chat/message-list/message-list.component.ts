@@ -23,13 +23,13 @@ export const STICK_TO_BOTTOM_PX = 150;
   template: `
     <div #scroller class="h-full overflow-y-auto p-4 md:p-margin-desktop" aria-live="polite" [attr.aria-busy]="generating()" (scroll)="onScroll()">
       @if (loading()) {
-        <div class="h-full flex flex-col items-center justify-center text-gray-600 dark:text-gray-300 max-w-md mx-auto text-center">
+        <div class="h-full flex flex-col items-center justify-center text-gray-600 max-w-md mx-auto text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4" aria-hidden="true"></div>
           <p class="text-lg font-medium mb-2">Cargando conversación...</p>
         </div>
       } @else if (messages().length === 0) {
-        <div class="h-full flex flex-col items-center justify-center text-gray-600 dark:text-gray-300 max-w-md mx-auto text-center">
-          <span class="material-symbols-outlined text-[48px] mb-4 text-gray-300 dark:text-gray-500" aria-hidden="true">chat_bubble_outline</span>
+        <div class="h-full flex flex-col items-center justify-center text-gray-600 max-w-md mx-auto text-center">
+          <span class="material-symbols-outlined text-[48px] mb-4 text-gray-300" aria-hidden="true">chat_bubble_outline</span>
           <p class="text-lg font-medium mb-2">¿En qué puedo ayudarte hoy?</p>
           <p class="text-sm">Selecciona una conversación anterior o escribe un mensaje para comenzar una nueva.</p>
         </div>
@@ -65,7 +65,7 @@ export const STICK_TO_BOTTOM_PX = 150;
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.2s" aria-hidden="true"></span>
               <span class="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style="animation-delay: 0.4s" aria-hidden="true"></span>
-              <span class="text-sm text-gray-600 dark:text-gray-300 ml-1" data-testid="waiting-text">{{ waitingText() }}</span>
+              <span class="text-sm text-gray-600 ml-1" data-testid="waiting-text">{{ waitingText() }}</span>
             </div>
           }
         </div>

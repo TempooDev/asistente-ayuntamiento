@@ -10,14 +10,14 @@
         <option value="HIERARCHICAL" [selected]="pipelineMode() === 'HIERARCHICAL'">Solo Jerárquico (Nuevo)</option>
       </select>
       @if (selected().size > 0) {
-        <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 bg-blue-600 text-white hover:bg-blue-700! transition-colors" (click)="enqueueSelected()">
+        <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 transition-colors" (click)="enqueueSelected()">
           Encolar seleccionados ({{ selected().size }})
         </button>
       }
-      <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 bg-green-600 text-white hover:bg-green-700! transition-colors" (click)="reprocessAll()">
+      <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 transition-colors" (click)="reprocessAll()">
         Reprocesar todo el histórico
       </button>
-      <button type="button" class="btn btn-sm btn-outline border border-red-500 text-red-500 rounded-sm px-3 py-1 hover:bg-red-500 hover:text-white transition-colors" (click)="resetStuck()">
+      <button type="button" class="btn btn-sm btn-outline border border-red-700 text-red-700 dark:border-red-300 dark:text-red-300 rounded-sm px-3 py-1 hover:bg-red-700 hover:text-white dark:hover:bg-red-700 dark:hover:text-white transition-colors" (click)="resetStuck()">
         Reiniciar colgados en 'Procesando'
       </button>
     </div>

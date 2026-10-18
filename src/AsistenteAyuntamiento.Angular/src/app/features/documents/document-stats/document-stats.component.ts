@@ -34,9 +34,9 @@ export class DocumentStatsComponent {
 
   protected readonly cards: readonly { label: string; key: keyof BlobStats; filter?: BlobStatusFilter; color: string }[] = [
     { label: 'Pendientes', key: 'pending', filter: 'Pendientes', color: '' },
-    { label: 'Encolados', key: 'queued', filter: 'Encolados', color: 'text-orange-500' },
-    { label: 'En proceso', key: 'processing', color: 'text-blue-500' },
-    { label: 'Completados', key: 'completed', filter: 'Procesados', color: 'text-green-500' },
+    { label: 'Encolados', key: 'queued', filter: 'Encolados', color: 'text-orange-500 dark:text-orange-300' },
+    { label: 'En proceso', key: 'processing', color: 'text-blue-500 dark:text-blue-300' },
+    { label: 'Completados', key: 'completed', filter: 'Procesados', color: 'text-green-700 dark:text-green-300' },
     { label: 'Total Docs', key: 'total', filter: 'Todos', color: '' },
   ];
 }
