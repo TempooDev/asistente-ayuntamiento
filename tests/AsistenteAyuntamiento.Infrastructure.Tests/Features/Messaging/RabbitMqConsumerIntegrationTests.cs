@@ -91,7 +91,7 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
         await _broker.StartAsync();
         var factory = new ConnectionFactory { Uri = new Uri(_broker.GetConnectionString()) };
 
-        await using var connection = await factory.CreateConnectionAsync();
+        await using var connection = await ConnectAfterRestartAsync(factory);
         await using var channel = await connection.CreateChannelAsync();
         foreach (var queue in new[] { RabbitMqTopology.BaselineQueue, RabbitMqTopology.HierarchicalQueue })
         {
@@ -175,6 +175,24 @@ public class RabbitMqConsumerIntegrationTests : IAsyncLifetime
         await channel.BasicPublishAsync(string.Empty, queue, mandatory: false,
             new BasicProperties { Persistent = true },
             JsonSerializer.SerializeToUtf8Bytes(new DocumentMessage { DocumentId = documentId, Source = "BOE", BlobPath = "x" }));
+
+    // The container's wait strategy matches "Server startup complete" in the logs, which the first start already
+    // wrote, so StartAsync can return before the restarted broker accepts connections.
+    private static async Task<IConnection> ConnectAfterRestartAsync(ConnectionFactory factory)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        while (true)
+        {
+            try
+            {
+                return await factory.CreateConnectionAsync(cts.Token);
+            }
+            catch (RabbitMQ.Client.Exceptions.BrokerUnreachableException) when (!cts.IsCancellationRequested)
+            {
+                await Task.Delay(500, cts.Token);
+            }
+        }
+    }
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, CancellationToken cancellationToken)
     {

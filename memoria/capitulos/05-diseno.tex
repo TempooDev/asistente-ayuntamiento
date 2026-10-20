@@ -1,0 +1,42 @@
+% ======================================================================
+% Capítulo: Diseño del sistema
+% Fase 2 del anteproyecto. Extensión orientativa: 8--10 páginas.
+% ======================================================================
+\chapter{Diseño del sistema}
+\label{cap:diseno}
+
+\section{Arquitectura general}
+\label{sec:arquitectura}
+% TODO: Los tres componentes desacoplados (Go, .NET, Angular), gateway, workers y almacenes.
+
+\section{Arquitectura limpia en .NET}
+\label{sec:clean}
+% TODO: Capas, puertos y adaptadores, tests de arquitectura.
+
+\section{Diagramas UML}
+\label{sec:uml}
+% TODO: Clases de los módulos clave y secuencias de pregunta en el chat e ingesta de un boletín.
+
+\section{Modelo de datos híbrido}
+\label{sec:modelo-datos}
+% TODO: Diagrama E-R de PostgreSQL y colecciones de Qdrant (\texttt{document\_chunks}, \texttt{child\_fragments}).
+
+\section{Indexación vectorial}
+\label{sec:indexacion}
+% TODO: Modelos de embeddings y dimensiones, similitud coseno, HNSW, límite de pgvector y migración a Qdrant (ADR 0001).
+
+\section{Flujo de ingesta asíncrona}
+\label{sec:ingesta-diseno}
+% TODO: Contrato de RabbitMQ, colas de reintento y DLQ, idempotencia y estados del documento.
+
+\section{Pipelines RAG}
+\label{sec:pipelines}
+% TODO: Baseline (chunks fijos, búsqueda densa) frente a jerárquica (expansión de consulta, híbrida RRF, contexto padre, lenguaje claro).
+
+\section{Abstracción del proveedor de IA y control de coste}
+\label{sec:proveedor-ia}
+% TODO: Semantic Kernel, fábrica de modelos por tenant, fallback ante 429 y registro de coste por llamada.
+
+\section{Tiempo real y seguridad}
+\label{sec:seguridad}
+% TODO: SignalR, multi-tenancy con Auth0 (acceso por ayuntamiento), roles y cifrado de claves.

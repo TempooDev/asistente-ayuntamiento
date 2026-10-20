@@ -1,0 +1,38 @@
+% ======================================================================
+% Capítulo: Implementación
+% Fases 3, 5, 6 y 7 del anteproyecto. Extensión orientativa: 8--10 páginas. Código corto solo donde aporte; el resto, a apéndices.
+% ======================================================================
+\chapter{Implementación}
+\label{cap:implementacion}
+
+\section{Módulo de ingesta en Go}
+\label{sec:impl-go}
+% TODO: Clientes de BOE y BOJA, descarga concurrente, extracción, S3, eventos y filtros por gRPC.
+
+\section{Backend .NET: ingesta}
+\label{sec:impl-ingesta}
+% TODO: Consumidores, fragmentación de BOE y BOJA, municipio y fecha, embeddings, Postgres y Qdrant.
+
+\section{Orquestación RAG}
+\label{sec:impl-rag}
+% TODO: Recuperación híbrida, prompts (\texttt{PromptCatalog}), citas de fuentes y streaming por SignalR.
+
+\section{Contexto personalizado y Arena}
+\label{sec:impl-arena}
+% TODO: Preferencias, comparación de pipelines, votos, \emph{shadow testing}; la Arena como herramienta de validación con funcionarios.
+
+\section{Frontend Angular}
+\label{sec:impl-angular}
+% TODO: Organización por features, señales, chat, visor de citas y adaptación a móvil.
+
+\section{Orquestación y despliegue}
+\label{sec:impl-despliegue}
+% TODO: AppHost de Aspire, Docker Compose, Dokploy y CI/CD.
+
+\section{Observabilidad y coste}
+\label{sec:impl-observabilidad}
+% TODO: OpenTelemetry, métricas GenAI (tokens, latencia, TTFT, coste en EUR), Grafana y privacidad (ADR 0002). Tabla de coste por pregunta: modelos frontera frente a locales.
+
+\section{Auditoría y refactorización}
+\label{sec:impl-auditoria}
+% TODO: Auditoría de código de octubre de 2026 y sus fases de corrección.

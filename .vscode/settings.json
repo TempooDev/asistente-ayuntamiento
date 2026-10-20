@@ -1,0 +1,49 @@
+{
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk (XeLaTeX)",
+      "tools": [
+        "latexmk"
+      ]
+    }
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "%DOC%"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipe.default": "first",
+  "latex-workshop.latex.rootFile.useSubFile": false,
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.latex.autoClean.run": "never",
+  "[latex]": {
+    "editor.wordWrap": "on"
+  },
+  "latex-workshop.latex.rootFile.doNotPrompt": true,
+  "files.exclude": {
+    "memoria/**/*.aux": true,
+    "memoria/**/*.bbl": true,
+    "memoria/**/*.bcf": true,
+    "memoria/**/*.blg": true,
+    "memoria/**/*.fdb_latexmk": true,
+    "memoria/**/*.fls": true,
+    "memoria/**/*.ilg": true,
+    "memoria/**/*.lof": true,
+    "memoria/**/*.lot": true,
+    "memoria/**/*.nlo": true,
+    "memoria/**/*.nls": true,
+    "memoria/**/*.out": true,
+    "memoria/**/*.run.xml": true,
+    "memoria/**/*.synctex.gz": true,
+    "memoria/**/*.toc": true,
+    "memoria/**/*.xdv": true
+  }
+}

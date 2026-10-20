@@ -40,9 +40,11 @@ $RECYCLE.BIN/
 
 ## Visual Studio / VS Code
 .vscode/
-!.vscode/extensions.json
-# keep shared settings
-!.vscode/settings.json
+# keep the shared settings at the root (memoria: LaTeX Workshop)
+!/.vscode/
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/settings.json
 *.suo
 *.user
 *.userosscache
