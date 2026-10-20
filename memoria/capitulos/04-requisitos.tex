@@ -100,7 +100,7 @@ RF24 & Calcular la tasa de victorias de cada pipeline a partir de los votos. & \
 \toprule
 \textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
 \midrule
-RF25 & Elegir el proveedor y el modelo de IA de cada ayuntamiento (Ollama, OpenAI, OpenRouter o Google) y guardar su clave de API. & \texttt{user-api-keys-vault} \\
+RF25 & Elegir el proveedor y el modelo de IA con el que cada ayuntamiento genera las respuestas del chat (Ollama, OpenAI, OpenRouter o Google) y guardar su clave de API. Los \emph{embeddings} los genera siempre la plataforma (sección~\ref{sec:clave-propia}). & \texttt{user-api-keys-vault} \\
 RF26 & Gestionar las reglas de filtrado y lanzar descargas desde la interfaz. & \texttt{scraper-dynamic-filtering} \\
 RF27 & Listar e inspeccionar los documentos almacenados, procesar uno concreto y mantener el estado de los trabajos. & \texttt{ingestion-administration} \\
 RF28 & Notificar en tiempo real el progreso de la ingesta y del \emph{scraper} a los administradores. & \texttt{realtime-notifications} \\
