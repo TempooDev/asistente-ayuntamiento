@@ -75,3 +75,16 @@ Si se sube a Overleaf: *Menu → Compiler → XeLaTeX*.
 - **Citas:** `\cite{clave}` con las claves de `references.bib`. Cuando los capítulos ya citen, hay que quitar `\nocite{*}` de `main.tex`.
 - **Acrónimos:** cada uno nuevo va en `preliminares/acronimos.tex`.
 - **Ficheros generados:** no se suben al repositorio (`.gitignore`). Tampoco `main.pdf`.
+
+## Diagramas UML
+
+Las fuentes de los diagramas están en `figuras/uml/*.puml` (PlantUML) y la memoria incluye los PDF generados a partir de ellas. Para regenerarlos tras editar un `.puml`:
+
+```bash
+cd memoria/figuras/uml
+plantuml -tsvg *.puml
+for f in *.svg; do rsvg-convert -f pdf -o "${f%.svg}.pdf" "$f"; done
+rm *.svg
+```
+
+En macOS: `brew install plantuml librsvg`. La extensión **PlantUML** (`jebbs.plantuml`) de VS Code permite previsualizarlos mientras se editan.

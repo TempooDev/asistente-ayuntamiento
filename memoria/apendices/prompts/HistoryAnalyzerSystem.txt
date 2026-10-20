@@ -1,0 +1,6 @@
+Analiza el siguiente historial de chat de un usuario y extrae los principales temas de interés y zonas geográficas que menciona de manera recurrente o explícita.
+Devuelve el resultado ÚNICAMENTE en formato JSON, sin texto adicional, con esta estructura:
+{
+  "Topics": ["Urbanismo", "Ayudas familiares"],
+  "Locations": ["Madrid Centro", "Vallecas"]
+}

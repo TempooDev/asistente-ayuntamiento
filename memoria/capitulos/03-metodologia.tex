@@ -7,15 +7,136 @@
 
 \section{Scrum adaptado a un desarrollo individual}
 \label{sec:scrum}
-% TODO: Sprints de 2--3 semanas, backlog y revisión \cite{schwaber2020}.
+
+El trabajo se ha organizado con Scrum \cite{schwaber2020}, adaptado a un desarrollo individual. El autor asume a la vez los papeles de propietario del producto y de equipo de desarrollo, y los tutores actúan como interesados con los que se revisa el avance.
+
+El desarrollo se ha dividido en \emph{sprints} de varias semanas. Cada \emph{sprint} parte de un objetivo concreto, que se traduce en uno o varios cambios de OpenSpec (sección~\ref{sec:sdd}); las tareas de esos cambios hacen las veces de pila del \emph{sprint}, y la revisión del \emph{sprint} consiste en comprobar en la aplicación desplegada que el objetivo se ha cumplido.
+
+\subsection{Un producto mínimo viable para validar con ayuntamientos}
+
+La prioridad de los primeros \emph{sprints} fue llegar a un producto mínimo viable (MVP) lo bastante funcional como para enseñarlo a entidades públicas, como el Ayuntamiento de Sevilla, y que estas pudieran valorar si la plataforma les resultaría útil y usable en su trabajo diario. Por eso el despliegue en producción y la integración continua se prepararon pronto, en agosto de 2026, en lugar de dejarse para el final.
+
+La primera versión del MVP se construyó con Blazor, el marco de interfaz web de .NET. Esa versión se probó y se descartó por su usabilidad y su experiencia de usuario, y la interfaz se rehízo como una aplicación Angular, que es la tecnología prevista en el anteproyecto. % TODO (Antonio): concretar qué problemas de usabilidad y experiencia de usuario motivaron el descarte de Blazor.
+
+Entre finales de agosto y septiembre de 2026 se publicó una primera versión a la que tuvieron acceso personas de estas entidades, que aportaron su valoración. A raíz de ese \emph{feedback} se priorizó la mejora de dos partes del sistema: la Arena de comparación de pipelines y el \emph{scraper} de boletines. % TODO (Antonio): resumir el feedback recibido y qué cambios concretos motivó en la Arena y en el scraper.
+
+\subsection{Iteraciones posteriores}
+
+% TODO (Antonio): describir los sprints posteriores (por ejemplo, la auditoría de código y la observabilidad en octubre) y su relación con el feedback.
 
 \section{Desarrollo guiado por especificaciones}
 \label{sec:sdd}
-% TODO: SDD para IA \cite{ramos2026} concretado con OpenSpec: propuesta, diseño, tareas y archivo. Ejemplos de specs.
+
+El desarrollo guiado por especificaciones (\emph{Spec-Driven Development}, SDD) parte de una idea sencilla: antes de escribir código se acuerda por escrito qué debe hacer el sistema, y ese texto se mantiene como la referencia contra la que se implementa y se revisa. Cuando parte del código lo escriben o lo proponen agentes de IA, la especificación cumple además una segunda función: es el contexto que reciben los agentes y el criterio con el que se comprueba su trabajo \cite{ramos2026}.
+
+En este proyecto el SDD se ha concretado con OpenSpec \cite{openspec}, una herramienta de código abierto que organiza las especificaciones en ficheros Markdown dentro del propio repositorio y define un ciclo de trabajo para cambiarlas. % VERIFICAR: descripción general de OpenSpec tomada de su repositorio público (ver \cite{openspec}).
+
+\subsection{Estructura de OpenSpec en el repositorio}
+
+El directorio \texttt{openspec/} contiene tres elementos:
+
+\begin{itemize}
+  \item \textbf{\texttt{config.yaml}}: el contexto del proyecto (arquitectura, tecnologías, reglas de dominio, despliegue y convenciones) y las reglas que deben cumplir los artefactos. Por ejemplo, toda propuesta debe incluir una sección de \emph{no objetivos}, las tareas no deben superar las dos o tres horas y deben citar los ficheros que modifican, todo requisito debe tener al menos un escenario y toda funcionalidad sensible para la seguridad debe incluir el escenario del acceso no autorizado.
+  \item \textbf{\texttt{specs/}}: las especificaciones vigentes, una por \emph{capacidad} del sistema. Cada especificación tiene un propósito y una lista de requisitos redactados con \texttt{SHALL}, y cada requisito se ilustra con escenarios en forma \texttt{WHEN}/\texttt{THEN}. El apéndice~\ref{ap:especificaciones} recoge la lista completa.
+  \item \textbf{\texttt{changes/}}: los cambios en curso y, en \texttt{changes/archive/}, los cambios ya terminados, con la fecha de archivo como prefijo. El conjunto de especificaciones crece con cada cambio archivado, de modo que \texttt{specs/} describe en todo momento el sistema completo.
+\end{itemize}
+
+El listado~\ref{lst:spec-ejemplo} muestra un requisito real de la capacidad \texttt{user-api-keys-vault}, que regula el modelo de IA configurable por cada ayuntamiento.
+
+\begin{lstlisting}[caption={Fragmento de \texttt{openspec/specs/user-api-keys-vault/spec.md}},label={lst:spec-ejemplo}]
+### Requirement: Encrypted, Write-only API Keys
+API keys SHALL be stored encrypted with ASP.NET Core Data
+Protection (purpose `AiConfiguration.ApiKey`) and SHALL never
+be returned by the API.
+
+#### Scenario: Reading the configuration
+- **WHEN** an administrator opens the AI settings
+  (`GET /api/settings/ai`)
+- **THEN** ...
+\end{lstlisting}
+
+\subsection{Ciclo de un cambio}
+
+Toda funcionalidad nueva o modificación relevante sigue el mismo ciclo, que OpenSpec expone como comandos (\texttt{/opsx:*}) para los asistentes de IA:
+
+\begin{enumerate}
+  \item \textbf{Explorar} (\texttt{/opsx:explore}). Se analiza el problema y el código existente sin escribir código. Sirve para aclarar requisitos antes de comprometerse con una solución.
+  \item \textbf{Proponer} (\texttt{/opsx:propose}). Se crea el cambio en \texttt{openspec/changes/<nombre>/} con tres artefactos: \texttt{proposal.md} (por qué y qué cambia, con los no objetivos), \texttt{design.md} (cómo se va a hacer y qué decisiones se toman) y \texttt{tasks.md} (la lista de tareas). Si el cambio altera el comportamiento del sistema, incluye además especificaciones \emph{delta} en \texttt{specs/}, con los requisitos añadidos (\texttt{ADDED}), modificados (\texttt{MODIFIED}) o eliminados (\texttt{REMOVED}).
+  \item \textbf{Aplicar} (\texttt{/opsx:apply}). Se implementan las tareas en orden y se marcan como hechas en \texttt{tasks.md}. Si durante la implementación aparece algo no previsto, se actualizan los artefactos (\texttt{/opsx:update}) en lugar de dejar que el código se aleje de lo especificado.
+  \item \textbf{Sincronizar} (\texttt{/opsx:sync}). Las especificaciones delta se incorporan a las especificaciones principales de \texttt{openspec/specs}.
+  \item \textbf{Archivar} (\texttt{/opsx:archive}). El cambio se mueve a \texttt{changes/archive/} con la fecha, y queda como registro histórico de la decisión.
+\end{enumerate}
+
+Además se ha definido un flujo propio, \texttt{opsx-close}, que encadena los pasos finales de una rama: la revisión de la \emph{pull request} por un agente revisor, la sincronización de especificaciones, el archivo del cambio y la fusión.
+
+\subsection{Validación humana en cada fase}
+\label{sec:sdd-validacion}
+
+En este flujo la IA no trabaja por su cuenta: cada artefacto que genera pasa por una validación del autor antes de dar el siguiente paso.
+
+\begin{itemize}
+  \item \textbf{Al generar las especificaciones.} La propuesta, el diseño, las tareas y las especificaciones delta que redacta el asistente son un borrador. El autor los revisa, comprueba que reflejan lo que se quiere construir y que respetan las reglas de \texttt{config.yaml}, y modifica lo que sea necesario (alcance, no objetivos, decisiones de diseño, escenarios) antes de dar por buena la propuesta. Solo entonces se empieza a implementar.
+  \item \textbf{Al generar el código.} La implementación se entrega siempre en una \emph{pull request}. Sobre ella se hace una primera revisión con IA, mediante un agente revisor que analiza el diff (\texttt{.agent/agents/pr-reviewer}). Después el autor hace una revisión manual del código y una prueba manual de las acciones afectadas en la aplicación, además de comprobar que la integración continua pasa. Si algo no coincide con la especificación, se corrige el código o se actualiza la especificación antes de fusionar.
+\end{itemize}
+
+Así, la especificación marca qué debe hacer la IA, y la revisión humana comprueba que lo ha hecho.
+
+\subsection{Ejemplos}
+
+El cambio \texttt{2026-09-05-rag-question-arena} es un buen ejemplo de cambio grande. Su propuesta introdujo a la vez la pipeline jerárquica, la Arena de preguntas, la telemetría de ingesta, el reprocesado masivo con dos \emph{workers} y el panel de métricas, y por eso incluye especificaciones delta para cinco capacidades distintas. Estas especificaciones son las que hacen posible el estudio de fragmentación del capítulo~\ref{cap:estudio-chunking}, porque fijan que las dos pipelines procesen los mismos documentos y registren métricas comparables.
+
+El cambio \texttt{2026-10-13-migrate-embeddings-qdrant} muestra el ciclo aplicado a una decisión de arquitectura: el límite de dimensiones de los índices de pgvector impedía usar modelos de \emph{embeddings} más grandes, y el cambio documentó la migración de los vectores a Qdrant junto con el registro de decisión ADR~0001.
+
+\subsection{Las especificaciones como descripción del sistema real}
+
+Las especificaciones solo son útiles si describen lo que el código hace de verdad. Por eso se tratan como documentación viva: cada cambio que altera el comportamiento del sistema actualiza las especificaciones afectadas en la misma \emph{pull request}, y cuando se detecta una diferencia entre una especificación y el código se resuelve en ese momento, corrigiendo el código o la especificación, en lugar de dejarla como deuda. Así, el directorio \texttt{openspec/specs} es en cualquier momento una descripción completa y fiable del sistema, que sirve tanto al autor como a los agentes de IA que trabajan sobre el repositorio.
 
 \section{Gestión del código y calidad}
 \label{sec:calidad}
-% TODO: Git, PR por cambio, CI obligatoria, agentes de IA con revisión humana.
+
+% TODO: completar con la estrategia de ramas y los tiempos de la CI si se quiere más detalle.
+Cada cambio se desarrolla en una rama propia y entra en la rama principal mediante una \emph{pull request}. La integración continua (\texttt{.github/workflows/ci.yml}) es obligatoria antes de fusionar y comprueba la higiene del repositorio (por ejemplo, que no se suban ficheros de más de 5~MB), el formato, el estilo, la compilación y las pruebas de .NET, las pruebas y la compilación de producción de Angular, el código Go (\texttt{go vet}, \texttt{gofmt} y pruebas con el detector de condiciones de carrera) y que los ficheros generados a partir de los \texttt{.proto} estén al día. El despliegue en producción (\texttt{deploy.yml}) solo se lanza cuando la integración continua pasa en la rama principal.
+
+El código que proponen los agentes de IA pasa por los mismos filtros que el escrito a mano: la especificación de OpenSpec, la integración continua, y la revisión y prueba manual del autor descritas en la sección~\ref{sec:sdd-validacion}.
+
+\section{Uso de la inteligencia artificial en el desarrollo}
+\label{sec:ia-desarrollo}
+
+Conviene distinguir dos usos de la IA en este trabajo. El primero forma parte del producto: los modelos de lenguaje que generan las respuestas, enriquecen los fragmentos y expanden las consultas, que se describen en los capítulos~\ref{cap:diseno} y~\ref{cap:implementacion}. El segundo, que se trata en esta sección, es el uso de asistentes de IA como herramienta durante el desarrollo. En este segundo uso se han empleado dos asistentes con papeles distintos.
+
+\subsection{Gemini: búsqueda de información y soporte}
+
+Gemini \cite{gemini} se ha utilizado principalmente como fuente de búsqueda de datos y como apoyo durante todo el proyecto, en tareas como:
+
+\begin{itemize}
+  \item localizar y resumir documentación: el funcionamiento de las fuentes de datos del BOE y del BOJA, la documentación de las tecnologías empleadas y comparativas entre alternativas;
+  \item resolver dudas puntuales de implementación y de configuración;
+  \item servir de apoyo para redactar los artefactos de OpenSpec. El repositorio incluye los comandos de OpenSpec para Gemini CLI (\texttt{.gemini/commands/opsx}) y para el entorno de agentes (\texttt{.agent/workflows}).
+\end{itemize}
+
+% VERIFICAR (Antonio): completar con ejemplos concretos de búsquedas hechas con Gemini y confirmar en qué fases se usó Gemini CLI o el entorno de \texttt{.agent/} para redactar propuestas o código.
+La información obtenida de esta forma se ha tratado como un punto de partida y no como una fuente en sí misma: los datos que aparecen en esta memoria se contrastan con la documentación original o con la bibliografía citada.
+
+\subsection{Claude: integración en el flujo de desarrollo}
+
+Desde octubre de 2026 se ha incorporado Claude, a través de Claude Code \cite{claudecode}, dentro del propio flujo de desarrollo y no solo como asistente de consulta. Claude trabaja sobre el repositorio siguiendo el mismo ciclo de OpenSpec descrito en la sección~\ref{sec:sdd}: lee las especificaciones y el \texttt{config.yaml}, propone o actualiza los cambios, implementa las tareas en una rama y abre una \emph{pull request} que el autor revisa antes de fusionarla. Cada \emph{commit} en el que participa lleva la línea \texttt{Co-Authored-By: Claude}, de modo que su contribución queda trazada en el historial de Git.
+
+Los trabajos principales en los que ha participado son:
+
+\begin{itemize}
+  \item la auditoría de código de octubre de 2026 (\texttt{docs/auditoria-codigo-2026-10.md}) y el cambio \texttt{audit-remediation-2026-10}, que corrigió problemas de autorización, aislamiento entre ayuntamientos, gestión de credenciales y fiabilidad de la mensajería;
+  \item la revisión de todas las especificaciones contra el código descrita en la sección anterior;
+  \item la separación de la base vectorial tras el puerto \texttt{IVectorStore}, la observabilidad con OpenTelemetry y Grafana y la experiencia de uso en el móvil.
+\end{itemize}
+
+\subsection{Uso de la IA en la redacción de esta memoria}
+
+En la redacción de esta memoria no se ha dejado a la IA libertad para desarrollar el contenido. Claude se ha utilizado como herramienta de dictado (\emph{speech to text}): el autor expone sus ideas de viva voz y el asistente las transcribe, las ordena y les da formato en \LaTeX, para agilizar la escritura. El contenido, la estructura y las conclusiones son del autor, que revisa y corrige cada texto antes de incorporarlo, y los datos que no proceden del propio proyecto se contrastan con la fuente original.
+
+
+\subsection{Control humano}
+
+En ambos casos el autor mantiene la responsabilidad sobre el resultado. Las especificaciones y el código que genera la IA se validan como se describe en la sección~\ref{sec:sdd-validacion}, y las afirmaciones que proceden de fuentes externas, incluidas las obtenidas con Gemini, se contrastan antes de incluirlas en la memoria.
 
 \section{Planificación temporal}
 \label{sec:planificacion}

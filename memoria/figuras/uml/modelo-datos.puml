@@ -1,0 +1,153 @@
+@startuml modelo-datos
+' Modelo de datos: PostgreSQL (por esquema) y colecciones de Qdrant
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam linetype ortho
+hide circle
+hide methods
+left to right direction
+
+package "PostgreSQL · identity" {
+  entity UserProfile {
+    * Id : uuid <<PK>>
+    --
+    * Auth0UserId : varchar(100) <<unique>>
+    * TenantId : varchar(50)
+    FullName, Department, Position, PhoneNumber
+    CreatedAt, UpdatedAt
+  }
+  entity UserPreference {
+    * Id : uuid <<PK>>
+    --
+    * Auth0UserId : varchar(100)
+    * TenantId : varchar(50)
+    Topics : text[]
+    Locations : text[]
+    CreatedAt, UpdatedAt
+  }
+  entity AiConfiguration {
+    * TenantId : varchar <<PK>>
+    --
+    Provider, Model, Temperature
+    EncryptedApiKey (cifrada)
+    EndpointUrl
+  }
+}
+
+package "PostgreSQL · chat" {
+  entity ChatSession {
+    * Id : uuid <<PK>>
+    --
+    * UserId, TenantId
+    CreatedAt
+  }
+  entity ChatMessage {
+    * Id : uuid <<PK>>
+    --
+    * SessionId : uuid <<FK>>
+    Role, Content, CreatedAt
+  }
+  entity FailedChatMessage {
+    * Id : uuid <<PK>>
+    --
+    SessionId, Role, Content
+    FailedAt, Attempts, Error
+  }
+  entity AiCallLog {
+    * Id : uuid <<PK>>
+    --
+    * TenantId, UserId, ModelId
+    Pipeline, Operation
+    Success, DurationMs
+    InputTokens, OutputTokens, TotalTokens
+    CreatedAt
+  }
+}
+
+package "PostgreSQL · arena" {
+  entity ArenaBattle {
+    * Id : bigint <<PK>>
+    --
+    * SessionId, TenantId, UserId
+    UserQuery
+    LeftSystem, RightSystem
+    LeftResponse, RightResponse
+    latencias y tokens de cada lado
+    Winner, ClarityReason, PrecisionReason
+    OptionalComment, CreatedAt
+  }
+}
+
+package "PostgreSQL · ingestion" {
+  entity DocumentJobState {
+    * DocumentId : varchar <<PK>>
+    --
+    Status, BaselineStatus, HierarchicalStatus
+    ErrorMessage, CreatedAt, LastUpdatedAt
+  }
+  entity DocumentChunk {
+    * Id : int <<PK>>
+    --
+    DocumentId, Source, Title, Department
+    Content, ChunkIndex, PublicationDate
+  }
+  entity ParentDocument {
+    * Id : bigint <<PK>>
+    --
+    * DocumentId, Bulletin
+    NormativeRank, IssuingBody
+    NormTitle, NormSection, Municipality
+    FullText, PublicationDate, IsActive
+    Metadata : jsonb
+  }
+  entity ChildFragment {
+    * Id : bigint <<PK>>
+    --
+    * ParentId : bigint <<FK>>
+    Bulletin, Municipality, SubSection
+    ChunkText
+    TsvContent : tsvector (índice GIN)
+  }
+  entity IngestionMetric {
+    * Id : bigint <<PK>>
+    --
+    Pipeline, Bulletin, DocumentId
+    TotalTokensEmbedded
+    TotalLlmCalls, TotalLlmTokens
+    ProcessingDurationMs, ChunksGenerated
+  }
+}
+
+package "PostgreSQL · scraper" {
+  entity ScraperFilterRule {
+    * Id : int <<PK>>
+    --
+    Provider, FilterType, Value
+    IsActive, CreatedAt
+  }
+}
+
+package "Qdrant" {
+  entity "document_chunks" as QDC {
+    id = DocumentChunk.Id
+    vector (similitud coseno)
+    --
+    payload: DocumentId, Source, Title,
+    Department, Municipality, Content,
+    ChunkIndex, PublicationDate
+  }
+  entity "child_fragments" as QCF {
+    id = ChildFragment.Id
+    vector (similitud coseno)
+    --
+    payload: DocumentId, ParentId, Bulletin,
+    Municipality, SubSection, ChunkText
+  }
+}
+
+ChatSession ||--o{ ChatMessage
+ParentDocument ||--|{ ChildFragment
+DocumentChunk ..> QDC : mismo id
+ChildFragment ..> QCF : mismo id
+UserProfile .. UserPreference : Auth0UserId + TenantId
+@enduml

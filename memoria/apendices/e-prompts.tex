@@ -1,3 +1,77 @@
 \umaappendix{Prompts del sistema}
 \label{ap:prompts}
-% TODO: Texto literal de cada prompt de PromptCatalog.cs junto al requisito de OpenSpec que lo define.
+
+Este apéndice recoge el texto literal de los \emph{prompts} que la plataforma envía a los modelos de lenguaje. Todos están definidos en un único fichero, \path{src/AsistenteAyuntamiento.Application/Common/Prompts/PromptCatalog.cs}, de modo que ningún servicio escribe instrucciones propias. Los \emph{prompts} evolucionan con el sistema; los textos de este apéndice se extraen de ese fichero con el script \path{memoria/scripts/extraer-prompts.py}, que debe volver a ejecutarse cuando cambien. Las líneas largas se parten automáticamente al componer la página.
+
+Los marcadores \texttt{\{0\}}, \texttt{\{1\}} y \texttt{\{2\}} se sustituyen en tiempo de ejecución por los valores que se indican en cada caso.
+
+\lstset{numbers=none,basicstyle=\ttfamily\footnotesize,breakindent=0pt}
+
+\section{Pipeline \emph{baseline}}
+
+La pipeline \emph{baseline} genera las respuestas con el modelo configurado por cada ayuntamiento. Elige el \emph{prompt} de sistema según el modo de respuesta y si la búsqueda ha encontrado documentos.
+
+\subsection{Respuesta en \emph{streaming} con documentos}
+
+Es el caso habitual del chat. El \emph{prompt} de sistema va seguido, si el usuario los tiene, de sus temas y zonas de interés (sección~\ref{sec:prompt-contexto-usuario}).
+
+\lstinputlisting[caption={\texttt{StreamingSystem}}]{apendices/prompts/StreamingSystem.txt}
+
+El último mensaje del usuario se sustituye por la siguiente plantilla, donde \texttt{\{0\}} son los fragmentos recuperados (título, enlace público, organismo, fecha y texto de cada uno) y \texttt{\{1\}} es la pregunta:
+
+\lstinputlisting[caption={\texttt{StreamingUserTemplate}}]{apendices/prompts/StreamingUserTemplate.txt}
+
+\subsection{Respuesta en \emph{streaming} sin documentos}
+
+Cuando la búsqueda no devuelve documentos (por ejemplo, en un saludo o en una pregunta de seguimiento), la conversación continúa con este \emph{prompt}, que prohíbe dar de memoria datos concretos de una norma:
+
+\lstinputlisting[caption={\texttt{ConversationalSystem}}]{apendices/prompts/ConversationalSystem.txt}
+
+\subsection{Respuesta sin \emph{streaming}}
+
+Las respuestas que no se transmiten en \emph{streaming} usan este par de \emph{prompts}. En la plantilla, \texttt{\{0\}} es el contexto recuperado, \texttt{\{1\}} la pregunta y \texttt{\{2\}} la fecha actual.
+
+\lstinputlisting[caption={\texttt{ChatSystem}}]{apendices/prompts/ChatSystem.txt}
+
+\lstinputlisting[caption={\texttt{ChatUserTemplate}}]{apendices/prompts/ChatUserTemplate.txt}
+
+\subsection{Contexto del usuario}
+\label{sec:prompt-contexto-usuario}
+
+Si el usuario tiene temas o zonas de interés, se añade al \emph{prompt} de sistema un bloque \texttt{=== CONTEXTO DEL USUARIO ===} con las dos listas, seguido de una indicación: la primera se usa con \texttt{ChatSystem} (respuesta sin \emph{streaming}) y la segunda con \texttt{StreamingSystem}. \texttt{ConversationalSystem} no lleva este bloque.
+
+\lstinputlisting[caption={\texttt{UserContextGuidanceWithDocuments}}]{apendices/prompts/UserContextGuidanceWithDocuments.txt}
+
+\lstinputlisting[caption={\texttt{UserContextGuidance}}]{apendices/prompts/UserContextGuidance.txt}
+
+\section{Pipeline jerárquica}
+
+\subsection{Expansión de la consulta}
+
+Antes de buscar, la pregunta se reformula en terminología administrativa y se separa en una consulta léxica y otra semántica. \texttt{\{0\}} es la consulta del usuario y \texttt{\{1\}} la conversación anterior.
+
+\lstinputlisting[caption={\texttt{QueryExpansion}}]{apendices/prompts/QueryExpansion.txt}
+
+\subsection{Generación en lenguaje claro}
+
+La respuesta se genera con el modelo de la plataforma a partir del texto completo de los documentos padre recuperados (\texttt{\{0\}}).
+
+\lstinputlisting[caption={\texttt{ClearLanguageGeneration}}]{apendices/prompts/ClearLanguageGeneration.txt}
+
+\section{Ingesta}
+
+Durante la ingesta jerárquica, cada fragmento hijo (\texttt{\{0\}}) se enriquece con dos preguntas que un ciudadano haría y que el fragmento responde, antes de generar su \emph{embedding}.
+
+\lstinputlisting[caption={\texttt{FragmentEnrichment}}]{apendices/prompts/FragmentEnrichment.txt}
+
+\section{Arena}
+
+En la página de la Arena, el lado \emph{baseline} responde con esta plantilla, donde \texttt{\{0\}} es la consulta y \texttt{\{1\}} los documentos recuperados. El lado jerárquico usa los \emph{prompts} de su pipeline.
+
+\lstinputlisting[caption={\texttt{ArenaBaselineTemplate}}]{apendices/prompts/ArenaBaselineTemplate.txt}
+
+\section{Análisis del historial}
+
+Para sugerir temas y zonas de interés, se analizan las conversaciones recientes del usuario con este \emph{prompt}, que pide la respuesta en JSON:
+
+\lstinputlisting[caption={\texttt{HistoryAnalyzerSystem}}]{apendices/prompts/HistoryAnalyzerSystem.txt}

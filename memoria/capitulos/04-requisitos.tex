@@ -7,15 +7,129 @@
 
 \section{Actores}
 \label{sec:actores}
-% TODO: Técnico municipal, administrador de organización y administrador de plataforma.
+
+Los actores se corresponden con los roles definidos en Auth0, donde cada ayuntamiento es una \emph{organización} (un \emph{tenant} de la plataforma) y los roles viajan en el token de acceso:
+
+\begin{itemize}
+  \item \textbf{Técnico municipal.} Es el usuario principal: un empleado de un ayuntamiento que consulta los boletines a través del chat, revisa su historial, mantiene sus temas de interés y vota en la Arena. Solo ve los datos de su propio ayuntamiento.
+  \item \textbf{Administrador de organización} (rol \texttt{admin-organizacion}). Además de lo anterior, configura el modelo de IA de su ayuntamiento y su clave de API, consulta el consumo de IA de su organización y accede a la página de la Arena.
+  \item \textbf{Administrador de plataforma} (rol \texttt{admin-plataforma}). Gestiona la base de conocimiento compartida: las reglas de filtrado del \emph{scraper}, las descargas bajo demanda, el reprocesado de documentos y el coste de ingesta de toda la plataforma.
+  \item \textbf{Sistema programado.} El planificador del \emph{scraper}, que lanza cada día la descarga de los boletines del día anterior sin intervención humana.
+\end{itemize}
+
+Los documentos de los boletines y sus vectores son globales, de modo que todos los ayuntamientos consultan la misma base de conocimiento. En cambio, las conversaciones, los votos de la Arena, las preferencias y la configuración de IA pertenecen a un ayuntamiento y a un usuario concretos.
 
 \section{Requisitos funcionales}
 \label{sec:rf}
-% TODO: Consulta con citas, historial, ingesta diaria y reprocesado, filtros del scraper, configuración de IA, Arena, métricas.
+
+Los requisitos funcionales se han extraído de las especificaciones de OpenSpec (\texttt{openspec/specs}), que describen el comportamiento del sistema tal como está implementado. Cada requisito indica la capacidad de la que procede, de modo que puede consultarse allí con sus escenarios de aceptación. Se agrupan en cinco áreas, recogidas en las tablas~\ref{tab:rf-ingesta} a~\ref{tab:rf-admin}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Requisitos funcionales de ingesta de boletines}
+\label{tab:rf-ingesta}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
+\midrule
+RF1 & Descargar cada día los documentos del BOE y del BOJA del día anterior de forma automática. & \texttt{go-scraper} \\
+RF2 & Lanzar descargas bajo demanda para un rango de fechas (31 días como máximo), sin permitir dos trabajos a la vez. & \texttt{go-scraper} \\
+RF3 & Descartar los documentos que no cumplen las reglas de filtrado, que se guardan en la base de datos y se editan desde la interfaz. Si las reglas no se pueden obtener, no se descarga nada. & \texttt{scraper-dynamic-filtering} \\
+RF4 & Guardar el original y el texto estructurado de cada documento en el almacenamiento S3 antes de encolarlo para su procesamiento. & \texttt{go-scraper} \\
+RF5 & Fragmentar cada documento, generar los \emph{embeddings} de sus fragmentos y guardarlos en PostgreSQL y Qdrant. & \texttt{chunking-embeddings} \\
+RF6 & Procesar cada documento con dos pipelines: la \emph{baseline} (fragmentos de tamaño fijo con solapamiento) y la jerárquica (documentos padre e hijos enriquecidos con contexto). & \texttt{hierarchical-retrieval} \\
+RF7 & Reprocesar en bloque los documentos almacenados por una o por las dos pipelines, sin duplicar fragmentos ni dejar vectores huérfanos. & \texttt{bulk-reprocessing-pipeline} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\begin{table}[htbp]
+\centering\small
+\caption{Requisitos funcionales de consulta}
+\label{tab:rf-consulta}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
+\midrule
+RF8 & Responder a preguntas en lenguaje natural a partir de los fragmentos recuperados de los boletines. & \texttt{query-api-semantic-kernel} \\
+RF9 & Mostrar la respuesta a medida que se genera. & \texttt{signalr-integration} \\
+RF10 & Citar en cada respuesta los documentos usados, con su título, boletín, referencia y enlace público. & \texttt{hierarchical-retrieval} \\
+RF11 & Reformular la pregunta en terminología administrativa y combinar búsqueda semántica y léxica (fusión RRF) en la pipeline jerárquica. & \texttt{hierarchical-retrieval} \\
+RF12 & Responder en lenguaje claro y advertir cuando los documentos no contienen la respuesta. & \texttt{hierarchical-retrieval} \\
+RF13 & Adaptar las respuestas a los temas de interés y localidades del usuario. & \texttt{contexto-personalizado} \\
+RF14 & Sugerir temas y localidades a partir de las conversaciones recientes del usuario. & \texttt{procesamiento-historico} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\begin{table}[htbp]
+\centering\small
+\caption{Requisitos funcionales de conversación y cuenta}
+\label{tab:rf-chat}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
+\midrule
+RF15 & Guardar, listar, reabrir y borrar las conversaciones de cada usuario. & \texttt{chat-history} \\
+RF16 & Mantener varias conversaciones en paralelo sin mezclar sus respuestas y recuperar la conexión antes de enviar. & \texttt{chat-ui-connection} \\
+RF17 & Iniciar sesión con Auth0 dentro de la organización del ayuntamiento. & \texttt{user-auth-auth0} \\
+RF18 & Gestionar el perfil del usuario y sus preferencias por organización. & \texttt{multi-tenant-user-profiles} \\
+RF19 & Cerrar la sesión tras 30 minutos sin actividad, sin cortar una respuesta en curso. & \texttt{session-timeout} \\
+RF20 & Ofrecer en el móvil la misma navegación que en el escritorio. & \texttt{mobile-navigation} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\begin{table}[htbp]
+\centering\small
+\caption{Requisitos funcionales de evaluación (Arena)}
+\label{tab:rf-arena}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
+\midrule
+RF21 & Ejecutar las dos pipelines a la vez sobre la misma pregunta y mostrar las respuestas de forma anónima (\emph{Alfa} y \emph{Beta}), en orden aleatorio. & \texttt{question-arena} \\
+RF22 & Registrar el voto del usuario y revelar después qué pipeline generó cada respuesta en la página de la Arena. & \texttt{question-arena} \\
+RF23 & Usar la pipeline con más victorias para responder en el chat normal. & \texttt{query-api-semantic-kernel} \\
+RF24 & Calcular la tasa de victorias de cada pipeline a partir de los votos. & \texttt{ingestion-telemetry} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\begin{table}[htbp]
+\centering\small
+\caption{Requisitos funcionales de administración}
+\label{tab:rf-admin}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
+\midrule
+RF25 & Elegir el proveedor y el modelo de IA de cada ayuntamiento (Ollama, OpenAI, OpenRouter o Google) y guardar su clave de API. & \texttt{user-api-keys-vault} \\
+RF26 & Gestionar las reglas de filtrado y lanzar descargas desde la interfaz. & \texttt{scraper-dynamic-filtering} \\
+RF27 & Listar e inspeccionar los documentos almacenados, procesar uno concreto y mantener el estado de los trabajos. & \texttt{ingestion-administration} \\
+RF28 & Notificar en tiempo real el progreso de la ingesta y del \emph{scraper} a los administradores. & \texttt{realtime-notifications} \\
+RF29 & Mostrar el consumo de IA de la organización, el coste de ingesta de la plataforma y los resultados de la Arena, según el rol. & \texttt{admin-metrics-dashboard} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{Requisitos no funcionales}
 \label{sec:rnf}
-% TODO: Veracidad, latencia, tolerancia a fallos de APIs de IA, aislamiento entre ayuntamientos, seguridad, privacidad, accesibilidad.
+
+% TODO: añadir los requisitos de latencia con cifras cuando estén medidas (capítulo de pruebas).
+Los requisitos no funcionales proceden también de las especificaciones, principalmente de las que se reescribieron tras la auditoría de código de octubre de 2026 (sección~\ref{sec:sdd}).
+
+{\sloppy
+\begin{description}
+  \item[RNF1. Veracidad.] Las respuestas se basan solo en los documentos recuperados y los citan. Las instrucciones del modelo le piden que, si los documentos no responden a la pregunta, lo diga en lugar de responder con su propio conocimiento (\texttt{hierarchical-retrieval}, \texttt{query-api-semantic-kernel}).
+  \item[RNF2. Aislamiento entre ayuntamientos.] Las conversaciones, votos, preferencias y configuración de IA de cada ayuntamiento quedan aisladas mediante filtros globales de consulta. Toda petición, llamada al \emph{hub} y tarea en segundo plano lleva su ayuntamiento, y fuera del entorno de desarrollo se rechazan las peticiones sin él (\texttt{multi-tenant-user-profiles}).
+  \item[RNF3. Autorización en el servidor.] Cada operación administrativa exige el rol adecuado en la API, no solo en la interfaz; los servicios internos gRPC exigen una clave compartida; y los clientes nunca reciben detalles internos de los errores (\texttt{api-authorization}).
+  \item[RNF4. Protección de credenciales.] Las claves de API de cada ayuntamiento se guardan cifradas, nunca se devuelven al cliente y solo se envían a su propio proveedor. Se valida siempre el certificado TLS (\texttt{user-api-keys-vault}, \texttt{llm-provider-security}).
+  \item[RNF5. Tolerancia a fallos de los proveedores de IA.] Cuando el proveedor del ayuntamiento agota su cuota (HTTP 429) antes de generar texto, la pipeline \emph{baseline} responde con un modelo de respaldo de la plataforma, con sus propias credenciales, y lo avisa al usuario. El resto de errores del modelo se devuelven como mensajes tipados, sin detalles del proveedor (\texttt{query-api-semantic-kernel}).
+  \item[RNF6. Fiabilidad de la ingesta.] Los mensajes de ingesta son persistentes y confirmados por el \emph{broker}; los fallos se reintentan un número limitado de veces (tres por defecto) y después pasan a una cola de mensajes fallidos. Los consumidores sobreviven a las caídas del \emph{broker} (\texttt{messaging-reliability}).
+  \item[RNF7. Consistencia de datos.] PostgreSQL es la fuente de verdad y se confirma antes de escribir los vectores; la reingesta es idempotente y no deja vectores huérfanos (\texttt{ingestion-consistency}).
+  \item[RNF8. Acceso respetuoso a las fuentes.] El \emph{scraper} limita la frecuencia de peticiones a cada boletín (2 por segundo al BOE y 1 por segundo al BOJA), reintenta hasta tres veces con espera exponencial ante errores de red, 429 y 5xx, y se detiene de forma ordenada (\texttt{go-scraper}).
+  \item[RNF9. Observabilidad y privacidad.] Todos los servicios exportan errores, trazas, métricas y registros con OpenTelemetry, con trazas de extremo a extremo; las métricas de uso, coste y latencia de los modelos nunca incluyen el texto de las preguntas ni de las respuestas (\texttt{observability-grafana}).
+  \item[RNF10. Mantenibilidad.] El código sigue una arquitectura limpia cuyas reglas de dependencia verifican pruebas automáticas, y la integración continua cubre todos los lenguajes del proyecto (\texttt{clean-architecture-boundaries}, \texttt{build-quality-gates}).
+  \item[RNF11. Accesibilidad y uso en el móvil.] En el móvil, el menú lateral es un diálogo modal accesible: mueve el foco a su primer control, lo mantiene dentro mientras está abierto, expone su estado a los lectores de pantalla y se cierra con la tecla Escape, al navegar o al pulsar fuera (\texttt{mobile-navigation}).
+\end{description}
+\par}
 
 \section{Casos de uso}
 \label{sec:casos-uso}

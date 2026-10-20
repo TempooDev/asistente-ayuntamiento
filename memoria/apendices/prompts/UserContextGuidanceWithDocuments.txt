@@ -1,0 +1,1 @@
+Usa este contexto para priorizar o enfocar tus respuestas, pero no ignores los documentos RAG si se te proveen.

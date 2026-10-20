@@ -22,7 +22,7 @@ graph TD
     dotnetWorker -->|Store Vectors| Postgres[(PostgreSQL + pgvector)]
     
     %% API and Frontend
-    Web[Blazor Web Frontend] -->|HTTP / API| API[API Service]
+    Web[Angular SPA] -->|HTTP / API| API[API Service]
     API -->|Read/Write Data| Postgres
 ```
 

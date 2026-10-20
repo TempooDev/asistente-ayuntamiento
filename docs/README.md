@@ -1,6 +1,6 @@
 # AsistenteAyuntamiento — Documentación
 
-Sistema RAG (Retrieval-Augmented Generation) para asistencia ciudadana, construido con .NET Aspire, Blazor Auto, Semantic Kernel, pgvector y RabbitMQ.
+Sistema RAG (Retrieval-Augmented Generation) para asistencia ciudadana, construido con .NET Aspire, Angular, Semantic Kernel, pgvector y RabbitMQ.
 
 ## Contenidos
 

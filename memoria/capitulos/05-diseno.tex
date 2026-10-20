@@ -15,11 +15,65 @@
 
 \section{Diagramas UML}
 \label{sec:uml}
-% TODO: Clases de los módulos clave y secuencias de pregunta en el chat e ingesta de un boletín.
+% TODO: diagrama de clases de los módulos clave (pipelines RAG e ingesta).
+Los diagramas de esta sección se han escrito en PlantUML; sus fuentes están en \path{memoria/figuras/uml/} junto a los PDF generados, de modo que pueden actualizarse cuando cambie el sistema.
+
+\subsection{Pregunta en el chat}
+
+La figura~\ref{fig:secuencia-chat} muestra el recorrido de una pregunta desde el chat hasta la respuesta. El cliente Angular invoca el método \texttt{StreamMessage} del \emph{hub} de chat con el token de Auth0. El \emph{hub} comprueba que la sesión pertenece al usuario y a su ayuntamiento, encola el mensaje para guardarlo en segundo plano y delega en \texttt{AiChatService}, que consulta qué pipeline va ganando en la Arena y le pasa el turno.
+
+La pipeline \emph{baseline} busca en Qdrant con el \emph{embedding} de la pregunta y genera la respuesta con el modelo configurado por el ayuntamiento. La pipeline jerárquica expande antes la consulta, combina la búsqueda densa en Qdrant con la búsqueda léxica de PostgreSQL mediante RRF, recupera el texto completo de los documentos padre y genera una respuesta en lenguaje claro con el modelo de la plataforma. En ambos casos el texto llega al cliente fragmento a fragmento según se genera. Cada llamada al modelo queda registrada en \texttt{AiCallLog}, y una muestra de las preguntas se ejecuta después con la otra pipeline (\emph{shadow testing}) para compararlas.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{uml/secuencia-chat}
+  \caption{Diagrama de secuencia de una pregunta en el chat}
+  \label{fig:secuencia-chat}
+\end{figure}
+
+\subsection{Ingesta de un boletín}
+
+La figura~\ref{fig:secuencia-ingesta} muestra la ingesta diaria. El planificador del \emph{scraper} lanza cada día la descarga del día anterior. El orquestador pide por gRPC las reglas de filtrado a la API y, si no puede obtenerlas, no descarga nada. Cada documento que pasa el filtro se guarda en S3 (el original y el JSON con su texto) y solo después se publica en las colas de las dos pipelines.
+
+Cada \emph{worker} consume su cola, descarga el documento, lo fragmenta según su estrategia, genera los \emph{embeddings} y guarda primero en PostgreSQL y después en Qdrant. Al terminar registra las métricas de ingesta, confirma el mensaje y publica una notificación que la API reenvía a los administradores por SignalR. Si el procesamiento falla, el mensaje se reintenta a través de la cola de reintento y, agotados los reintentos, pasa a la cola de mensajes fallidos (sección~\ref{sec:ingesta-diseno}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{uml/secuencia-ingesta}
+  \caption{Diagrama de secuencia de la ingesta de un boletín}
+  \label{fig:secuencia-ingesta}
+\end{figure}
 
 \section{Modelo de datos híbrido}
 \label{sec:modelo-datos}
-% TODO: Diagrama E-R de PostgreSQL y colecciones de Qdrant (\texttt{document\_chunks}, \texttt{child\_fragments}).
+
+El modelo de datos combina una base de datos relacional y una vectorial, cada una con un papel distinto (figura~\ref{fig:modelo-datos}):
+
+\begin{itemize}
+  \item \textbf{PostgreSQL} es la fuente de verdad. Guarda los usuarios, las conversaciones, la configuración de IA, la Arena y el texto de los documentos y sus fragmentos, y se encarga de la búsqueda léxica.
+  \item \textbf{Qdrant} guarda solo los vectores de los fragmentos, con una copia de los datos necesarios para filtrar y mostrar resultados (el \emph{payload}). Cada punto de Qdrant usa como identificador el del fragmento correspondiente en PostgreSQL, lo que permite reconstruir los vectores a partir de la base relacional.
+\end{itemize}
+
+Las tablas de PostgreSQL se agrupan en esquemas por contexto funcional:
+
+\begin{description}
+  \item[\texttt{identity}.] Perfil y preferencias de cada usuario, y la configuración de IA de cada ayuntamiento (\texttt{AiConfiguration}), con la clave de API cifrada.
+  \item[\texttt{chat}.] Las sesiones y sus mensajes, los mensajes que no se pudieron guardar (\texttt{FailedChatMessage}) y el registro de cada llamada a un modelo (\texttt{AiCallLog}), con el modelo, la operación, los \emph{tokens} y la latencia.
+  \item[\texttt{arena}.] Las comparaciones de la Arena (\texttt{ArenaBattle}): la pregunta, las dos respuestas con su pipeline, latencia y \emph{tokens}, y el voto del usuario.
+  \item[\texttt{ingestion}.] El estado de cada documento por pipeline (\texttt{DocumentJobState}), los fragmentos de la pipeline \emph{baseline} (\texttt{DocumentChunk}), los documentos padre (\texttt{ParentDocument}) y fragmentos hijo (\texttt{ChildFragment}) de la pipeline jerárquica, y las métricas de coste de ingesta (\texttt{IngestionMetric}). Los fragmentos hijo tienen una columna \texttt{tsvector} con índice GIN para la búsqueda léxica.
+  \item[\texttt{scraper}.] Las reglas de filtrado del \emph{scraper}.
+\end{description}
+
+Las tablas que pertenecen a un ayuntamiento llevan su identificador (\texttt{TenantId}), y Entity Framework Core aplica un filtro global de consulta que limita cada consulta al ayuntamiento de la petición. Los documentos de los boletines no lo llevan, porque son comunes a todos.
+
+Qdrant tiene una colección por pipeline: \texttt{document\_chunks} para la \emph{baseline} y \texttt{child\_fragments} para la jerárquica. Cada nueva estrategia de fragmentación que se incorpore al estudio del capítulo~\ref{cap:estudio-chunking} añadirá sus propias entidades y su colección siguiendo el mismo patrón.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[height=0.85\textheight,width=\textwidth,keepaspectratio]{uml/modelo-datos}
+  \caption{Modelo de datos en PostgreSQL (por esquema) y colecciones de Qdrant}
+  \label{fig:modelo-datos}
+\end{figure}
 
 \section{Indexación vectorial}
 \label{sec:indexacion}
@@ -27,7 +81,17 @@
 
 \section{Flujo de ingesta asíncrona}
 \label{sec:ingesta-diseno}
-% TODO: Contrato de RabbitMQ, colas de reintento y DLQ, idempotencia y estados del documento.
+
+El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asíncrona a través de RabbitMQ. El contrato completo (colas, argumentos, formato de los mensajes y cabeceras) se recoge en el apéndice~\ref{ap:especificaciones}; aquí se resumen sus decisiones de diseño.
+
+\begin{itemize}
+  \item \textbf{Una cola por pipeline.} Cada documento se publica en \texttt{documents\_to\_process\_baseline} y en \texttt{documents\_to\_process\_hierarchical}, y cada pipeline la consume un \emph{worker} distinto construido a partir de la misma imagen. Así las dos pipelines procesan los mismos documentos y sus métricas son comparables.
+  \item \textbf{Ningún mensaje se pierde.} Los mensajes son persistentes y se publican con confirmación del \emph{broker}. El consumidor solo confirma un mensaje cuando lo ha procesado.
+  \item \textbf{Reintentos acotados.} Cada cola de trabajo tiene una cola de reintento, donde el mensaje espera 30 segundos antes de volver, y una cola de mensajes fallidos (DLQ). Un mensaje se reintenta hasta tres veces; después, o si no se puede leer, pasa a la DLQ y el documento queda como fallido.
+  \item \textbf{Idempotencia.} Procesar dos veces el mismo documento reemplaza su versión anterior en PostgreSQL y en Qdrant, por lo que reintentar o reprocesar es seguro.
+  \item \textbf{Estado por documento y pipeline.} \texttt{DocumentJobState} sigue el ciclo \texttt{Pending}, \texttt{Queued}, \texttt{Processing} y \texttt{Completed} (o \texttt{Failed}, o \texttt{VectorSyncFailed} si PostgreSQL se actualizó pero Qdrant no), de forma independiente para cada pipeline.
+  \item \textbf{Notificaciones sin garantías.} Los cambios de estado se difunden por un \emph{exchange} de tipo \emph{fanout} a todas las instancias de la API, que los reenvían por SignalR. Son efímeras: si se pierde una, no se reintenta.
+\end{itemize}
 
 \section{Pipelines RAG}
 \label{sec:pipelines}
