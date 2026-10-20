@@ -1,3 +1,56 @@
 \umaappendix{Contrato de mensajería y especificaciones}
 \label{ap:especificaciones}
-% TODO: Colas, mensajes y estados (docs/messaging-contract.md) y listado de capacidades de OpenSpec con un ejemplo completo.
+
+\section{Contrato de mensajería}
+% TODO: Colas, mensajes y estados (docs/messaging-contract.md).
+
+\section{Capacidades de OpenSpec}
+
+La tabla~\ref{tab:capacidades} enumera las 30 capacidades especificadas en \texttt{openspec/specs}, con el número de requisitos de cada una. El ciclo de trabajo con estas especificaciones se describe en la sección~\ref{sec:sdd}.
+
+{\small
+\begin{longtable}{@{}p{0.36\textwidth} r p{0.50\textwidth}@{}}
+\caption{Capacidades especificadas con OpenSpec}\label{tab:capacidades}\\
+\toprule
+\textbf{Capacidad} & \textbf{Req.} & \textbf{Descripción} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Capacidad} & \textbf{Req.} & \textbf{Descripción} \\
+\midrule
+\endhead
+\texttt{admin-metrics-dashboard} & 4 & Página de métricas: consumo de IA de la organización, coste de ingesta y resultados de la Arena, según el rol. \\
+\texttt{api-authorization} & 6 & Autorización en el servidor por rol, clave compartida en gRPC, errores sin detalles internos y arranque bloqueado sin secretos. \\
+\texttt{blazor-auto-migration} & 5 & Migración de la primera interfaz Blazor. Sustituida por la aplicación Angular; se conserva como histórico. \\
+\texttt{blazor-chat-history} & 4 & Historial de conversaciones por usuario y ayuntamiento (hoy en Angular). \\
+\texttt{build-quality-gates} & 5 & Integración continua para todos los lenguajes, versiones centralizadas y despliegue solo tras la CI. \\
+\texttt{bulk-reprocessing-pipeline} & 5 & Reprocesado masivo con un \emph{worker} por pipeline (\emph{baseline} y jerárquica). \\
+\texttt{chat-ui-connection} & 4 & Conexión del chat al \emph{hub}: reconexión, varias conversaciones en paralelo e indicador de espera. \\
+\texttt{chunking-embeddings} & 5 & Fragmentación, generación de \emph{embeddings} y almacenamiento de la pipeline \emph{baseline}. \\
+\texttt{clean-architecture-boundaries} & 6 & Reglas de la arquitectura limpia y pruebas que las verifican. \\
+\texttt{contexto-personalizado} & 3 & Temas de interés y localidades del usuario para adaptar las respuestas. \\
+\texttt{go-scraper} & 7 & Servicio en Go que descarga, filtra, almacena y encola los documentos del BOE y del BOJA. \\
+\texttt{hierarchical-retrieval} & 9 & Pipeline jerárquica: padres e hijos, enriquecimiento, expansión de consulta, búsqueda híbrida RRF y lenguaje claro. \\
+\texttt{ingestion-administration} & 5 & Operaciones administrativas de ingesta detrás del servicio \texttt{IIngestionAdminService}. \\
+\texttt{ingestion-consistency} & 6 & Consistencia entre PostgreSQL, Qdrant y el estado de los trabajos. \\
+\texttt{ingestion-telemetry} & 2 & Métricas de coste de ingesta y tasa de victorias de la Arena. \\
+\texttt{llm-provider-security} & 5 & Llamadas seguras a los proveedores de IA: TLS, clientes HTTP compartidos y claves solo para su proveedor. \\
+\texttt{messaging-reliability} & 6 & Mensajería fiable con RabbitMQ: persistencia, confirmaciones, reintentos y cola de fallidos. \\
+\texttt{mobile-navigation} & 2 & Menú lateral accesible en el móvil. \\
+\texttt{multi-tenant-user-profiles} & 7 & Aislamiento por ayuntamiento con organizaciones de Auth0 y perfil de usuario. \\
+\texttt{observability-grafana} & 5 & Telemetría con OpenTelemetry y Grafana, y métricas de IA sin contenido. \\
+\texttt{procesamiento-historico} & 2 & Sugerencia de intereses a partir de las conversaciones recientes. \\
+\texttt{qdrant-vector-store} & 4 & Qdrant como base de datos vectorial detrás del puerto \texttt{IVectorStore}. \\
+\texttt{query-api-semantic-kernel} & 4 & Respuesta a preguntas con RAG sobre Semantic Kernel, con modelo por ayuntamiento y respaldo. \\
+\texttt{question-arena} & 5 & Comparación a ciegas de las dos pipelines y registro de votos. \\
+\texttt{realtime-notifications} & 4 & Notificaciones de ingesta y del \emph{scraper} por SignalR, solo a quien puede verlas. \\
+\texttt{scraper-dynamic-filtering} & 7 & Reglas de filtrado del \emph{scraper} en la base de datos y descargas bajo demanda por gRPC. \\
+\texttt{session-timeout} & 3 & Cierre de sesión por inactividad. \\
+\texttt{signalr-integration} & 4 & \emph{Hubs} de SignalR para el chat y las notificaciones. \\
+\texttt{user-api-keys-vault} & 5 & Modelo de IA por ayuntamiento y claves de API cifradas. \\
+\texttt{user-auth-auth0} & 5 & Inicio de sesión con Auth0 y validación de tokens en la API. \\
+\bottomrule
+\end{longtable}
+}
+
+% TODO: incluir una especificación completa como ejemplo (por ejemplo, question-arena).
