@@ -13,7 +13,6 @@ memoria/
   figuras/               imágenes (\includegraphics{nombre} las busca aquí)
   references.bib         bibliografía (biber)
   .latexmkrc             receta de compilación
-  memoria.code-workspace configuración de VS Code
   template/              plantilla UMA (no tocar)
 ```
 
@@ -37,10 +36,13 @@ xelatex --version && biber --version && latexmk --version
 
 ## 2. Configurar VS Code
 
-1. Abre **`memoria/memoria.code-workspace`** (Archivo → Abrir área de trabajo desde archivo). Es importante abrir este fichero y no la raíz del repositorio, porque contiene la configuración de compilación.
+1. Abre la **raíz del repositorio** en VS Code. La configuración de compilación está en `.vscode/settings.json` y se aplica sola.
 2. Instala las extensiones recomendadas cuando VS Code lo proponga:
    - **LaTeX Workshop** (`james-yu.latex-workshop`): compilación, vista previa del PDF y navegación.
-   - **LTeX+** (`ltex-plus.vscode-ltex-plus`): corrector ortográfico y gramatical. Opcional; para revisar en castellano, pon `"ltex.language": "es"` en la configuración.
+   - **LTeX+** (`ltex-plus.vscode-ltex-plus`): corrector ortográfico y gramatical. Es opcional; para revisar en castellano, pon `"ltex.language": "es"` en tu configuración de usuario.
+3. Si al compilar aparece `spawn latexmk ENOENT`, VS Code no encuentra LaTeX:
+   - Comprueba en una terminal que `latexmk --version` funciona.
+   - Si funciona, cierra VS Code del todo (`Cmd+Q`) y vuelve a abrirlo, para que herede el PATH nuevo (en macOS, `/Library/TeX/texbin`).
 
 ## 3. Compilar y ver el PDF
 
