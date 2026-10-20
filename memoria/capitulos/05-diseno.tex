@@ -101,6 +101,43 @@ El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asín
 \label{sec:proveedor-ia}
 % TODO: Semantic Kernel, fábrica de modelos por tenant, fallback ante 429 y registro de coste por llamada.
 
+\subsection{Clave de API propia de cada ayuntamiento}
+\label{sec:clave-propia}
+
+El sistema está pensado para que, una vez terminado este trabajo, cada ayuntamiento o institución pueda usar su propia clave de API (por ejemplo, de OpenRouter o de cualquier otro proveedor compatible) para conversar con el modelo que prefiera, sin que el coste de esas conversaciones recaiga en la plataforma. Para que esto sea posible sin romper la búsqueda, el trabajo con modelos se divide en dos partes con responsables distintos (tabla~\ref{tab:clave-propia}):
+
+\begin{description}
+  \item[Lo que gestiona la plataforma.] La ingesta completa de los boletines: la fragmentación, el enriquecimiento de la pipeline jerárquica y la generación de los \emph{embeddings} que se guardan en Qdrant. El modelo de \emph{embeddings} se configura una sola vez para toda la plataforma (\texttt{Ai:Embeddings:*}). Por defecto es \texttt{nomic-embed-text}, un modelo abierto que se ejecuta en Ollama, y la misma configuración admite proveedores externos como Google, OpenAI u OpenRouter.
+  \item[Lo que aporta el ayuntamiento.] El modelo de lenguaje que redacta la respuesta del chat a partir de los fragmentos recuperados. El administrador de la organización elige el proveedor, el modelo y la temperatura, y guarda su clave de API, que se almacena cifrada y nunca se devuelve al cliente (RNF4).
+\end{description}
+
+Esta división responde a una restricción de la búsqueda semántica: la pregunta del usuario y los fragmentos solo se pueden comparar si sus vectores proceden del mismo modelo de \emph{embeddings}, porque cada modelo representa el texto en su propio espacio vectorial. % VERIFICAR: buscar una referencia que respalde que los vectores de modelos distintos no son comparables (por ejemplo, la documentación de Qdrant o un trabajo sobre embeddings).
+Como todos los ayuntamientos consultan las mismas colecciones de Qdrant, el \emph{embedding} de la pregunta se genera siempre con el modelo de la plataforma, el mismo con el que se indexaron los boletines, y nunca con el proveedor del ayuntamiento. Si cada entidad pudiera elegir su modelo de \emph{embeddings}, habría que reindexar todos los boletines una vez por modelo. La clave del ayuntamiento, por tanto, solo interviene en el último paso: procesar el resultado del RAG y generar la respuesta en el chat.
+
+El alcance del modelo del ayuntamiento está acotado a la pipeline \emph{baseline}. En el modo Arena del chat, el lado \emph{baseline} usa también el modelo del ayuntamiento. La pipeline jerárquica, la comparación de la página de la Arena y el análisis del historial usan siempre el modelo de la plataforma, para que las comparaciones entre pipelines no dependan de lo que haya configurado cada entidad (\texttt{user-api-keys-vault}). Si el ayuntamiento no tiene configuración propia, o su clave no se puede usar, se emplean juntos el proveedor, el modelo y la clave de la plataforma, y la clave de la plataforma nunca se envía a un proveedor elegido por el ayuntamiento. En sentido contrario, si el proveedor del ayuntamiento agota su cuota, responde el modelo de respaldo con credenciales de la plataforma, y la clave del ayuntamiento tampoco sale de su proveedor (\texttt{llm-provider-security}).
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Reparto de los modelos entre la plataforma y cada ayuntamiento}
+  \label{tab:clave-propia}
+  \begin{tabular}{@{}p{0.45\textwidth} p{0.45\textwidth}@{}}
+    \toprule
+    \textbf{Plataforma (credenciales propias)} & \textbf{Ayuntamiento (su clave de API)} \\
+    \midrule
+    Fragmentación y enriquecimiento de los boletines & \\
+    \emph{Embeddings} de los fragmentos (\texttt{Ai:Embeddings:*}) & \\
+    \emph{Embedding} de la pregunta, con el mismo modelo & \\
+    Búsqueda en Qdrant y PostgreSQL & \\
+    & Generación de la respuesta de la pipeline \emph{baseline} \\
+    Pipeline jerárquica, página de la Arena y análisis del historial & \\
+    Modelo de respaldo ante HTTP 429 & \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+El mecanismo ya forma parte del sistema, pero hoy no se utiliza con claves de los ayuntamientos ni con proveedores comerciales de \emph{embeddings}, debido a su coste. Los \emph{embeddings} se generan con \texttt{nomic-embed-text} en Ollama, y la idea es mantener en la plataforma una base de datos con todos los \emph{embeddings} y todo el proceso interno de su creación, mientras cada ayuntamiento usa su propia clave para conversar con los modelos (sección~\ref{sec:futuras}).
+
 \section{Tiempo real y seguridad}
 \label{sec:seguridad}
 % TODO: SignalR, multi-tenancy con Auth0 (acceso por ayuntamiento), roles y cifrado de claves.

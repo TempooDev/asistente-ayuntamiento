@@ -20,3 +20,5 @@
 \section{Líneas futuras}
 \label{sec:futuras}
 % TODO: Boletines provinciales, alertas de subvenciones y plazos, observabilidad de nivel 2, apertura a la ciudadanía.
+
+\paragraph{Clave de API propia en producción.} La plataforma permite que cada ayuntamiento configure su proveedor y su clave de API para el chat, mientras la ingesta y los \emph{embeddings} se mantienen centralizados (sección~\ref{sec:clave-propia}). Hoy no se usa por los costes; activarlo permitiría que cada entidad pague solo sus conversaciones. Quedan como mejoras posibles llevar las claves a un almacén de secretos externo y valorar si compensa pasar los \emph{embeddings} de la plataforma a un proveedor externo, lo que exigiría reindexar todos los boletines con el nuevo modelo.

@@ -31,7 +31,7 @@ A medida que avanzó el desarrollo, y en especial tras mostrar una primera versi
   Los vectores se trasladaron a Qdrant, una base de datos vectorial dedicada, y PostgreSQL se mantuvo como fuente de verdad para el resto de datos y para la búsqueda léxica.
   \item \textbf{Un asistente que conoce a quien pregunta.} El historial de conversaciones permite retomar consultas anteriores, y su análisis sugiere a cada usuario los temas y municipios que le interesan, que después se usan para adaptar las respuestas.
   \item \textbf{Elegir con datos qué estrategia funciona mejor.} La Arena compara a ciegas las respuestas de dos pipelines y deja que el personal municipal vote cuál prefiere, y las métricas de coste muestran cuánto cuesta cada respuesta según el modelo y la técnica empleados.
-  \item \textbf{Varios ayuntamientos en la misma plataforma.} Cada ayuntamiento es un \emph{tenant} aislado, con sus usuarios, conversaciones y configuración de IA propios, de modo que la plataforma puede abrirse a nuevas entidades sin trabajo adicional.
+  \item \textbf{Varios ayuntamientos en la misma plataforma.} Cada ayuntamiento es un \emph{tenant} aislado, con sus usuarios, conversaciones y configuración de IA propios, de modo que la plataforma puede abrirse a nuevas entidades sin trabajo adicional. Además, está preparada para que cada ayuntamiento use su propia clave de API en el modelo que redacta las respuestas del chat, mientras la plataforma se encarga de la ingesta y de los \emph{embeddings}.
 \end{itemize}
 
 % TODO (Antonio): ampliar cada punto con el contexto concreto en que surgió (por ejemplo, el feedback recibido sobre la primera versión).
