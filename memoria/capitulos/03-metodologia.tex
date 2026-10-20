@@ -140,8 +140,120 @@ En ambos casos el autor mantiene la responsabilidad sobre el resultado. Las espe
 
 \section{Planificación temporal}
 \label{sec:planificacion}
-% TODO: Las 9 fases y 296 h del anteproyecto frente a la dedicación real (Gantt jul.--oct. 2026) y desviaciones.
+
+\subsection{Planificación del anteproyecto}
+
+El anteproyecto dividió el trabajo en nueve fases, con una dedicación total de 296 horas. La tabla~\ref{tab:fases} recoge las horas previstas para cada fase junto a la dedicación real.
+
+\begin{table}[ht]
+  \centering
+  \caption{Horas previstas en el anteproyecto y dedicación real por fase.}
+  \label{tab:fases}
+  \begin{tabularx}{\linewidth}{lXrr}
+    \toprule
+    Fase & Descripción & Previstas (h) & Reales (h) \\
+    \midrule
+    1 & Planificación y análisis de requisitos & 23 & -- \\
+    2 & Diseño de la arquitectura y modelo vectorial & 25 & -- \\
+    3 & Módulo de ingesta y extracción documental (Go) & 30 & -- \\
+    4 & Estudio comparativo empírico de \emph{chunking} & 30 & -- \\
+    5 & \emph{Backend} .NET y orquestación RAG (incl. SignalR) & 50 & -- \\
+    6 & Desarrollo del \emph{frontend} (Angular) & 45 & -- \\
+    7 & Pruebas de calidad, integración y Docker & 30 & -- \\
+    8 & Pruebas de usuario y validación de casos reales & 18 & -- \\
+    9 & Redacción de la memoria y documentación & 45 & -- \\
+    \midrule
+     & \textbf{Total} & \textbf{296} & -- \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+% TODO (Antonio): completar la columna de horas reales (estimación propia o registro de dedicación). Sin ella, la comparación se limita al calendario.
+
+\subsection{Desarrollo real}
+
+El desarrollo empezó a mediados de julio de 2026 y se ha extendido hasta la entrega, prevista para diciembre de 2026. La figura~\ref{fig:gantt} muestra el periodo de trabajo de cada fase, obtenido del historial del repositorio y de las fechas de los cambios de OpenSpec archivados.
+
+\newcommand{\gbar}{\rule{1.6em}{0.9em}}
+\newcommand{\gpend}{\rule[0.3em]{1.6em}{0.3em}}
+\begin{figure}[ht]
+  \centering
+  \small
+  \begin{tabular}{l*{6}{c}}
+    \toprule
+    Fase & Jul & Ago & Sep & Oct & Nov & Dic \\
+    \midrule
+    1. Planificación y requisitos       & \gbar &       &       &       &       &       \\
+    2. Diseño y modelo vectorial        & \gbar & \gbar &       & \gbar &       &       \\
+    3. Ingesta en Go                    & \gbar & \gbar & \gbar & \gbar &       &       \\
+    4. Estudio de \emph{chunking}       &       &       &       & \gpend & \gpend &      \\
+    5. \emph{Backend} .NET y RAG        & \gbar & \gbar & \gbar & \gbar &       &       \\
+    6. \emph{Frontend}                  & \gbar & \gbar & \gbar & \gbar &       &       \\
+    7. Pruebas, integración y Docker    & \gbar & \gbar & \gbar & \gbar &       &       \\
+    8. Validación con usuarios          &       & \gbar & \gbar &       & \gpend &       \\
+    9. Memoria y documentación          &       &       &       & \gbar & \gbar & \gbar \\
+    \bottomrule
+  \end{tabular}
+  \caption{Calendario real de las fases (julio a diciembre de 2026). Las barras finas indican trabajo pendiente a la fecha de redacción.}
+  \label{fig:gantt}
+\end{figure}
+% VERIFICAR (Antonio): revisar el calendario. Se ha deducido de las fechas del repositorio: estructura inicial y primeras especificaciones el 16/07; scraper del BOE desde el 29/07; CI desde finales de julio; ingesta vectorial el 11/08; interfaz Angular desde el 26/08; docker-compose de producción el 31/08; contexto personalizado y Arena el 05/09; reorganización de la capa de aplicación el 05/10; migración a Qdrant, auditoría, observabilidad y mejoras móviles el 13/10; memoria desde el 08/10. Confirmar si hubo investigación previa (fase 1) antes de julio y cuándo se planifica el estudio de chunking y la validación formal.
+
+Los principales hitos fueron los siguientes:
+
+\begin{itemize}
+  \item \textbf{Julio de 2026.} Planificación, estructura inicial de la solución y primeras especificaciones. Se montaron la orquestación con Aspire, la autenticación, la integración con SignalR y el chat con Ollama sobre una primera interfaz en Blazor, y se empezó el \emph{scraper} del BOE en Go. La integración continua se configuró a finales de mes.
+  \item \textbf{Agosto de 2026.} Ingesta vectorial de los documentos y filtrado dinámico del \emph{scraper}. Se descartó Blazor y la interfaz se rehízo en Angular, y se preparó el despliegue en producción con Docker Compose para poder enseñar el MVP a las entidades públicas.
+  \item \textbf{Septiembre de 2026.} Con la primera versión ya en manos de personal municipal, se añadieron la \emph{pipeline} jerárquica, la Arena y el contexto personalizado del usuario, y se mejoraron la Arena y el \emph{scraper} a partir de los comentarios recibidos. Se incorporó el proyecto de pruebas automatizadas.
+  \item \textbf{Octubre de 2026.} Reorganización de la capa de aplicación, migración de los vectores a Qdrant, auditoría del código, observabilidad con Grafana y mejoras de la experiencia en el móvil. Firma del anteproyecto (2 de octubre) y comienzo de la redacción de la memoria.
+  \item \textbf{Noviembre y diciembre de 2026.} Estudio comparativo de \emph{chunking} con RAGAS en local, validación con usuarios en la medida en que lo permita el acceso, y cierre de la memoria y de la documentación.
+\end{itemize}
+
+\subsection{Desviaciones}
+
+El calendario real se aparta del orden lineal del anteproyecto por cuatro motivos:
+
+\begin{itemize}
+  \item \textbf{Fases en paralelo.} Al trabajar por \emph{sprints}, cada uno con un objetivo funcional completo, las fases de ingesta, \emph{backend}, \emph{frontend} y pruebas avanzaron a la vez durante todo el desarrollo, en lugar de sucederse una tras otra.
+  \item \textbf{Despliegue y pruebas adelantados.} La prioridad de llegar a un MVP que enseñar a los ayuntamientos (sección~\ref{sec:scrum}) obligó a preparar la integración continua y el despliegue en producción en julio y agosto, mucho antes de lo que preveía la fase~7.
+  \item \textbf{Trabajo no previsto.} El descarte de la primera interfaz en Blazor obligó a rehacer el \emph{frontend}, y la migración de los vectores de pgvector a Qdrant supuso volver sobre el diseño del modelo de datos en octubre. Además, el uso real reveló necesidades que el anteproyecto no recogía, como la Arena, el \emph{multi-tenancy}, el control de coste y la observabilidad (sección~\ref{sec:motivacion}).
+  \item \textbf{Estudio de \emph{chunking} retrasado.} El estudio comparativo (fase~4) se ha dejado para el final, porque necesitaba las dos \emph{pipelines} funcionando y un entorno de evaluación en local que no dependiera del coste de los proveedores en la nube. Se realiza en noviembre (capítulo~\ref{cap:estudio-chunking}).
+\end{itemize}
+% TODO (Antonio): cuando se complete la tabla de horas, comentar qué fases consumieron más o menos horas de las previstas.
 
 \section{Recursos}
 \label{sec:recursos}
-% TODO: VS Code, Ollama, Podman, servicios en la nube y coste de inferencia.
+
+\subsection{Recursos humanos}
+
+El trabajo lo ha desarrollado un único alumno, con la supervisión del tutor y del cotutor, con los que se han revisado periódicamente el avance y la memoria.
+
+\subsection{Recursos hardware}
+
+El desarrollo se ha hecho en un ordenador portátil MacBook Pro con procesador Apple Silicon, que ejecuta en local todos los servicios del sistema, incluidos los modelos de lenguaje y de \emph{embeddings} a través de Ollama. La aplicación en producción se ejecuta en un servidor propio gestionado con Dokploy.
+% VERIFICAR (Antonio): concretar el modelo del portátil (procesador y memoria) y las características y el proveedor del servidor de producción.
+
+\subsection{Recursos software}
+
+Todas las herramientas de desarrollo empleadas son gratuitas o de código abierto:
+
+\begin{itemize}
+  \item \textbf{Entorno de desarrollo.} Visual Studio Code como editor, con las herramientas de línea de comandos de .NET, Go y Angular, y Aspire para orquestar el sistema en local (sección~\ref{sec:eleccion-plataforma}).
+  \item \textbf{Contenedores.} Podman como motor de contenedores compatible con OCI y Docker, para ejecutar en local PostgreSQL, Qdrant, RabbitMQ, MinIO y Ollama.
+  \item \textbf{Modelos locales.} Ollama, para ejecutar en local los modelos abiertos de chat y de \emph{embeddings} sin coste por uso.
+  \item \textbf{Control de versiones e integración continua.} Git y GitHub, con GitHub Actions para la compilación, las pruebas y la publicación de las imágenes de contenedor en GitHub Container Registry, y Dokploy para el despliegue.
+  \item \textbf{Especificación y apoyo al desarrollo.} OpenSpec para el desarrollo guiado por especificaciones (sección~\ref{sec:sdd}) y los asistentes de IA descritos en la sección~\ref{sec:ia-desarrollo}.
+  \item \textbf{Documentación.} \LaTeX{} (XeLaTeX, Biber y latexmk) para la redacción de la memoria.
+\end{itemize}
+
+\subsection{Servicios externos y coste}
+
+En producción, el sistema usa varios servicios externos:
+
+\begin{itemize}
+  \item \textbf{Proveedores de modelos de lenguaje.} Generan las respuestas del chat y, en la \emph{pipeline} jerárquica, enriquecen los fragmentos y expanden las consultas. Se pagan por \emph{token} y son el principal coste variable del sistema.
+  \item \textbf{Almacenamiento de objetos.} Cloudflare R2, compatible con S3, para los documentos originales.
+  \item \textbf{Autenticación.} Auth0, para el inicio de sesión y la gestión de organizaciones.
+\end{itemize}
+
+El coste de inferencia fue un factor de diseño desde el principio: los modelos frontera resultan caros cuando una misma consulta encadena varias llamadas, como ocurre en la \emph{pipeline} jerárquica. Por eso el desarrollo se hace con modelos locales, que no tienen coste por uso, y el sistema registra los \emph{tokens} y el coste estimado de cada respuesta según el modelo empleado (sección~\ref{sec:proveedor-ia}). El estudio de \emph{chunking} también se ejecuta en local por este motivo.
+% VERIFICAR (Antonio): si se quiere dar el coste total del proyecto (servidor, proveedores de modelos, dominio), añadir las cifras reales con su periodo. Comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito.

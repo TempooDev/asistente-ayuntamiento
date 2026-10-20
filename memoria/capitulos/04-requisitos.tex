@@ -11,7 +11,7 @@
 Los actores se corresponden con los roles definidos en Auth0, donde cada ayuntamiento es una \emph{organización} (un \emph{tenant} de la plataforma) y los roles viajan en el token de acceso:
 
 \begin{itemize}
-  \item \textbf{Técnico municipal.} Es el usuario principal: un empleado de un ayuntamiento que consulta los boletines a través del chat, revisa su historial, mantiene sus temas de interés y vota en la Arena. Solo ve los datos de su propio ayuntamiento.
+  \item \textbf{Usuario municipal.} Es el usuario principal: un funcionario o un miembro del personal administrativo de un ayuntamiento que consulta los boletines a través del chat, revisa su historial, mantiene sus temas de interés y vota en la Arena. Solo ve los datos de su propio ayuntamiento.
   \item \textbf{Administrador de organización} (rol \texttt{admin-organizacion}). Además de lo anterior, configura el modelo de IA de su ayuntamiento y su clave de API, consulta el consumo de IA de su organización y accede a la página de la Arena.
   \item \textbf{Administrador de plataforma} (rol \texttt{admin-plataforma}). Gestiona la base de conocimiento compartida: las reglas de filtrado del \emph{scraper}, las descargas bajo demanda, el reprocesado de documentos y el coste de ingesta de toda la plataforma.
   \item \textbf{Sistema programado.} El planificador del \emph{scraper}, que lanza cada día la descarga de los boletines del día anterior sin intervención humana.
@@ -133,4 +133,247 @@ Los requisitos no funcionales proceden también de las especificaciones, princip
 
 \section{Casos de uso}
 \label{sec:casos-uso}
-% TODO: Diagrama general y 3--4 casos detallados.
+
+Los casos de uso describen qué hace cada actor con el sistema, sin entrar en cómo está construido. La figura~\ref{fig:casos-uso} los reúne en un diagrama general y la tabla~\ref{tab:casos-uso} los relaciona con los requisitos funcionales que cubren. El administrador de organización hereda los casos de uso del usuario municipal, porque es un usuario más de su ayuntamiento con permisos adicionales. Los casos CU1 y CU11 incluyen el procesamiento de documentos de CU12, que es el mismo tanto si la descarga es diaria como si es bajo demanda.
+
+% Bibliotecas de TikZ para las elipses y las flechas UML del diagrama.
+\usetikzlibrary{shapes.geometric,arrows.meta,calc}
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\footnotesize,
+    uc/.style={draw, ellipse, minimum width=4.6cm, minimum height=0.8cm, inner sep=0pt, align=center, execute at begin node=\setlength{\baselineskip}{1.15em}},
+    lnk/.style={thin},
+    dep/.style={thin, dashed, -{Stealth}},
+    gen/.style={thin, -{Triangle[open]}}
+  ]
+  % Actor como figura de palitos: \actor{nombre}{posición}{etiqueta}
+  \newcommand{\actor}[3]{%
+    \begin{scope}[shift={#2}]
+      \draw (0,0.45) circle (0.15);
+      \draw (0,0.3) -- (0,-0.15) (-0.25,0.15) -- (0.25,0.15)
+            (0,-0.15) -- (-0.2,-0.5) (0,-0.15) -- (0.2,-0.5);
+      \coordinate (#1) at (0,0);
+      \node[align=center, below, execute at begin node=\setlength{\baselineskip}{1.15em}] at (0,-0.5) {#3};
+    \end{scope}}
+
+  % Límite del sistema
+  \draw[rounded corners] (0.2,-0.6) rectangle (12.6,-11.0);
+  \node[anchor=north west, font=\footnotesize\bfseries] at (0.3,-0.65) {Asistente de boletines};
+
+  % Usuario municipal
+  \node[uc] (cu2) at (3.1,-1.6) {CU2. Consultar los boletines};
+  \node[uc] (cu3) at (3.1,-2.7) {CU3. Gestionar las conversaciones};
+  \node[uc] (cu4) at (3.1,-3.8) {CU4. Comparar respuestas\\en modo Arena y votar};
+  \node[uc] (cu5) at (3.1,-4.9) {CU5. Mantener los temas de interés};
+  % Administrador de organización
+  \node[uc] (cu6) at (3.1,-6.2) {CU6. Configurar el modelo de IA};
+  \node[uc] (cu7) at (3.1,-7.3) {CU7. Comparar pipelines\\en la página de la Arena};
+  \node[uc] (cu8) at (3.1,-8.4) {CU8. Consultar el consumo de IA};
+  % Sistema programado
+  \node[uc] (cu1) at (3.1,-9.9) {CU1. Descargar los boletines\\del día anterior};
+  % Administrador de plataforma
+  \node[uc] (cu13) at (9.7,-4.6) {CU13. Consultar el coste\\de ingesta y la Arena};
+  \node[uc] (cu9)  at (9.7,-5.8) {CU9. Gestionar las reglas\\de filtrado};
+  \node[uc] (cu10) at (9.7,-7.0) {CU10. Administrar\\los documentos};
+  \node[uc] (cu11) at (9.7,-8.2) {CU11. Lanzar una descarga\\bajo demanda};
+  % Caso incluido
+  \node[uc] (cu12) at (9.7,-9.9) {CU12. Procesar un documento};
+
+  \actor{usr}{(-1.4,-3.3)}{Usuario\\municipal}
+  \actor{org}{(-1.4,-7.3)}{Administrador\\de organización}
+  \actor{sis}{(-1.4,-10.0)}{Sistema\\programado}
+  \actor{plt}{(14.3,-6.4)}{Administrador\\de plataforma}
+
+  \foreach \c in {cu2,cu3,cu4,cu5} \draw[lnk] ($(usr)+(0.3,0.15)$) -- (\c.west);
+  \foreach \c in {cu6,cu7,cu8} \draw[lnk] ($(org)+(0.3,0.15)$) -- (\c.west);
+  \foreach \c in {cu13,cu9,cu10,cu11} \draw[lnk] ($(plt)+(-0.3,0.15)$) -- (\c.east);
+  \draw[lnk] ($(sis)+(0.3,0.15)$) -- (cu1.west);
+  \draw[gen] (-1.4,-6.65) -- (-1.4,-4.6);
+
+  \draw[dep] (cu1.east) -- node[above, font=\scriptsize] {«include»} (cu12.west);
+  \draw[dep] (cu11.south) -- node[right, font=\scriptsize] {«include»} (cu12.north);
+\end{tikzpicture}}
+\caption{Diagrama general de casos de uso}
+\label{fig:casos-uso}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Casos de uso y requisitos funcionales que cubren}
+\label{tab:casos-uso}
+\begin{tabularx}{\textwidth}{@{}l X l l@{}}
+\toprule
+\textbf{Id.} & \textbf{Caso de uso} & \textbf{Actor principal} & \textbf{Requisitos} \\
+\midrule
+CU1  & Descargar los boletines del día anterior & Sistema programado & RF1, RF3, RF4 \\
+CU2  & Consultar los boletines & Usuario municipal & RF8--RF13, RF16, RF23 \\
+CU3  & Gestionar las conversaciones & Usuario municipal & RF15, RF16 \\
+CU4  & Comparar respuestas en modo Arena y votar & Usuario municipal & RF21, RF22 \\
+CU5  & Mantener los temas de interés & Usuario municipal & RF13, RF14, RF18 \\
+CU6  & Configurar el modelo de IA & Admin.\ de organización & RF25 \\
+CU7  & Comparar pipelines en la página de la Arena & Admin.\ de organización & RF21, RF22 \\
+CU8  & Consultar el consumo de IA & Admin.\ de organización & RF29 \\
+CU9  & Gestionar las reglas de filtrado & Admin.\ de plataforma & RF3, RF26 \\
+CU10 & Administrar los documentos & Admin.\ de plataforma & RF7, RF27, RF28 \\
+CU11 & Lanzar una descarga bajo demanda & Admin.\ de plataforma & RF2, RF26, RF28 \\
+CU12 & Procesar un documento & (incluido) & RF5, RF6 \\
+CU13 & Consultar el coste de ingesta y los resultados de la Arena & Admin.\ de plataforma & RF24, RF29 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El inicio y el cierre de sesión (RF17 y RF19) no aparecen como casos de uso propios: son una precondición de todos los casos de los actores humanos y los resuelve Auth0. La navegación en el móvil (RF20) tampoco es un caso de uso, sino una forma de acceder a todos ellos.
+
+A continuación se detallan los cuatro casos de uso que mejor representan el sistema: uno por cada actor humano y el de la ingesta diaria. Cada tabla recoge las precondiciones, el flujo principal, los flujos alternativos y el estado en que queda el sistema, tomados de los escenarios de las especificaciones de OpenSpec.
+
+% Plantilla de caso de uso detallado: una fila por campo y listas compactas para los flujos.
+\newcommand{\cucampo}[2]{\textbf{#1} & #2 \\ \midrule}
+\newcounter{cupaso}
+\newenvironment{cupasos}
+  {\begin{list}{\arabic{cupaso}.}{\usecounter{cupaso}\setlength{\leftmargin}{1.5em}\setlength{\labelwidth}{1.2em}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}}}
+  {\end{list}}
+\newenvironment{cualternativos}
+  {\begin{list}{}{\setlength{\leftmargin}{2.2em}\setlength{\labelwidth}{2em}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}}}
+  {\end{list}}
+
+\subsection{CU1. Descargar los boletines del día anterior}
+\label{sec:cu1}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Caso de uso CU1: descargar los boletines del día anterior}
+\label{tab:cu1}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} X@{}}
+\toprule
+\cucampo{Actor}{Sistema programado (planificador del \emph{scraper}).}
+\cucampo{Objetivo}{Incorporar a la base de conocimiento los documentos del BOE y del BOJA publicados el día anterior, sin intervención humana.}
+\cucampo{Precondiciones}{Hay reglas de filtrado activas para los boletines programados y ningún otro trabajo de descarga en curso.}
+\cucampo{Flujo principal}{%
+\begin{cupasos}
+  \item A la hora configurada, el planificador lanza un trabajo para el día anterior.
+  \item El \emph{scraper} pide a la API las reglas de filtrado activas.
+  \item El \emph{scraper} obtiene el sumario de cada boletín y descarta los documentos que no cumplen las reglas.
+  \item Por cada documento que se conserva, guarda el original y el texto estructurado en el almacenamiento S3.
+  \item Publica un mensaje de ingesta por documento en la cola.
+  \item Se procesa cada documento (CU12).
+\end{cupasos}}
+\cucampo{Flujos alternativos}{%
+\begin{cualternativos}
+  \item[2a.] Las reglas no se pueden obtener: el trabajo termina como fallido y no se descarga ningún documento.
+  \item[3a.] Ese día no hay boletín: el trabajo termina sin documentos y sin error.
+  \item[3b.] Un sumario no se puede leer: se registra el error y se continúa con el día siguiente.
+  \item[4a.] El almacenamiento falla: el documento no se encola y se contabiliza como error.
+  \item[*a.] Ya hay otro trabajo en curso: el planificador omite esta ejecución.
+\end{cualternativos}}
+\cucampo{Postcondiciones}{Los documentos del día que cumplen las reglas están guardados en S3 y encolados para su procesamiento.}
+\textbf{Requisitos} & RF1, RF3, RF4; RNF6, RNF8. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{CU2. Consultar los boletines}
+\label{sec:cu2}
+
+Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del capítulo de diseño muestra su secuencia de mensajes entre componentes.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Caso de uso CU2: consultar los boletines}
+\label{tab:cu2}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} X@{}}
+\toprule
+\cucampo{Actor}{Usuario municipal.}
+\cucampo{Objetivo}{Obtener una respuesta en lenguaje claro, basada en los boletines y con sus fuentes, a una pregunta formulada en lenguaje natural.}
+\cucampo{Precondiciones}{El usuario ha iniciado sesión en la organización de su ayuntamiento y tiene una conversación abierta, nueva o recuperada (CU3).}
+\cucampo{Flujo principal}{%
+\begin{cupasos}
+  \item El usuario escribe la pregunta y la envía.
+  \item El sistema guarda la pregunta en la conversación.
+  \item El sistema elige la pipeline con más victorias en la Arena.
+  \item La pipeline recupera los fragmentos más relevantes de los boletines.
+  \item El modelo de lenguaje genera la respuesta a partir de esos fragmentos y, en la pipeline \emph{baseline}, de los temas de interés y las localidades del usuario.
+  \item El sistema muestra la respuesta a medida que se genera, con las referencias y los enlaces de los documentos citados.
+  \item El sistema guarda la respuesta completa en la conversación.
+\end{cupasos}}
+\cucampo{Flujos alternativos}{%
+\begin{cualternativos}
+  \item[1a.] La conexión con el servidor se ha perdido: el sistema la recupera antes de enviar; si no lo consigue, avisa al usuario y no envía la pregunta.
+  \item[4a.] No se recupera ningún fragmento: la pipeline jerárquica responde con un mensaje fijo que indica que no ha encontrado normativa relevante; la \emph{baseline} responde como en una conversación general, sin citar documentos, lo que cubre por ejemplo los saludos.
+  \item[5a.] El proveedor de IA del ayuntamiento ha agotado su cuota antes de generar texto: la pipeline \emph{baseline} responde con el modelo de respaldo de la plataforma y lo indica.
+  \item[5b.] El modelo falla: el usuario recibe un mensaje de error comprensible, sin detalles del proveedor; si ya se había mostrado parte de la respuesta, se conserva con el aviso.
+  \item[6a.] El usuario cancela la respuesta: se guarda el texto recibido hasta ese momento.
+\end{cualternativos}}
+\cucampo{Postcondiciones}{La pregunta y la respuesta quedan guardadas en la conversación del usuario, dentro de su ayuntamiento, y la llamada al modelo queda registrada para las métricas de consumo.}
+\textbf{Requisitos} & RF8--RF13, RF16, RF23; RNF1, RNF2, RNF5. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{CU6. Configurar el modelo de IA}
+\label{sec:cu6}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Caso de uso CU6: configurar el modelo de IA}
+\label{tab:cu6}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} X@{}}
+\toprule
+\cucampo{Actor}{Administrador de organización.}
+\cucampo{Objetivo}{Elegir el proveedor y el modelo con el que se generan las respuestas del chat de su ayuntamiento y, si hace falta, la clave de API con la que se pagan.}
+\cucampo{Precondiciones}{El usuario ha iniciado sesión con el rol \texttt{admin-organizacion}.}
+\cucampo{Flujo principal}{%
+\begin{cupasos}
+  \item El administrador abre la página de configuración.
+  \item El sistema muestra el proveedor, el modelo, la temperatura y el punto de acceso actuales, e indica si hay una clave guardada sin mostrarla.
+  \item El administrador elige el proveedor (Ollama, OpenAI, OpenRouter o Google) y el modelo, y escribe la clave de API.
+  \item El administrador guarda los cambios.
+  \item El sistema cifra la clave y guarda la configuración de su ayuntamiento.
+\end{cupasos}}
+\cucampo{Flujos alternativos}{%
+\begin{cualternativos}
+  \item[3a.] El administrador no escribe una clave nueva: se conserva la que estaba guardada.
+  \item[3b.] Elige un proveedor que necesita clave y no hay ninguna: las respuestas del chat fallan con un mensaje que indica que el modelo no está configurado.
+  \item[*a.] El usuario no tiene el rol de administrador de organización: la página no está disponible y la API rechaza la petición.
+\end{cualternativos}}
+\cucampo{Postcondiciones}{Las respuestas de la pipeline \emph{baseline} de ese ayuntamiento se generan con el modelo elegido. La clave nunca se devuelve al cliente y solo se envía a su proveedor. Los \emph{embeddings} y la pipeline jerárquica siguen usando los modelos de la plataforma (sección~\ref{sec:clave-propia}).}
+\textbf{Requisitos} & RF25; RNF2, RNF3, RNF4. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{CU11. Lanzar una descarga bajo demanda}
+\label{sec:cu11}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Caso de uso CU11: lanzar una descarga bajo demanda}
+\label{tab:cu11}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} X@{}}
+\toprule
+\cucampo{Actor}{Administrador de plataforma.}
+\cucampo{Objetivo}{Incorporar a la base de conocimiento los documentos de un boletín para un rango de fechas, por ejemplo para cargar días anteriores a la puesta en marcha o recuperar un día que falló.}
+\cucampo{Precondiciones}{El usuario ha iniciado sesión con el rol \texttt{admin-plataforma}.}
+\cucampo{Flujo principal}{%
+\begin{cupasos}
+  \item El administrador abre la página de reglas de filtrado.
+  \item Elige el boletín, el rango de fechas y, opcionalmente, las secciones.
+  \item El administrador lanza la descarga.
+  \item El sistema pide al \emph{scraper} que descargue el rango y sigue los pasos 2 a 5 de CU1 para cada día.
+  \item El sistema notifica en tiempo real al administrador el resultado y el número de documentos guardados.
+  \item Se procesa cada documento (CU12).
+\end{cupasos}}
+\cucampo{Flujos alternativos}{%
+\begin{cualternativos}
+  \item[2a.] El rango no es válido (el final es anterior al inicio o posterior a hoy, o supera los 31 días): el sistema rechaza la descarga e indica el motivo.
+  \item[3a.] Ya hay una descarga en curso: el sistema la rechaza sin llamar al \emph{scraper}.
+  \item[4a.] El \emph{scraper} no puede obtener las reglas de filtrado: la descarga termina como fallida, sin descargar ningún documento, y se notifica al administrador.
+\end{cualternativos}}
+\cucampo{Postcondiciones}{Los documentos del rango que cumplen las reglas están guardados en S3 y encolados para su procesamiento, y su progreso puede seguirse desde la página de documentos (CU10).}
+\textbf{Requisitos} & RF2, RF3, RF26, RF28; RNF3, RNF8. \\
+\bottomrule
+\end{tabularx}
+\end{table}

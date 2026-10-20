@@ -14,7 +14,8 @@ En un ayuntamiento, este seguimiento se hace hoy de forma manual, fragmentada y 
 
 Este trabajo aborda ese problema en el ámbito de la Comunidad Autónoma de Andalucía, con dos fuentes: el Boletín Oficial del Estado (BOE) y el Boletín Oficial de la Junta de Andalucía (BOJA). La propuesta es una plataforma que lee esos boletines de forma automática cada día y permite al personal municipal consultarlos en lenguaje natural, como una herramienta de apoyo a la decisión y de mejora de sus flujos de trabajo.
 
-Para ello se recurre a los modelos de lenguaje de gran escala (LLM), que, apoyados en la arquitectura Transformer \cite{vaswani2017}, ofrecen una capacidad sin precedentes para procesar y comprender textos extensos con estructuras semánticas complejas. Pero el dominio exige un rigor legal estricto, y estos modelos pueden generar respuestas plausibles pero falsas, las llamadas \emph{alucinaciones} \cite{huang2023}. Por eso el sistema no responde de memoria: recupera primero los fragmentos de los boletines relevantes para cada pregunta y genera la respuesta a partir de ellos, citándolos (\emph{Retrieval-Augmented Generation}, RAG \cite{lewis2020}). Esta solución se apoya en una base de datos vectorial para la recuperación eficiente de información \cite{wang2024} y en una herramienta de orquestación de IA \cite{semantickernel}.
+Para ello se recurre a los modelos de lenguaje de gran escala (LLM), que, apoyados en la arquitectura Transformer \cite{vaswani2017}, ofrecen una capacidad sin precedentes para procesar y comprender textos extensos con estructuras semánticas complejas. Pero el dominio exige un rigor legal estricto, y estos modelos pueden generar respuestas plausibles pero falsas, las llamadas \emph{alucinaciones} \cite{huang2023}. Por eso el sistema no responde de memoria: recupera primero los fragmentos de los boletines relevantes para cada pregunta y genera la respuesta a partir de ellos, citándolos (\emph{Retrieval-Augmented Generation}, RAG \cite{lewis2020}). Esta solución se apoya en una base de datos vectorial para la recuperación eficiente de información \cite{pan2024survey} y en una herramienta de orquestación de IA \cite{semantickernel}.
+% NOTA: el anteproyecto citaba aquí Wang et al. (2024), referencia que no se ha podido localizar; se sustituye por el survey de Pan, Wang y Li.
 
 \section{Motivación}
 \label{sec:motivacion}
@@ -69,8 +70,38 @@ El cumplimiento de cada objetivo se revisa en el capítulo~\ref{cap:conclusiones
 
 \section{Alcance y limitaciones}
 \label{sec:alcance}
-% TODO: Fuentes (BOE, BOJA), usuarios (personal municipal), mitigación de alucinaciones con respuestas basadas en fuentes citadas.
+
+\paragraph{Fuentes.} El sistema cubre dos boletines: el BOE, de ámbito estatal, y el BOJA, de ámbito autonómico andaluz. Se descargan cada día de forma automática y los administradores de la plataforma pueden decidir, con reglas de filtrado por departamento, sección, palabra clave o canal, qué documentos se procesan. Quedan fuera los boletines oficiales de las provincias, los de otras comunidades autónomas y la normativa propia de cada ayuntamiento (ordenanzas y acuerdos de pleno), Los boletines provinciales se descartaron por la dificultad de extraer sus datos de forma automática: muchos protegen el acceso con CAPTCHA y publican sus anuncios solo en PDF, sin una API ni un formato estructurado como el XML del BOE. La arquitectura de ingesta permite, de todos modos, añadir nuevas fuentes implementando un nuevo procesador sin cambiar el resto del sistema, por lo que su incorporación queda como línea futura.
+
+\paragraph{Usuarios.} Los destinatarios son el personal de las entidades locales: funcionarios y personal administrativo que necesitan localizar y entender las normas, convocatorias y plazos que afectan a su municipio. La plataforma es \emph{multi-tenant}: cada ayuntamiento tiene sus usuarios, conversaciones y configuración aislados, y hay perfiles de administrador de la organización y de la plataforma. Aunque las respuestas se redactan en lenguaje claro, el sistema no está pensado como un servicio abierto a la ciudadanía.
+
+\paragraph{Funcionalidad.} El trabajo abarca el ciclo completo: la ingesta de los boletines, su fragmentación e indexación, la recuperación y generación de respuestas con RAG, la interfaz de chat en tiempo real, la comparación de \emph{pipelines} con la Arena, el control de coste por consulta y el despliegue con observabilidad. Incluye además el estudio comparativo de estrategias de fragmentación previsto en el anteproyecto (capítulo~\ref{cap:estudio-chunking}).
+
+\paragraph{Mitigación de alucinaciones.} La principal salvaguarda frente a las alucinaciones es que el modelo responde únicamente a partir de los fragmentos recuperados, cita en cada respuesta los documentos en que se basa con su referencia y su enlace al boletín, y tiene instrucciones de reconocer que no dispone de la información cuando los documentos no la contienen (sección~\ref{sec:alucinaciones}).
+
+\paragraph{Limitaciones.} Conviene dejar claros desde el principio los límites del sistema:
+\begin{itemize}
+  \item \textbf{No sustituye el criterio profesional.} RAG reduce las alucinaciones pero no las elimina: incluso herramientas jurídicas comerciales basadas en recuperación siguen cometiendo errores en una parte apreciable de las consultas \cite{magesh2025}. Las respuestas son un apoyo para localizar y entender la información, no asesoramiento jurídico, y el usuario debe comprobar la fuente citada antes de tomar una decisión.
+  \item \textbf{La calidad depende de lo indexado.} El sistema solo conoce los documentos que se han descargado y procesado; una norma que no se ha ingerido, o que las reglas de filtrado han descartado, no aparecerá en las respuestas.
+  \item \textbf{Dependencia de proveedores de modelos.} En producción, la generación de respuestas depende de proveedores externos, con cuotas, latencias y costes que no controla el proyecto; por eso el sistema permite cambiar de proveedor por configuración y registra el coste de cada respuesta. En local se usan modelos abiertos con Ollama, cuya calidad es menor.
+  \item \textbf{Validación limitada.} Una primera versión se mostró a personal municipal y su opinión orientó parte del desarrollo, pero la validación formal con funcionarios en uso real depende de que las entidades concedan el acceso. La plataforma incluye los instrumentos para hacerla (la Arena, los perfiles por organización y las métricas), y su alcance real se describe en la sección~\ref{sec:validacion-usuarios}.
+  \item \textbf{Idioma.} El sistema está pensado para documentos y preguntas en castellano; no se han tratado las lenguas cooficiales ni otros idiomas.
+\end{itemize}
 
 \section{Estructura de la memoria}
 \label{sec:estructura}
-% TODO: Un párrafo por capítulo.
+
+El resto de la memoria se organiza en los siguientes capítulos:
+
+\begin{itemize}
+  \item El \textbf{capítulo~\ref{cap:estado-arte}} repasa los fundamentos en los que se apoya el trabajo: los modelos de lenguaje y la arquitectura Transformer, las alucinaciones, la generación aumentada por recuperación, las estrategias de fragmentación, las bases de datos vectoriales, la recuperación híbrida, la evaluación de sistemas RAG y los marcos de orquestación. Termina con los trabajos relacionados y la justificación de las tecnologías empleadas.
+  \item El \textbf{capítulo~\ref{cap:metodologia}} describe la metodología: Scrum adaptado a un desarrollo individual, el desarrollo guiado por especificaciones con OpenSpec, la gestión del código y la calidad, el uso de la inteligencia artificial durante el desarrollo y la planificación temporal.
+  \item El \textbf{capítulo~\ref{cap:requisitos}} recoge el análisis de requisitos: los actores, los requisitos funcionales y no funcionales y los casos de uso.
+  \item El \textbf{capítulo~\ref{cap:diseno}} presenta el diseño del sistema: la arquitectura general, el modelo de datos híbrido, la indexación vectorial, el flujo de ingesta asíncrona, las \emph{pipelines} RAG y la abstracción del proveedor de IA.
+  \item El \textbf{capítulo~\ref{cap:implementacion}} detalla la implementación de cada componente: el módulo de ingesta en Go, el \emph{backend} .NET, la orquestación RAG, la Arena, el \emph{frontend} Angular, el despliegue y la observabilidad.
+  \item El \textbf{capítulo~\ref{cap:estudio-chunking}} contiene el estudio comparativo de estrategias de fragmentación: las estrategias, el diseño experimental, las métricas y los resultados.
+  \item El \textbf{capítulo~\ref{cap:pruebas}} describe las pruebas y la validación del sistema, incluida la validación con usuarios reales y el rendimiento.
+  \item El \textbf{capítulo~\ref{cap:conclusiones}} revisa el cumplimiento de los objetivos, resume las aportaciones y las lecciones aprendidas y propone líneas futuras.
+\end{itemize}
+
+Los apéndices recogen los resultados completos del estudio de fragmentación (apéndice~\ref{ap:chunking}), el manual de usuario (apéndice~\ref{ap:manual-usuario}), la guía de despliegue (apéndice~\ref{ap:despliegue}), el contrato de mensajería y las capacidades de OpenSpec (apéndice~\ref{ap:especificaciones}) y los \emph{prompts} empleados (apéndice~\ref{ap:prompts}).

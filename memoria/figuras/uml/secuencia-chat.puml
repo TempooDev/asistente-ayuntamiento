@@ -4,7 +4,7 @@ skinparam shadowing false
 skinparam defaultFontName Helvetica
 skinparam sequenceMessageAlign left
 autonumber
-actor "Técnico municipal" as U
+actor "Usuario municipal\n(funcionario o personal\nadministrativo)" as U
 participant "Angular\n(ChatStore)" as SPA
 participant "ChatHub\n(/hubs/chat)" as Hub
 participant "ChatSessionService" as Sess

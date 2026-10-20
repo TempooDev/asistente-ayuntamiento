@@ -9,17 +9,6 @@
   url          = {https://learn.microsoft.com/semantic-kernel/}
 }
 
-@article{wang2024,
-  title   = {An overview of vector databases: Architecture, algorithms, and challenges},
-  author  = {Wang, J. and Zhang, X. and Liu, Y.},
-  journal = {IEEE Transactions on Knowledge and Data Engineering},
-  volume  = {36},
-  number  = {4},
-  pages   = {1821--1838},
-  year    = {2024},
-  note    = {TODO: verificar la referencia (no se ha podido localizar con estos datos)}
-}
-
 @article{ozkaya2020,
   title   = {What is really different in engineering {AI}-enabled systems?},
   author  = {Ozkaya, Ipek},
@@ -143,4 +132,482 @@
   howpublished = {\url{https://docs.anthropic.com/en/docs/claude-code/overview}},
   urldate      = {2026-10-20},
   note         = {TODO: verificar la URL de la documentación}
+}
+
+@misc{aspire,
+  author       = {{Microsoft Corporation}},
+  title        = {Aspire documentation},
+  year         = {2026},
+  howpublished = {Microsoft Learn},
+  url          = {https://learn.microsoft.com/dotnet/aspire/},
+  urldate      = {2026-10-20}
+}
+
+@misc{golang,
+  author       = {{The Go Authors}},
+  title        = {The Go Programming Language},
+  year         = {2026},
+  howpublished = {go.dev},
+  url          = {https://go.dev/},
+  urldate      = {2026-10-20}
+}
+
+@misc{rabbitmq,
+  author       = {{Broadcom}},
+  title        = {RabbitMQ documentation},
+  year         = {2026},
+  howpublished = {rabbitmq.com},
+  url          = {https://www.rabbitmq.com/docs},
+  urldate      = {2026-10-20}
+}
+
+@misc{angular,
+  author       = {{Google}},
+  title        = {Angular documentation},
+  year         = {2026},
+  howpublished = {angular.dev},
+  url          = {https://angular.dev/},
+  urldate      = {2026-10-20}
+}
+
+% ======================================================================
+% Modelos de lenguaje y arquitectura Transformer (sec:llm)
+% ======================================================================
+@misc{zhao2023survey,
+  title         = {A Survey of Large Language Models},
+  author        = {Zhao, Wayne Xin and Zhou, Kun and Li, Junyi and Tang, Tianyi and Wang, Xiaolei and Hou, Yupeng and Min, Yingqian and Zhang, Beichen and Zhang, Junjie and Dong, Zican and Du, Yifan and Yang, Chen and Chen, Yushuo and Chen, Zhipeng and Jiang, Jinhao and Ren, Ruiyang and Li, Yifan and Tang, Xinyu and Liu, Zikang and Liu, Peiyu and Nie, Jian-Yun and Wen, Ji-Rong},
+  year          = {2023},
+  eprint        = {2303.18223},
+  archivePrefix = {arXiv}
+}
+
+@article{bengio2003,
+  title   = {A Neural Probabilistic Language Model},
+  author  = {Bengio, Yoshua and Ducharme, R{\'e}jean and Vincent, Pascal and Jauvin, Christian},
+  journal = {Journal of Machine Learning Research},
+  volume  = {3},
+  pages   = {1137--1155},
+  year    = {2003},
+  note    = {TODO: verificar volumen y páginas}
+}
+
+@misc{mikolov2013,
+  title         = {Efficient Estimation of Word Representations in Vector Space},
+  author        = {Mikolov, Tomas and Chen, Kai and Corrado, Greg and Dean, Jeffrey},
+  year          = {2013},
+  eprint        = {1301.3781},
+  archivePrefix = {arXiv}
+}
+
+@article{hochreiter1997,
+  title   = {Long Short-Term Memory},
+  author  = {Hochreiter, Sepp and Schmidhuber, J{\"u}rgen},
+  journal = {Neural Computation},
+  volume  = {9},
+  number  = {8},
+  pages   = {1735--1780},
+  year    = {1997},
+  note    = {TODO: verificar volumen y páginas}
+}
+
+@inproceedings{bahdanau2015,
+  title     = {Neural Machine Translation by Jointly Learning to Align and Translate},
+  author    = {Bahdanau, Dzmitry and Cho, Kyunghyun and Bengio, Yoshua},
+  booktitle = {3rd International Conference on Learning Representations (ICLR)},
+  year      = {2015},
+  eprint    = {1409.0473},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{devlin2019,
+  title     = {{BERT}: Pre-training of Deep Bidirectional Transformers for Language Understanding},
+  author    = {Devlin, Jacob and Chang, Ming-Wei and Lee, Kenton and Toutanova, Kristina},
+  booktitle = {Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies},
+  pages     = {4171--4186},
+  year      = {2019},
+  doi       = {10.18653/v1/N19-1423}
+}
+
+@techreport{radford2018,
+  title       = {Improving Language Understanding by Generative Pre-Training},
+  author      = {Radford, Alec and Narasimhan, Karthik and Salimans, Tim and Sutskever, Ilya},
+  institution = {OpenAI},
+  year        = {2018},
+  url         = {https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf}
+}
+
+@misc{kaplan2020,
+  title         = {Scaling Laws for Neural Language Models},
+  author        = {Kaplan, Jared and McCandlish, Sam and Henighan, Tom and Brown, Tom B. and Chess, Benjamin and Child, Rewon and Gray, Scott and Radford, Alec and Wu, Jeffrey and Amodei, Dario},
+  year          = {2020},
+  eprint        = {2001.08361},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{brown2020,
+  title     = {Language Models are Few-Shot Learners},
+  author    = {Brown, Tom and Mann, Benjamin and Ryder, Nick and Subbiah, Melanie and Kaplan, Jared D. and Dhariwal, Prafulla and Neelakantan, Arvind and Shyam, Pranav and Sastry, Girish and Askell, Amanda and Agarwal, Sandhini and Herbert-Voss, Ariel and Krueger, Gretchen and Henighan, Tom and Child, Rewon and Ramesh, Aditya and Ziegler, Daniel and Wu, Jeffrey and Winter, Clemens and Hesse, Chris and Chen, Mark and Sigler, Eric and Litwin, Mateusz and Gray, Scott and Chess, Benjamin and Clark, Jack and Berner, Christopher and McCandlish, Sam and Radford, Alec and Sutskever, Ilya and Amodei, Dario},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {33},
+  pages     = {1877--1901},
+  year      = {2020}
+}
+
+@inproceedings{ouyang2022,
+  title     = {Training Language Models to Follow Instructions with Human Feedback},
+  author    = {Ouyang, Long and Wu, Jeffrey and Jiang, Xu and Almeida, Diogo and Wainwright, Carroll and Mishkin, Pamela and Zhang, Chong and Agarwal, Sandhini and Slama, Katarina and Ray, Alex and Schulman, John and Hilton, Jacob and Kelton, Fraser and Miller, Luke and Simens, Maddie and Askell, Amanda and Welinder, Peter and Christiano, Paul F. and Leike, Jan and Lowe, Ryan},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {35},
+  year      = {2022},
+  note      = {TODO: añadir páginas desde proceedings.neurips.cc}
+}
+
+@inproceedings{sennrich2016,
+  title     = {Neural Machine Translation of Rare Words with Subword Units},
+  author    = {Sennrich, Rico and Haddow, Barry and Birch, Alexandra},
+  booktitle = {Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages     = {1715--1725},
+  year      = {2016},
+  doi       = {10.18653/v1/P16-1162}
+}
+
+@article{liu2024lost,
+  title   = {Lost in the Middle: How Language Models Use Long Contexts},
+  author  = {Liu, Nelson F. and Lin, Kevin and Hewitt, John and Paranjape, Ashwin and Bevilacqua, Michele and Petroni, Fabio and Liang, Percy},
+  journal = {Transactions of the Association for Computational Linguistics},
+  volume  = {12},
+  pages   = {157--173},
+  year    = {2024},
+  doi     = {10.1162/tacl_a_00638}
+}
+
+@inproceedings{reimers2019,
+  title     = {Sentence-{BERT}: Sentence Embeddings using {S}iamese {BERT}-Networks},
+  author    = {Reimers, Nils and Gurevych, Iryna},
+  booktitle = {Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)},
+  pages     = {3982--3992},
+  year      = {2019},
+  doi       = {10.18653/v1/D19-1410}
+}
+
+@inproceedings{muennighoff2023,
+  title     = {{MTEB}: Massive Text Embedding Benchmark},
+  author    = {Muennighoff, Niklas and Tazi, Nouamane and Magne, Loic and Reimers, Nils},
+  booktitle = {Proceedings of the 17th Conference of the European Chapter of the Association for Computational Linguistics},
+  pages     = {2014--2037},
+  year      = {2023},
+  doi       = {10.18653/v1/2023.eacl-main.148}
+}
+
+@misc{nussbaum2024,
+  title         = {Nomic Embed: Training a Reproducible Long Context Text Embedder},
+  author        = {Nussbaum, Zach and Morris, John X. and Duderstadt, Brandon and Mulyar, Andriy},
+  year          = {2024},
+  eprint        = {2402.01613},
+  archivePrefix = {arXiv}
+}
+
+@misc{zhang2025qwen3emb,
+  title         = {Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models},
+  author        = {Zhang, Yanzhao and Li, Mingxin and Long, Dingkun and Zhang, Xin and Lin, Huan and Yang, Baosong and Xie, Pengjun and Yang, An and Liu, Dayiheng and Lin, Junyang and Huang, Fei and Zhou, Jingren},
+  year          = {2025},
+  eprint        = {2506.05176},
+  archivePrefix = {arXiv}
+}
+
+% ======================================================================
+% Resto del capítulo 2 (alucinaciones, RAG, chunking, vectoriales,
+% híbrida, evaluación, orquestación, trabajos relacionados)
+% ======================================================================
+@article{ji2023survey,
+  title   = {Survey of Hallucination in Natural Language Generation},
+  author  = {Ji, Ziwei and Lee, Nayeon and Frieske, Rita and Yu, Tiezheng and Su, Dan and Xu, Yan and Ishii, Etsuko and Bang, Ye Jin and Madotto, Andrea and Fung, Pascale},
+  journal = {ACM Computing Surveys},
+  volume  = {55},
+  number  = {12},
+  year    = {2023},
+  eprint  = {2202.03629},
+  archivePrefix = {arXiv},
+  note    = {TODO: verificar autores, número de artículo y DOI en la ACM Digital Library}
+}
+
+@article{dahl2024,
+  title   = {Large Legal Fictions: Profiling Legal Hallucinations in Large Language Models},
+  author  = {Dahl, Matthew and Magesh, Varun and Suzgun, Mirac and Ho, Daniel E.},
+  journal = {Journal of Legal Analysis},
+  volume  = {16},
+  pages   = {64},
+  year    = {2024},
+  eprint  = {2401.01301},
+  archivePrefix = {arXiv},
+  note    = {TODO: verificar página final y DOI de la revista}
+}
+
+@article{magesh2025,
+  title   = {Hallucination-Free? Assessing the Reliability of Leading {AI} Legal Research Tools},
+  author  = {Magesh, Varun and Surani, Faiz and Dahl, Matthew and Suzgun, Mirac and Manning, Christopher D. and Ho, Daniel E.},
+  journal = {Journal of Empirical Legal Studies},
+  year    = {2025},
+  doi     = {10.1111/jels.12413},
+  note    = {TODO: añadir volumen y páginas}
+}
+
+@inproceedings{karpukhin2020,
+  title     = {Dense Passage Retrieval for Open-Domain Question Answering},
+  author    = {Karpukhin, Vladimir and Oguz, Barlas and Min, Sewon and Lewis, Patrick and Wu, Ledell and Edunov, Sergey and Chen, Danqi and Yih, Wen-tau},
+  booktitle = {Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages     = {6769--6781},
+  year      = {2020},
+  doi       = {10.18653/v1/2020.emnlp-main.550}
+}
+
+@misc{anthropic2024contextual,
+  author       = {{Anthropic}},
+  title        = {Introducing Contextual Retrieval},
+  year         = {2024},
+  howpublished = {Blog de Anthropic, 19 de septiembre de 2024},
+  url          = {https://www.anthropic.com/news/contextual-retrieval},
+  urldate      = {2026-10-20}
+}
+
+@misc{nogueira2019doc2query,
+  title         = {Document Expansion by Query Prediction},
+  author        = {Nogueira, Rodrigo and Yang, Wei and Lin, Jimmy and Cho, Kyunghyun},
+  year          = {2019},
+  eprint        = {1904.08375},
+  archivePrefix = {arXiv},
+  note          = {TODO: verificar datos (no se ha consultado la página de arXiv)}
+}
+
+@inproceedings{gao2023hyde,
+  title     = {Precise Zero-Shot Dense Retrieval without Relevance Labels},
+  author    = {Gao, Luyu and Ma, Xueguang and Lin, Jimmy and Callan, Jamie},
+  booktitle = {Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages     = {1762--1777},
+  year      = {2023},
+  doi       = {10.18653/v1/2023.acl-long.99}
+}
+
+@misc{langchainrecursive,
+  author       = {{LangChain}},
+  title        = {Recursive text splitter},
+  year         = {2026},
+  howpublished = {Documentación de LangChain},
+  url          = {https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter},
+  urldate      = {2026-10-20}
+}
+
+@inproceedings{qu2025semantic,
+  title     = {Is Semantic Chunking Worth the Computational Cost?},
+  author    = {Qu, Renyi and Tu, Ruixuan and Bao, Forrest Sheng},
+  booktitle = {Findings of the Association for Computational Linguistics: NAACL 2025},
+  year      = {2025},
+  eprint    = {2410.13070},
+  archivePrefix = {arXiv},
+  note      = {TODO: añadir páginas (ACL Anthology 2025.findings-naacl.114)}
+}
+
+@article{pan2024survey,
+  title   = {Survey of Vector Database Management Systems},
+  author  = {Pan, James Jie and Wang, Jianguo and Li, Guoliang},
+  journal = {The VLDB Journal},
+  year    = {2024},
+  eprint  = {2310.14021},
+  archivePrefix = {arXiv},
+  note    = {TODO: añadir volumen, páginas y DOI}
+}
+
+@article{jegou2011,
+  title   = {Product Quantization for Nearest Neighbor Search},
+  author  = {J{\'e}gou, Herv{\'e} and Douze, Matthijs and Schmid, Cordelia},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {33},
+  number  = {1},
+  pages   = {117--128},
+  year    = {2011},
+  note    = {TODO: verificar volumen, número y páginas}
+}
+
+@misc{pgvector,
+  author       = {Kane, Andrew and {colaboradores de pgvector}},
+  title        = {pgvector: Open-source vector similarity search for Postgres},
+  year         = {2026},
+  howpublished = {GitHub},
+  url          = {https://github.com/pgvector/pgvector},
+  urldate      = {2026-10-20}
+}
+
+@misc{qdrant,
+  author       = {{Qdrant}},
+  title        = {Qdrant documentation},
+  year         = {2026},
+  howpublished = {qdrant.tech},
+  url          = {https://qdrant.tech/documentation/},
+  urldate      = {2026-10-20}
+}
+
+@article{robertson2009,
+  title   = {The Probabilistic Relevance Framework: {BM25} and Beyond},
+  author  = {Robertson, Stephen and Zaragoza, Hugo},
+  journal = {Foundations and Trends in Information Retrieval},
+  volume  = {3},
+  number  = {4},
+  pages   = {333--389},
+  year    = {2009},
+  doi     = {10.1561/1500000019}
+}
+
+@misc{postgresfts,
+  author       = {{The PostgreSQL Global Development Group}},
+  title        = {PostgreSQL Documentation: Full Text Search},
+  year         = {2026},
+  howpublished = {postgresql.org},
+  url          = {https://www.postgresql.org/docs/current/textsearch.html},
+  urldate      = {2026-10-20}
+}
+
+@misc{trulens,
+  author       = {{TruLens}},
+  title        = {The {RAG} Triad},
+  year         = {2026},
+  howpublished = {Documentación de TruLens},
+  url          = {https://trulens.org/getting_started/core_concepts/rag_triad},
+  urldate      = {2026-10-20}
+}
+
+@inproceedings{zheng2023judge,
+  title     = {Judging {LLM}-as-a-Judge with {MT-Bench} and Chatbot Arena},
+  author    = {Zheng, Lianmin and Chiang, Wei-Lin and Sheng, Ying and Zhuang, Siyuan and Wu, Zhanghao and Zhuang, Yonghao and Lin, Zi and Li, Zhuohan and Li, Dacheng and Xing, Eric P. and Zhang, Hao and Gonzalez, Joseph E. and Stoica, Ion},
+  booktitle = {Advances in Neural Information Processing Systems (Datasets and Benchmarks Track)},
+  volume    = {36},
+  pages     = {46595--46623},
+  year      = {2023}
+}
+
+@misc{langchain,
+  author       = {Chase, Harrison},
+  title        = {{LangChain}},
+  year         = {2022},
+  howpublished = {GitHub},
+  url          = {https://github.com/langchain-ai/langchain},
+  urldate      = {2026-10-20}
+}
+
+@misc{llamaindex,
+  author       = {Liu, Jerry},
+  title        = {{LlamaIndex}},
+  year         = {2022},
+  howpublished = {GitHub},
+  url          = {https://github.com/run-llama/llama_index},
+  urldate      = {2026-10-20}
+}
+
+@article{papageorgiou2024,
+  title   = {Enhancing E-Government Services through State-of-the-Art, Modular, and Reproducible Architecture over Large Language Models},
+  author  = {Papageorgiou, George and Sarlis, Vangelis and Maragoudakis, Manolis and Tjortjis, Christos},
+  journal = {Applied Sciences},
+  volume  = {14},
+  number  = {18},
+  pages   = {8259},
+  year    = {2024},
+  doi     = {10.3390/app14188259}
+}
+
+@misc{einarsson2026,
+  title         = {Curated retrieval versus open web search in public {AI} information services: a coverage-trust trade-off},
+  author        = {Einarsson, Hafsteinn and others},
+  year          = {2026},
+  eprint        = {2607.05217},
+  archivePrefix = {arXiv},
+  note          = {TODO: verificar la lista de autores en arXiv}
+}
+
+@misc{pipitone2024legalbench,
+  title         = {{LegalBench-RAG}: A Benchmark for Retrieval-Augmented Generation in the Legal Domain},
+  author        = {Pipitone, Nicholas and Houir Alami, Ghita},
+  year          = {2024},
+  eprint        = {2408.10343},
+  archivePrefix = {arXiv}
+}
+
+@misc{betancur2025mel,
+  title         = {{MEL}: Legal {S}panish Language Model},
+  author        = {Betancur S{\'a}nchez, David and Aldama Garc{\'i}a, Nuria and Barbero Jim{\'e}nez, {\'A}lvaro and Guerrero Nieto, Marta and Mars{\`a} Morales, Patricia and Serrano Salas, Nicol{\'a}s and Garc{\'i}a Hern{\'a}n, Carlos and Haya Coll, Pablo and Montiel Ponsoda, Elena and Calleja Ib{\'a}{\~n}ez, Pablo},
+  year          = {2025},
+  eprint        = {2501.16011},
+  archivePrefix = {arXiv}
+}
+
+@misc{fernandez2025boexsum,
+  title         = {{BOE-XSUM}: Extreme Summarization in Clear Language of {S}panish Legal Decrees and Notifications},
+  author        = {Fern{\'a}ndez Garc{\'i}a, Andr{\'e}s and de la Rosa, Javier and Gonzalo, Julio and Morante, Roser and Amig{\'o}, Enrique and Benito-Santos, Alejandro and Carrillo-de-Albornoz, Jorge and Fresno, V{\'i}ctor and Ghajari, Adrian and Marco, Guillermo and Plaza, Laura and S{\'a}nchez Salido, Eva},
+  year          = {2025},
+  eprint        = {2509.24908},
+  archivePrefix = {arXiv}
+}
+
+@misc{justicio,
+  author       = {López, Darío and Dantart, Alex and Iliarte, Jorge and Barrachina, Jorge},
+  title        = {Justicio: asistente sobre el Boletín Oficial del Estado con {RAG}},
+  year         = {2023},
+  howpublished = {GitHub},
+  url          = {https://github.com/bukosabino/justicio},
+  urldate      = {2026-10-20},
+  note         = {TODO: verificar año de inicio del proyecto}
+}
+
+% --- Capítulo 5 (diseño) ---
+@book{martin2017clean,
+  author       = {Martin, Robert C.},
+  title        = {Clean Architecture: A Craftsman's Guide to Software Structure and Design},
+  publisher    = {Prentice Hall},
+  year         = {2017},
+  isbn         = {978-0134494166}
+}
+
+@misc{cockburn2005hexagonal,
+  author       = {Cockburn, Alistair},
+  title        = {Hexagonal architecture},
+  year         = {2005},
+  howpublished = {alistair.cockburn.us},
+  url          = {https://alistair.cockburn.us/hexagonal-architecture/},
+  urldate      = {2026-10-21},
+  note         = {TODO: verificar URL}
+}
+
+@misc{yarp,
+  author       = {{Microsoft Corporation}},
+  title        = {YARP: Yet Another Reverse Proxy},
+  year         = {2026},
+  howpublished = {Microsoft Learn},
+  url          = {https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/getting-started},
+  urldate      = {2026-10-21},
+  note         = {TODO: verificar URL}
+}
+
+@misc{signalr,
+  author       = {{Microsoft Corporation}},
+  title        = {Overview of ASP.NET Core SignalR},
+  year         = {2026},
+  howpublished = {Microsoft Learn},
+  url          = {https://learn.microsoft.com/aspnet/core/signalr/introduction},
+  urldate      = {2026-10-21}
+}
+
+@misc{dataprotection,
+  author       = {{Microsoft Corporation}},
+  title        = {ASP.NET Core Data Protection overview},
+  year         = {2026},
+  howpublished = {Microsoft Learn},
+  url          = {https://learn.microsoft.com/aspnet/core/security/data-protection/introduction},
+  urldate      = {2026-10-21}
+}
+
+@misc{auth0,
+  author       = {{Okta}},
+  title        = {Auth0 Organizations},
+  year         = {2026},
+  howpublished = {auth0.com},
+  url          = {https://auth0.com/docs/manage-users/organizations},
+  urldate      = {2026-10-21}
 }
