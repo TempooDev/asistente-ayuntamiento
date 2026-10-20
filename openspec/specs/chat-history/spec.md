@@ -1,7 +1,5 @@
 # Specification: Chat Conversation History
 
-> **Frontend note.** Kept under the folder name `blazor-chat-history` for history. The chat UI is now the Angular SPA (`features/chat`, state in `ChatStore`) talking to `/hubs/chat` (see `signalr-integration`); Blazor-specific details no longer apply.
-
 ## Purpose
 Keep each user's chat conversations in PostgreSQL, scoped to the user and the tenant, so they can be listed, reopened and deleted, without making the answer wait for the database writes.
 

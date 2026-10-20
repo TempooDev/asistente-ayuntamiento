@@ -2,55 +2,133 @@
 \label{ap:especificaciones}
 
 \section{Contrato de mensajería}
-% TODO: Colas, mensajes y estados (docs/messaging-contract.md).
+\label{sec:contrato-mensajeria}
+
+Este contrato regula la comunicación por RabbitMQ entre el \emph{scraper} en Go y los servicios .NET. Se define en un único lugar por cada lado (\texttt{RabbitMqTopology.cs} en .NET y \texttt{internal/messaging/rabbitmq.go} en Go), y cualquier cambio de nombres, argumentos o formato debe aplicarse a la vez en ambos. Su referencia en el repositorio es \texttt{docs/messaging-contract.md}.
+
+\subsection{Colas de trabajo}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Colas de trabajo de la ingesta}
+\label{tab:colas-trabajo}
+\begin{tabularx}{\textwidth}{@{}l X X@{}}
+\toprule
+\textbf{Cola} & \textbf{Publica} & \textbf{Consume} \\
+\midrule
+\texttt{documents\_to\_process\_baseline} & \emph{Scraper} Go y API (reprocesado) & \emph{Worker} en modo \texttt{BASELINE} \\
+\texttt{documents\_to\_process\_hierarchical} & \emph{Scraper} Go y API (reprocesado) & \emph{Worker} en modo \texttt{HIERARCHICAL} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Cada cola de trabajo \texttt{Q} tiene dos colas auxiliares, y las tres son duraderas:
+
+\begin{description}
+  \item[\texttt{Q}.] Trabajo pendiente. Un \texttt{nack} sin reencolar envía el mensaje a \texttt{Q.dlq}, porque la cola declara como destino de los mensajes muertos el \emph{exchange} por defecto con la clave de enrutamiento \texttt{Q.dlq}.
+  \item[\texttt{Q.retry}.] Espera antes de reintentar. Sus mensajes caducan a los 30 segundos (\texttt{x-message-ttl = 30000}, entero de 32 bits) y vuelven a \texttt{Q}.
+  \item[\texttt{Q.dlq}.] Mensajes que agotaron los reintentos o no se pudieron leer. Se inspeccionan a mano.
+\end{description}
+
+RabbitMQ no permite cambiar los argumentos de una cola ya declarada, por lo que Go y .NET deben declararlos exactamente igual, incluido el tipo del entero. Para cambiarlos hay que borrar y volver a crear las colas.
+
+\subsection{Mensaje de ingesta}
+
+Los mensajes se publican con \path{content_type: application/json}, persistentes (\path{delivery_mode: 2}) y con el identificador del documento como \texttt{message\_id}:
+
+\begin{lstlisting}[caption={Mensaje de ingesta},label={lst:mensaje-ingesta}]
+{ "source": "BOE",
+  "document_id": "BOE-A-2026-1234",
+  "blob_path": "json/BOE/BOE-A-2026-1234.json",
+  "pipelines": ["BASELINE", "HIERARCHICAL"] }
+\end{lstlisting}
+
+El campo opcional \texttt{pipelines} indica a qué colas se ha publicado el documento. El primer \emph{worker} que lo recibe marca como \texttt{Queued} las demás pipelines de la lista que aún no tienen estado, para que el documento no se dé por completado mientras la pipeline más lenta no lo haya procesado.
+
+El mensaje apunta al documento que el \emph{scraper} ha dejado en el almacenamiento S3, en \texttt{json/\{FUENTE\}/\{id\}.json}:
+
+\begin{lstlisting}[caption={Documento almacenado por el \emph{scraper}},label={lst:documento-json}]
+{ "document_id": "BOE-A-2026-1234",
+  "metadata": {
+    "source": "BOE",
+    "document_id": "BOE-A-2026-1234",
+    "titulo": "...",
+    "departamento": "...",
+    "fecha_publicacion": "20260915" },
+  "text": "..." }
+\end{lstlisting}
+
+El BOE escribe la fecha como \texttt{yyyyMMdd} y el BOJA como \texttt{yyyy-MM-dd}. Para el BOE se guarda además el XML original en \texttt{raw-xml/BOE/\{id\}.xml}, del que la pipeline jerárquica extrae los artículos.
+
+\subsection{Cabeceras}
+
+\begin{description}
+  \item[\texttt{x-retry-count}.] Número de reintentos ya hechos. Lo añade el consumidor al reenviar el mensaje a \texttt{Q.retry}.
+  \item[\texttt{traceparent} y \texttt{tracestate}.] Contexto de traza W3C de quien publica. El consumidor continúa esa traza, lo que permite seguir un documento de extremo a extremo en la observabilidad.
+\end{description}
+
+\subsection{Garantías}
+
+\begin{itemize}
+  \item \textbf{Publicación.} Los mensajes son persistentes y se publican con \emph{publisher confirms}: quien publica solo da el envío por bueno cuando el \emph{broker} lo confirma. La API guarda primero el estado \texttt{Queued} y después publica; si la publicación falla, devuelve el documento a \texttt{Pending}.
+  \item \textbf{Consumo.} El consumidor confirma (\texttt{ack}) cuando procesa bien el mensaje. Si falla, lo reenvía a \texttt{Q.retry} con \texttt{x-retry-count} incrementado, hasta tres veces; agotados los reintentos, hace \texttt{nack} sin reencolar, el mensaje pasa a \texttt{Q.dlq} y el documento queda como \texttt{Failed}. Un JSON inválido o un error no recuperable, como una fuente sin procesador, va directamente a \texttt{Q.dlq}.
+  \item \textbf{Idempotencia.} Procesar dos veces el mismo documento reemplaza la versión anterior en PostgreSQL y en Qdrant.
+\end{itemize}
+
+\subsection{Notificaciones de estado}
+
+El \emph{worker} publica cada cambio de estado de un documento en el \emph{exchange} \path{document_notifications_exchange}, de tipo \emph{fanout} y duradero. Cada instancia de la API lo consume con su propia cola exclusiva y temporal (\path{api_notifications_{guid}}) y reenvía la notificación por SignalR. El mensaje tiene la forma \texttt{\{ "DocumentId": "...", "NewStatus": "Processing" \}}, donde \texttt{NewStatus} toma uno de los valores \texttt{Pending}, \texttt{Queued}, \texttt{Processing}, \texttt{Completed}, \texttt{Failed} o \texttt{VectorSyncFailed}.
+
+Las notificaciones son efímeras: si fallan, se registran en el log y se descartan, sin reintentos ni cola de mensajes fallidos.
 
 \section{Capacidades de OpenSpec}
 
-La tabla~\ref{tab:capacidades} enumera las 30 capacidades especificadas en \texttt{openspec/specs}, con el número de requisitos de cada una. El ciclo de trabajo con estas especificaciones se describe en la sección~\ref{sec:sdd}.
+La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{openspec/specs}. El ciclo de trabajo con estas especificaciones se describe en la sección~\ref{sec:sdd}.
 
 {\small
-\begin{longtable}{@{}p{0.36\textwidth} r p{0.50\textwidth}@{}}
+\begin{longtable}{@{}p{0.38\textwidth} p{0.56\textwidth}@{}}
 \caption{Capacidades especificadas con OpenSpec}\label{tab:capacidades}\\
 \toprule
-\textbf{Capacidad} & \textbf{Req.} & \textbf{Descripción} \\
+\textbf{Capacidad} & \textbf{Descripción} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Capacidad} & \textbf{Req.} & \textbf{Descripción} \\
+\textbf{Capacidad} & \textbf{Descripción} \\
 \midrule
 \endhead
-\texttt{admin-metrics-dashboard} & 4 & Página de métricas: consumo de IA de la organización, coste de ingesta y resultados de la Arena, según el rol. \\
-\texttt{api-authorization} & 6 & Autorización en el servidor por rol, clave compartida en gRPC, errores sin detalles internos y arranque bloqueado sin secretos. \\
-\texttt{blazor-auto-migration} & 5 & Migración de la primera interfaz Blazor. Sustituida por la aplicación Angular; se conserva como histórico. \\
-\texttt{blazor-chat-history} & 4 & Historial de conversaciones por usuario y ayuntamiento (hoy en Angular). \\
-\texttt{build-quality-gates} & 5 & Integración continua para todos los lenguajes, versiones centralizadas y despliegue solo tras la CI. \\
-\texttt{bulk-reprocessing-pipeline} & 5 & Reprocesado masivo con un \emph{worker} por pipeline (\emph{baseline} y jerárquica). \\
-\texttt{chat-ui-connection} & 4 & Conexión del chat al \emph{hub}: reconexión, varias conversaciones en paralelo e indicador de espera. \\
-\texttt{chunking-embeddings} & 5 & Fragmentación, generación de \emph{embeddings} y almacenamiento de la pipeline \emph{baseline}. \\
-\texttt{clean-architecture-boundaries} & 6 & Reglas de la arquitectura limpia y pruebas que las verifican. \\
-\texttt{contexto-personalizado} & 3 & Temas de interés y localidades del usuario para adaptar las respuestas. \\
-\texttt{go-scraper} & 7 & Servicio en Go que descarga, filtra, almacena y encola los documentos del BOE y del BOJA. \\
-\texttt{hierarchical-retrieval} & 9 & Pipeline jerárquica: padres e hijos, enriquecimiento, expansión de consulta, búsqueda híbrida RRF y lenguaje claro. \\
-\texttt{ingestion-administration} & 5 & Operaciones administrativas de ingesta detrás del servicio \texttt{IIngestionAdminService}. \\
-\texttt{ingestion-consistency} & 6 & Consistencia entre PostgreSQL, Qdrant y el estado de los trabajos. \\
-\texttt{ingestion-telemetry} & 2 & Métricas de coste de ingesta y tasa de victorias de la Arena. \\
-\texttt{llm-provider-security} & 5 & Llamadas seguras a los proveedores de IA: TLS, clientes HTTP compartidos y claves solo para su proveedor. \\
-\texttt{messaging-reliability} & 6 & Mensajería fiable con RabbitMQ: persistencia, confirmaciones, reintentos y cola de fallidos. \\
-\texttt{mobile-navigation} & 2 & Menú lateral accesible en el móvil. \\
-\texttt{multi-tenant-user-profiles} & 7 & Aislamiento por ayuntamiento con organizaciones de Auth0 y perfil de usuario. \\
-\texttt{observability-grafana} & 5 & Telemetría con OpenTelemetry y Grafana, y métricas de IA sin contenido. \\
-\texttt{procesamiento-historico} & 2 & Sugerencia de intereses a partir de las conversaciones recientes. \\
-\texttt{qdrant-vector-store} & 4 & Qdrant como base de datos vectorial detrás del puerto \texttt{IVectorStore}. \\
-\texttt{query-api-semantic-kernel} & 4 & Respuesta a preguntas con RAG sobre Semantic Kernel, con modelo por ayuntamiento y respaldo. \\
-\texttt{question-arena} & 5 & Comparación a ciegas de las dos pipelines y registro de votos. \\
-\texttt{realtime-notifications} & 4 & Notificaciones de ingesta y del \emph{scraper} por SignalR, solo a quien puede verlas. \\
-\texttt{scraper-dynamic-filtering} & 7 & Reglas de filtrado del \emph{scraper} en la base de datos y descargas bajo demanda por gRPC. \\
-\texttt{session-timeout} & 3 & Cierre de sesión por inactividad. \\
-\texttt{signalr-integration} & 4 & \emph{Hubs} de SignalR para el chat y las notificaciones. \\
-\texttt{user-api-keys-vault} & 5 & Modelo de IA por ayuntamiento y claves de API cifradas. \\
-\texttt{user-auth-auth0} & 5 & Inicio de sesión con Auth0 y validación de tokens en la API. \\
+\texttt{admin-metrics-dashboard} & Página de métricas: consumo de IA de la organización, coste de ingesta y resultados de la Arena, según el rol. \\
+\texttt{api-authorization} & Autorización en el servidor por rol, clave compartida en gRPC, errores sin detalles internos y arranque bloqueado sin secretos. \\
+\texttt{chat-history} & Historial de conversaciones por usuario y ayuntamiento. \\
+\texttt{blob-storage} & Almacenamiento compatible con S3 de los documentos (MinIO en desarrollo y Cloudflare R2 en producción). \\
+\texttt{build-quality-gates} & Integración continua para todos los lenguajes, versiones centralizadas y despliegue solo tras la CI. \\
+\texttt{bulk-reprocessing-pipeline} & Reprocesado masivo con un \emph{worker} por pipeline (\emph{baseline} y jerárquica). \\
+\texttt{chat-ui-connection} & Conexión del chat al \emph{hub}: reconexión, varias conversaciones en paralelo e indicador de espera. \\
+\texttt{chunking-embeddings} & Fragmentación, generación de \emph{embeddings} y almacenamiento de la pipeline \emph{baseline}. \\
+\texttt{clean-architecture-boundaries} & Reglas de la arquitectura limpia y pruebas que las verifican. \\
+\texttt{contexto-personalizado} & Temas de interés y localidades del usuario para adaptar las respuestas. \\
+\texttt{go-scraper} & Servicio en Go que descarga, filtra, almacena y encola los documentos del BOE y del BOJA. \\
+\texttt{hierarchical-retrieval} & Pipeline jerárquica: padres e hijos, enriquecimiento, expansión de consulta, búsqueda híbrida RRF y lenguaje claro. \\
+\texttt{ingestion-administration} & Operaciones administrativas de ingesta detrás del servicio \texttt{IIngestionAdminService}. \\
+\texttt{ingestion-consistency} & Consistencia entre PostgreSQL, Qdrant y el estado de los trabajos. \\
+\texttt{ingestion-telemetry} & Métricas de coste de ingesta y tasa de victorias de la Arena. \\
+\texttt{llm-provider-security} & Llamadas seguras a los proveedores de IA: TLS, clientes HTTP compartidos y claves solo para su proveedor. \\
+\texttt{messaging-reliability} & Mensajería fiable con RabbitMQ: persistencia, confirmaciones, reintentos y cola de fallidos. \\
+\texttt{mobile-navigation} & Menú lateral accesible en el móvil. \\
+\texttt{multi-tenant-user-profiles} & Aislamiento por ayuntamiento con organizaciones de Auth0 y perfil de usuario. \\
+\texttt{observability-grafana} & Telemetría con OpenTelemetry y Grafana, y métricas de IA sin contenido. \\
+\texttt{procesamiento-historico} & Sugerencia de intereses a partir de las conversaciones recientes. \\
+\texttt{qdrant-vector-store} & Qdrant como base de datos vectorial detrás del puerto \texttt{IVectorStore}. \\
+\texttt{query-api-semantic-kernel} & Respuesta a preguntas con RAG sobre Semantic Kernel, con modelo por ayuntamiento y respaldo. \\
+\texttt{question-arena} & Comparación a ciegas de las dos pipelines y registro de votos. \\
+\texttt{realtime-notifications} & Notificaciones de ingesta y del \emph{scraper} por SignalR, solo a quien puede verlas. \\
+\texttt{scraper-dynamic-filtering} & Reglas de filtrado del \emph{scraper} en la base de datos y descargas bajo demanda por gRPC. \\
+\texttt{session-timeout} & Cierre de sesión por inactividad. \\
+\texttt{signalr-integration} & \emph{Hubs} de SignalR para el chat y las notificaciones. \\
+\texttt{user-api-keys-vault} & Modelo de IA por ayuntamiento y claves de API cifradas. \\
+\texttt{user-auth-auth0} & Inicio de sesión con Auth0 y validación de tokens en la API. \\
 \bottomrule
 \end{longtable}
 }
 
+% TODO: regenerar esta tabla a partir de openspec/specs antes de la entrega final.
 % TODO: incluir una especificación completa como ejemplo (por ejemplo, question-arena).

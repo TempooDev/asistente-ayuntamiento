@@ -1,0 +1,59 @@
+@startuml secuencia-chat
+' Pregunta en el chat (respuesta en streaming por SignalR)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor "Técnico municipal" as U
+participant "Angular\n(ChatStore)" as SPA
+participant "ChatHub\n(/hubs/chat)" as Hub
+participant "ChatSessionService" as Sess
+participant "AiChatService" as Chat
+participant "WinningPipelineSelector" as Win
+participant "Pipeline RAG\n(ganadora)" as Pipe
+database "Qdrant" as Q
+database "PostgreSQL" as PG
+participant "Proveedor LLM" as LLM
+
+U -> SPA : escribe la pregunta
+SPA -> Hub : StreamMessage(sessionId, mensaje)\n[token de Auth0]
+Hub -> Sess : GetSessionByIdAsync(sesión, usuario, tenant)
+Sess -> PG : buscar sesión (filtro por tenant)
+Hub -> Sess : EnqueueUserMessage
+note right of Sess : se guarda en segundo plano;\nla respuesta no espera a la BD
+Hub -> Chat : GetStreamingCompletionAsync(historial, tenant, usuario)
+Chat -> Win : GetWinnerAsync()
+Win -> PG : tasa de victorias (ArenaBattles,\ncacheada 5 minutos)
+Chat -> Pipe : StreamAsync(turno)
+
+alt Pipeline baseline
+  Pipe -> LLM : embedding de la pregunta (modelo de la plataforma)
+  Pipe -> Q : búsqueda densa en document_chunks
+  Pipe -> Pipe : prompt de PromptCatalog\n+ fragmentos + preferencias
+  Pipe -> LLM : generación con el modelo del tenant
+else Pipeline jerárquica
+  Pipe -> LLM : expansión de la consulta
+  par búsqueda híbrida
+    Pipe -> Q : búsqueda densa en child_fragments
+  else
+    Pipe -> PG : búsqueda léxica (tsvector)
+  end
+  Pipe -> Pipe : fusión RRF
+  Pipe -> PG : texto completo de los padres
+  Pipe -> LLM : generación en lenguaje claro\n(modelo de la plataforma)
+end
+
+loop por cada fragmento de texto
+  LLM --> Pipe : tokens
+  Pipe --> Chat : fragmento
+  Chat --> Hub : fragmento
+  Hub --> SPA : fragmento (streaming)
+end
+Pipe --> Hub : fuentes citadas\n(la jerárquica las incluye en el texto)
+Hub -> Sess : EnqueueAssistantMessage
+Pipe -> PG : AiCallLog (modelo, tokens, latencia)
+opt muestra para shadow testing
+  Chat -> Chat : programa la otra pipeline en segundo plano
+end
+SPA --> U : respuesta con citas
+@enduml

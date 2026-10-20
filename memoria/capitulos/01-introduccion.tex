@@ -7,11 +7,34 @@
 
 \section{Contexto y problema}
 \label{sec:contexto}
-% TODO: Brecha entre el ritmo de producción normativa y la capacidad de los ayuntamientos pequeños y medianos; revisión manual de BOE y BOJA en lenguaje jurídico.
+
+El ordenamiento jurídico español obliga a las administraciones públicas a mantenerse al día de un flujo constante de normas, subvenciones, decretos y resoluciones. Existe, sin embargo, una brecha entre la velocidad a la que se produce esa normativa y la capacidad de las entidades locales para absorberla y entenderla.
+
+En un ayuntamiento, este seguimiento se hace hoy de forma manual, fragmentada y descentralizada: el personal técnico revisa cada día varios diarios oficiales, extensos y redactados en un lenguaje jurídico complejo. Esta carga administrativa supone una ineficiencia operativa notable y, sobre todo, eleva el riesgo de error humano y de fatiga informativa. El problema es más agudo en los municipios pequeños y medianos, que, a diferencia de los ministerios o de las capitales autonómicas, trabajan con plantillas y presupuestos limitados.
+
+Este trabajo aborda ese problema en el ámbito de la Comunidad Autónoma de Andalucía, con dos fuentes: el Boletín Oficial del Estado (BOE) y el Boletín Oficial de la Junta de Andalucía (BOJA). La propuesta es una plataforma que lee esos boletines de forma automática cada día y permite al personal municipal consultarlos en lenguaje natural, como una herramienta de apoyo a la decisión y de mejora de sus flujos de trabajo.
+
+Para ello se recurre a los modelos de lenguaje de gran escala (LLM), que, apoyados en la arquitectura Transformer \cite{vaswani2017}, ofrecen una capacidad sin precedentes para procesar y comprender textos extensos con estructuras semánticas complejas. Pero el dominio exige un rigor legal estricto, y estos modelos pueden generar respuestas plausibles pero falsas, las llamadas \emph{alucinaciones} \cite{huang2023}. Por eso el sistema no responde de memoria: recupera primero los fragmentos de los boletines relevantes para cada pregunta y genera la respuesta a partir de ellos, citándolos (\emph{Retrieval-Augmented Generation}, RAG \cite{lewis2020}). Esta solución se apoya en una base de datos vectorial para la recuperación eficiente de información \cite{wang2024} y en una herramienta de orquestación de IA \cite{semantickernel}.
 
 \section{Motivación}
 \label{sec:motivacion}
-% TODO: Riesgo de perder subvenciones o plazos legales; retos de la ingeniería del software para sistemas con IA \cite{ozkaya2020}.
+
+La primera motivación es práctica. Una convocatoria de subvenciones que pasa desapercibida o un plazo legal que se incumple sin querer tienen un coste real para un ayuntamiento y para sus vecinos. Automatizar la lectura diaria de los boletines y permitir preguntar por ellos en lenguaje natural reduce ese riesgo y libera tiempo del personal técnico para tareas de más valor.
+
+La segunda motivación es de ingeniería del software. Los sistemas que integran modelos de IA plantean retos que el software tradicional no tiene \cite{ozkaya2020}: su comportamiento no es determinista, dependen de proveedores externos con cuotas y costes variables, y su calidad no se puede comprobar solo con pruebas unitarias. Este trabajo ha sido una oportunidad para abordar esos retos con una arquitectura distribuida y una metodología guiada por especificaciones (capítulo~\ref{cap:metodologia}).
+
+A medida que avanzó el desarrollo, y en especial tras mostrar una primera versión a personal municipal, aparecieron necesidades que el planteamiento inicial no recogía y que han dado forma a parte del sistema:
+
+\begin{itemize}
+  \item \textbf{Ninguna espera innecesaria y ninguna pérdida de datos.} La ingesta de un boletín implica descargarlo, fragmentarlo, generar sus \emph{embeddings} y, en la pipeline jerárquica, llamar a un modelo de lenguaje por cada fragmento. Hacerlo de forma síncrona bloquearía a quien lo lanza y perdería el trabajo ante cualquier fallo. Por eso todo el procesamiento es asíncrono y pasa por colas de mensajes persistentes, con reintentos y una cola de mensajes fallidos: el usuario no espera a que termine y ningún documento se pierde por un error transitorio. El mismo principio se aplica al chat, donde los mensajes se guardan en segundo plano para que la respuesta no espere a la base de datos.
+  \item \textbf{Una búsqueda rápida con modelos de \emph{embeddings} mayores.} Los índices aproximados de pgvector no admiten vectores de más de 2.000 dimensiones, lo que impedía usar con índice modelos de \emph{embeddings} de mayor dimensión. % VERIFICAR: límite de 2.000 dimensiones de los índices HNSW e IVFFlat de pgvector (documentado en docs/adr/0001-vector-index-dimensions.md; contrastar con la documentación de pgvector).
+  Los vectores se trasladaron a Qdrant, una base de datos vectorial dedicada, y PostgreSQL se mantuvo como fuente de verdad para el resto de datos y para la búsqueda léxica.
+  \item \textbf{Un asistente que conoce a quien pregunta.} El historial de conversaciones permite retomar consultas anteriores, y su análisis sugiere a cada usuario los temas y municipios que le interesan, que después se usan para adaptar las respuestas.
+  \item \textbf{Elegir con datos qué estrategia funciona mejor.} La Arena compara a ciegas las respuestas de dos pipelines y deja que el personal municipal vote cuál prefiere, y las métricas de coste muestran cuánto cuesta cada respuesta según el modelo y la técnica empleados.
+  \item \textbf{Varios ayuntamientos en la misma plataforma.} Cada ayuntamiento es un \emph{tenant} aislado, con sus usuarios, conversaciones y configuración de IA propios, de modo que la plataforma puede abrirse a nuevas entidades sin trabajo adicional.
+\end{itemize}
+
+% TODO (Antonio): ampliar cada punto con el contexto concreto en que surgió (por ejemplo, el feedback recibido sobre la primera versión).
 
 \section{Objetivos}
 \label{sec:objetivos}
@@ -30,7 +53,7 @@ El objetivo general se descompone en siete objetivos específicos, que se corres
 
   \item[OE2. Orquestación del RAG en .NET.] Construir un \emph{backend} en .NET que fragmente los documentos, genere sus \emph{embeddings}, recupere los fragmentos relevantes para cada pregunta y genere la respuesta con Semantic Kernel \cite{semantickernel}, con un proveedor de modelos de lenguaje intercambiable. Capacidades: \texttt{chunking-embeddings}, \texttt{hierarchical-retrieval}, \texttt{query-api-semantic-kernel}, \texttt{user-api-keys-vault} y \texttt{llm-provider-security}.
 
-  \item[OE3. Interfaz conversacional en tiempo real.] Ofrecer un \emph{frontend} en Angular con un chat que muestre la respuesta a medida que se genera, con las citas a los boletines de origen, el historial de conversaciones y una navegación adaptada al móvil. Capacidades: \texttt{signalr-integration}, \texttt{chat-ui-connection}, \texttt{blazor-chat-history}, \texttt{mobile-navigation} y \texttt{session-timeout}.
+  \item[OE3. Interfaz conversacional en tiempo real.] Ofrecer un \emph{frontend} en Angular con un chat que muestre la respuesta a medida que se genera, con las citas a los boletines de origen, el historial de conversaciones y una navegación adaptada al móvil. Capacidades: \texttt{signalr-integration}, \texttt{chat-ui-connection}, \texttt{chat-history}, \texttt{mobile-navigation} y \texttt{session-timeout}.
 
   \item[OE4. Modelo de datos híbrido.] Diseñar un modelo de datos que combine una base de datos relacional (PostgreSQL) como fuente de verdad con una base de datos vectorial (Qdrant) con indexación aproximada de vecinos más cercanos (ANN), y que mantenga ambas coherentes. Capacidades: \texttt{qdrant-vector-store} e \texttt{ingestion-consistency}.
 

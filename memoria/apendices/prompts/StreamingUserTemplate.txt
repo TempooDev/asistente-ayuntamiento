@@ -1,0 +1,6 @@
+CONTEXTO RECUPERADO DE LOS BOLETINES:
+{0}
+
+INSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario. Si ni el contexto ni el historial contienen el dato, dilo; no lo inventes.
+
+Pregunta: {1}

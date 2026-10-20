@@ -1,0 +1,53 @@
+@startuml secuencia-ingesta
+' Ingesta diaria de un boletín
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+participant "Planificador\n(scraper Go)" as Sched
+participant "Orquestador\n(scraper Go)" as Go
+participant "API .NET\n(gRPC)" as Api
+participant "BOE / BOJA" as Src
+database "S3\n(MinIO / R2)" as S3
+queue "RabbitMQ" as MQ
+participant "Worker\n(BASELINE o HIERARCHICAL)" as W
+participant "Modelos de IA" as LLM
+database "PostgreSQL" as PG
+database "Qdrant" as Q
+
+Sched -> Go : trabajo diario (día anterior)
+Go -> Api : obtener reglas de filtrado
+Api -> PG : ScraperFilterRules activas
+Api --> Go : reglas
+note right of Go : si no hay reglas disponibles,\nno se descarga nada (fail closed)
+Go -> Src : sumario del día
+loop por cada documento que pasa el filtro
+  Go -> Src : descargar documento
+  Go -> S3 : guardar original (raw-xml / raw-html)
+  Go -> S3 : guardar json/{FUENTE}/{id}.json
+  Go -> MQ : publicar en documents_to_process_baseline\ny documents_to_process_hierarchical\n(persistente, publisher confirms)
+end
+
+MQ -> W : entregar mensaje
+W -> PG : estado del pipeline = Processing
+W -> S3 : descargar JSON (y XML del BOE)
+alt Worker BASELINE
+  W -> W : fragmentos de tamaño fijo con solapamiento
+else Worker HIERARCHICAL
+  W -> W : documentos padre e hijos
+  W -> LLM : enriquecer cada hijo con contexto
+end
+W -> LLM : generar embeddings
+W -> PG : reemplazar fragmentos del documento\n(transacción, fuente de verdad)
+W -> Q : borrar y escribir vectores del documento
+W -> PG : IngestionMetrics y estado = Completed
+W -> MQ : ack
+W -> MQ : notificación de estado (fanout)
+MQ -> Api : notificación
+Api -> Api : SignalR /hubs/notifications\n(solo administradores)
+
+alt error recuperable
+  W -> MQ : reenviar a Q.retry (x-retry-count + 1)
+  note right of MQ : tras 30 s vuelve a Q;\nagotados 3 reintentos, nack → Q.dlq\ny estado = Failed
+end
+@enduml
