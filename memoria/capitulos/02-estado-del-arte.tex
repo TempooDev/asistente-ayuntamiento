@@ -7,39 +7,226 @@
 
 \section{Modelos de lenguaje y arquitectura Transformer}
 \label{sec:llm}
-% TODO: Capacidades, ventana de contexto y coste \cite{vaswani2017}.
+
+Un modelo de lenguaje asigna una probabilidad a una secuencia de palabras o, de forma equivalente, estima la probabilidad de la siguiente unidad de texto dadas las anteriores. Esta sección resume cómo se ha llegado a los grandes modelos de lenguaje (\emph{Large Language Models}, LLM) actuales, describe la arquitectura Transformer en la que se basan y explica las propiedades que más condicionan su uso en este proyecto: la tokenización, la ventana de contexto, el coste y la representación del texto como \emph{embeddings}.
+
+\subsection{De los modelos estadísticos a los modelos preentrenados}
+\label{sec:llm-evolucion}
+
+La evolución de los modelos de lenguaje suele describirse en cuatro etapas: modelos estadísticos basados en $n$-gramas, modelos neuronales, modelos preentrenados y, finalmente, grandes modelos de lenguaje \cite{zhao2023survey}. Los modelos de $n$-gramas estiman la probabilidad de una palabra a partir de las $n-1$ anteriores contando apariciones en un corpus, lo que los limita a contextos muy cortos y los hace sensibles a la dispersión de los datos. Bengio et al.\ propusieron sustituir esos recuentos por una red neuronal que aprende a la vez una representación distribuida de cada palabra y la función de probabilidad \cite{bengio2003}, idea que popularizó después word2vec al obtener vectores de palabras de buena calidad con un coste de entrenamiento reducido \cite{mikolov2013}.
+
+Para procesar secuencias de longitud variable se impusieron las redes recurrentes, en especial las LSTM \cite{hochreiter1997}, organizadas en arquitecturas codificador-decodificador para tareas como la traducción automática. Estas arquitecturas tienen dos limitaciones. La primera es que el codificador resume toda la frase de entrada en un vector de tamaño fijo, que se convierte en un cuello de botella con frases largas; Bahdanau et al.\ lo resolvieron con un mecanismo de \emph{atención} que permite al decodificador consultar en cada paso las posiciones relevantes de la entrada \cite{bahdanau2015}. La segunda es que la recurrencia obliga a procesar los elementos de la secuencia uno tras otro, lo que impide paralelizar el entrenamiento dentro de una misma secuencia \cite{vaswani2017}.
+
+\subsection{La arquitectura Transformer}
+\label{sec:transformer}
+
+El Transformer \cite{vaswani2017} elimina la recurrencia y construye el modelo únicamente con mecanismos de atención. Su pieza central es la \emph{atención de producto escalar escalado}: cada elemento de la secuencia se proyecta en tres vectores, consulta ($Q$), clave ($K$) y valor ($V$), y la salida es una media de los valores ponderada por la afinidad entre la consulta y cada clave:
+\begin{equation}
+  \mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right) V
+  \label{eq:atencion}
+\end{equation}
+donde $d_k$ es la dimensión de las claves. La división por $\sqrt{d_k}$ evita que, con dimensiones grandes, los productos escalares crezcan tanto que la función \emph{softmax} quede en una zona de gradientes muy pequeños \cite{vaswani2017}. Cuando $Q$, $K$ y $V$ proceden de la misma secuencia se habla de \emph{autoatención}: cada token construye su representación teniendo en cuenta todos los demás.
+
+En lugar de una sola atención, el modelo usa \emph{atención multicabeza}: varias atenciones en paralelo, cada una con sus propias proyecciones, cuyas salidas se concatenan. Así el modelo puede atender a la vez a distintos tipos de relación entre tokens. Cada capa combina esta atención con una red \emph{feed-forward} aplicada a cada posición, conexiones residuales y normalización de capa. Como la atención no tiene noción de orden, se suma a la entrada una \emph{codificación posicional}; el artículo original usa funciones seno y coseno de distintas frecuencias \cite{vaswani2017}. El modelo base del artículo apila 6 capas en el codificador y 6 en el decodificador, con representaciones de dimensión 512 y 8 cabezas de atención.
+
+La ventaja principal frente a las redes recurrentes es que todas las posiciones se relacionan entre sí con un número constante de operaciones secuenciales, de modo que el cálculo de una capa se paraleliza por completo en GPU y la distancia entre dos tokens cualesquiera es de un solo paso. El precio es que el coste de la autoatención crece de forma cuadrática con la longitud $n$ de la secuencia, $O(n^2 \cdot d)$ por capa frente a $O(n \cdot d^2)$ en una capa recurrente \cite{vaswani2017}. Esta dependencia cuadrática explica por qué la longitud de contexto de un modelo es un recurso limitado y caro (sección~\ref{sec:llm-contexto}). Con esta arquitectura, el artículo original superó el estado del arte en traducción inglés-alemán e inglés-francés con un coste de entrenamiento muy inferior al de los modelos anteriores \cite{vaswani2017}.
+
+\subsection{Modelos preentrenados: codificadores y decodificadores}
+\label{sec:llm-preentrenados}
+
+A partir del Transformer se consolidó el paradigma de \emph{preentrenar} un modelo con grandes cantidades de texto sin etiquetar y después adaptarlo a cada tarea. De él surgen dos familias que, como se verá, cumplen papeles distintos en este proyecto:
+
+\begin{itemize}
+  \item \textbf{Modelos solo codificador.} BERT \cite{devlin2019} usa únicamente la pila del codificador y se preentrena prediciendo palabras ocultas a partir del contexto de ambos lados. Produce representaciones bidireccionales del texto, muy adecuadas para comprenderlo y compararlo. Sobre esta familia se construyen los modelos de \emph{embeddings} de frases (sección~\ref{sec:llm-embeddings}).
+  \item \textbf{Modelos solo decodificador.} La serie GPT usa la pila del decodificador con atención causal, es decir, cada token solo ve los anteriores, y se preentrena prediciendo el siguiente token \cite{radford2018}. Este objetivo convierte al modelo en un generador de texto: la respuesta se produce token a token, tomando como entrada todo lo generado hasta ese momento. Es la familia a la que pertenecen los LLM de chat actuales.
+\end{itemize}
+
+\subsection{Grandes modelos de lenguaje}
+\label{sec:llm-grandes}
+
+Kaplan et al.\ observaron que el error de un modelo de lenguaje disminuye siguiendo una ley de potencias con el número de parámetros, el tamaño del conjunto de datos y la capacidad de cómputo empleada en el entrenamiento, en un rango de varios órdenes de magnitud \cite{kaplan2020}. Este resultado impulsó el entrenamiento de modelos cada vez mayores. GPT-3, con 175.000 millones de parámetros, mostró que un modelo suficientemente grande puede resolver tareas nuevas sin reentrenarlo, solo con una descripción de la tarea y unos pocos ejemplos dentro de la propia entrada (\emph{in-context learning} o aprendizaje \emph{few-shot}) \cite{brown2020}. El término \emph{gran modelo de lenguaje} se usa precisamente para los modelos que, a partir de cierto tamaño, muestran capacidades que no aparecen en modelos pequeños \cite{zhao2023survey}.
+
+Un modelo preentrenado solo para predecir el siguiente token no sigue necesariamente las instrucciones del usuario. Ouyang et al.\ mostraron que ajustar el modelo con ejemplos de instrucciones y con aprendizaje por refuerzo a partir de preferencias humanas (RLHF) produce respuestas que los evaluadores prefieren, incluso con modelos mucho más pequeños que el original \cite{ouyang2022}. Este ajuste es la base de los asistentes conversacionales y explica que en este proyecto el comportamiento del modelo de chat se controle mediante instrucciones en lenguaje natural (el \emph{prompt} de sistema) y no reentrenándolo.
+
+En la práctica, los LLM se ofrecen de dos formas: como servicios en la nube de modelos propietarios, a los que se accede por API y se paga por token, y como modelos de pesos abiertos que pueden ejecutarse en infraestructura propia. El proyecto usa ambas: Ollama ejecuta modelos abiertos en local durante el desarrollo y un proveedor en la nube atiende el chat en producción, intercambiables gracias a Semantic Kernel (sección~\ref{sec:otras-tecnologias}).
+% VERIFICAR: si se citan modelos concretos (Llama 3.2 en local, Gemini en producción), añadir la referencia oficial de cada uno (tarjeta del modelo o documentación del proveedor).
+
+\subsection{Tokenización, ventana de contexto y coste}
+\label{sec:llm-contexto}
+
+Los LLM no trabajan con palabras sino con \emph{tokens}, unidades de subpalabra obtenidas con algoritmos como \emph{Byte Pair Encoding} (BPE), que parte de caracteres y fusiona de forma iterativa los pares más frecuentes \cite{sennrich2016}. Así el vocabulario es finito y cualquier palabra, incluso una que no apareció en el entrenamiento, puede representarse como una secuencia de tokens. El número de tokens de un texto depende del tokenizador de cada modelo y del idioma.
+% VERIFICAR: si se quiere afirmar que el español consume más tokens que el inglés por palabra, buscar una fuente o medirlo con el tokenizador del modelo usado.
+
+La \emph{ventana de contexto} es el número máximo de tokens que el modelo procesa a la vez, sumando la entrada (instrucciones, historial y documentos) y la respuesta generada. Tiene tres consecuencias directas para un asistente sobre boletines oficiales:
+
+\begin{itemize}
+  \item \textbf{Límite de capacidad.} Un boletín completo o el conjunto de normas relevantes para una pregunta pueden no caber en la ventana, y aunque quepan no se aprovechan por igual: Liu et al.\ comprobaron que el rendimiento de los modelos baja cuando la información relevante está en mitad de un contexto largo en lugar de al principio o al final \cite{liu2024lost}. Por eso el sistema no envía los documentos completos, sino solo los fragmentos más relevantes, que es la idea de la recuperación aumentada (sección~\ref{sec:rag}).
+  \item \textbf{Coste.} Los proveedores en la nube cobran por token de entrada y de salida, de modo que cada fragmento que se añade al \emph{prompt} tiene un coste. Este es el motivo de que el sistema registre los tokens y el coste estimado de cada consulta.
+  \item \textbf{Latencia.} La generación es autorregresiva: el modelo produce un token cada vez, y el tiempo de respuesta crece con la longitud de la entrada y de la salida. Para que el usuario no espere a la respuesta completa, el chat la muestra a medida que se genera (\emph{streaming}).
+\end{itemize}
+
+Además de estas limitaciones prácticas, los LLM generan texto plausible que puede no ser correcto ni estar respaldado por ninguna fuente, problema que se trata en la sección~\ref{sec:alucinaciones}.
+
+\subsection{Representación del texto: \emph{embeddings}}
+\label{sec:llm-embeddings}
+
+Un \emph{embedding} es un vector de números reales que representa el significado de un texto, de forma que textos con significado parecido quedan próximos en el espacio vectorial. Los vectores de palabras de word2vec \cite{mikolov2013} eran estáticos: la misma palabra tenía siempre el mismo vector. Los Transformer producen en cambio representaciones contextuales, en las que el vector de cada token depende de la frase en la que aparece \cite{devlin2019}. Para comparar frases enteras de forma eficiente, Sentence-BERT ajusta un codificador tipo BERT con una red siamesa para que genere un único vector por frase, comparable con la similitud coseno \cite{reimers2019}. Este es el esquema de los modelos de \emph{embeddings} actuales, que se comparan entre sí con bancos de pruebas como MTEB \cite{muennighoff2023}.
+
+Cada modelo de \emph{embeddings} define su propio espacio vectorial: la distancia entre dos vectores solo tiene sentido si ambos los ha generado el mismo modelo, aunque tengan la misma dimensión. Por eso los fragmentos indexados y la pregunta del usuario deben vectorizarse siempre con el mismo modelo, y cambiar de modelo obliga a regenerar los vectores de toda la colección.
+
+Durante el desarrollo se probaron varios modelos de este tipo. En local se usa \texttt{nomic-embed-text}, que se ejecuta con Ollama sin coste: es un codificador de unos 137 millones de parámetros derivado de BERT, con contexto largo y entrenado y publicado de forma reproducible, aunque solo para inglés \cite{nussbaum2024}. Para producción se probó \texttt{text-embedding-004} de Google y se optó por modelos como Qwen3-Embedding-8B, construido sobre un LLM de la familia Qwen3, multilingüe y con vectores de hasta 4.096 dimensiones \cite{zhang2025qwen3emb}, por su bajo coste por token. Interesa un modelo multilingüe porque los boletines están en español jurídico, y la alta dimensión de sus vectores es la que motivó el paso de pgvector a Qdrant (sección~\ref{sec:vectoriales}). El entorno local y el de producción tienen colecciones de vectores separadas, y cada despliegue fija un único modelo para todas sus colecciones, de modo que la recuperación compara siempre vectores del mismo espacio.
+% VERIFICAR: el coste (unos 0,01 USD por millón de tokens vía OpenRouter según el ADR de chunking-embeddings) debe citarse con la página de precios del proveedor y su fecha de consulta si se quiere dar la cifra.
+% VERIFICAR: el dato de 4.096 dimensiones y el carácter multilingüe están en la tarjeta del modelo (huggingface.co/Qwen/Qwen3-Embedding-8B); el artículo de Qwen3 Embedding describe la serie y los resultados en MTEB. Si se cita text-embedding-004, añadir su documentación oficial.
+
+\subsection{Papel de los modelos de lenguaje en el proyecto}
+\label{sec:llm-proyecto}
+
+En resumen, el sistema combina las dos familias de modelos descritas. Un modelo de \emph{embeddings} de tipo codificador convierte en vectores los fragmentos de los boletines durante la ingesta y la pregunta del usuario en cada consulta, para recuperar los fragmentos más próximos. Un LLM de tipo decodificador recibe después la pregunta junto con esos fragmentos y redacta la respuesta citando las fuentes. Separar ambas funciones permite elegir cada modelo por separado según su calidad en español y su coste, y limitar el contexto que llega al LLM a la información relevante, lo que reduce el coste por consulta y el riesgo de respuestas no respaldadas por los documentos.
 
 \section{Alucinaciones en LLM}
 \label{sec:alucinaciones}
-% TODO: Taxonomía y por qué son críticas en el dominio jurídico \cite{huang2023}.
+
+Se llama \emph{alucinación} a un texto generado por un modelo que resulta fluido y plausible pero que no es correcto o no está respaldado por la fuente de la que debería salir \cite{ji2023survey}. Huang et al.\ proponen distinguir dos tipos en los LLM \cite{huang2023}:
+
+\begin{itemize}
+  \item \textbf{Alucinaciones de factualidad}, cuando la respuesta contradice hechos del mundo real o los inventa, por ejemplo citando una norma que no existe.
+  \item \textbf{Alucinaciones de fidelidad}, cuando la respuesta se aparta de las instrucciones del usuario o del contexto que se le ha dado, por ejemplo atribuyendo a un documento algo que el documento no dice.
+\end{itemize}
+
+Las causas se reparten entre los datos de entrenamiento (información errónea, desactualizada o ausente), el propio entrenamiento y la forma de generar el texto, que elige en cada paso un token probable sin comprobar si el conjunto es cierto \cite{huang2023}. Un modelo tampoco sabe qué normas se han publicado después de la fecha de corte de sus datos, lo que en un dominio que cambia cada día, como los boletines oficiales, es una fuente de error constante.
+
+El problema es especialmente grave en el ámbito jurídico. Dahl et al.\ midieron que modelos de uso general como GPT-3.5 y Llama~2 alucinaban entre el 69\,\% y el 88\,\% de las veces al responder preguntas verificables sobre sentencias federales de Estados Unidos, que a menudo no corregían premisas jurídicas falsas planteadas por el usuario y que no siempre eran capaces de detectar sus propios errores \cite{dahl2024}. Incluso las herramientas comerciales de investigación jurídica que integran recuperación de documentos, y que se anunciaban como libres de alucinaciones, fallaron entre el 17\,\% y el 33\,\% de las consultas en un estudio posterior, aunque menos que un chat de uso general \cite{magesh2025}. Para un ayuntamiento, una respuesta inventada sobre un plazo, una ayuda o una ordenanza puede llevar a un ciudadano o a un funcionario a tomar una decisión equivocada.
+
+Por eso el sistema aplica varias medidas que la literatura asocia a la reducción de alucinaciones: el modelo responde a partir de los documentos recuperados y no de su conocimiento propio (sección~\ref{sec:rag}), cada respuesta cita las fuentes con su referencia y su enlace al boletín para que el usuario pueda comprobarla, y las instrucciones piden al modelo que diga que no tiene la información cuando los documentos no la contienen. Ninguna de estas medidas elimina el problema por completo, como muestra el estudio de herramientas comerciales citado, y por eso la evaluación del sistema incluye métricas de fidelidad (sección~\ref{sec:evaluacion-rag}).
 
 \section{Retrieval-Augmented Generation}
 \label{sec:rag}
-% TODO: Esquema general y variantes: \emph{naive}, \emph{advanced}, jerárquico \emph{small-to-big} \cite{lewis2020,gao2023}.
+
+La generación aumentada por recuperación (\emph{Retrieval-Augmented Generation}, RAG) combina un modelo generativo con un buscador sobre una colección de documentos externa \cite{lewis2020}. En lugar de confiar en lo que el modelo memorizó durante el entrenamiento, el sistema busca primero los fragmentos relevantes para la pregunta y se los pasa al modelo junto con ella. Lewis et al.\ introdujeron el término con un recuperador denso, que representa preguntas y pasajes con \emph{embeddings} \cite{karpukhin2020}, y mostraron que esta combinación mejoraba los resultados en tareas que requieren conocimiento y producía respuestas más concretas y factuales que un modelo solo generativo \cite{lewis2020}. RAG tiene además dos ventajas prácticas: el conocimiento se actualiza añadiendo documentos, sin reentrenar el modelo, y cada respuesta puede citar los documentos en los que se basa.
+
+Gao et al.\ clasifican los sistemas RAG en tres paradigmas \cite{gao2023}:
+
+\begin{itemize}
+  \item \textbf{RAG ingenuo} (\emph{naive RAG}): los documentos se dividen en fragmentos, se indexan con sus \emph{embeddings}, se recuperan los $k$ más parecidos a la pregunta y se pasan al modelo. Es sencillo, pero puede recuperar fragmentos poco relevantes o sin el contexto necesario para entenderlos.
+  \item \textbf{RAG avanzado} (\emph{advanced RAG}): añade mejoras antes y después de la recuperación, como enriquecer los fragmentos al indexarlos, reescribir o expandir la pregunta, combinar varios tipos de búsqueda o reordenar los resultados.
+  \item \textbf{RAG modular}: descompone el sistema en módulos intercambiables (búsqueda, memoria, enrutado, fusión) que se combinan según la tarea.
+\end{itemize}
+
+El proyecto implementa hoy dos \emph{pipelines}, que se corresponden con los dos primeros paradigmas y se comparan entre sí (sección~\ref{sec:pipelines}), y prevé añadir dos variantes más que se describen al final de esta sección. La \emph{pipeline base} sigue el esquema ingenuo: fragmentos de tamaño fijo y búsqueda por similitud en Qdrant. La \emph{pipeline jerárquica} aplica varias técnicas del RAG avanzado:
+
+\begin{itemize}
+  \item \textbf{Recuperación padre-hijo} (\emph{small-to-big}): se buscan fragmentos pequeños, que son más precisos al compararlos con la pregunta, pero al modelo se le pasa el documento completo al que pertenecen, que aporta el contexto que el fragmento por sí solo no tiene \cite{gao2023}.
+  \item \textbf{Enriquecimiento contextual de los fragmentos}: antes de calcular su \emph{embedding}, cada fragmento se precede de una ruta con el boletín, el organismo, la norma y el artículo. La idea coincide con la recuperación contextual que publicó Anthropic, que antepone a cada fragmento un breve contexto generado por un LLM y redujo un 35\,\% los fallos de recuperación en sus pruebas, y un 49\,\% al combinarla con BM25 \cite{anthropic2024contextual}.
+  \item \textbf{Preguntas sintéticas}: al indexar, un LLM genera dos preguntas que un ciudadano podría hacer sobre cada fragmento y se añaden a su texto, de modo que el fragmento se parece más a las preguntas reales. Es una variante de la expansión de documentos con preguntas predichas \cite{nogueira2019doc2query}.
+  \item \textbf{Expansión de la consulta}: un LLM traduce la pregunta coloquial del usuario en una consulta léxica, una frase formal para la búsqueda semántica y, si la hay, un municipio por el que filtrar. Técnicas como HyDE, que genera un documento hipotético a partir de la pregunta y busca con su \emph{embedding}, persiguen el mismo objetivo de acercar la pregunta al lenguaje de los documentos \cite{gao2023hyde}.
+  \item \textbf{Recuperación híbrida}: se combinan una búsqueda densa y una léxica (sección~\ref{sec:hibrida}).
+\end{itemize}
+% VERIFICAR: la tasa de reducción de fallos (35 % y 49 %) es la que publica Anthropic en su propio blog con sus datos, no un resultado revisado por pares; conviene presentarla así o no dar la cifra.
+
+\paragraph{Variantes previstas.} Las dos \emph{pipelines} actuales difieren en varias cosas a la vez: la forma de fragmentar, el enriquecimiento, la expansión de la consulta y el tipo de búsqueda. Para medir el efecto de la fragmentación por separado, el anteproyecto prevé completar el sistema con dos variantes más de la etapa de indexación, de modo que haya una configuración de RAG por cada estrategia de \emph{chunking} (sección~\ref{sec:chunking}):
+
+\begin{itemize}
+  \item \textbf{RAG con fragmentación de tamaño fijo}, que corresponde a la \emph{pipeline} base actual y sirve de referencia.
+  \item \textbf{RAG con división recursiva}, que corta respetando párrafos, líneas y palabras antes de llegar al límite de tamaño, y debería conservar mejor las unidades con sentido de los boletines sin necesitar su estructura XML \cite{langchainrecursive}.
+  \item \textbf{RAG con fragmentación semántica}, que agrupa frases consecutivas con significado parecido y abre un fragmento nuevo cuando cambia el tema. Cada fragmento debería tratar un único asunto, a cambio de un mayor coste de indexación \cite{qu2025semantic}.
+  \item \textbf{RAG jerárquico padre-hijo}, que corresponde a la \emph{pipeline} jerárquica actual.
+\end{itemize}
+
+En las cuatro variantes se mantienen el mismo modelo de \emph{embeddings}, el mismo modelo de generación y el mismo conjunto de preguntas, para que solo cambie la fragmentación, y se evalúan con RAGAS (sección~\ref{sec:evaluacion-rag}). El diseño y los resultados de esta comparación se presentan en el capítulo~\ref{cap:estudio-chunking}.
+En la aplicación final se usará la variante que mejores resultados obtenga en esa evaluación. Las demás podrán seguir enfrentándose a ella en el modo Arena, que funciona como una prueba A/B con usuarios reales: sus votos completan la evaluación automática y permiten confirmar o revisar la elección con el uso (sección~\ref{sec:evaluacion-rag}).
+% TODO (recordatorio): ampliar esta sección cuando se desarrollen las variantes recursiva y semántica: parámetros elegidos (tamaño, solapamiento, umbral semántico), cómo se integran en la ingesta y resultado de la comparación.
 
 \section{Estrategias de fragmentación (\emph{chunking})}
 \label{sec:chunking}
-% TODO: Fixed-size con solapamiento, recursive character splitting, semantic chunking y padre/hijo.
+
+Los documentos no se indexan enteros sino divididos en fragmentos (\emph{chunks}), por tres motivos: los modelos de \emph{embeddings} tienen una longitud máxima de entrada, un vector que resume un documento largo pierde el detalle de cada parte, y lo que se pasa al LLM debe caber en su ventana de contexto y costar lo menos posible (sección~\ref{sec:llm-contexto}). La forma de cortar influye directamente en la calidad de la recuperación: un fragmento demasiado pequeño pierde el contexto, uno demasiado grande mezcla temas y diluye la similitud con la pregunta \cite{gao2023}. Las estrategias más extendidas son:
+
+\begin{itemize}
+  \item \textbf{Tamaño fijo con solapamiento.} El texto se corta cada $N$ tokens y cada fragmento repite los últimos tokens del anterior, para no perder la información que cae en el corte. Es la estrategia más simple y barata. En el proyecto se usa el \texttt{TextChunker} de Semantic Kernel, con unos 400 tokens por fragmento y 50 de solapamiento, agrupando líneas en párrafos.
+  \item \textbf{División recursiva por caracteres.} Se intenta cortar primero por párrafos, después por saltos de línea, después por espacios y solo en último caso por caracteres, hasta que cada fragmento cabe en el tamaño máximo. Así se mantienen juntas, mientras sea posible, las unidades de texto más relacionadas. Es la estrategia que recomienda LangChain para texto genérico \cite{langchainrecursive}.
+  \item \textbf{Fragmentación semántica.} Se calcula el \emph{embedding} de cada frase y se abre un fragmento nuevo cuando la distancia entre frases consecutivas supera un umbral, señal de un cambio de tema. Su coste es mayor, porque exige vectorizar cada frase al indexar, y Qu et al.\ concluyen que sus mejoras dependen mucho del tipo de documento y no siempre compensan ese coste frente al tamaño fijo \cite{qu2025semantic}.
+  \item \textbf{Fragmentación estructural o padre-hijo.} Se aprovecha la estructura del documento para cortar por unidades con sentido propio y se guarda la relación entre cada fragmento y su documento padre, que es el que se pasa al modelo. En el proyecto, los documentos del BOE se dividen por artículos a partir de su XML y los artículos largos se subdividen con la estrategia anterior.
+\end{itemize}
+
+No hay una estrategia óptima para todos los casos, y los boletines oficiales tienen rasgos propios: documentos muy desiguales en longitud, una estructura en artículos y disposiciones y frases jurídicas largas. Por eso el capítulo~\ref{cap:estudio-chunking} compara de forma experimental las cuatro estrategias sobre los documentos del proyecto.
 
 \section{Embeddings y bases de datos vectoriales}
 \label{sec:vectoriales}
-% TODO: Similitud coseno, ANN (HNSW, IVFFlat), pgvector frente a Qdrant \cite{wang2024,malkov2020}.
+
+Una vez convertidos los fragmentos en \emph{embeddings} (sección~\ref{sec:llm-embeddings}), recuperar los relevantes consiste en buscar los vectores más próximos al de la pregunta. La medida habitual es la \emph{similitud coseno}, el coseno del ángulo entre los dos vectores:
+\begin{equation}
+  \mathrm{sim}(\mathbf{q}, \mathbf{d}) = \frac{\mathbf{q} \cdot \mathbf{d}}{\lVert \mathbf{q} \rVert \, \lVert \mathbf{d} \rVert}
+  \label{eq:coseno}
+\end{equation}
+que solo depende de la dirección de los vectores y no de su longitud.
+
+Comparar la pregunta con todos los vectores de la colección (búsqueda exacta) tiene un coste lineal con el número de fragmentos, que se vuelve excesivo con colecciones grandes y vectores de miles de dimensiones. Las bases de datos vectoriales usan en su lugar índices de \emph{búsqueda aproximada de vecinos más cercanos} (\emph{Approximate Nearest Neighbor}, ANN), que renuncian a garantizar el resultado exacto a cambio de responder mucho más rápido \cite{pan2024survey}. Los dos tipos de índice más usados son:
+
+\begin{itemize}
+  \item \textbf{IVF} (\emph{inverted file}): agrupa los vectores en listas mediante \emph{clustering} y, en cada búsqueda, solo examina las listas más próximas a la consulta \cite{jegou2011}. IVFFlat, la variante de pgvector, se construye rápido y ocupa poca memoria, pero ofrece peor equilibrio entre velocidad y exhaustividad (\emph{recall}) que HNSW \cite{pgvector}.
+  \item \textbf{HNSW} (\emph{Hierarchical Navigable Small World}): construye un grafo de varias capas en el que las superiores tienen pocos nodos y enlaces largos y las inferiores todos los nodos y enlaces cortos; la búsqueda baja de capa en capa acercándose a la consulta, con un coste aproximadamente logarítmico \cite{malkov2020}. A cambio, su construcción es más lenta y usa más memoria \cite{pgvector}.
+\end{itemize}
+
+Hay dos formas de añadir esta capacidad a un sistema. La primera es extender una base de datos relacional, como hace pgvector con PostgreSQL: los vectores conviven con el resto de datos y se consultan con SQL. Sin embargo, sus índices HNSW e IVFFlat solo admiten vectores de hasta 2.000 dimensiones (4.000 con media precisión) \cite{pgvector}. La segunda es usar una base de datos vectorial dedicada, como Qdrant, que indexa con HNSW, permite filtrar por los metadatos de cada punto durante la búsqueda y está pensada para escalar la búsqueda vectorial de forma independiente \cite{qdrant}. El proyecto empezó con pgvector y pasó a Qdrant cuando adoptó un modelo de \emph{embeddings} de 4.096 dimensiones, manteniendo en PostgreSQL el texto y la búsqueda léxica (sección~\ref{sec:otras-tecnologias}).
 
 \section{Recuperación híbrida}
 \label{sec:hibrida}
-% TODO: Búsqueda densa, búsqueda léxica (\texttt{tsvector}) y fusión RRF \cite{cormack2009}.
+
+La búsqueda densa con \emph{embeddings} encuentra textos con un significado parecido aunque usen palabras distintas, pero puede fallar con términos exactos: números de expediente, nombres propios, siglas o referencias a artículos concretos. La búsqueda léxica clásica hace lo contrario: puntúa los documentos según las palabras de la consulta que contienen, ponderadas por su frecuencia en el documento y su rareza en la colección. Su representante más conocido es BM25, derivado del modelo probabilístico de relevancia \cite{robertson2009}. Combinar ambas búsquedas permite aprovechar las dos ventajas y es una de las técnicas del RAG avanzado \cite{gao2023}.
+
+El problema de combinarlas es que sus puntuaciones no son comparables: la similitud coseno y una puntuación léxica están en escalas distintas. La \emph{fusión por rango recíproco} (\emph{Reciprocal Rank Fusion}, RRF) lo evita usando solo la posición de cada documento en cada lista \cite{cormack2009}:
+\begin{equation}
+  \mathrm{RRF}(d) = \sum_{r \in R} \frac{1}{k + r(d)}
+  \label{eq:rrf}
+\end{equation}
+donde $R$ es el conjunto de listas ordenadas, $r(d)$ la posición del documento $d$ en cada una y $k$ una constante que suaviza el peso de las primeras posiciones; Cormack et al.\ usaron $k = 60$. A pesar de su sencillez, RRF obtuvo mejores resultados que métodos de fusión más complejos en su evaluación \cite{cormack2009}.
+
+En la pipeline jerárquica del proyecto, la búsqueda densa se hace en Qdrant y la léxica en PostgreSQL, con una columna \texttt{tsvector} y un índice GIN sobre el texto de cada fragmento \cite{postgresfts}, y las dos listas se fusionan con RRF ($k = 60$) para quedarse con los cinco mejores fragmentos. La búsqueda de texto completo de PostgreSQL no implementa BM25, sino sus propias funciones de ordenación (\texttt{ts\_rank}), pero cumple el mismo papel de búsqueda por términos exactos y, al usar RRF, no hace falta que sus puntuaciones sean comparables con las de Qdrant.
+% VERIFICAR: comprobar en el código qué función de ordenación se usa (ts_rank o ts_rank_cd) y la configuración de idioma del tsvector (p. ej. 'spanish').
 
 \section{Evaluación de sistemas RAG}
 \label{sec:evaluacion-rag}
-% TODO: RAGAS \cite{es2023ragas}, TruLens, métricas de fidelidad y contexto; evaluación por preferencia humana \cite{chiang2024}.
+
+Evaluar un sistema RAG es más difícil que evaluar un clasificador, porque una buena respuesta depende de dos etapas: que la recuperación encuentre los fragmentos adecuados y que el modelo los use con fidelidad. Las propuestas actuales siguen tres enfoques.
+
+\paragraph{Métricas automáticas sin referencia.} RAGAS propone un conjunto de métricas que no necesitan respuestas de referencia escritas por personas: miden si el contexto recuperado es relevante y está centrado en la pregunta, si la respuesta es fiel a ese contexto y si la respuesta aborda la pregunta \cite{es2023ragas}. Las métricas se calculan con ayuda de un LLM, por ejemplo descomponiendo la respuesta en afirmaciones y comprobando si cada una se deduce del contexto. TruLens agrupa las mismas ideas en la llamada \emph{tríada RAG}: relevancia del contexto, fundamentación (\emph{groundedness}) de la respuesta en ese contexto y relevancia de la respuesta respecto a la pregunta \cite{trulens}. La fidelidad y la fundamentación son las que miden directamente las alucinaciones de fidelidad descritas en la sección~\ref{sec:alucinaciones}.
+
+\paragraph{LLM como juez.} Muchas de estas métricas delegan la valoración en un LLM. Zheng et al.\ comprobaron que un modelo fuerte como juez coincide con las preferencias humanas en más del 80\,\% de los casos, un acuerdo similar al que hay entre personas, pero también que tiene sesgos: prefiere la respuesta que aparece en primera posición, las respuestas más largas y las que ha generado él mismo \cite{zheng2023judge}. Por eso conviene contrastar estas métricas con valoraciones humanas.
+
+\paragraph{Preferencia humana por comparación.} Chatbot Arena evalúa los modelos pidiendo a los usuarios que comparen dos respuestas anónimas a la misma pregunta y voten la mejor; los votos se agregan después en una clasificación \cite{chiang2024}. Este enfoque mide lo que de verdad le importa al usuario, aunque necesita muchos votos para ser fiable. La Arena del proyecto adapta esta idea: muestra a ciegas las respuestas de las dos \emph{pipelines}, con el orden asignado al azar para evitar el sesgo de posición, y los votos deciden cuál responde en el chat (sección~\ref{sec:impl-arena}).
+
+El proyecto combina la preferencia humana de la Arena con una evaluación automática con RAGAS sobre un conjunto de preguntas fijo, que permite comparar las estrategias de fragmentación de forma reproducible (capítulo~\ref{cap:estudio-chunking}).
+% VERIFICAR (Antonio): ajustar el tiempo verbal cuando el estudio con RAGAS en local esté hecho.
 
 \section{Orquestación de IA}
 \label{sec:orquestacion}
-% TODO: Semantic Kernel \cite{semantickernel} frente a LangChain y LlamaIndex.
+
+Una aplicación con LLM necesita algo más que llamar al modelo: construir \emph{prompts} con plantillas, generar \emph{embeddings}, consultar el almacén de vectores, encadenar varios pasos, invocar funciones del propio sistema y cambiar de proveedor sin rehacer el código. Los marcos de orquestación ofrecen estas piezas ya hechas. Los tres más extendidos son:
+
+\begin{itemize}
+  \item \textbf{LangChain}, el más popular en Python y JavaScript, que ofrece integraciones con muchos proveedores, almacenes de vectores y herramientas, y componentes para encadenar llamadas y construir agentes \cite{langchain}.
+  \item \textbf{LlamaIndex}, centrado en conectar los LLM con datos propios: carga de documentos, fragmentación, índices y motores de consulta para RAG \cite{llamaindex}.
+  \item \textbf{Semantic Kernel}, el marco de Microsoft, disponible para C\#, Python y Java, que abstrae los servicios de chat y de \emph{embeddings}, los conectores de memoria vectorial y la invocación de funciones (\emph{plugins}) \cite{semantickernel}.
+\end{itemize}
+
+LangChain y LlamaIndex tienen un ecosistema mayor, pero su soporte principal es Python y JavaScript. Como el \emph{backend} del proyecto está en .NET (sección~\ref{sec:eleccion-plataforma}), se eligió Semantic Kernel: se integra con la inyección de dependencias, la configuración y la telemetría de la plataforma y permite usar Ollama en local y proveedores en la nube en producción con el mismo código. El proyecto usa sus abstracciones de generación de texto y de \emph{embeddings} y su \texttt{TextChunker}, pero la recuperación y la fusión de resultados se implementan en código propio, lo que da control total sobre las dos \emph{pipelines} que se comparan.
+% VERIFICAR: si se mencionan los lenguajes soportados por cada marco, contrastarlo con su documentación oficial en la fecha de consulta.
 
 \section{Trabajos relacionados}
 \label{sec:relacionados}
-% TODO: Asistentes de IA en la administración pública y herramientas jurídicas; qué aporta este TFG.
+
+El uso de LLM en la administración pública es un campo reciente y en crecimiento. Papageorgiou et al.\ proponen una arquitectura modular y reproducible basada en RAG y agentes para servicios de administración electrónica, con documentos institucionales europeos como fuente, aunque su evaluación es cualitativa \cite{papageorgiou2024}. Einarsson et al.\ evalúan con expertos un servicio público islandés de respuestas sobre la Unión Europea y comparan la recuperación sobre un corpus seleccionado con la búsqueda abierta en la web: el corpus seleccionado ofrece fuentes más fiables, pero responde a menos preguntas \cite{einarsson2026}, un equilibrio que también afecta a este proyecto, limitado a los boletines oficiales.
+
+En el ámbito jurídico, LegalBench-RAG proporciona un banco de pruebas centrado en la etapa de recuperación, que premia recuperar fragmentos pequeños y precisos en lugar de documentos completos \cite{pipitone2024legalbench}, y los estudios sobre alucinaciones jurídicas citados en la sección~\ref{sec:alucinaciones} muestran que la recuperación reduce el problema pero no lo elimina \cite{magesh2025}. Para el español jurídico existen modelos y recursos específicos: MEL, un modelo de lenguaje preentrenado con textos del BOE, de boletines autonómicos y de sentencias \cite{betancur2025mel}, y BOE-XSUM, un conjunto de resúmenes en lenguaje claro de documentos del BOE con el que se ajustan modelos generativos \cite{fernandez2025boexsum}. El trabajo más cercano a este TFG es Justicio, un asistente de código abierto que responde preguntas sobre el BOE con RAG y Qdrant \cite{justicio}.
+
+Frente a estos trabajos, este TFG aporta:
+
+\begin{itemize}
+  \item Un sistema completo, desde la descarga diaria de los boletines (BOE y BOJA) hasta la respuesta en el chat, orientado a entidades locales: filtra por municipio y está preparado para varias organizaciones (\emph{multi-tenant}).
+  \item Respuestas en lenguaje claro con las fuentes citadas, que conectan con el objetivo de BOE-XSUM pero dentro de un sistema de preguntas y respuestas.
+  \item La comparación, sobre el mismo corpus, de una \emph{pipeline} RAG ingenua y otra avanzada, tanto por preferencia de los usuarios (Arena) como con métricas automáticas (RAGAS), y un estudio de estrategias de fragmentación sobre documentos oficiales en español.
+\end{itemize}
+% VERIFICAR: revisar si Justicio sigue activo y si cubre otros boletines además del BOE en la fecha de entrega. Valorar añadir iniciativas públicas españolas como ALIA (modelos abiertos impulsados por el Gobierno y el BSC) con su referencia oficial.
 
 \section{Tecnologías empleadas}
 \label{sec:tecnologias}
@@ -53,18 +240,49 @@
     \toprule
     Tecnología & Motivo de la elección \\
     \midrule
-    .NET 10 y Aspire & % TODO
-    \\
-    Go & % TODO
-    \\
-    Semantic Kernel & % TODO
-    \\
-    PostgreSQL y Qdrant & % TODO
-    \\
-    RabbitMQ & % TODO
-    \\
-    Angular & % TODO
-    \\
+    .NET 10 & Plataforma del \emph{backend}. Se integra de forma nativa con Semantic Kernel, el autor ya la conocía y cubre con su biblioteca estándar todo lo que necesita el proyecto con buen rendimiento (sección~\ref{sec:eleccion-plataforma}). \\
+    Aspire & Orquesta el sistema en local con los mismos contenedores, servicios y variables de entorno que producción, de modo que el entorno de desarrollo se parece al real (sección~\ref{sec:eleccion-plataforma}). \\
+    Go & Lenguaje del servicio de ingesta. Se compila a un único binario estático que ocupa y consume muy poco, y facilita la concurrencia de las descargas (sección~\ref{sec:eleccion-plataforma}). \\
+    Semantic Kernel & Orquesta las llamadas a los modelos desde .NET y permite cambiar de proveedor (Ollama, nube) solo con configuración, sin tocar el código (sección~\ref{sec:otras-tecnologias}). \\
+    PostgreSQL & Fuente de verdad de usuarios, conversaciones y documentos. Aporta transacciones y la búsqueda léxica con \texttt{tsvector} que usa la recuperación híbrida (sección~\ref{sec:otras-tecnologias}). \\
+    Qdrant & Base de datos vectorial dedicada. Indexa con HNSW los \emph{embeddings} de alta dimensión que pgvector no permitía indexar, y ofrece búsquedas rápidas con filtros (sección~\ref{sec:otras-tecnologias}). \\
+    RabbitMQ & Cola de mensajes de referencia, basada en el protocolo abierto AMQP. Desacopla la ingesta del procesamiento con colas persistentes, reintentos y cola de mensajes fallidos (sección~\ref{sec:otras-tecnologias}). \\
+    Angular & Marco del \emph{frontend}. El autor lo conoce bien y ofrece una estructura completa de serie. A partir de Angular~21 mejora mucho la experiencia de desarrollo y también la de usuario, con un \emph{bundle} más pequeño y menor tiempo de respuesta (sección~\ref{sec:otras-tecnologias}). \\
     \bottomrule
   \end{tabularx}
 \end{table}
+
+\subsection{Elección de la plataforma: .NET, Aspire y Go}
+\label{sec:eleccion-plataforma}
+
+La tabla~\ref{tab:tecnologias} resume el motivo de cada tecnología. Las tres que dan forma a la arquitectura son .NET, Aspire y Go, y por eso su elección se explica con más detalle.
+
+\paragraph{.NET.}
+El backend (la API, la pasarela y los \emph{workers} de ingesta) está escrito en C\# sobre .NET~10. El motivo principal es Semantic Kernel \cite{semantickernel}, el marco de orquestación de IA de Microsoft, que se integra de forma nativa con la plataforma: el mismo código trabaja con varios proveedores de modelos (Ollama en local y proveedores en la nube en producción) cambiando solo la configuración, y encaja con la inyección de dependencias, la configuración y la telemetría propias de .NET. A esto se suma la experiencia previa del autor con la plataforma, que reduce el tiempo de aprendizaje y permite centrar el esfuerzo en el problema del TFG y no en la herramienta, y su facilidad de uso: el lenguaje, las bibliotecas estándar y las herramientas de desarrollo cubren todo lo que necesita el proyecto (API web, gRPC, SignalR, acceso a PostgreSQL y a RabbitMQ). Por último, .NET ofrece un rendimiento alto en servicios web y en procesamiento en segundo plano, que es justo el tipo de carga del backend.
+% VERIFICAR: si se quiere apoyar la afirmación de rendimiento con datos, citar una fuente externa (p. ej. los TechEmpower Framework Benchmarks) en lugar de dar cifras sin referencia.
+
+\paragraph{Aspire.}
+Aspire \cite{aspire} orquesta todo el sistema en local desde un único proyecto, el \emph{AppHost}. Su ventaja principal es que el entorno de desarrollo se monta de la misma forma que el de producción: arranca como contenedores las mismas dependencias que se despliegan (PostgreSQL con la imagen de pgvector, RabbitMQ y Qdrant), levanta la API, la pasarela, los dos \emph{workers} de ingesta, el \emph{scraper} en Go y el frontend Angular, y los conecta entre sí con las mismas variables de entorno que se usan en el despliegue (cadenas de conexión, credenciales del almacenamiento de objetos y configuración de los modelos). Así se replica la misma estructura de servicios y se trabaja en un entorno muy parecido al real, lo que reduce los errores que solo aparecen al desplegar. Donde el servicio de producción es externo, Aspire lo sustituye por un equivalente local compatible: MinIO en lugar de Cloudflare R2 (ambos hablan el protocolo S3) y Ollama en lugar del proveedor de modelos en la nube, de modo que el desarrollo no consume \emph{tokens} de pago; si hace falta, una opción de configuración permite usar también en local el proveedor en la nube. Además, Aspire genera las credenciales locales (por ejemplo, las de MinIO o la clave del canal gRPC interno) y las guarda en los secretos de usuario, sin escribirlas en el código, y ofrece un panel con las trazas, métricas y registros de OpenTelemetry de todos los servicios, incluido el de Go.
+
+\paragraph{Go.}
+El módulo de ingesta (sección~\ref{sec:impl-go}) es un servicio en Go que descarga cada día los boletines del BOE y del BOJA, guarda los documentos en el almacenamiento de objetos y publica en RabbitMQ un evento por documento para que lo procesen los \emph{workers} de .NET. También expone una API HTTP y un servicio gRPC para lanzar descargas bajo demanda. Se eligió Go por la facilidad de tener servidores de ingesta que consumen muy pocos recursos \cite{golang}: el servicio se compila a un único binario estático, sin dependencias de un entorno de ejecución, y se distribuye en una imagen mínima (\emph{distroless}) que solo contiene ese binario. Las \emph{goroutines} y los canales permiten además manejar la concurrencia de las descargas y de los servidores HTTP y gRPC de forma sencilla. Separar la ingesta del backend permite también que cada parte se despliegue y escale de forma independiente, comunicándose solo a través de RabbitMQ y del almacenamiento de objetos.
+% VERIFICAR: si se quiere cuantificar el consumo (memoria, tamaño de la imagen), medirlo sobre el despliegue propio (p. ej. con docker stats) y citar la medición, en lugar de dar cifras genéricas.
+
+\subsection{Otras tecnologías: orquestación de IA, datos, mensajería e interfaz}
+\label{sec:otras-tecnologias}
+
+\paragraph{Semantic Kernel.}
+Semantic Kernel \cite{semantickernel} es la capa que une el \emph{backend} con los modelos de lenguaje y de \emph{embeddings}. Ofrece una interfaz común para la generación de texto, la generación de \emph{embeddings} y la respuesta en \emph{streaming}, de modo que las dos pipelines de RAG no dependen de un proveedor concreto: en local se usa Ollama y en producción proveedores en la nube, y cada ayuntamiento puede configurar el suyo con su propia clave de API (objetivo OE2, sección~\ref{sec:objetivos}). Al ser una biblioteca de Microsoft para .NET, se registra en la inyección de dependencias y emite telemetría como el resto de servicios. Su comparación con otros marcos de orquestación se trata en la sección~\ref{sec:orquestacion}.
+
+\paragraph{PostgreSQL.}
+PostgreSQL es la fuente de verdad del sistema (objetivo OE4): guarda los usuarios, los \emph{tenants}, las conversaciones, la configuración de IA, la Arena y el texto de los documentos y de sus fragmentos. Se eligió por ser una base de datos relacional madura y de código abierto, con transacciones que garantizan la coherencia de esos datos y con búsqueda de texto completo integrada: los fragmentos de la pipeline jerárquica tienen una columna \texttt{tsvector} con índice GIN, que aporta la parte léxica de la recuperación híbrida (sección~\ref{sec:hibrida}). Mantener la búsqueda léxica en la misma base de datos que el texto evita añadir otro motor de búsqueda al sistema.
+
+\paragraph{Qdrant.}
+Al principio los vectores se guardaban en PostgreSQL con la extensión pgvector, pero sus índices aproximados no admiten vectores de más de 2.000 dimensiones, lo que impedía usar con índice los modelos de \emph{embeddings} de mayor dimensión (sección~\ref{sec:motivacion}). Por eso los vectores se trasladaron a Qdrant, una base de datos vectorial dedicada que indexa con HNSW \cite{malkov2020} vectores de esa dimensión y ofrece mejor rendimiento en la búsqueda por similitud, además de filtrar dentro de la propia búsqueda por los metadatos que acompañan a cada fragmento (por ejemplo, el municipio al que se refiere la pregunta). La decisión quedó registrada en el ADR~0001 y la comparación entre ambas opciones se trata en la sección~\ref{sec:vectoriales}.
+
+\paragraph{RabbitMQ.}
+RabbitMQ es el \emph{broker} de mensajes que comunica el servicio de ingesta en Go con los \emph{workers} de .NET, y los \emph{workers} con la API. Se eligió por ser el estándar de facto en colas de mensajes \cite{rabbitmq}: es de código abierto, está muy probado en producción y se basa en AMQP, un protocolo abierto con clientes oficiales tanto para Go como para .NET, lo que permite que servicios escritos en lenguajes distintos compartan la misma topología. Además, ofrece de serie las garantías que necesita la ingesta (sección~\ref{sec:motivacion}): colas y mensajes persistentes que sobreviven a un reinicio, confirmaciones de publicación (\emph{publisher confirms}) y de consumo, y colas con tiempo de vida (TTL) y \emph{dead-lettering}. Con ellas, cada cola de trabajo tiene una cola de reintento, que devuelve el mensaje tras 30~segundos, y una cola de mensajes fallidos (\emph{DLQ}) para los que agotan los reintentos, de modo que ningún documento se pierde por un error transitorio. RabbitMQ también admite el modelo de publicación y suscripción: un \emph{exchange} de tipo \emph{fanout} reparte los avisos de estado de los documentos a todas las instancias de la API, que los envían a los navegadores por SignalR.
+
+\paragraph{Angular.}
+El \emph{frontend} es una aplicación Angular \cite{angular}. Se eligió por el conocimiento previo del autor y por la facilidad de desarrollo que da un marco completo: el enrutado, los formularios, el cliente HTTP, la inyección de dependencias y las pruebas vienen integrados, y TypeScript detecta muchos errores al compilar. A partir de la versión~21 de Angular, que es la que usa el proyecto, el marco mejora mucho la experiencia de desarrollo: los componentes \emph{standalone} eliminan los módulos, el control de flujo en las plantillas (\texttt{@if}, \texttt{@for}) simplifica la vista y los \emph{signals} dan una reactividad de grano fino más fácil de razonar. También mejora la experiencia de usuario: en Angular~21 la detección de cambios sin \texttt{zone.js} es la opción por defecto, de modo que \texttt{zone.js} deja de incluirse en el \emph{bundle}, y los \emph{signals} permiten actualizar solo la parte de la vista que cambia, lo que reduce el tamaño de la aplicación que descarga el navegador y el tiempo de respuesta de la interfaz. Esto encaja con el chat, que muestra la respuesta a medida que llega por SignalR (objetivo OE3). Una primera versión de la interfaz se hizo con Blazor y se descartó por su usabilidad y su experiencia de usuario (capítulo~\ref{cap:metodologia}).
+% VERIFICAR: contrastar con la documentación o el blog oficial de Angular la reducción del tamaño del \emph{bundle} y del tiempo de respuesta al prescindir de \texttt{zone.js}, y en qué versión llegó cada novedad (\emph{standalone} por defecto, control de flujo, \emph{signals}, detección de cambios sin \texttt{zone.js} por defecto en la~21). Si se quiere cuantificar, medirlo sobre la compilación de producción propia (\texttt{ng build}).
