@@ -260,5 +260,12 @@ if (evaluationModel is not null)
 
 WithAi(evaluation);
 
+// Stores the newest scored run (after score.py and report.py) for the metrics page; only needs the database.
+builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation-import")
+    .WithExplicitStart()
+    .WithArgs("--import", "latest")
+    .WithReference(db)
+    .WaitFor(db);
+
 builder.Build().Run();
 

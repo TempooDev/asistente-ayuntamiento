@@ -16,7 +16,8 @@ using Microsoft.SemanticKernel;
 // Offline RAG evaluation (spec: rag-evaluation). Usage:
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- [--pipelines Baseline,Hierarchical] [--limit N]
 //       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR]
-//   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID    (after score.py and report.py)
+//   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID|latest    (after score.py and report.py;
+//   also the Aspire resource "evaluation-import")
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
 var options = EvaluationArguments.Parse(args);
 var repository = EvaluationArguments.FindRepository();
@@ -41,7 +42,12 @@ if (options.Import is { } importRunId)
     try
     {
         await using var scope = importHost.Services.CreateAsyncScope();
-        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(Path.Combine(runsDirectory, importRunId));
+        // "latest": the newest run folder (run ids sort by date), for the Aspire resource that has no argument to edit.
+        var importId = importRunId == "latest"
+            ? Directory.GetDirectories(runsDirectory).Select(Path.GetFileName).OfType<string>().Order(StringComparer.Ordinal).LastOrDefault()
+                ?? throw new FileNotFoundException($"No runs in {runsDirectory}.")
+            : importRunId;
+        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(Path.Combine(runsDirectory, importId));
         importLogger.LogInformation("Imported run {RunId} with {Pipelines} pipelines", imported.RunId, imported.Results.Count);
         return 0;
     }
