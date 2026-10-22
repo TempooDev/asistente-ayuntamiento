@@ -135,8 +135,16 @@ public class AiMetricsQueryServiceTests
         {
             for (var i = 1; i <= 20; i++)
             {
-                db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", ModelId = "llama", Provider = "ollama", Success = true, DurationMs = i * 100,
-                    TimeToFirstTokenMs = i % 2 == 0 ? i * 10 : null, Pipeline = LlmPipelines.Baseline });
+                db.AiCallLogs.Add(new AiCallLog
+                {
+                    TenantId = "org_A",
+                    ModelId = "llama",
+                    Provider = "ollama",
+                    Success = true,
+                    DurationMs = i * 100,
+                    TimeToFirstTokenMs = i % 2 == 0 ? i * 10 : null,
+                    Pipeline = LlmPipelines.Baseline
+                });
             }
             db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", ModelId = "llama", Success = true, DurationMs = 99_999, Pipeline = LlmPipelines.Evaluation });
             db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", ModelId = "llama", Success = true, DurationMs = 99_999, CreatedAt = DateTime.UtcNow.AddDays(-60) });
@@ -166,8 +174,18 @@ public class AiMetricsQueryServiceTests
                 new AiCallLog { TenantId = "org_A", ModelId = "gpt", Provider = "openai", Success = true, DurationMs = 100, InputTokens = 1, OutputTokens = 1, TotalTokens = 2, Pipeline = LlmPipelines.Baseline },
                 new AiCallLog { TenantId = "org_A", ModelId = "gpt", Provider = "openai", Success = true, DurationMs = 300, InputTokens = 1, OutputTokens = 0, TotalTokens = 1, Pipeline = LlmPipelines.ArenaAlfa },
                 new AiCallLog { TenantId = "org_A", ModelId = "gpt", Provider = "openai", Success = true, DurationMs = 500, Pipeline = LlmPipelines.ArenaBeta },
-                new AiCallLog { TenantId = "org_A", ModelId = "mystery", Provider = "openrouter", Success = true, DurationMs = 100, InputTokens = 5, TotalTokens = 5, Pipeline = LlmPipelines.Hierarchical,
-                    Operation = LlmOperations.QueryExpansion });
+                new AiCallLog
+                {
+                    TenantId = "org_A",
+                    ModelId = "mystery",
+                    Provider = "openrouter",
+                    Success = true,
+                    DurationMs = 100,
+                    InputTokens = 5,
+                    TotalTokens = 5,
+                    Pipeline = LlmPipelines.Hierarchical,
+                    Operation = LlmOperations.QueryExpansion
+                });
             await db.SaveChangesAsync();
         }
         await using var tenant = Context("org_A");
