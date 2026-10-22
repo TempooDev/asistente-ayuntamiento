@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of } from 'rxjs';
+import { ComponentFixture, DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, of, throwError } from 'rxjs';
 import { provideTestDependencies } from '../../../../testing/test-providers';
 import { AuthFacade } from '../../../core/auth/auth-facade.service';
 import { AnalyticsService } from '../data-access/analytics.service';
@@ -110,6 +111,7 @@ class FakeAnalytics {
   evaluationListCalls = 0;
   current = summary();
   runs: EvaluationRunSummary[] = [];
+  runsError: HttpErrorResponse | null = null;
 
   getAiMetricsSummary(range: DateRange): Observable<AiMetricsSummary> {
     this.summaryRanges.push(range);
@@ -125,7 +127,7 @@ class FakeAnalytics {
   }
   getEvaluationRuns(): Observable<EvaluationRunSummary[]> {
     this.evaluationListCalls++;
-    return of(this.runs);
+    return this.runsError ? throwError(() => this.runsError) : of(this.runs);
   }
   getEvaluationRun(runId: string): Observable<EvaluationRunDetail> {
     this.runRequests.push(runId);
@@ -147,6 +149,8 @@ describe('AnalyticsDashboardComponent', () => {
     setup?.(analytics);
     await TestBed.configureTestingModule({
       imports: [AnalyticsDashboardComponent],
+      // The evaluation section is deferred until it scrolls into view; the tests render it directly.
+      deferBlockBehavior: DeferBlockBehavior.Manual,
       providers: [
         provideTestDependencies(),
         { provide: AnalyticsService, useValue: analytics },
@@ -155,6 +159,9 @@ describe('AnalyticsDashboardComponent', () => {
     }).compileComponents();
     fixture = TestBed.createComponent(AnalyticsDashboardComponent);
     fixture.detectChanges();
+    for (const block of await fixture.getDeferBlocks()) {
+      await block.render(DeferBlockState.Complete);
+    }
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
@@ -226,6 +233,21 @@ describe('AnalyticsDashboardComponent', () => {
     const empty = page.querySelector('[data-testid="evaluation-empty"]')!;
     expect(empty.textContent).toContain('--import {runId}');
     expect(analytics.runRequests).toHaveLength(0);
+  });
+
+  it('keeps the rest of the page when the evaluations cannot be loaded', async () => {
+    const page = await render({ platform: true, organization: true }, fake => (fake.runsError = new HttpErrorResponse({ status: 500 })));
+
+    expect(page.textContent).toContain('Las evaluaciones no están disponibles ahora mismo');
+    expect(page.querySelector('[data-testid="evaluation-empty"]')).toBeNull();
+    expect(analytics.summaryRanges.length).toBeGreaterThan(0);
+    expect(page.textContent).toContain('Respuestas');
+  });
+
+  it('treats an API without the evaluation endpoint as no runs', async () => {
+    const page = await render({ platform: true, organization: false }, fake => (fake.runsError = new HttpErrorResponse({ status: 404 })));
+
+    expect(page.querySelector('[data-testid="evaluation-empty"]')).not.toBeNull();
   });
 
   it('shows the newest run, with missing metrics as "—", and the history with two runs', async () => {

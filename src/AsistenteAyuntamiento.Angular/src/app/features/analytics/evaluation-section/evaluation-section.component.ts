@@ -3,6 +3,7 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ToastService } from '../../../shared/ui/toast.service';
 import { AnalyticsService } from '../data-access/analytics.service';
 import { EvaluationPipelineResult, EvaluationRunDetail, EvaluationRunSummary } from '../models/analytics.models';
@@ -52,10 +53,10 @@ export class EvaluationSectionComponent {
   protected readonly state = toSignal(
     this.api.getEvaluationRuns().pipe(
       map(runs => ({ status: 'loaded', runs }) as RunsState),
-      catchError(() => {
-        this.toast.error('No se han podido cargar las evaluaciones offline.');
-        return of<RunsState>({ status: 'error' });
-      }),
+      // Optional data: a failure (or an API without the endpoint yet) is shown inline, never as a page error.
+      catchError((error: unknown) =>
+        of<RunsState>(error instanceof HttpErrorResponse && error.status === 404 ? { status: 'loaded', runs: [] } : { status: 'error' }),
+      ),
     ),
     { initialValue: { status: 'loading' } as RunsState },
   );

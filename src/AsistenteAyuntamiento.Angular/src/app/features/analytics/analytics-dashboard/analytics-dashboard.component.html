@@ -63,7 +63,12 @@
     <section class="mb-4" aria-labelledby="evaluation-heading">
       <h2 id="evaluation-heading" class="text-xl font-bold text-gray-800 mb-1">Evaluación offline</h2>
       <p class="text-sm text-gray-500 mb-4">Resultados del evaluador RAGAS; no dependen del periodo seleccionado.</p>
-      <app-evaluation-section />
+      <!-- Loaded after the rest of the page, and only when scrolled into view: it is optional data. -->
+      @defer (on viewport) {
+        <app-evaluation-section />
+      } @placeholder {
+        <p class="text-gray-500 mb-8">Cargando evaluaciones...</p>
+      }
     </section>
   }
 

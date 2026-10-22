@@ -29,6 +29,15 @@ Scored offline evaluation runs SHALL be stored in the schema `evaluation`: `Eval
 - **WHEN** no run has been imported
 - **THEN** the section SHALL explain how to import one (`--import {runId}`) instead of showing empty charts
 
+#### Scenario: Evaluations unavailable
+- **WHEN** the runs request fails
+- **THEN** the section SHALL say inline that the evaluations are not available, without an error toast, and every other section SHALL load and show as usual
+- **AND** a 404 (an API without the endpoint yet) SHALL be shown as the "no runs" state
+
+#### Scenario: Loaded after the rest of the page
+- **WHEN** the page opens
+- **THEN** the section SHALL be requested only when it scrolls into view, after the period sections
+
 #### Scenario: Organization administrator without the platform role
 - **WHEN** a user with only `admin-organizacion` opens the page
 - **THEN** the section SHALL NOT be shown, and the API SHALL answer 403 if called directly
