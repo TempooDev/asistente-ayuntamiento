@@ -25,6 +25,33 @@ var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
 
 var builder = Host.CreateApplicationBuilder();
 
+// Outside Aspire the connection strings come from user secrets, in any environment:
+// dotnet user-secrets set "ConnectionStrings:asistente-ayuntamiento-db" "Host=localhost;..." --project src/AsistenteAyuntamiento.Evaluation
+builder.Configuration.AddUserSecrets<Program>(optional: true);
+
+if (options.Import is { } importRunId)
+{
+    // Only the database: importing needs no models, vectors or messaging.
+    builder.Services.AddSingleton<ICurrentTenantService, EvaluationTenantService>();
+    builder.AddNpgsqlDbContext<AppDbContext>("asistente-ayuntamiento-db", configureDbContextOptions: o => o.UseNpgsql(npgsql => npgsql.UseVector()));
+    builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+    builder.Services.AddScoped<EvaluationImporter>();
+    using var importHost = builder.Build();
+    var importLogger = importHost.Services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await using var scope = importHost.Services.CreateAsyncScope();
+        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(Path.Combine(runsDirectory, importRunId));
+        importLogger.LogInformation("Imported run {RunId} with {Pipelines} pipelines", imported.RunId, imported.Results.Count);
+        return 0;
+    }
+    catch (FileNotFoundException ex)
+    {
+        importLogger.LogError("{Message}", ex.Message);
+        return 1;
+    }
+}
+
 // One generation model for every pipeline, at temperature 0, whatever the host's chat settings are.
 var chatProvider = builder.Configuration["Evaluation:ChatProvider"] ?? "ollama";
 var chatModel = builder.Configuration["Evaluation:ChatModel"] ?? "qwen2.5:7b-instruct-q4_K_M";
@@ -53,7 +80,6 @@ builder.Services.AddSingleton(sp => new EvaluationPreflight(
     sp.GetRequiredService<AsistenteAyuntamiento.Application.Common.VectorStore.IVectorStore>(),
     sp.GetRequiredService<Kernel>().GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
 builder.Services.AddScoped<IndexingReporter>();
-builder.Services.AddScoped<EvaluationImporter>();
 builder.Services.AddSingleton<EvaluationRunner>();
 
 // Not started: the background processors of the API and Worker have nothing to do here.
@@ -61,23 +87,6 @@ using var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
-
-if (options.Import is { } importRunId)
-{
-    try
-    {
-        await using var scope = host.Services.CreateAsyncScope();
-        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>()
-            .ImportAsync(Path.Combine(runsDirectory, importRunId), cancellation.Token);
-        logger.LogInformation("Imported run {RunId} with {Pipelines} pipelines", imported.RunId, imported.Results.Count);
-        return 0;
-    }
-    catch (FileNotFoundException ex)
-    {
-        logger.LogError("{Message}", ex.Message);
-        return 1;
-    }
-}
 
 var dataset = EvaluationDataset.Load(datasetDirectory);
 if (options.Limit is { } limit)
