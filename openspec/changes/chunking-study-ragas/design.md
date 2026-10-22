@@ -48,8 +48,15 @@ All three flat strategies use the same token counter as `TextChunker` (its defau
 ### 8. Same models, controlled order
 The runner overrides the chat and ingestion models with `Evaluation:ChatModel` (default Ollama `qwen2.5:7b-instruct-q4_K_M`, temperature 0) for every variant and refuses to start if any study collection has a vector size other than the configured embedding model's. Per question, the order of the variants is shuffled with a seed stored in `run.json`; the first question of each variant is a warm-up excluded from latency statistics.
 
-### 9. Metrics
-- RAGAS: `LLMContextPrecisionWithReference`, `LLMContextRecall`, `Faithfulness`, `ResponseRelevancy` (embeddings `nomic-embed-text`).
+### 9. Embedding model and query instruction
+The study embeds with Ollama `qwen3-embedding:0.6b` (1024 dimensions, 32k context), replacing `nomic-embed-text` as the local default: it is multilingual and the corpus and questions are Spanish, while nomic was trained mostly on English. The 0.6B size keeps the semantic strategy, which embeds one window per sentence, affordable on a laptop; the 4B and 8B sizes are not worth their cost here. Collections are created with the size of the first vector, so the existing 768-dimension local collections are deleted and the corpus is re-ingested.
+
+Qwen3-Embedding is instruction-aware: queries perform better as `Instruct: {task}\nQuery: {text}`, while documents go without a prefix. `Ai:Embeddings:QueryInstruction` holds the task text (local default: `Dada una pregunta de un ciudadano o de un técnico municipal, recupera los fragmentos de boletines oficiales (BOE y BOJA) que la responden`); when it is set, every query embedding (baseline search, hybrid retrieval, Arena) is prefixed, and ingestion and the semantic strategy's sentence windows are not. When it is empty nothing changes, which keeps production (`text-embedding-004`) as it is.
+
+*Alternative:* keep `nomic-embed-text` with its own `search_query:`/`search_document:` prefixes. Rejected: weaker in Spanish, and the prefixes are not used today either.
+
+### 10. Metrics
+- RAGAS: `LLMContextPrecisionWithReference`, `LLMContextRecall`, `Faithfulness`, `ResponseRelevancy` (embeddings `qwen3-embedding:0.6b`).
 - Hallucination rate: share of answers with faithfulness below `HallucinationThreshold` (default 0.8).
 - Deterministic retrieval: document hit rate@k and MRR against `reference_document_ids`, which do not depend on the judge.
 - Latency: p50, p95 and mean per stage and variant.

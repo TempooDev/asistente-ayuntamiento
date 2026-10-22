@@ -109,7 +109,7 @@ public static class DependencyInjection
 
         var aiEmbeddingsConfig = builder.Configuration.GetSection("Ai:Embeddings");
         var embProvider = aiEmbeddingsConfig["Provider"] ?? "ollama";
-        var embModel = aiEmbeddingsConfig["Model"] ?? "nomic-embed-text";
+        var embModel = aiEmbeddingsConfig["Model"] ?? "qwen3-embedding:0.6b";
         var embEndpoint = aiEmbeddingsConfig["EndpointUrl"] ?? ollamaEndpoint;
         var embApiKey = aiEmbeddingsConfig["ApiKey"] ?? "";
 

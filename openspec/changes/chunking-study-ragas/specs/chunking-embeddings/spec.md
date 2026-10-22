@@ -26,6 +26,18 @@ The system SHALL split text through the `IChunkingStrategy` abstraction (`Applic
 
 ## ADDED Requirements
 
+### Requirement: Query Embedding Instruction
+When `Ai:Embeddings:QueryInstruction` is not empty, every embedding of a user query used for retrieval (baseline and flat-variant search, hybrid retrieval, Arena) SHALL be generated from `Instruct: {QueryInstruction}\nQuery: {query}`. Texts embedded at ingestion time, including the semantic strategy's sentence windows, SHALL be embedded without the prefix. When the setting is empty or missing, queries SHALL be embedded unchanged. The local AppHost SHALL use `qwen3-embedding:0.6b` with a Spanish instruction for municipal bulletin retrieval.
+
+#### Scenario: Instruction configured
+- **WHEN** `QueryInstruction` is set and a user asks "¿Qué plazo tengo para presentarme?"
+- **THEN** the embedded text SHALL be `Instruct: {QueryInstruction}\nQuery: ¿Qué plazo tengo para presentarme?`
+- **AND** the chunks of the corpus SHALL have been embedded without any prefix
+
+#### Scenario: No instruction
+- **WHEN** `QueryInstruction` is empty (for example in production with `text-embedding-004`)
+- **THEN** the query SHALL be embedded exactly as written
+
 ### Requirement: Recursive Chunking Strategy
 `RecursiveChunkingStrategy` SHALL split text by trying, in order, paragraph breaks (`\n\n`), line breaks (`\n`), sentence ends (`. `, `; `, `: `), spaces and finally characters: a piece within `ChunkMaxTokens` SHALL be kept whole, and a longer piece SHALL be split again with the next separator. Adjacent pieces SHALL be merged up to `ChunkMaxTokens`, and consecutive chunks SHALL share up to `ChunkOverlapTokens` taken from whole pieces at the end of the previous chunk. Its limits SHALL default to the fixed strategy's (`Ai:Chunking:Recursive:ChunkMaxTokens`, `Ai:Chunking:Recursive:ChunkOverlapTokens`, falling back to `Ai:Embeddings:*`) and are validated like them.
 

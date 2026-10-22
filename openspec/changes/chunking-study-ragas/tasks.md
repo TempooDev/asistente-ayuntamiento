@@ -3,6 +3,7 @@
 - [ ] 1.1 Change `IChunkingStrategy` to `ChunkTextAsync(string, CancellationToken)` returning `IReadOnlyList<DocumentChunkResult>`, add an optional `EmbeddedTokens` to the result, and adapt `FixedOverlapChunkingStrategy` (`src/AsistenteAyuntamiento.Application/Features/Ingestion/Chunking/IChunkingStrategy.cs`, `FixedOverlapChunkingStrategy.cs`, `DocumentChunkResult.cs`).
 - [ ] 1.2 Await the new method in `DocumentIngestionService.cs`, `BoeIngestionService.cs` and `BojaIngestionService.cs`, and update `tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/FixedOverlapChunkingStrategyTests.cs` and the ingestion tests that mock the strategy.
 - [ ] 1.3 Extract the token estimator used by `TextChunker` into a shared `ChunkTokenCounter` used by every strategy (`Application/Features/Ingestion/Chunking/ChunkTokenCounter.cs`).
+- [ ] 1.4 Add `Ai:Embeddings:QueryInstruction` and a small query-embedding helper that applies `Instruct: …\nQuery: …` when it is set; use it in `BaselineRagPipeline.cs`, `HybridRetrievalService.cs` and `ArenaService.cs`, set the Spanish instruction in the local AppHost and document it in `docs/setup.md`, with tests for both cases.
 
 ## 2. Recursive strategy
 
@@ -61,7 +62,7 @@
 
 ## 10. Study execution
 
-- [ ] 10.1 Locally with Ollama (`nomic-embed-text`, `qwen2.5:7b-instruct-q4_K_M`): recreate the study collections at 768 dimensions, enqueue the corpus with `pipelineMode=ALL` and wait for the four statuses to be `Completed`.
+- [ ] 10.1 Locally with Ollama (`qwen3-embedding:0.6b`, `qwen2.5:7b-instruct-q4_K_M`): delete the 768-dimension collections, recreate all of them at 1024 dimensions, enqueue the corpus with `pipelineMode=ALL` and wait for the four statuses to be `Completed`.
 - [ ] 10.2 Run the runner and the scorer; keep `eval/runs/{runId}/` with `run.json`, `scores.csv`, `summary.csv`, `latency.csv` and `indexing.csv` for chapter 7 and appendix A.
 - [ ] 10.3 Run the operational latency report for chapter 8.
 - [ ] 10.4 Set `Rag:ProductionPipeline` to the winning variant and decide which variants stay in `Rag:ArenaPipelines`.

@@ -31,7 +31,7 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 | **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks` y `child_fragments`) |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
 | **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (la API crea el bucket privado al arrancar) |
-| **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`nomic-embed-text`) y LLM de fallback (`llama3.2`) |
+| **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`qwen3-embedding:0.6b`) y LLM de fallback (`llama3.2`) |
 
 > [!TIP]
 > La primera ejecución tarda varios minutos porque Docker descarga las imágenes y Ollama descarga los modelos. Las siguientes arrancan en segundos.
@@ -77,7 +77,7 @@ Para producción, crear un bucket en [Cloudflare R2](https://developers.cloudfla
 
 #### Modelos de IA
 
-Por defecto todo funciona con Ollama local (`llama3.2` para chat y `nomic-embed-text` para embeddings). Los parámetros `ai-chat-*` fijan el modelo por defecto de la plataforma. Cada tenant puede elegir el suyo en *Configuración → IA*; su clave se guarda cifrada con Data Protection. Los embeddings son siempre los de la plataforma (`ai-embeddings-*`). Para el modelo de respaldo ante cuota agotada se usa `Ai:Fallback:{Provider,Endpoint,ModelId,ApiKey}`.
+Por defecto todo funciona con Ollama local (`llama3.2` para chat y `qwen3-embedding:0.6b` para embeddings). Los parámetros `ai-chat-*` fijan el modelo por defecto de la plataforma. Cada tenant puede elegir el suyo en *Configuración → IA*; su clave se guarda cifrada con Data Protection. Los embeddings son siempre los de la plataforma (`ai-embeddings-*`). Para el modelo de respaldo ante cuota agotada se usa `Ai:Fallback:{Provider,Endpoint,ModelId,ApiKey}`.
 
 ---
 
@@ -106,7 +106,7 @@ dotnet user-secrets set "Parameters:ai-chat-provider"       "ollama"           -
 dotnet user-secrets set "Parameters:ai-chat-model"          "llama3.2"         --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Parameters:ai-chat-api-key"        ""                 --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Parameters:ai-embeddings-provider" "ollama"           --project src/AsistenteAyuntamiento.AppHost
-dotnet user-secrets set "Parameters:ai-embeddings-model"    "nomic-embed-text" --project src/AsistenteAyuntamiento.AppHost
+dotnet user-secrets set "Parameters:ai-embeddings-model"    "qwen3-embedding:0.6b" --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Parameters:ai-embeddings-api-key"  ""                 --project src/AsistenteAyuntamiento.AppHost
 
 # ── Cloudflare R2 (opcional en dev — sin esto se usa MinIO) ─────────────────────
