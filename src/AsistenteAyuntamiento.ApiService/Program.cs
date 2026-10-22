@@ -1,6 +1,7 @@
 using AsistenteAyuntamiento.ApiService.Features.AiConfig;
 using AsistenteAyuntamiento.ApiService.Features.Arena;
 using AsistenteAyuntamiento.ApiService.Features.Chat;
+using AsistenteAyuntamiento.ApiService.Features.Evaluation;
 using AsistenteAyuntamiento.ApiService.Features.Config;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
@@ -166,6 +167,7 @@ app.MapIngestionEndpoints();
 app.MapScraperFilterEndpoints();
 app.MapArenaEndpoints();
 app.MapAiMetricsEndpoints();
+app.MapEvaluationEndpoints();
 
 app.MapDefaultEndpoints();
 

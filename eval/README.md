@@ -19,6 +19,7 @@ Compara las variantes de chunking con las mismas preguntas, el mismo corpus y lo
    ```
    Antes de preguntar nada comprueba que cada colección existe, tiene la dimensión del modelo de embeddings y contiene puntos de todos los documentos del corpus. Responde con `Evaluation:ChatModel` a temperatura 0 en todas las variantes, baraja el orden de las variantes en cada pregunta con la semilla y escribe cada respuesta en cuanto la tiene. Una ejecución interrumpida se continúa con `--resume {runId}`. No abre ningún puerto.
 5. **Puntuar e informes:** `uv run python score.py ../runs/{runId}` y `uv run python report.py ../runs/{runId}`.
+6. **Guardar en la base de datos:** `dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import {runId}`. Lee `run.json`, `summary.csv`, `latency.csv`, `indexing.csv` y `scoring.json`, y guarda la ejecución en `evaluation.EvaluationRuns` y `evaluation.EvaluationPipelineResults` (si ya estaba, la reemplaza). La sección «Evaluación offline» de Métricas la muestra (`GET /api/evaluation/runs`, solo administradores de plataforma). Necesita la cadena de conexión de la base, igual que el runner.
 
 ## Decisiones de la medición
 

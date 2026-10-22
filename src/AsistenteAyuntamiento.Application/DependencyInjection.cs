@@ -4,6 +4,7 @@ using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Application.Features.Evaluation;
 using AsistenteAyuntamiento.Application.Features.Generation;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.Chunking;
@@ -65,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<IArenaService, ArenaService>();
         services.AddScoped<IArenaAnalyticsService, ArenaAnalyticsService>();
         services.AddScoped<IAiMetricsQueryService, AiMetricsQueryService>();
+        services.AddScoped<IEvaluationResultsService, EvaluationResultsService>();
 
         // Users and scraper administration
         services.AddScoped<IUserPreferenceService, UserPreferenceService>();

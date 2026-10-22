@@ -41,4 +41,11 @@ public class AiCallLog
     [Required]
     [MaxLength(50)]
     public string Operation { get; set; } = "answer";
+
+    /// <summary>Provider of the model that answered (fallback included), to price the call; null for older rows.</summary>
+    [MaxLength(50)]
+    public string? Provider { get; set; }
+
+    /// <summary>Streamed calls only: milliseconds until the first chunk; null for non-streamed calls and older rows.</summary>
+    public double? TimeToFirstTokenMs { get; set; }
 }

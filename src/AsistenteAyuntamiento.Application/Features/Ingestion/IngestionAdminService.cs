@@ -46,7 +46,8 @@ public class IngestionAdminService : IIngestionAdminService
         _logger = logger;
     }
 
-    public async Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb, CancellationToken cancellationToken = default)
+    public async Task<BlobListResult> ListBlobsAsync(int? page, int? pageSize, string? status, string? search, DateTime? dateFrom, DateTime? dateTo, int? minSizeKb, int? maxSizeKb,
+        string? pipeline = null, CancellationToken cancellationToken = default)
     {
         var cacheKey = BlobListCacheKey;
         if (!_cache.TryGetValue(cacheKey, out List<BlobItemDto>? allBlobs) || allBlobs == null)
@@ -59,17 +60,23 @@ public class IngestionAdminService : IIngestionAdminService
                     allBlobs = new List<BlobItemDto>();
                     var jobStates = await _dbContext.DocumentJobStates
                         .AsNoTracking()
-                        .Select(j => new { j.DocumentId, j.Status })
-                        .ToDictionaryAsync(j => j.DocumentId, j => j.Status.ToString(), cancellationToken);
+                        .Select(j => new { j.DocumentId, j.Status, j.BaselineStatus, j.HierarchicalStatus, j.ErrorMessage })
+                        .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
 
                     try
                     {
                         await foreach (var blob in _blobStorage.ListAsync(ScrapedJsonPrefix, cancellationToken))
                         {
                             var docId = blob.Key.Split('/').LastOrDefault()?.Replace(".json", "") ?? "";
-                            var objStatus = jobStates.TryGetValue(docId, out var jobStatus) ? jobStatus : nameof(JobStatus.Pending);
+                            jobStates.TryGetValue(docId, out var state);
+                            var objStatus = state?.Status.ToString() ?? nameof(JobStatus.Pending);
 
-                            allBlobs.Add(new BlobItemDto(blob.Key, blob.Size, blob.LastModified, objStatus == nameof(JobStatus.Completed), objStatus));
+                            allBlobs.Add(new BlobItemDto(blob.Key, blob.Size, blob.LastModified, objStatus == nameof(JobStatus.Completed), objStatus)
+                            {
+                                BaselineStatus = state?.BaselineStatus?.ToString(),
+                                HierarchicalStatus = state?.HierarchicalStatus?.ToString(),
+                                ErrorMessage = state?.ErrorMessage,
+                            });
                         }
                     }
                     catch (Exception ex)
@@ -77,7 +84,8 @@ public class IngestionAdminService : IIngestionAdminService
                         _logger.LogError(ex, "Error listing objects from blob storage");
                     }
 
-                    _cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(30));
+                    // Short: the documents page polls every 10 s while a pipeline is ingesting.
+                    _cache.Set(cacheKey, allBlobs, TimeSpan.FromSeconds(10));
                 }
             }
             finally
@@ -96,9 +104,16 @@ public class IngestionAdminService : IIngestionAdminService
 
         if (!string.IsNullOrEmpty(status) && status != "Todos")
         {
-            if (status == "Procesados") filteredBlobs = filteredBlobs.Where(b => b.Status == nameof(JobStatus.Completed));
-            else if (status == "Pendientes") filteredBlobs = filteredBlobs.Where(b => b.Status is nameof(JobStatus.Pending) or nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed));
-            else if (status == "Encolados") filteredBlobs = filteredBlobs.Where(b => b.Status == nameof(JobStatus.Queued) || b.Status == nameof(JobStatus.Processing));
+            // On the chosen pipeline's own status (never sent counts as pending), or on the summary status.
+            Func<BlobItemDto, string> statusOf = pipeline?.ToUpperInvariant() switch
+            {
+                "BASELINE" => b => b.BaselineStatus ?? nameof(JobStatus.Pending),
+                "HIERARCHICAL" => b => b.HierarchicalStatus ?? nameof(JobStatus.Pending),
+                _ => b => b.Status,
+            };
+            if (status == "Procesados") filteredBlobs = filteredBlobs.Where(b => statusOf(b) == nameof(JobStatus.Completed));
+            else if (status == "Pendientes") filteredBlobs = filteredBlobs.Where(b => statusOf(b) is nameof(JobStatus.Pending) or nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed));
+            else if (status == "Encolados") filteredBlobs = filteredBlobs.Where(b => statusOf(b) is nameof(JobStatus.Queued) or nameof(JobStatus.Processing));
         }
 
         if (dateFrom.HasValue)
@@ -142,8 +157,26 @@ public class IngestionAdminService : IIngestionAdminService
                 Queued = allBlobs.Count(b => b.Status == nameof(JobStatus.Queued)),
                 Completed = allBlobs.Count(b => b.Status == nameof(JobStatus.Completed)),
                 Processing = allBlobs.Count(b => b.Status == nameof(JobStatus.Processing))
-            }
+            },
+            PipelineStats =
+            [
+                PipelineStats(nameof(PipelineType.Baseline), allBlobs, b => b.BaselineStatus),
+                PipelineStats(nameof(PipelineType.Hierarchical), allBlobs, b => b.HierarchicalStatus),
+            ]
         };
+    }
+
+    private static PipelineBlobStats PipelineStats(string pipeline, List<BlobItemDto> blobs, Func<BlobItemDto, string?> statusOf)
+    {
+        var statuses = blobs.Select(statusOf).ToList();
+        return new PipelineBlobStats(
+            pipeline,
+            blobs.Count,
+            statuses.Count(s => s == nameof(JobStatus.Completed)),
+            statuses.Count(s => s == nameof(JobStatus.Processing)),
+            statuses.Count(s => s == nameof(JobStatus.Queued)),
+            statuses.Count(s => s is nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed)),
+            statuses.Count(s => s is null or nameof(JobStatus.Pending)));
     }
 
     public async Task ResetDocumentStatusAsync(string documentId, CancellationToken cancellationToken = default)

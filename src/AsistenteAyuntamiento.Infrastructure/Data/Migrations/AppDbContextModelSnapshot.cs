@@ -20,7 +20,7 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("identity")
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -172,6 +172,10 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("Provider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<bool>("Success")
                         .HasColumnType("boolean");
 
@@ -179,6 +183,9 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<double?>("TimeToFirstTokenMs")
+                        .HasColumnType("double precision");
 
                     b.Property<int>("TotalTokens")
                         .HasColumnType("integer");
@@ -278,6 +285,158 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.HasIndex("FailedAt");
 
                     b.ToTable("FailedChatMessages", "chat");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Evaluation.EvaluationPipelineResult", b =>
+                {
+                    b.Property<string>("RunId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Pipeline")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<double?>("AnswerRelevancy")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("AnswerRelevancyStd")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ChunksPerDocument")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ContextPrecision")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ContextPrecisionStd")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ContextRecall")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ContextRecallStd")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("Failed")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("Faithfulness")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("FaithfulnessStd")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("HallucinationRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("HitAt1")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("HitAt3")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("HitAt5")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("IndexingP50Ms")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("IndexingP95Ms")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LatencyP50Ms")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LatencyP95Ms")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("MeanTokens")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("Missing")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("Mrr")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("NoAnswerDetectedRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<long?>("Points")
+                        .HasColumnType("bigint");
+
+                    b.Property<double?>("TtftP50Ms")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("TtftP95Ms")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("RunId", "Pipeline");
+
+                    b.ToTable("EvaluationPipelineResults", "evaluation");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Evaluation.EvaluationRun", b =>
+                {
+                    b.Property<string>("RunId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ChatModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CorpusHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DatasetHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EmbeddingModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GitCommit")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("JudgeModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("QueryInstruction")
+                        .HasColumnType("text");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RagasVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Seed")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("RunId");
+
+                    b.ToTable("EvaluationRuns", "evaluation");
                 });
 
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ChildFragment", b =>
@@ -622,6 +781,15 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Navigation("Session");
                 });
 
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Evaluation.EvaluationPipelineResult", b =>
+                {
+                    b.HasOne("AsistenteAyuntamiento.Domain.Features.Evaluation.EvaluationRun", null)
+                        .WithMany("Results")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ChildFragment", b =>
                 {
                     b.HasOne("AsistenteAyuntamiento.Domain.Features.Ingestion.ParentDocument", "Parent")
@@ -636,6 +804,11 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Chat.Entities.ChatSession", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Evaluation.EvaluationRun", b =>
+                {
+                    b.Navigation("Results");
                 });
 
             modelBuilder.Entity("AsistenteAyuntamiento.Domain.Features.Ingestion.ParentDocument", b =>

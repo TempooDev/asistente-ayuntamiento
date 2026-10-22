@@ -7,4 +7,5 @@ public class BlobListResult
     public int PageSize { get; set; }
     public List<BlobItemDto> Items { get; set; } = new();
     public BlobListStats Stats { get; set; } = new();
+    public List<PipelineBlobStats> PipelineStats { get; set; } = new();
 }

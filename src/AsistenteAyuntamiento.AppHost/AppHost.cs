@@ -115,20 +115,37 @@ var qdrant = builder.AddQdrant("qdrant")
     .WithDataVolume("asistente-ayuntamiento-qdrantdata")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var ollama = builder.AddOllama("ollama")
-    .WithDataVolume()
-    // Ollama's default 4,096-token window drops a system prompt that does not fit (documents included) without
-    // an error; the hierarchical answer sends up to ~6,500 tokens of legal text (Ai:Hierarchical:MaxContextChars).
-    .WithEnvironment("OLLAMA_CONTEXT_LENGTH", "16384");
-// On CPU, local ingestion calls time out. With an NVIDIA GPU visible to the container runtime (Docker, or Podman
-// with the NVIDIA Container Toolkit and its CDI spec):
-// dotnet user-secrets set "Ollama:Gpu" "true" --project src/AsistenteAyuntamiento.AppHost
-if (string.Equals(builder.Configuration["Ollama:Gpu"], "true", StringComparison.OrdinalIgnoreCase))
+// The models run in an Ollama container by default. On a Mac the container gets neither the GPU nor enough memory for
+// the 7B evaluation model, so the native Ollama (Metal) can be used instead; its models are pulled by hand
+// (ollama pull llama3.2 qwen3-embedding:0.6b qwen2.5:7b-instruct-q4_K_M) and it should run with
+// OLLAMA_CONTEXT_LENGTH=16384 like the container:
+// dotnet user-secrets set "ConnectionStrings:ollama" "Endpoint=http://localhost:11434" --project src/AsistenteAyuntamiento.AppHost
+IResourceBuilder<IResourceWithConnectionString> ollama;
+IResourceBuilder<IResource>? evaluationModel = null;
+if (!string.IsNullOrEmpty(builder.Configuration["ConnectionStrings:ollama"]))
 {
-    ollama.WithGPUSupport();
+    ollama = builder.AddConnectionString("ollama");
 }
-ollama.AddModel("llama3.2");
-ollama.AddModel("qwen3-embedding:0.6b");
+else
+{
+    var ollamaContainer = builder.AddOllama("ollama")
+        .WithDataVolume()
+        // Ollama's default 4,096-token window drops a system prompt that does not fit (documents included) without
+        // an error; the hierarchical answer sends up to ~6,500 tokens of legal text (Ai:Hierarchical:MaxContextChars).
+        .WithEnvironment("OLLAMA_CONTEXT_LENGTH", "16384");
+    // On CPU, local ingestion calls time out. With an NVIDIA GPU visible to the container runtime (Docker, or Podman
+    // with the NVIDIA Container Toolkit and its CDI spec):
+    // dotnet user-secrets set "Ollama:Gpu" "true" --project src/AsistenteAyuntamiento.AppHost
+    if (string.Equals(builder.Configuration["Ollama:Gpu"], "true", StringComparison.OrdinalIgnoreCase))
+    {
+        ollamaContainer.WithGPUSupport();
+    }
+    ollamaContainer.AddModel("llama3.2");
+    ollamaContainer.AddModel("qwen3-embedding:0.6b");
+    // The evaluation's model (Evaluation:ChatModel), pulled into the volume the first time.
+    evaluationModel = ollamaContainer.AddModel("qwen2.5:7b-instruct-q4_K_M");
+    ollama = ollamaContainer;
+}
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithReference(ollama)
@@ -177,8 +194,9 @@ var gateway = builder.AddProject<Projects.AsistenteAyuntamiento_Gateway>("gatewa
 var goScraper = builder.AddGoApp("go-scraper", "../go-scraper", "./cmd/scraper")
     .WithModDownload()
     .WithVetTool()
-    .WithHttpEndpoint(targetPort: 8080, name: "http", env: "PORT")
-    .WithHttpEndpoint(targetPort: 50051, name: "grpc", env: "GRPC_PORT")
+    // No fixed target ports: Aspire picks free ones and passes them in PORT / GRPC_PORT (8080 is often taken locally).
+    .WithHttpEndpoint(name: "http", env: "PORT")
+    .WithHttpEndpoint(name: "grpc", env: "GRPC_PORT")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
     .WithReference(apiService)
@@ -226,8 +244,7 @@ WithAi(workerHierarchical);
 WithBlobStorage(workerHierarchical);
 
 // Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
-// answers with its own model (Evaluation:ChatModel), pulled into the Ollama volume the first time.
-var evaluationModel = ollama.AddModel("qwen2.5:7b-instruct-q4_K_M");
+// answers with its own model (Evaluation:ChatModel).
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
     .WithReference(db)
@@ -235,8 +252,11 @@ var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("
     .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(qdrant)
-    .WaitFor(evaluationModel)
     .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
+if (evaluationModel is not null)
+{
+    evaluation.WaitFor(evaluationModel);
+}
 
 WithAi(evaluation);
 

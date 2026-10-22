@@ -1,6 +1,7 @@
 using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Evaluation;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
 using AsistenteAyuntamiento.Domain.Features.Users;
@@ -24,6 +25,8 @@ public interface IAppDbContext
     DbSet<ParentDocument> ParentDocuments { get; set; }
     DbSet<ChildFragment> ChildFragments { get; set; }
     DbSet<IngestionMetric> IngestionMetrics { get; set; }
+    DbSet<EvaluationRun> EvaluationRuns { get; set; }
+    DbSet<EvaluationPipelineResult> EvaluationPipelineResults { get; set; }
 
     /// <summary>
     /// Runs <paramref name="operation"/> in a database transaction under the provider's retrying execution

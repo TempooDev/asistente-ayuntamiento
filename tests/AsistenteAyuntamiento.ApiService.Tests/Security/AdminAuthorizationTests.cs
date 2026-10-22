@@ -34,6 +34,8 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         { "GET", "/api/ai/metrics" },
         { "GET", "/api/ai/health" },
         { "GET", "/api/ai/metrics/ingestion" },
+        { "GET", "/api/evaluation/runs" },
+        { "GET", "/api/evaluation/runs/20261022-213000" },
         { "GET", "/api/arena/analytics" },
     };
 
@@ -132,7 +134,7 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     /// <summary>Route prefixes whose every mapped route must be classified in <see cref="RouteRules"/>.</summary>
-    private static readonly string[] AdminAreas = ["/api/ingestion", "/api/scraper", "/api/settings", "/api/ai", "/api/arena"];
+    private static readonly string[] AdminAreas = ["/api/ingestion", "/api/scraper", "/api/settings", "/api/ai", "/api/arena", "/api/evaluation"];
 
     /// <summary>Expected authorization for routes that only require a signed-in user, not an admin role.</summary>
     private const string AuthenticatedUser = "(authenticated user)";
@@ -148,6 +150,7 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
     [
         ("/api/ingestion", true, Policies.PlatformAdmin),
         ("/api/scraper", true, Policies.PlatformAdmin),
+        ("/api/evaluation", true, Policies.PlatformAdmin),
         ("/api/settings", true, Policies.OrganizationAdmin),
         ("/api/ai", true, Policies.PlatformAdmin),
         ("/api/ai/metrics/summary", false, Policies.OrganizationAdmin),

@@ -231,6 +231,18 @@ layer(base);
     --font-headline: 'Public Sans', sans-serif;
     --font-body: 'Public Sans', sans-serif;
     --font-label: 'Inter', sans-serif;
+
+    /* Chart colours: one fixed colour per pipeline, the same in every chart. */
+    --chart-baseline: #2563eb;
+    --chart-hierarchical: #d97706;
+    --chart-recursive: #059669;
+    --chart-semantic: #9333ea;
+    --chart-arena: #db2777;
+    --chart-shadow: #64748b;
+    --chart-answers: #455f88;
+    --chart-latency: #dc2626;
+    --chart-text: #43474e;
+    --chart-grid: #e5e7eb;
   }
 
   [data-theme='dark'] {
@@ -248,6 +260,17 @@ layer(base);
 
     /* Form controls (Field, FieldText, scrollbars) follow the theme. */
     color-scheme: dark;
+
+    --chart-baseline: #60a5fa;
+    --chart-hierarchical: #fbbf24;
+    --chart-recursive: #34d399;
+    --chart-semantic: #c084fc;
+    --chart-arena: #f472b6;
+    --chart-shadow: #94a3b8;
+    --chart-answers: #adc7f7;
+    --chart-latency: #f87171;
+    --chart-text: #cbd5e0;
+    --chart-grid: #4a5568;
 
     /*
       Dark values of the Tailwind theme colours. Utilities read var(--color-*), so every page follows the theme

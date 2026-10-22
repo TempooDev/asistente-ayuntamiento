@@ -4,7 +4,8 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 namespace AsistenteAyuntamiento.Evaluation;
 
 /// <summary>Command-line options of the runner.</summary>
-public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output)
+/// <param name="Import">Run id to store in the database instead of running (<c>--import</c>).</param>
+public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output, string? Import = null)
 {
     public static EvaluationArguments Parse(IReadOnlyList<string> args)
     {
@@ -18,7 +19,7 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values[args[i][2..]] = args[++i];
         }
 
-        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output"], StringComparer.OrdinalIgnoreCase).ToList();
+        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import"], StringComparer.OrdinalIgnoreCase).ToList();
         if (unknown.Count > 0)
         {
             throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
@@ -30,7 +31,8 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.TryGetValue("seed", out var seed) ? int.Parse(seed) : null,
             values.GetValueOrDefault("resume"),
             values.GetValueOrDefault("dataset"),
-            values.GetValueOrDefault("output"));
+            values.GetValueOrDefault("output"),
+            values.GetValueOrDefault("import"));
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

@@ -2,6 +2,7 @@ using AsistenteAyuntamiento.Domain.Features.AiConfig;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using AsistenteAyuntamiento.Domain.Features.Chat;
 using AsistenteAyuntamiento.Domain.Features.Chat.Entities;
+using AsistenteAyuntamiento.Domain.Features.Evaluation;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
 using AsistenteAyuntamiento.Domain.Features.Users;
@@ -30,6 +31,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public DbSet<ChildFragment> ChildFragments { get; set; }
     public DbSet<ArenaBattle> ArenaBattles { get; set; }
     public DbSet<IngestionMetric> IngestionMetrics { get; set; }
+    public DbSet<EvaluationRun> EvaluationRuns { get; set; }
+    public DbSet<EvaluationPipelineResult> EvaluationPipelineResults { get; set; }
 
     /// <summary>Full-text column of <c>ingestion."ChildFragments"</c> (shadow property, maintained by a trigger).</summary>
     public const string ChildFragmentTsvColumn = "TsvContent";
@@ -169,6 +172,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
         modelBuilder.Entity<IngestionMetric>(entity =>
         {
             entity.ToTable("IngestionMetrics", "ingestion");
+        });
+
+        // Offline evaluation results: platform-wide, no tenant filter.
+        modelBuilder.Entity<EvaluationRun>(entity =>
+        {
+            entity.ToTable("EvaluationRuns", "evaluation");
+            entity.HasMany(r => r.Results).WithOne().HasForeignKey(p => p.RunId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationPipelineResult>(entity =>
+        {
+            entity.ToTable("EvaluationPipelineResults", "evaluation");
+            entity.HasKey(p => new { p.RunId, p.Pipeline });
         });
     }
 }

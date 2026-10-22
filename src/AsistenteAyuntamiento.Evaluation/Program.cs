@@ -16,6 +16,7 @@ using Microsoft.SemanticKernel;
 // Offline RAG evaluation (spec: rag-evaluation). Usage:
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- [--pipelines Baseline,Hierarchical] [--limit N]
 //       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR]
+//   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID    (after score.py and report.py)
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
 var options = EvaluationArguments.Parse(args);
 var repository = EvaluationArguments.FindRepository();
@@ -52,6 +53,7 @@ builder.Services.AddSingleton(sp => new EvaluationPreflight(
     sp.GetRequiredService<AsistenteAyuntamiento.Application.Common.VectorStore.IVectorStore>(),
     sp.GetRequiredService<Kernel>().GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
 builder.Services.AddScoped<IndexingReporter>();
+builder.Services.AddScoped<EvaluationImporter>();
 builder.Services.AddSingleton<EvaluationRunner>();
 
 // Not started: the background processors of the API and Worker have nothing to do here.
@@ -59,6 +61,23 @@ using var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+
+if (options.Import is { } importRunId)
+{
+    try
+    {
+        await using var scope = host.Services.CreateAsyncScope();
+        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>()
+            .ImportAsync(Path.Combine(runsDirectory, importRunId), cancellation.Token);
+        logger.LogInformation("Imported run {RunId} with {Pipelines} pipelines", imported.RunId, imported.Results.Count);
+        return 0;
+    }
+    catch (FileNotFoundException ex)
+    {
+        logger.LogError("{Message}", ex.Message);
+        return 1;
+    }
+}
 
 var dataset = EvaluationDataset.Load(datasetDirectory);
 if (options.Limit is { } limit)

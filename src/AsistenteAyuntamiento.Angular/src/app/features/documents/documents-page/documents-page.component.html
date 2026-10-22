@@ -23,11 +23,19 @@
     </div>
   </div>
 
+  @if (pipelineStats().length > 0) {
+    <app-pipeline-progress [stats]="pipelineStats()" />
+  }
+
   @if (stats(); as s) {
     <app-document-stats [stats]="s" [selected]="filters().status" (filterSelected)="showStatus($event)" />
   }
 
   <app-document-filters [filters]="filters()" [shown]="filteredCount()" [total]="stats()?.total ?? 0" (changed)="changeFilters($event)" />
+
+  @if (ingesting()) {
+    <p class="text-xs opacity-70 mb-sm" role="status" data-testid="auto-refresh">Ingesta en curso: se actualiza cada 10 segundos.</p>
+  }
 
   @if (isLoading()) {
     <div class="p-4 flex justify-center" role="status">

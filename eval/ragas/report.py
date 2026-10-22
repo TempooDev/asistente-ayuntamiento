@@ -38,7 +38,8 @@ def indexing_table(indexing: dict) -> pd.DataFrame:
                             columns=["document_id", "processing_ms", "chunks", "embedded_tokens", "llm_calls", "llm_tokens"])
         out.append({
             "pipeline": p["pipeline"], "collection": p.get("collection"), "documents": len(docs),
-            "mean_ms_per_document": docs["processing_ms"].mean(), "p95_ms_per_document": docs["processing_ms"].quantile(0.95),
+            "mean_ms_per_document": docs["processing_ms"].mean(), "p50_ms_per_document": docs["processing_ms"].quantile(0.5),
+            "p95_ms_per_document": docs["processing_ms"].quantile(0.95),
             "mean_chunks_per_document": docs["chunks"].mean(), "embedded_tokens": int(docs["embedded_tokens"].sum()),
             "llm_calls": int(docs["llm_calls"].sum()), "llm_tokens": int(docs["llm_tokens"].sum()),
             "points": p.get("points"),

@@ -39,9 +39,10 @@ public static class IngestionEndpoints
             [FromQuery] DateTime? dateTo,
             [FromQuery] int? minSizeKb,
             [FromQuery] int? maxSizeKb,
+            [FromQuery] string? pipeline,
             [FromServices] IIngestionAdminService adminService, CancellationToken cancellationToken) =>
         {
-            var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb, cancellationToken);
+            var result = await adminService.ListBlobsAsync(page, pageSize, status, search, dateFrom, dateTo, minSizeKb, maxSizeKb, pipeline, cancellationToken);
             return Results.Ok(result);
         })
         .WithName("ListBlobs");

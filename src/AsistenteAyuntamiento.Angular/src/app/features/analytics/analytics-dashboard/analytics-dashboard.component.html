@@ -1,180 +1,73 @@
-<div class="p-6 max-w-7xl mx-auto">
-  <div class="flex justify-between items-center mb-8">
+<div class="p-4 md:p-6 max-w-7xl mx-auto w-full">
+  <div class="flex flex-wrap justify-between items-end gap-4 mb-8">
     <h1 class="text-3xl font-bold text-gray-900">Panel de analíticas</h1>
 
-    @if (showArena()) {
-    <div class="flex space-x-4 bg-surface-container-lowest p-3 rounded-lg shadow-xs border border-gray-200">
-      <div class="flex flex-col">
-        <label for="analytics-start" class="text-xs text-gray-500 font-medium mb-1">Fecha Inicio</label>
-        <input id="analytics-start" type="date"
-               [ngModel]="startDate()" 
-               (ngModelChange)="startDate.set($event)"
-               class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500">
-      </div>
-      <div class="flex flex-col">
-        <label for="analytics-end" class="text-xs text-gray-500 font-medium mb-1">Fecha Fin</label>
-        <input id="analytics-end" type="date"
-               [ngModel]="endDate()" 
-               (ngModelChange)="endDate.set($event)"
-               class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500">
-      </div>
-    </div>
+    @if (showUsage() || showIngestion() || showArena()) {
+      <fieldset class="flex flex-wrap items-end gap-3 bg-surface-container-lowest p-3 rounded-lg shadow-xs border border-gray-200" data-testid="period-selector">
+        <legend class="sr-only">Periodo</legend>
+        <label class="flex flex-col text-xs text-gray-500 font-medium">Periodo
+          <select #preset class="mt-1 text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-surface" (change)="selectPreset(preset.value)">
+            @for (option of presets; track option.value) {
+              <option [value]="option.value" [selected]="period().preset === option.value">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+        @if (period().preset === 'custom') {
+          <label class="flex flex-col text-xs text-gray-500 font-medium">Desde
+            <input #start type="date" class="mt-1 text-sm border border-gray-300 rounded-md px-2 py-1 bg-surface" [max]="today"
+                   [value]="period().start" (change)="setCustom({ start: start.value })" />
+          </label>
+          <label class="flex flex-col text-xs text-gray-500 font-medium">Hasta
+            <input #end type="date" class="mt-1 text-sm border border-gray-300 rounded-md px-2 py-1 bg-surface" [max]="today"
+                   [value]="period().end" (change)="setCustom({ end: end.value })" />
+          </label>
+        }
+        <p class="text-xs text-gray-500 w-full">
+          @if (invalidCustomRange()) {
+            <span class="text-red-700 dark:text-red-300">Rango no válido: se muestra el periodo anterior.</span>
+          } @else {
+            {{ periods().days }} días, comparados con los {{ periods().days }} anteriores
+          }
+        </p>
+      </fieldset>
     }
   </div>
 
-  @if (aiMetrics(); as metrics) {
-    <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de IA / Tokens</h2>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium" title="Los tokens incluyen también la expansión de consultas y el análisis de historial">Respuestas</h3>
-        <p class="text-2xl font-bold text-gray-900 mt-1">{{ metrics.totalCalls | number:'1.0-0' }} <span class="text-sm font-normal text-green-700 dark:text-green-300" data-testid="success-rate">({{ metrics.successRate | number:'1.0-1' }} % con éxito)</span></p>
-        <p class="text-xs text-gray-500 mt-1">{{ metrics.succeededCalls | number:'1.0-0' }} correctas · {{ metrics.failedCalls | number:'1.0-0' }} con error</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Tokens Input</h3>
-        <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-300 mt-1">{{ metrics.totalInputTokens | number:'1.0-0' }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Tokens Output</h3>
-        <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-300 mt-1">{{ metrics.totalOutputTokens | number:'1.0-0' }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Total Tokens</h3>
-        <p class="text-2xl font-bold text-purple-600 dark:text-purple-300 mt-1">{{ metrics.totalTokens | number:'1.0-0' }}</p>
-      </div>
-    </div>
-
-    <h3 class="text-lg font-bold text-gray-700 mb-3 mt-2">Desglose por Modelo</h3>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-      @for (model of metrics.consumptions; track model.modelId + model.type) {
-        <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100 flex flex-col justify-between">
-          <div>
-            <div class="flex justify-between items-start mb-2">
-              <h4 class="font-bold text-gray-900 truncate" [title]="model.modelId">{{ model.modelId }}</h4>
-              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 dark:text-blue-300">{{ model.type }}</span>
-            </div>
-            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
-              <div class="text-gray-500">Llamadas:</div>
-              <div class="font-medium text-right">{{ model.totalCalls }}</div>
-              
-              <div class="text-gray-500">Total Tokens:</div>
-              <div class="font-bold text-indigo-600 dark:text-indigo-300 text-right">{{ model.totalTokens | number:'1.0-0' }}</div>
-              
-              <div class="text-gray-500">Latencia Media:</div>
-              <div class="font-medium text-right">{{ model.averageDurationMs | number:'1.0-0' }} ms</div>
-            </div>
-          </div>
-        </div>
+  @if (showUsage()) {
+    <section class="mb-4" aria-labelledby="usage-heading">
+      <h2 id="usage-heading" class="text-xl font-bold text-gray-800 mb-4">Uso del asistente</h2>
+      @if (usage().current; as current) {
+        <app-usage-section [summary]="current" [previous]="usage().previous" />
+      } @else if (usage().loading) {
+        <p class="text-gray-500 mb-8" role="status">Cargando métricas de uso...</p>
+      } @else {
+        <p class="text-gray-500 mb-8">No hay datos de uso disponibles.</p>
       }
-    </div>
+    </section>
   }
 
-  @if (showIngestion() && ingestionUsage(); as ingestion) {
-    <h2 class="text-xl font-bold text-gray-800 mb-4">Consumo de ingesta (plataforma)</h2>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Documentos ingeridos</h3>
-        <p class="text-2xl font-bold text-gray-900 mt-1">{{ ingestion.documents | number:'1.0-0' }}</p>
-        <p class="text-xs text-gray-500 mt-1">{{ ingestion.averageProcessingDurationMs | number:'1.0-0' }} ms de media</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Llamadas de enriquecimiento</h3>
-        <p class="text-2xl font-bold text-gray-900 mt-1">{{ ingestion.enrichmentCalls | number:'1.0-0' }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Tokens de enriquecimiento</h3>
-        <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-300 mt-1">{{ ingestion.enrichmentTokens | number:'1.0-0' }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Tokens de embeddings</h3>
-        <p class="text-2xl font-bold text-purple-600 dark:text-purple-300 mt-1">{{ ingestion.embeddedTokens | number:'1.0-0' }}</p>
-      </div>
-    </div>
+  @if (showIngestion()) {
+    <section class="mb-4" aria-labelledby="ingestion-heading">
+      <h2 id="ingestion-heading" class="text-xl font-bold text-gray-800 mb-4">Ingesta</h2>
+      @if (ingestion().current; as current) {
+        <app-ingestion-section [usage]="current" [previous]="ingestion().previous" />
+      } @else if (ingestion().loading) {
+        <p class="text-gray-500 mb-8" role="status">Cargando métricas de ingesta...</p>
+      } @else {
+        <p class="text-gray-500 mb-8">No hay datos de ingesta disponibles.</p>
+      }
+    </section>
+  }
+
+  @if (showEvaluation()) {
+    <section class="mb-4" aria-labelledby="evaluation-heading">
+      <h2 id="evaluation-heading" class="text-xl font-bold text-gray-800 mb-1">Evaluación offline</h2>
+      <p class="text-sm text-gray-500 mb-4">Resultados del evaluador RAGAS; no dependen del periodo seleccionado.</p>
+      <app-evaluation-section />
+    </section>
   }
 
   @if (showArena()) {
-  <h2 class="text-xl font-bold text-gray-800 mb-4">Resultados de la Arena</h2>
-  @if (analytics(); as data) {
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="bg-surface-container-lowest p-6 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Batallas Totales</h3>
-        <p class="text-3xl font-bold text-gray-900 mt-2">{{ data.totalBattles }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-6 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Completadas</h3>
-        <p class="text-3xl font-bold text-green-600 dark:text-green-300 mt-2">{{ data.completedBattles }}</p>
-      </div>
-      <div class="bg-surface-container-lowest p-6 rounded-xl shadow-xs border border-gray-100">
-        <h3 class="text-gray-500 text-sm font-medium">Pendientes (Shadow)</h3>
-        <p class="text-3xl font-bold text-amber-600 dark:text-amber-300 mt-2">{{ data.pendingBattles }}</p>
-      </div>
-    </div>
-
-    <div class="bg-surface-container-lowest rounded-xl shadow-xs border border-gray-100 overflow-hidden">
-      <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-        <h2 class="text-lg font-medium text-gray-900">Rendimiento por Pipeline</h2>
-        
-        <div class="flex items-center">
-          <label for="analytics-pipeline" class="text-sm text-gray-600 mr-2">Segmentar por:</label>
-          <select id="analytics-pipeline" [ngModel]="selectedPipeline()" 
-                  (ngModelChange)="selectedPipeline.set($event)"
-                  class="text-sm border-gray-300 rounded-md shadow-xs focus:ring-indigo-500 focus:border-indigo-500 py-1.5">
-            <option value="ALL">Todos los Pipelines</option>
-            @for (pipe of availablePipelines(); track pipe) {
-              <option [value]="pipe">{{ pipe }}</option>
-            }
-          </select>
-        </div>
-      </div>
-      
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-surface-container-lowest">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Victorias</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Derrotas</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empates</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ambas malas</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                title="Victorias / (victorias + derrotas). Los empates y los votos «ambas malas» no cuentan.">Tasa de victorias</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latencia Media</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens Medios</th>
-          </tr>
-        </thead>
-        <tbody class="bg-surface-container-lowest divide-y divide-gray-200">
-          @for (metric of filteredMetrics(); track metric.pipeline) {
-            <tr class="hover:bg-gray-50 transition-colors">
-              <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ metric.pipeline }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-green-600 dark:text-green-300">{{ metric.winCount }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-red-600 dark:text-red-300">{{ metric.lossCount }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.tieCount }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.bothBadCount }}</td>
-              <td class="px-6 py-4 whitespace-nowrap font-bold text-indigo-600 dark:text-indigo-300">
-                <div class="flex items-center">
-                  <span class="mr-2">{{ metric.winRate | percent:'1.0-1' }}</span>
-                  <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div class="bg-indigo-600 h-1.5 rounded-full" [style.width.%]="metric.winRate * 100"></div>
-                  </div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageLatencyMs | number:'1.0-0' }} ms</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ metric.averageTokens | number:'1.0-0' }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="8" class="px-6 py-8 text-center text-gray-500">
-                No hay datos disponibles para los filtros seleccionados.
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  } @else {
-    <div class="flex flex-col justify-center items-center h-64 text-gray-500">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-      <p>Cargando analíticas...</p>
-    </div>
-  }
+    <app-arena-section [range]="periods().current" />
   }
 </div>
