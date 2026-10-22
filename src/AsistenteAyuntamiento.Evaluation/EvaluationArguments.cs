@@ -1,0 +1,73 @@
+using System.Diagnostics;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+
+namespace AsistenteAyuntamiento.Evaluation;
+
+/// <summary>Command-line options of the runner.</summary>
+public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output)
+{
+    public static EvaluationArguments Parse(IReadOnlyList<string> args)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (!args[i].StartsWith("--", StringComparison.Ordinal) || i + 1 >= args.Count)
+            {
+                throw new ArgumentException($"Expected '--name value' pairs, got '{args[i]}'.");
+            }
+            values[args[i][2..]] = args[++i];
+        }
+
+        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output"], StringComparer.OrdinalIgnoreCase).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
+        }
+
+        return new EvaluationArguments(
+            EvaluationVariants.Parse(values.GetValueOrDefault("pipelines")),
+            values.TryGetValue("limit", out var limit) ? int.Parse(limit) : null,
+            values.TryGetValue("seed", out var seed) ? int.Parse(seed) : null,
+            values.GetValueOrDefault("resume"),
+            values.GetValueOrDefault("dataset"),
+            values.GetValueOrDefault("output"));
+    }
+
+    /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>
+    public static string FindRepository()
+    {
+        foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "AsistenteAyuntamiento.slnx")))
+                {
+                    return dir.FullName;
+                }
+            }
+        }
+
+        throw new DirectoryNotFoundException("AsistenteAyuntamiento.slnx not found; pass --dataset and --output.");
+    }
+
+    /// <summary>The checked-out commit, or null without git.</summary>
+    public static string? GitCommit(string repository)
+    {
+        try
+        {
+            using var git = Process.Start(new ProcessStartInfo("git", "rev-parse HEAD")
+            {
+                WorkingDirectory = repository,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            var commit = git?.StandardOutput.ReadToEnd().Trim();
+            git?.WaitForExit();
+            return git?.ExitCode == 0 ? commit : null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+}

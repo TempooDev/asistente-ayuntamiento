@@ -3,7 +3,7 @@
 - [ ] 1.1 Change `IChunkingStrategy` to `ChunkTextAsync(string, CancellationToken)` returning `IReadOnlyList<DocumentChunkResult>`, add an optional `EmbeddedTokens` to the result, and adapt `FixedOverlapChunkingStrategy` (`src/AsistenteAyuntamiento.Application/Features/Ingestion/Chunking/IChunkingStrategy.cs`, `FixedOverlapChunkingStrategy.cs`, `DocumentChunkResult.cs`).
 - [ ] 1.2 Await the new method in `DocumentIngestionService.cs`, `BoeIngestionService.cs` and `BojaIngestionService.cs`, and update `tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/FixedOverlapChunkingStrategyTests.cs` and the ingestion tests that mock the strategy.
 - [ ] 1.3 Extract the token estimator used by `TextChunker` into a shared `ChunkTokenCounter` used by every strategy (`Application/Features/Ingestion/Chunking/ChunkTokenCounter.cs`).
-- [ ] 1.4 Add `Ai:Embeddings:QueryInstruction` and a small query-embedding helper that applies `Instruct: …\nQuery: …` when it is set; use it in `BaselineRagPipeline.cs`, `HybridRetrievalService.cs` and `ArenaService.cs`, set the Spanish instruction in the local AppHost and document it in `docs/setup.md`, with tests for both cases.
+- [x] 1.4 Add `PromptCatalog.EmbeddingQueryInstruction`, the switch `Ai:Embeddings:UseQueryInstruction` and a small query-embedding helper that applies `Instruct: …\nQuery: …` when it is on; use it in `BaselineRagPipeline.cs`, `HybridRetrievalService.cs` and `ArenaService.cs`, turn it on in the local AppHost and document it in `docs/setup.md`, with tests for both cases.
 
 ## 2. Recursive strategy
 
@@ -36,8 +36,8 @@
 ## 6. Flat-chunk variants (answering) and evaluation run
 
 - [ ] 6.1 Rename `BaselineRagPipeline` to `FlatChunkRagPipeline` parameterized by `FlatChunkVariant`, register one `IRagPipeline` per variant (`Application/Features/Chat/Pipelines/BaselineRagPipeline.cs`, `DependencyInjection.cs`, `AiChatService.cs`), keeping the baseline's behaviour and tests.
-- [ ] 6.2 Split retrieval and generation inside both pipelines and add `RunForEvaluationAsync` with `RagEvaluationResult` and stage timings (`Application/Features/Chat/Pipelines/IRagPipeline.cs`, `FlatChunkRagPipeline.cs`, `HierarchicalRagPipeline.cs`, `RagEvaluationResult.cs`).
-- [ ] 6.3 Tests: evaluation run returns contexts and timings, persists nothing, maps model errors to codes (`tests/AsistenteAyuntamiento.Application.Tests/Features/Chat/Pipelines/`).
+- [x] 6.2 Split retrieval and generation inside both pipelines and add `RunForEvaluationAsync` with `RagEvaluationResult` and stage timings (`Application/Features/Chat/Pipelines/IRagPipeline.cs`, `FlatChunkRagPipeline.cs`, `HierarchicalRagPipeline.cs`, `RagEvaluationResult.cs`).
+- [x] 6.3 Tests: evaluation run returns contexts and timings, persists nothing, maps model errors to codes (`tests/AsistenteAyuntamiento.Application.Tests/Features/Chat/Pipelines/`).
 
 ## 7. Production variant and Arena
 
@@ -47,18 +47,18 @@
 
 ## 8. Evaluation dataset and runner
 
-- [ ] 8.1 Create `eval/README.md` and `eval/dataset/` with `corpus.txt` (study subset of BOE and BOJA) and a `questions.jsonl` template with five example questions.
+- [x] 8.1 Create `eval/README.md` and `eval/dataset/` with `corpus.txt` (study subset of BOE and BOJA) and a `questions.jsonl` template with five example questions.
 - [ ] 8.2 Write the full question set (≥ 30, proposed 40, including `sin-respuesta`) with references and document ids (manual task for Antonio; Claude can draft candidates from the corpus for review).
-- [ ] 8.3 Create `src/AsistenteAyuntamiento.Evaluation` (console host, `AddApplicationServices` + `AddInfrastructureServices`, model override, pre-flight checks, shuffled order, `answers.jsonl`, `run.json`, `--resume`, `--pipelines`) and add it to the solution and, with explicit start, to the AppHost.
-- [ ] 8.4 Tests for the pre-flight checks and the output format (`tests/AsistenteAyuntamiento.Evaluation.Tests` or in `Application.Tests`), and allow the new project in `tests/AsistenteAyuntamiento.ArchitectureTests`.
+- [x] 8.3 Create `src/AsistenteAyuntamiento.Evaluation` (console host, `AddApplicationServices` + `AddInfrastructureServices`, model override, pre-flight checks, shuffled order, `answers.jsonl`, `run.json`, `--resume`, `--pipelines`) and add it to the solution and, with explicit start, to the AppHost.
+- [x] 8.4 Tests for the pre-flight checks and the output format (`tests/AsistenteAyuntamiento.Evaluation.Tests` or in `Application.Tests`), and allow the new project in `tests/AsistenteAyuntamiento.ArchitectureTests`.
 
 ## 9. RAGAS scoring and reports
 
-- [ ] 9.1 Create `eval/ragas/` (Python 3.12 project with lock file, `validate` command for the dataset) (`eval/ragas/pyproject.toml`, `eval/ragas/validate_dataset.py`).
-- [ ] 9.2 Implement scoring with RAGAS and the Ollama judge plus hit@k and MRR, writing `scores.csv`, `summary.csv` and `scoring.json` (`eval/ragas/score.py`).
-- [ ] 9.3 Implement `latency.csv` and `indexing.csv` from the run and from `IngestionMetrics` (`eval/ragas/report.py`).
+- [x] 9.1 Create `eval/ragas/` (Python 3.12 project with lock file, `validate` command for the dataset) (`eval/ragas/pyproject.toml`, `eval/ragas/validate_dataset.py`).
+- [x] 9.2 Implement scoring with RAGAS and the Ollama judge plus hit@k and MRR, writing `scores.csv`, `summary.csv` and `scoring.json` (`eval/ragas/score.py`).
+- [x] 9.3 Implement `latency.csv` and `indexing.csv` from the run and from `IngestionMetrics` (`eval/ragas/report.py`).
 - [ ] 9.4 Implement the operational latency report over a date range with a read-only connection (`eval/latency/report.py` or `.sql`).
-- [ ] 9.5 Small fixture run (3 questions, 4 pipelines) checked into `eval/ragas/tests/` to test the scorer offline with a stubbed judge.
+- [x] 9.5 Small fixture run (3 questions, 4 pipelines) checked into `eval/ragas/tests/` to test the scorer offline with a stubbed judge.
 
 ## 10. Study execution
 

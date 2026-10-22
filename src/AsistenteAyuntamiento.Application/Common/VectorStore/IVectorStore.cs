@@ -26,6 +26,12 @@ public interface IVectorStore
     /// </summary>
     Task DeleteDocumentAsync(VectorCollection collection, string documentId, IReadOnlyCollection<long>? parentIds = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Vector size and number of points, or null when the collection does not exist.</summary>
+    Task<VectorCollectionStats?> GetStatsAsync(VectorCollection collection, CancellationToken cancellationToken = default);
+
+    /// <summary>Number of points whose <see cref="VectorPayloadKeys.DocumentId"/> is <paramref name="documentId"/>.</summary>
+    Task<long> CountDocumentPointsAsync(VectorCollection collection, string documentId, CancellationToken cancellationToken = default);
+
     /// <summary>Returns the nearest points, best first.</summary>
     Task<IReadOnlyList<VectorSearchHit>> SearchAsync(VectorCollection collection, VectorSearchRequest request, CancellationToken cancellationToken = default);
 }

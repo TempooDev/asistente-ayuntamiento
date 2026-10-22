@@ -30,4 +30,16 @@ public class TransportLayerTests
 
         offenders.Should().BeEmpty("add system prompts in the Application pipelines (PromptCatalog)");
     }
+
+    [Fact]
+    public void Evaluation_runner_exposes_no_network_endpoint()
+    {
+        // spec: rag-evaluation, Evaluation Runner. A console host: no web SDK, no Kestrel, no mapped routes.
+        var project = "AsistenteAyuntamiento.Evaluation";
+        File.ReadAllText(Path.Combine(RepositoryFiles.Project(project), $"{project}.csproj")).Should().NotContain("Microsoft.NET.Sdk.Web");
+        RepositoryFiles.SourceFiles(project)
+            .Where(f => File.ReadAllText(f) is var text && (text.Contains("WebApplication", StringComparison.Ordinal) || text.Contains(".Map", StringComparison.Ordinal)))
+            .Select(RepositoryFiles.Relative)
+            .Should().BeEmpty();
+    }
 }

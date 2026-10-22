@@ -25,6 +25,11 @@ public class ClearLanguageGenerationService(
     private readonly string _model = configuration["Ai:Chat:Model"] ?? "llama3.2";
     private readonly int _maxContextChars = configuration.GetValue("Ai:Hierarchical:MaxContextChars", DefaultMaxContextChars);
 
+    // Only when configured (the evaluation runner sets 0): otherwise the model keeps its own default, as before.
+    private readonly PromptExecutionSettings? _settings = configuration.GetValue<double?>("Ai:Chat:Temperature") is { } temperature
+        ? new PromptExecutionSettings { ExtensionData = new Dictionary<string, object> { ["Temperature"] = temperature } }
+        : null;
+
     /// <summary>
     /// Characters of legal text sent per answer (about 6,500 tokens). Parent documents average 14,000 characters
     /// and reach 100,000: whole, five of them overflow small context windows (Ollama then drops the system prompt,
@@ -77,7 +82,7 @@ public class ClearLanguageGenerationService(
         {
             try
             {
-                enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
+                enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, _settings, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -158,6 +163,9 @@ public class ClearLanguageGenerationService(
             yield return new StreamingChatMessageContent(AuthorRole.Assistant, sources);
         }
     }
+
+    public string BuildPromptContext(List<RetrievalResult> retrievedContext) =>
+        retrievedContext.Count == 0 ? string.Empty : BuildContext(retrievedContext, _maxContextChars).Text;
 
     /// <summary>The prompt, and the "Fuentes consultadas" of the documents it includes (not of those left out).</summary>
     private (ChatHistory? History, string Sources) BuildChatHistory(string userQuery, List<RetrievalResult> retrievedContext,

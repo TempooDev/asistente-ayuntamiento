@@ -212,5 +212,11 @@ public sealed class BaselineIngestionIdempotencyTests : IAsyncLifetime
 
         public Task<IReadOnlyList<VectorSearchHit>> SearchAsync(VectorCollection collection, VectorSearchRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<VectorSearchHit>>([]);
+
+        public Task<VectorCollectionStats?> GetStatsAsync(VectorCollection collection, CancellationToken cancellationToken = default) =>
+            Task.FromResult<VectorCollectionStats?>(null);
+
+        public Task<long> CountDocumentPointsAsync(VectorCollection collection, string documentId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0L);
     }
 }

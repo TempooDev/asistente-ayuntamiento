@@ -37,6 +37,9 @@ internal sealed class FakeRagPipeline(PipelineType type, params string[] chunks)
         }
     }
 
+    public Task<RagEvaluationResult> RunForEvaluationAsync(EvaluationTurn turn, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new RagEvaluationResult(type, string.Concat(Chunks), [], string.Empty, TokenUsageInfo.Empty, new RagEvaluationTimings(0, 0, null, 0, 0)));
+
     /// <summary>When set, thrown after the last chunk.</summary>
     public Exception? Failure { get; set; }
 }

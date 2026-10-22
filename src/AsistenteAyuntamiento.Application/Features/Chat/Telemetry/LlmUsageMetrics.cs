@@ -38,6 +38,8 @@ public sealed class LlmUsageMetrics(IConfiguration configuration, ILogger<LlmUsa
 
     public void Record(LlmCallMetrics call)
     {
+        LlmUsageCapture.Add(call);
+
         var provider = GenAiTelemetry.ProviderName(call.Provider);
         var tags = new TagList
         {

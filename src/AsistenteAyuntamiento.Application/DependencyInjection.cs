@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Features.AiConfig;
 using AsistenteAyuntamiento.Application.Features.Arena;
 using AsistenteAyuntamiento.Application.Features.Chat;
@@ -58,6 +59,8 @@ public static class DependencyInjection
         // Retrieval, generation and Arena
         services.AddScoped<IQueryExpansionService, QueryExpansionService>();
         services.AddScoped<IHybridRetrievalService, HybridRetrievalService>();
+        services.AddSingleton(new QueryEmbeddingOptions(
+            configuration.GetValue("Ai:Embeddings:UseQueryInstruction", false) ? PromptCatalog.EmbeddingQueryInstruction : null));
         services.AddScoped<IClearLanguageGenerationService, ClearLanguageGenerationService>();
         services.AddScoped<IArenaService, ArenaService>();
         services.AddScoped<IArenaAnalyticsService, ArenaAnalyticsService>();

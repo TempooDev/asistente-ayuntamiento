@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.Extensions.AI;
@@ -28,6 +29,12 @@ public sealed class BaselineRagPipeline(
 
     private static readonly RagSearch CompletionSearch = new(Limit: 5, ScoreThreshold: null);
     private static readonly RagSearch StreamingSearch = new(Limit: 3, ScoreThreshold: 0.65f);
+
+    /// <summary>
+    /// The evaluation retrieves the same five units as the hierarchical pipeline and no score threshold (it depends on
+    /// the embedding model), so every variant is compared with the same retrieval budget.
+    /// </summary>
+    private static readonly RagSearch EvaluationSearch = new(Limit: 5, ScoreThreshold: null);
 
     public PipelineType Type => PipelineType.Baseline;
 
@@ -84,6 +91,27 @@ public sealed class BaselineRagPipeline(
         }
     }
 
+    public async Task<RagEvaluationResult> RunForEvaluationAsync(EvaluationTurn evaluation, CancellationToken cancellationToken = default)
+    {
+        using var run = new EvaluationRun(Type);
+        var turn = evaluation.ToChatTurn();
+        var hits = await run.RetrieveAsync(() => SearchAsync(turn, EvaluationSearch, cancellationToken));
+
+        // The chat stream's prompts, without user preferences (the runner has none).
+        var context = hits.Count > 0 ? FormatContext(hits) : string.Empty;
+        if (hits.Count > 0)
+        {
+            ReplaceLastUserMessage(turn, string.Format(CultureInfo.InvariantCulture, PromptCatalog.StreamingUserTemplate, context, turn.UserQuery));
+        }
+        turn.History.Insert(0, new ChatMessageContent(AuthorRole.System, hits.Count > 0
+            ? PromptCatalog.StreamingSystem + UserContext(new UserPreferenceDto(), PromptCatalog.UserContextGuidance)
+            : PromptCatalog.ConversationalSystem));
+
+        var contexts = hits.Select(hit => new RetrievedContext(hit.GetString(VectorPayloadKeys.DocumentId), hit.Score, hit.GetString(VectorPayloadKeys.Content))).ToList();
+        return await run.AnswerAsync(
+            chatStreamingService.StreamAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken), contexts, context, cancellationToken);
+    }
+
     private static string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? LlmPipelines.Baseline;
 
     /// <summary>Public link of a bulletin document (BOJA has no stable per-document URL yet).</summary>
@@ -109,11 +137,11 @@ public sealed class BaselineRagPipeline(
         {
             var embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
             var searchText = string.Join("\n", turn.History.Where(m => m.Role == AuthorRole.User).TakeLast(SearchHistoryDepth).Select(m => m.Content));
-            var embeddings = await embeddingGenerator.GenerateAsync([searchText], cancellationToken: cancellationToken);
+            var vector = await embeddingGenerator.EmbedQueryAsync(searchText, QueryEmbeddingOptions.From(kernel), cancellationToken);
 
             return await vectorStore.SearchAsync(
                 VectorCollection.DocumentChunks,
-                new VectorSearchRequest(embeddings[0].Vector.ToArray(), search.Limit, search.ScoreThreshold),
+                new VectorSearchRequest(vector, search.Limit, search.ScoreThreshold),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

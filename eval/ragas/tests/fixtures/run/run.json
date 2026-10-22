@@ -1,0 +1,19 @@
+{
+  "run_id": "fixture",
+  "started_at": "2026-10-22T21:30:00Z",
+  "finished_at": "2026-10-22T21:35:00Z",
+  "git_commit": "abc123",
+  "seed": 42,
+  "chat_model": "qwen2.5:7b-instruct-q4_K_M",
+  "chat_provider": "ollama",
+  "embedding_model": "qwen3-embedding:0.6b",
+  "query_instruction": "Instruct: ...",
+  "pipelines": [
+    "Baseline",
+    "Hierarchical",
+    "Semantic"
+  ],
+  "question_count": 3,
+  "dataset_hash": "sha256:0",
+  "corpus_hash": "sha256:0"
+}
