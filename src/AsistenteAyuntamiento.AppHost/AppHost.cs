@@ -10,7 +10,7 @@ var auth0ClientId = builder.AddParameter("auth0-client-id", secret: false);
 var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true);
 
 // ── AI configuration ─────────────────────────────────────────────────────────
-// Local runs use the Ollama container (llama3.2 + nomic-embed-text) so development spends no provider tokens.
+// Local runs use the Ollama container (llama3.2 + qwen3-embedding:0.6b) so development spends no provider tokens.
 // To use the cloud provider from the ai-* parameters (user-secrets) locally:
 // dotnet user-secrets set "Ai:UseCloud" "true" --project src/AsistenteAyuntamiento.AppHost
 // Publishing always uses the parameters.
@@ -23,7 +23,7 @@ void WithAi(IResourceBuilder<IResourceWithEnvironment> resource)
         resource.WithEnvironment("Ai__Chat__Provider", "ollama")
                 .WithEnvironment("Ai__Chat__Model", "llama3.2")
                 .WithEnvironment("Ai__Embeddings__Provider", "ollama")
-                .WithEnvironment("Ai__Embeddings__Model", "nomic-embed-text");
+                .WithEnvironment("Ai__Embeddings__Model", "qwen3-embedding:0.6b");
         return;
     }
 
@@ -126,7 +126,7 @@ if (string.Equals(builder.Configuration["Ollama:Gpu"], "true", StringComparison.
     ollama.WithGPUSupport();
 }
 ollama.AddModel("llama3.2");
-ollama.AddModel("nomic-embed-text");
+ollama.AddModel("qwen3-embedding:0.6b");
 
 var apiService = builder.AddProject<Projects.AsistenteAyuntamiento_ApiService>("apiservice")
     .WithReference(ollama)
