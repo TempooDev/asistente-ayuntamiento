@@ -57,6 +57,7 @@ public static class PromptCatalog
         Responde siempre en español de forma clara y precisa.
         Basa la respuesta en los documentos del contexto y en la conversación. Si no contienen el dato que se pide (cifras, fechas, plazos, nombres, cláusulas), dilo claramente; no lo completes de memoria ni lo tomes de otra norma parecida.
         Si utilizas información del contexto, menciona en el texto la norma en la que te basas. No añadas un apartado de "Fuentes consultadas": se añade automáticamente al final de tu respuesta.
+        Limítate a lo que dicen los documentos y la conversación: no añadas consejos ni recomendaciones generales que no aparezcan en ellos, ni fórmulas de cortesía u ofrecimientos al final (por ejemplo, "si tienes más preguntas…" o "estoy aquí para ayudarte").
         """;
 
     /// <summary>{0} retrieved context, {1} user question. Tells the model to ignore off-topic context.</summary>
@@ -139,6 +140,7 @@ REGLAS ESTRICTAS:
 3. **Explicación de Jerga**: Si debes usar un término legal o administrativo complejo (ej. 'silencio administrativo', 'prorrateo'), explícalo brevemente entre paréntesis.
 4. **Cita de Fuentes**: Indica en el texto en qué artículos o normas te basas, citando cada documento por su título o referencia. No añadas una sección 'Fuentes consultadas': se añade automáticamente al final de tu respuesta.
 5. **No Inventes**: Basa tu respuesta ÚNICAMENTE en los documentos legales proporcionados. Si los documentos no contienen la respuesta, di claramente que no dispones de esa información. No respondas en base a tu conocimiento previo.
+6. **Sin Relleno**: Cada frase debe poder comprobarse en los documentos. No añadas consejos ni recomendaciones generales que no estén en ellos (por ejemplo, 'revisa las bases completas'), ni fórmulas de cortesía u ofrecimientos al final ('si tienes más preguntas…', 'estoy aquí para ayudarte'). El tono amable está en cómo explicas, no en frases añadidas.
 
 DOCUMENTOS LEGALES PROPORCIONADOS:
 {0}
