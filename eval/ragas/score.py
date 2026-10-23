@@ -9,6 +9,7 @@ is missing).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -124,9 +125,11 @@ def run_ragas(rows: list[dict], cfg: dict) -> list[dict]:
 CACHE_FILE = "scoring-cache.jsonl"
 
 
-def _cache_key(question_id: str, pipeline: str, cfg: dict) -> str:
-    """A cached score is reused only with the same judge and embedding model."""
-    return f"{question_id}|{pipeline}|{cfg['judge_model']}|{cfg['embedding_model']}"
+def _cache_key(question_id: str, pipeline: str, cfg: dict, row: dict) -> str:
+    """A cached score is reused only for the same answer and contexts, judged with the same judge and embedding model."""
+    content = json.dumps([row["answer"], row["contexts"], row["generation_context"]], ensure_ascii=False)
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    return f"{question_id}|{pipeline}|{cfg['judge_model']}|{cfg['embedding_model']}|{digest}"
 
 
 def _read_cache(path: Path | None) -> dict[str, dict]:
@@ -168,7 +171,7 @@ def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict, cac
                                    "generation_context": a.get("generation_context") or ""}))
 
     cache = _read_cache(cache_path)
-    pending = [(rec, row) for rec, row in to_judge if _cache_key(rec["question_id"], rec["pipeline"], cfg) not in cache]
+    pending = [(rec, row) for rec, row in to_judge if _cache_key(rec["question_id"], rec["pipeline"], cfg, row) not in cache]
     if len(pending) < len(to_judge):
         print(f"Reutilizando {len(to_judge) - len(pending)} muestras ya puntuadas de {cache_path}", file=sys.stderr)
     batch = max(1, cfg.get("checkpoint_batch", 4))
@@ -176,8 +179,8 @@ def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict, cac
         chunk = pending[start:start + batch]
         judged = run_ragas([row for _, row in chunk], cfg)
         lines = []
-        for (rec, _), scores in zip(chunk, judged):
-            key = _cache_key(rec["question_id"], rec["pipeline"], cfg)
+        for (rec, row), scores in zip(chunk, judged):
+            key = _cache_key(rec["question_id"], rec["pipeline"], cfg, row)
             clean = {c: None if scores.get(c) is None or pd.isna(scores.get(c)) else float(scores[c]) for c in RAGAS_COLUMNS}
             cache[key] = clean
             lines.append(json.dumps({"key": key, "scores": clean}, ensure_ascii=False))
@@ -185,8 +188,8 @@ def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict, cac
             with cache_path.open("a", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
 
-    for rec, _ in to_judge:
-        scores = cache.get(_cache_key(rec["question_id"], rec["pipeline"], cfg), {})
+    for rec, row in to_judge:
+        scores = cache.get(_cache_key(rec["question_id"], rec["pipeline"], cfg, row), {})
         for c in RAGAS_COLUMNS:
             v = scores.get(c)
             rec[c] = NAN if v is None or pd.isna(v) else float(v)

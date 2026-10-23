@@ -141,3 +141,14 @@ def test_fresh_ignores_the_cache_and_another_judge_does_not_reuse_it(run_dir, da
     monkeypatch.setattr(score.requests, "get", lambda *a, **k: FakeResp(["qwen2.5:14b", "qwen3-embedding:0.6b"]))
     assert score.main([str(run_dir), "--dataset", str(dataset_dir), "--judge-model", "qwen2.5:14b"]) == 0
     assert len(stub_ragas["rows"]) == 8
+
+
+def test_a_changed_answer_is_judged_again(run_dir, dataset_dir, ollama_ok, stub_ragas):
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir)]) == 0
+    answers = [json.loads(l) for l in (run_dir / "answers.jsonl").read_text().splitlines() if l.strip()]
+    answers[0]["answer"] = answers[0]["answer"] + " (regenerada)"
+    (run_dir / "answers.jsonl").write_text("\n".join(json.dumps(a, ensure_ascii=False) for a in answers) + "\n")
+
+    stub_ragas["rows"] = []
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir)]) == 0
+    assert [r["answer"] for r in stub_ragas["rows"]] == [answers[0]["answer"]]

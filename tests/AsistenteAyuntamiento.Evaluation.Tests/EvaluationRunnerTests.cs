@@ -103,6 +103,8 @@ public sealed class EvaluationRunnerTests : IDisposable
         EvaluationArguments.Parse([]).Pipelines.Should().Equal(PipelineType.Baseline, PipelineType.Hierarchical);
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--pipelines", "semantic"])).Should().Throw<ArgumentException>();
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--model", "x"])).Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => EvaluationArguments.Parse(["--import", "--score"])).Should().Throw<ArgumentException>().WithMessage("*--import*");
+        FluentActions.Invoking(() => EvaluationArguments.Parse(["--output"])).Should().Throw<ArgumentException>();
     }
 
     [Fact]
