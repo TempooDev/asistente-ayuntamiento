@@ -28,7 +28,4 @@ public static class IngestionPipelinesExtensions
     /// <summary>The selected pipelines, in <see cref="PipelineType"/> order.</summary>
     public static IReadOnlyList<PipelineType> ToPipelineTypes(this IngestionPipelines pipelines) =>
         Map.Where(m => pipelines.HasFlag(m.Flag)).Select(m => m.Pipeline).ToList();
-
-    public static IngestionPipelines ToFlag(this PipelineType pipeline) =>
-        Map.Single(m => m.Pipeline == pipeline).Flag;
 }

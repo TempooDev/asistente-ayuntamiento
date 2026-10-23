@@ -201,12 +201,13 @@ public class IngestionAdminService : IIngestionAdminService
 
     /// <summary>
     /// Documents left in Processing (a worker died): each stuck pipeline becomes Completed if its data exists
-    /// (the flat variant's chunks, the hierarchical parent document) and Pending otherwise. Counts are by resulting summary.
+    /// (the flat variant's chunks, the hierarchical parent document) and Pending otherwise. Study pipelines do not show in
+    /// the summary, so they are looked up by their own status. Counts are by resulting summary.
     /// </summary>
     public async Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync(CancellationToken cancellationToken = default)
     {
         var stuck = await _dbContext.DocumentJobStates
-            .Where(j => j.Status == JobStatus.Processing)
+            .Where(j => j.Status == JobStatus.Processing || j.RecursiveStatus == JobStatus.Processing || j.SemanticStatus == JobStatus.Processing)
             .ToListAsync(cancellationToken);
         if (stuck.Count == 0)
         {

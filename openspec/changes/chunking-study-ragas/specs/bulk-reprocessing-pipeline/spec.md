@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Pipeline Mode Configuration
-The Worker SHALL read `WORKER_PIPELINE_MODE` at startup and register exactly one ingestion consumer: `HierarchicalIngestionConsumer` for `HIERARCHICAL`, the flat-chunk consumer of the `Recursive` variant for `RECURSIVE`, the one of the `Semantic` variant for `SEMANTIC` (all case-insensitive), and `BaselineIngestionConsumer` for `BASELINE`, for an unset variable, or for any value that is not a `PipelineType`. Each pipeline SHALL have its own queue with `.retry` and `.dlq` and the retry and dead-letter policy of `RabbitMqConsumerBase`, and its own status in `DocumentJobState` (`BaselineStatus`, `HierarchicalStatus`, `RecursiveStatus`, `SemanticStatus`; `null` = never requested), all included in the summary `Status`.
+The Worker SHALL read `WORKER_PIPELINE_MODE` at startup and register exactly one ingestion consumer: `HierarchicalIngestionConsumer` for `HIERARCHICAL`, the flat-chunk consumer of the `Recursive` variant for `RECURSIVE`, the one of the `Semantic` variant for `SEMANTIC` (all case-insensitive), and `BaselineIngestionConsumer` for `BASELINE`, for an unset variable, or for any value that is not a `PipelineType`. Each pipeline SHALL have its own queue with `.retry` and `.dlq` and the retry and dead-letter policy of `RabbitMqConsumerBase`, and its own status in `DocumentJobState` (`BaselineStatus`, `HierarchicalStatus`, `RecursiveStatus`, `SemanticStatus`; `null` = never requested). The summary `Status` shown to administrators SHALL be computed from the production pipelines only (`BaselineStatus` and `HierarchicalStatus`): a study status (`RecursiveStatus`, `SemanticStatus`) is kept and reported per pipeline but SHALL NOT change the summary, so an unconsumed study queue never leaves a document `Queued` nor turns its summary into `Failed`.
 
 #### Scenario: Starting in baseline mode
 - **WHEN** the Worker starts with `WORKER_PIPELINE_MODE=BASELINE`
@@ -17,6 +17,11 @@ The Worker SHALL read `WORKER_PIPELINE_MODE` at startup and register exactly one
 - **WHEN** the Worker starts with `WORKER_PIPELINE_MODE=SEMANTIC`
 - **THEN** it SHALL consume only from `documents_to_process_semantic`
 - **AND** write `DocumentChunks` rows with `ChunkingStrategy = Semantic` and points in `document_chunks_semantic`, and set only the document's `SemanticStatus`
+
+#### Scenario: A study status does not change the summary
+- **WHEN** a document's baseline and hierarchical statuses are `Completed` and its `SemanticStatus` is `Queued` (no study worker running) or `Failed`
+- **THEN** its summary `Status` SHALL be `Completed`
+- **AND** the per-pipeline counters SHALL still report the semantic document as queued or failed
 
 #### Scenario: Missing or unknown mode
 - **WHEN** the Worker starts without `WORKER_PIPELINE_MODE` or with a value that is not a known mode
@@ -35,9 +40,11 @@ The deployment SHALL run one Worker instance per pipeline from the same project/
 - **THEN** only `worker-baseline` and `worker-hierarchical` SHALL start, and messages published to the study queues SHALL wait in them
 
 ### Requirement: Admin Bulk Enqueue API
-The API SHALL expose, under `/api/ingestion` and the `Policies.PlatformAdmin` policy (role `admin-plataforma`), two bulk endpoints that take an optional `pipelineMode` query parameter (`BASELINE`, `HIERARCHICAL`, `RECURSIVE`, `SEMANTIC`, a comma-separated combination of them, `BOTH` for baseline and hierarchical, or `ALL` for the four; anything else, or no value, means `BOTH`) and answer `{ message, enqueued, failed }`:
+The API SHALL expose, under `/api/ingestion` and the `Policies.PlatformAdmin` policy (role `admin-plataforma`), two bulk endpoints that take an optional `pipelineMode` query parameter (`BASELINE`, `HIERARCHICAL`, `RECURSIVE`, `SEMANTIC`, a comma-separated combination of them, `BOTH` for baseline and hierarchical, or `ALL` for the four; no value means `BOTH`) and answer `{ message, enqueued, failed }`:
 - `POST /api/ingestion/reprocess-all`: lists every blob under `json/` in the bucket and enqueues them in batches of 1,000;
 - `POST /api/ingestion/enqueue-bulk`: enqueues the body, a list of `{ blobPath, source }`.
+
+A `pipelineMode` with an unknown name, alone or inside a comma-separated list, SHALL be rejected with `400 Bad Request` (a validation problem naming the unknown value) and nothing SHALL be enqueued; it SHALL NOT fall back to `BOTH`.
 
 Each document SHALL be published once per selected pipeline as a `DocumentMessage` (`source`, `document_id`, `blob_path`), with the document id taken from the blob file name and, for `reprocess-all`, the source taken from the `json/{SOURCE}/` path segment. The admin documents UI SHALL offer the same options.
 
@@ -54,6 +61,11 @@ Each document SHALL be published once per selected pipeline as a `DocumentMessag
 - **WHEN** a platform administrator calls `POST /api/ingestion/enqueue-bulk?pipelineMode=HIERARCHICAL` with `[{ "blobPath": "json/BOE/BOE-A-2026-1234.json", "source": "BOE" }]`
 - **THEN** a `DocumentMessage` for `BOE-A-2026-1234` SHALL be published only to `documents_to_process_hierarchical`
 - **AND** only the hierarchical status of that document SHALL change to `Queued`
+
+#### Scenario: Unknown pipeline name
+- **WHEN** a platform administrator calls `POST /api/ingestion/reprocess-all?pipelineMode=RECURSIVE,FIXED`
+- **THEN** the API SHALL answer `400 Bad Request` with a validation problem for `pipelineMode` that names `FIXED`
+- **AND** nothing SHALL be published to any queue
 
 #### Scenario: Empty bucket
 - **WHEN** `reprocess-all` finds no blob under `json/`

@@ -6,14 +6,16 @@ namespace AsistenteAyuntamiento.Domain.Features.Ingestion;
 /// <summary>
 /// Ingestion state of one document. Each pipeline has its own status (<c>null</c> = never requested), and
 /// <see cref="Status"/> is the summary shown to administrators, recomputed whenever a pipeline changes, so the
-/// workers never overwrite each other's result.
+/// workers never overwrite each other's result. The summary only reflects the production pipelines (baseline and
+/// hierarchical): the chunking-study pipelines (recursive, semantic) keep their own status, but a study queue that no
+/// worker consumes must not leave a document queued forever, nor a study failure turn it into failed.
 /// </summary>
 public class DocumentJobState
 {
     [Key]
     public string DocumentId { get; set; } = string.Empty;
 
-    /// <summary>Summary of the pipeline statuses (see <see cref="Summarize"/>).</summary>
+    /// <summary>Summary of the production pipeline statuses (see <see cref="Summarize"/>).</summary>
     public JobStatus Status { get; set; } = JobStatus.Pending;
 
     public JobStatus? BaselineStatus { get; set; }
@@ -50,7 +52,7 @@ public class DocumentJobState
             ErrorMessage = null;
         }
 
-        Status = Summarize(BaselineStatus, HierarchicalStatus, RecursiveStatus, SemanticStatus);
+        Status = Summarize(BaselineStatus, HierarchicalStatus);
         LastUpdatedAt = DateTime.UtcNow;
     }
 
@@ -68,7 +70,7 @@ public class DocumentJobState
 
     /// <summary>
     /// Forgets one pipeline (its data was deleted): its status and its error are cleared and <see cref="Status"/> is
-    /// recomputed from the other pipelines alone.
+    /// recomputed from the remaining production pipeline.
     /// </summary>
     public void ClearPipeline(PipelineType pipeline)
     {
@@ -79,7 +81,7 @@ public class DocumentJobState
             ErrorMessage = null;
         }
 
-        Status = Summarize(BaselineStatus, HierarchicalStatus, RecursiveStatus, SemanticStatus);
+        Status = Summarize(BaselineStatus, HierarchicalStatus);
         LastUpdatedAt = DateTime.UtcNow;
     }
 
@@ -101,12 +103,13 @@ public class DocumentJobState
         .Any(s => s is JobStatus.Failed or JobStatus.VectorSyncFailed);
 
     /// <summary>
-    /// Work in progress wins (processing, then queued); then failures (failed before vector-sync failed); then
-    /// completed only if every requested pipeline completed. No pipeline requested yet means pending.
+    /// The summary of the production pipelines: work in progress wins (processing, then queued); then failures (failed
+    /// before vector-sync failed); then completed only if every requested pipeline completed. No production pipeline
+    /// requested yet means pending, whatever the study pipelines say.
     /// </summary>
-    public static JobStatus Summarize(params JobStatus?[] pipelines)
+    public static JobStatus Summarize(JobStatus? baseline, JobStatus? hierarchical)
     {
-        JobStatus[] requested = [.. pipelines.Where(s => s.HasValue).Select(s => s!.Value)];
+        JobStatus[] requested = [.. new[] { baseline, hierarchical }.Where(s => s.HasValue).Select(s => s!.Value)];
         if (requested.Length == 0) return JobStatus.Pending;
 
         foreach (var status in new[] { JobStatus.Processing, JobStatus.Queued, JobStatus.Failed, JobStatus.VectorSyncFailed, JobStatus.Pending })

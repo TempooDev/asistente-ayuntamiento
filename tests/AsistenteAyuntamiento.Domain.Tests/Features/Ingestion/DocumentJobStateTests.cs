@@ -87,7 +87,7 @@ public class DocumentJobStateTests
     }
 
     [Fact]
-    public void The_study_pipelines_have_their_own_statuses_in_the_summary()
+    public void The_study_pipelines_keep_their_own_statuses_outside_the_summary()
     {
         var state = new DocumentJobState { DocumentId = "BOE-A-1" };
         state.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
@@ -97,7 +97,8 @@ public class DocumentJobStateTests
         state.SetPipelineStatus(PipelineType.Semantic, JobStatus.Failed, "ollama down");
 
         (state.RecursiveStatus, state.SemanticStatus, state.Status, state.ErrorMessage)
-            .Should().Be(((JobStatus?)JobStatus.Completed, (JobStatus?)JobStatus.Failed, JobStatus.Failed, "[Semantic] ollama down"));
+            .Should().Be(((JobStatus?)JobStatus.Completed, (JobStatus?)JobStatus.Failed, JobStatus.Completed, "[Semantic] ollama down"),
+                "a study failure must not turn the production summary into Failed");
         state.GetPipelineStatus(PipelineType.Semantic).Should().Be(JobStatus.Failed);
 
         state.SetPipelineStatus(PipelineType.Semantic, JobStatus.Completed);
@@ -105,18 +106,38 @@ public class DocumentJobStateTests
     }
 
     [Theory]
-    [InlineData(null, null, null, null, JobStatus.Pending)]
-    [InlineData(JobStatus.Completed, JobStatus.Completed, JobStatus.Completed, JobStatus.Completed, JobStatus.Completed)]
-    [InlineData(JobStatus.Completed, null, null, JobStatus.Queued, JobStatus.Queued)]
-    [InlineData(null, null, JobStatus.Processing, JobStatus.Failed, JobStatus.Processing)]
-    [InlineData(JobStatus.Completed, JobStatus.Completed, JobStatus.VectorSyncFailed, null, JobStatus.VectorSyncFailed)]
-    public void Summarizes_the_four_pipelines(JobStatus? baseline, JobStatus? hierarchical, JobStatus? recursive, JobStatus? semantic, JobStatus expected) =>
-        DocumentJobState.Summarize(baseline, hierarchical, recursive, semantic).Should().Be(expected);
+    [InlineData(JobStatus.Queued)]
+    [InlineData(JobStatus.Processing)]
+    [InlineData(JobStatus.Failed)]
+    [InlineData(JobStatus.VectorSyncFailed)]
+    public void An_unconsumed_or_failed_study_queue_does_not_change_the_summary(JobStatus study)
+    {
+        var state = new DocumentJobState { DocumentId = "BOE-A-1" };
+        state.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
+        state.SetPipelineStatus(PipelineType.Hierarchical, JobStatus.Completed);
+
+        state.SetPipelineStatus(PipelineType.Recursive, study);
+        state.SetPipelineStatus(PipelineType.Semantic, study);
+
+        state.Status.Should().Be(JobStatus.Completed);
+        (state.RecursiveStatus, state.SemanticStatus).Should().Be(((JobStatus?)study, (JobStatus?)study));
+    }
+
+    [Fact]
+    public void Only_study_pipelines_requested_leaves_the_summary_pending()
+    {
+        var state = new DocumentJobState { DocumentId = "BOE-A-1" };
+
+        state.SetPipelineStatus(PipelineType.Recursive, JobStatus.Queued);
+
+        (state.Status, state.HasNoPipeline).Should().Be((JobStatus.Pending, false));
+    }
 
     [Fact]
     public void Reset_and_clear_cover_the_study_pipelines()
     {
         var state = new DocumentJobState { DocumentId = "BOE-A-1" };
+        state.SetPipelineStatus(PipelineType.Hierarchical, JobStatus.Completed);
         state.SetPipelineStatus(PipelineType.Recursive, JobStatus.Completed);
         state.SetPipelineStatus(PipelineType.Semantic, JobStatus.Failed, "x");
 

@@ -1,4 +1,5 @@
 using AsistenteAyuntamiento.ApiService.Security;
+using AsistenteAyuntamiento.Application.Common.Messaging;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Ingestion.DTOs;
 using Microsoft.AspNetCore.Mvc;
@@ -94,6 +95,7 @@ public static class IngestionEndpoints
             [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
+            if (InvalidPipelineMode(pipelineMode) is { } invalid) return invalid;
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             logger.LogInformation("Encolando {Count} documentos (Mode: {PipelineMode})", requests.Count, pipelineMode ?? "BOTH");
             var result = await adminService.EnqueueBulkAsync(requests, pipelineMode, cancellationToken);
@@ -113,6 +115,7 @@ public static class IngestionEndpoints
             [FromServices] IIngestionAdminService adminService,
             [FromServices] ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
+            if (InvalidPipelineMode(pipelineMode) is { } invalid) return invalid;
             var logger = loggerFactory.CreateLogger("IngestionEndpoints");
             logger.LogInformation("Iniciando reprocesado masivo de todos los documentos en S3 (Mode: {PipelineMode})", pipelineMode ?? "BOTH");
             var result = await adminService.ReprocessAllAsync(pipelineMode, cancellationToken);
@@ -133,4 +136,13 @@ public static class IngestionEndpoints
         })
         .WithName("ReprocessAllBlobs");
     }
+
+    /// <summary>A 400 naming the unknown pipeline in <c>pipelineMode</c>, or null when the value is valid (or absent).</summary>
+    private static IResult? InvalidPipelineMode(string? pipelineMode) =>
+        IngestionPipelinesParser.TryParse(pipelineMode, out _, out var unknown)
+            ? null
+            : Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["pipelineMode"] = [IngestionPipelinesParser.UnknownPipelineMessage(unknown!)],
+            });
 }
