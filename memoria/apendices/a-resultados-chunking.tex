@@ -1,3 +1,75 @@
 \umaappendix{Resultados completos del estudio de \emph{chunking}}
 \label{ap:chunking}
-% TODO: Tablas por pregunta y por estrategia (capítulo~\ref{cap:estudio-chunking}).
+
+Este apéndice recoge los resultados por pregunta de la ejecución \texttt{20261023-112730} (cuatro variantes, \emph{prompts} ajustados, RTX 4060) que resume el capítulo~\ref{cap:estudio-chunking}. Los ficheros completos de las ejecuciones (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en \texttt{eval/runs}.
+
+\section{Fidelidad y recall de contexto por pregunta}
+
+La tabla~\ref{tab:ap-por-pregunta} da, para cada pregunta, la fidelidad (F) y el recall de contexto (CR) de cada variante. Un guion indica que el juez no pudo puntuar la muestra. En las tres preguntas sin respuesta en el corpus (q23 a q25) el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información.
+
+\begin{small}
+\begin{longtable}{@{}l l rr rr rr rr@{}}
+\caption{Fidelidad (F) y recall de contexto (CR) por pregunta y variante}\label{tab:ap-por-pregunta}\\
+\toprule
+& & \multicolumn{2}{c}{Tamaño fijo} & \multicolumn{2}{c}{Recursiva} & \multicolumn{2}{c}{Semántica} & \multicolumn{2}{c}{Jerárquica} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
+\textbf{Id.} & \textbf{Categoría} & F & CR & F & CR & F & CR & F & CR \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Id.} & \textbf{Categoría} & F & CR & F & CR & F & CR & F & CR \\
+\midrule
+\endhead
+
+q01 & empleo-publico & 1,00 & 1,00 & 0,80 & 1,00 & 1,00 & 1,00 & 0,25 & 1,00 \\
+q02 & empleo-publico & 1,00 & 1,00 & 0,00 & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 \\
+q03 & empleo-publico & 0,43 & 1,00 & 0,75 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 \\
+q04 & empleo-publico & 0,75 & 1,00 & 0,75 & 1,00 & 1,00 & 1,00 & 0,83 & 1,00 \\
+q05 & empleo-publico & 0,50 & 1,00 & 0,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 \\
+q06 & empleo-publico & 0,33 & 0,00 & 1,00 & 1,00 & 1,00 & 0,00 & 0,83 & 1,00 \\
+q07 & empleo-publico & 1,00 & 1,00 & 0,67 & 1,00 & 0,67 & 1,00 & 0,78 & 1,00 \\
+q08 & empleo-publico & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 0,88 & 1,00 \\
+q09 & empleo-publico & 1,00 & 1,00 & 1,00 & 0,00 & 0,50 & 1,00 & 0,50 & 1,00 \\
+q10 & empleo-publico & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,80 & 1,00 \\
+q11 & ayudas & 0,75 & 0,50 & 1,00 & 0,50 & 0,86 & 0,50 & 1,00 & 0,50 \\
+q12 & ayudas & 1,00 & 0,00 & 1,00 & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 \\
+q13 & ayudas & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 0,00 & 1,00 & 1,00 \\
+q14 & ayudas & 0,71 & 0,00 & 1,00 & 1,00 & 1,00 & 1,00 & --- & 1,00 \\
+q15 & ayudas & 1,00 & 0,00 & 0,75 & 0,50 & 1,00 & 0,00 & 1,00 & 0,00 \\
+q16 & ayudas & 0,00 & 1,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+q17 & normativa & 0,67 & 1,00 & 0,67 & 1,00 & 0,67 & 0,00 & 1,00 & 1,00 \\
+q18 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 0,67 & 1,00 \\
+q19 & normativa & 0,25 & 0,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,80 & 1,00 \\
+q20 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 1,00 \\
+q21 & tributos & 1,00 & 1,00 & 0,50 & 1,00 & 0,67 & 1,00 & 0,67 & 1,00 \\
+q22 & tributos & 1,00 & 0,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,67 & 1,00 \\
+q23 & sin-respuesta & 1,00 & 0,00 & 1,00 & 1,00 & 0,67 & 1,00 & 0,50 & 1,00 \\
+q24 & sin-respuesta & 0,33 & 0,00 & 0,71 & 0,00 & 1,00 & 0,00 & 0,43 & 1,00 \\
+q25 & sin-respuesta & 0,67 & 0,00 & 1,00 & 0,50 & 1,00 & 0,50 & 0,40 & 0,50 \\
+\bottomrule
+\end{longtable}
+\end{small}
+
+\section{Comparación con los \emph{prompts} anteriores}
+
+La tabla~\ref{tab:ap-prompts} compara la ejecución con los \emph{prompts} anteriores (\texttt{20261023-110829}) y la ejecución con los \emph{prompts} ajustados (\texttt{20261023-112730}), con las mismas preguntas, el mismo corpus y el mismo hardware. La recuperación es idéntica en las dos, así que las diferencias en precisión y recall de contexto se deben solo al juez y dan una idea de su ruido.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Medias por variante antes y después del ajuste de los \emph{prompts}}
+\label{tab:ap-prompts}
+\begin{tabular}{@{}l rr rr rr rr@{}}
+\toprule
+& \multicolumn{2}{c}{Precisión ctx.} & \multicolumn{2}{c}{Recall ctx.} & \multicolumn{2}{c}{Fidelidad} & \multicolumn{2}{c}{Alucinación} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+\textbf{Variante} & antes & después & antes & después & antes & después & antes & después \\
+\midrule
+
+Tamaño fijo & 0,44 & 0,44 & 0,62 & 0,62 & 0,74 & 0,78 & 56\,\% & 44\,\% \\
+Recursiva & 0,53 & 0,52 & 0,81 & 0,79 & 0,85 & 0,82 & 28\,\% & 36\,\% \\
+Semántica & 0,46 & 0,42 & 0,79 & 0,75 & 0,82 & 0,83 & 36\,\% & 36\,\% \\
+Jerárquica & 0,77 & 0,77 & 0,88 & 0,92 & 0,68 & 0,76 & 48\,\% & 46\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+

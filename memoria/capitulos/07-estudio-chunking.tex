@@ -68,11 +68,73 @@ Esas frases no aportan información al personal municipal y, además, no se pued
 
 \subsection{Estudio de las cuatro variantes}
 \label{sec:resultados-variantes}
-% TODO: Tablas y gráficas por estrategia y métrica de la ejecución completa de las cuatro variantes en la RTX 4060 (eval/runs). Pendiente de que termine su puntuación.
+
+Las tablas~\ref{tab:resultados-calidad}, \ref{tab:resultados-latencia} y~\ref{tab:resultados-indexacion} resumen la ejecución \texttt{20261023-112730}: 25 preguntas por variante, 100 respuestas en total, ninguna fallida y una sola muestra que el juez no pudo puntuar. Las métricas de recuperación (hit@1 y MRR) se calculan sobre las 22 preguntas que tienen respuesta en el corpus. Los resultados por pregunta y la comparación con los \emph{prompts} anteriores están en el apéndice~\ref{ap:chunking}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Calidad de la recuperación y de las respuestas por variante (medias sobre 25 preguntas)}
+\label{tab:resultados-calidad}
+\begin{tabular}{@{}l rrrr rr r@{}}
+\toprule
+\textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Alucinación} \\
+\midrule
+Tamaño fijo & 0,44 & 0,62 & 0,78 & 0,36 & 0,91 & 0,93 & 44\,\% \\
+Recursiva   & 0,52 & 0,79 & 0,82 & 0,50 & 1,00 & 1,00 & 36\,\% \\
+Semántica   & 0,42 & 0,75 & 0,83 & 0,49 & 1,00 & 1,00 & 36\,\% \\
+Jerárquica  & 0,77 & 0,92 & 0,76 & 0,62 & 1,00 & 1,00 & 46\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Latencia por variante en la RTX 4060, en segundos (sin la pregunta de calentamiento)}
+\label{tab:resultados-latencia}
+\begin{tabular}{@{}l r rr rr@{}}
+\toprule
+& \textbf{Reformulación} & \multicolumn{2}{c}{\textbf{Primer token}} & \multicolumn{2}{c}{\textbf{Total}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+\textbf{Variante} & p50 & p50 & p95 & p50 & p95 \\
+\midrule
+Tamaño fijo & --- & 2,2 & 2,4 & 4,5 & 6,6 \\
+Recursiva   & --- & 2,2 & 2,5 & 4,6 & 8,3 \\
+Semántica   & --- & 2,1 & 2,4 & 4,4 & 5,8 \\
+Jerárquica  & 1,4 & 2,5 & 4,2 & 8,5 & 16,3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Coste de indexación de los 17 documentos del corpus por variante}
+\label{tab:resultados-indexacion}
+\begin{tabular}{@{}l rr r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Tiempo por documento}} & \textbf{Fragmentos} & \textbf{Tokens de} & \textbf{Llamadas} \\
+\cmidrule(lr){2-3}
+\textbf{Variante} & p50 & p95 & \textbf{por doc.} & \textbf{\emph{embeddings}} & \textbf{al LLM} \\
+\midrule
+Tamaño fijo & 0,7\,s & 36\,s & 16,7 & 85.289 & 0 \\
+Recursiva   & 11,9\,s & 44\,s & 16,4 & 87.115 & 0 \\
+Semántica   & 47,4\,s & 107\,s & 13,5 & 273.076 & 0 \\
+Jerárquica  & 14,7\,s & 938\,s & 15,8 & 126.279 & 269 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los tiempos de indexación se midieron en el portátil y con otros procesos compartiendo Ollama, por lo que solo sirven como orden de magnitud. Los tokens de \emph{embeddings} y las llamadas al LLM no dependen del hardware.
 
 \section{Discusión}
 \label{sec:discusion}
-% TODO: Qué estrategia gana, con qué coste, y si confirma la jerárquica en producción. Pendiente de los resultados.
+
+\paragraph{Recuperación.} Las cuatro variantes encuentran casi siempre el documento correcto: la recursiva, la semántica y la jerárquica lo devuelven en primera posición en las 22 preguntas que tienen respuesta en el corpus, y la de tamaño fijo en 20 de 22 (hit@1 de 0,91). Donde se separan es en lo útil que es el texto recuperado para responder. La jerárquica es claramente la mejor (recall de contexto de 0,92 y precisión de 0,77), porque entrega artículos completos y su búsqueda híbrida y su reformulación de la consulta afinan el resultado. Entre las variantes planas, la recursiva y la semántica mejoran a la de tamaño fijo en recall (0,79 y 0,75 frente a 0,62): cortar por párrafos y frases conserva mejor las unidades de sentido de los boletines que cortar por número de tokens.
+
+\paragraph{Calidad de las respuestas.} La jerárquica da las respuestas más centradas en la pregunta (relevancia de 0,62), pero no las más fieles: sus respuestas son el doble de largas, porque su \emph{prompt} pide explicar en lenguaje claro, y cada frase añadida es una ocasión de afirmar algo que no está en el documento. La recursiva y la semántica obtienen la mejor fidelidad (0,82 y 0,83) y la menor tasa de alucinación (36\,\%). La comparación entre las dos ejecuciones del apéndice~\ref{ap:chunking} muestra que el juez varía hasta 0,04 en la precisión y el recall de contexto, que no deberían cambiar porque la recuperación es la misma, y que el ajuste de los \emph{prompts} movió la fidelidad entre 0,01 y 0,08. Las diferencias de fidelidad entre variantes son del mismo orden, así que no permiten ordenarlas con seguridad. La tasa de alucinación, además, sigue contando como alucinadas respuestas correctas con alguna frase sin respaldo, por lo que sobreestima los errores reales (sección~\ref{sec:ajuste-prompts}).
+
+\paragraph{Coste.} La recursiva tiene el mismo coste de respuesta que la de tamaño fijo y un coste de indexación casi igual en tokens. La semántica necesita tres veces más tokens de \emph{embeddings}, porque calcula el vector de cada frase para decidir dónde cortar, sin mejorar a la recursiva en ninguna métrica. La jerárquica es la más cara: duplica la latencia total, porque reformula la consulta y genera respuestas más largas, y su indexación hace una llamada al LLM por fragmento para generar las preguntas sintéticas.
+
+\paragraph{Conclusión.} No hay una variante que gane en todo. La jerárquica ofrece la mejor recuperación y las respuestas más relevantes, a cambio del doble de latencia y de una indexación mucho más cara, y confirma que la \emph{pipeline} avanzada aporta valor frente a la básica. Entre las variantes planas, la división recursiva es la mejor relación calidad--coste: mejora claramente la recuperación de la estrategia de tamaño fijo sin coste adicional, mientras que la semántica no compensa su coste de indexación. Para producción, la jerárquica sigue siendo la opción de más calidad, y la recursiva la alternativa si se prioriza la latencia; la Arena (sección~\ref{sec:impl-arena}) permite contrastar esta conclusión con la preferencia de los usuarios.
 
 \section{Amenazas a la validez}
 \label{sec:validez}
