@@ -23,6 +23,16 @@ Compara las variantes de chunking con las mismas preguntas, el mismo corpus y lo
 5. **Puntuar e informes:** `uv run python score.py ../runs/{runId}` y `uv run python report.py ../runs/{runId}`.
 6. **Guardar en la base de datos:** pulsa ▶ en el recurso `evaluation-import` de Aspire (importa la ejecución más reciente), o `dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import {runId}` (también acepta `latest`). Lee `run.json`, `summary.csv`, `latency.csv`, `indexing.csv` y `scoring.json`, y guarda la ejecución en `evaluation.EvaluationRuns` y `evaluation.EvaluationPipelineResults` (si ya estaba, la reemplaza). La sección «Evaluación offline» de Métricas la muestra (`GET /api/evaluation/runs`, solo administradores de plataforma). Solo usa la base de datos. Fuera de Aspire, la cadena de conexión se lee de los user secrets del proyecto: `dotnet user-secrets set "ConnectionStrings:asistente-ayuntamiento-db" "Host=localhost;Port=5432;Username=postgres;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.Evaluation`.
 
+## Evaluar en otra máquina (GPU)
+
+La evaluación puede usar el Ollama de otra máquina (por ejemplo un sobremesa con GPU) mientras la base, Qdrant y el corpus siguen en local. En esa máquina: Ollama con `OLLAMA_HOST=0.0.0.0` (y el puerto 11434 abierto), `ollama pull qwen2.5:7b-instruct-q4_K_M` y `ollama pull qwen3-embedding:0.6b`. Aquí:
+
+```bash
+dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://<ip>:11434" --project src/AsistenteAyuntamiento.AppHost
+```
+
+El recurso `evaluation` usará ese Ollama para las respuestas, los embeddings de las consultas y el juez de RAGAS (`--score` le pasa la misma URL a `score.py`). Las latencias medidas serán las de esa máquina: anótalo junto a los resultados.
+
 ## Decisiones de la medición
 
 - Todas las variantes recuperan 5 unidades sin umbral de similitud (el chat de la baseline usa 3 con umbral 0,65, calibrado para otro modelo de embeddings).

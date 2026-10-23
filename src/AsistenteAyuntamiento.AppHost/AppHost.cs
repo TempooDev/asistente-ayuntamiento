@@ -250,14 +250,24 @@ var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("
     // The whole question set, then score (eval/ragas, needs uv) and import. Add "--limit", "3" for a quick try.
     .WithArgs("--score")
     .WithReference(db)
-    .WithReference(ollama)
     .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(qdrant)
     .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
-if (evaluationModel is not null)
+// The evaluation can run its models (answers, query embeddings and the RAGAS judge) on another machine's Ollama, such
+// as a desktop GPU, while the data stays here. It needs the same models pulled there:
+// dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evaluationOllama)
 {
-    evaluation.WaitFor(evaluationModel);
+    evaluation.WithEnvironment("ConnectionStrings__ollama", $"Endpoint={evaluationOllama}");
+}
+else
+{
+    evaluation.WithReference(ollama);
+    if (evaluationModel is not null)
+    {
+        evaluation.WaitFor(evaluationModel);
+    }
 }
 
 WithAi(evaluation);
