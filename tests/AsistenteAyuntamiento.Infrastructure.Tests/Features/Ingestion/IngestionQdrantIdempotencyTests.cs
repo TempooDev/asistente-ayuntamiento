@@ -67,31 +67,35 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
         new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_postgres!.GetConnectionString(), o => o.UseVector()).Options,
         Mock.Of<ICurrentTenantService>(t => t.TenantId == "system"));
 
-    private async Task IngestAsync(string documentId, string text)
+    private async Task IngestAsync(string documentId, string text, FlatChunkVariant? variant = null)
     {
         _texts[documentId] = text;
+        variant ??= FlatChunkVariant.Baseline;
         await using var db = NewContext();
+        IChunkingStrategy strategy = variant == FlatChunkVariant.Recursive
+            ? new RecursiveChunkingStrategy(maxTokens: 20, overlapTokens: 0)
+            : new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 0);
         var sut = new DocumentIngestionService(
             new JsonBlobs(_texts, _titles),
             db,
             KernelWithFakeEmbeddings(),
             _vectors,
             NullLogger<DocumentIngestionService>.Instance,
-            new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 0),
-            Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>());
+            strategy,
+            Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>(), variant);
         await sut.ProcessBlobAsync($"json/BOE/{documentId}.json", "BOE");
     }
 
-    private async Task<HashSet<ulong>> PointIdsAsync(string documentId)
+    private async Task<HashSet<ulong>> PointIdsAsync(string documentId, VectorCollection collection = VectorCollection.DocumentChunks)
     {
-        var page = await _client.ScrollAsync(_options.DocumentChunksCollection, MatchKeyword(VectorPayloadKeys.DocumentId, documentId), limit: 1000);
+        var page = await _client.ScrollAsync(_options.NameOf(collection), MatchKeyword(VectorPayloadKeys.DocumentId, documentId), limit: 1000);
         return page.Result.Select(p => p.Id.Num).ToHashSet();
     }
 
-    private async Task<HashSet<ulong>> ChunkIdsAsync(string documentId)
+    private async Task<HashSet<ulong>> ChunkIdsAsync(string documentId, string strategy = ChunkingStrategies.FixedOverlap)
     {
         await using var db = NewContext();
-        return (await db.DocumentChunks.AsNoTracking().Where(c => c.DocumentId == documentId).Select(c => c.Id).ToListAsync())
+        return (await db.DocumentChunks.AsNoTracking().Where(c => c.DocumentId == documentId && c.ChunkingStrategy == strategy).Select(c => c.Id).ToListAsync())
             .Select(id => (ulong)id).ToHashSet();
     }
 
@@ -113,6 +117,24 @@ public sealed class IngestionQdrantIdempotencyTests : IAsyncLifetime
         (await PointIdsAsync(DocumentB)).Should().BeEquivalentTo(documentBPoints);
         (await _client.CountAsync(_options.DocumentChunksCollection, exact: true))
             .Should().Be((ulong)(chunks.Count + documentBPoints.Count));
+    }
+
+    [DockerFact]
+    public async Task A_study_variant_replaces_only_its_own_chunks_and_collection()
+    {
+        await IngestAsync(DocumentA, Paragraphs(4, "base"));
+        var baselineChunks = await ChunkIdsAsync(DocumentA);
+        var baselinePoints = await PointIdsAsync(DocumentA);
+
+        await IngestAsync(DocumentA, Paragraphs(4, "primera"), FlatChunkVariant.Recursive);
+        await IngestAsync(DocumentA, Paragraphs(2, "segunda"), FlatChunkVariant.Recursive);
+
+        (await ChunkIdsAsync(DocumentA)).Should().BeEquivalentTo(baselineChunks, "the FixedOverlap rows belong to the baseline");
+        (await PointIdsAsync(DocumentA)).Should().BeEquivalentTo(baselinePoints);
+        var recursiveChunks = await ChunkIdsAsync(DocumentA, ChunkingStrategies.Recursive);
+        recursiveChunks.Should().NotBeEmpty().And.NotIntersectWith(baselineChunks);
+        (await PointIdsAsync(DocumentA, VectorCollection.RecursiveChunks)).Should().BeEquivalentTo(recursiveChunks, "the first recursive run is replaced");
+        (await _client.CollectionExistsAsync(_options.RecursiveChunksCollection)).Should().BeTrue("the collection is created on the first write");
     }
 
     [DockerFact]

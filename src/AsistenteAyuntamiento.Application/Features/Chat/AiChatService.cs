@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using AsistenteAyuntamiento.Application.Features.Chat.DTOs;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace AsistenteAyuntamiento.Application.Features.Chat;
@@ -12,7 +14,7 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// testing; it holds no model, retrieval or persistence logic itself.
 /// </summary>
 public sealed class AiChatService(
-    BaselineRagPipeline baselinePipeline,
+    [FromKeyedServices(PipelineType.Baseline)] FlatChunkRagPipeline baselinePipeline,
     IEnumerable<IRagPipeline> pipelines,
     IWinningPipelineSelector winningPipelineSelector,
     IShadowTestScheduler shadowTestScheduler,

@@ -11,6 +11,11 @@ using Microsoft.SemanticKernel;
 
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
+/// <summary>
+/// Ingestion of one flat-chunk variant (<see cref="FlatChunkVariant"/>): download, chunk with the variant's strategy,
+/// embed, replace the variant's <c>DocumentChunks</c> rows and points, record its job status and metrics. The rows and
+/// points of the other variants are never touched.
+/// </summary>
 public class DocumentIngestionService(
     IBlobStorage blobStorage,
     IAppDbContext dbContext,
@@ -19,7 +24,8 @@ public class DocumentIngestionService(
     ILogger<DocumentIngestionService> logger,
     IChunkingStrategy chunkingStrategy,
     INotificationService notificationService,
-    IIngestionMetricsService metricsService) : IDocumentIngestionService
+    IIngestionMetricsService metricsService,
+    FlatChunkVariant variant) : IDocumentIngestionService
 {
     public async Task ProcessBlobAsync(string blobPath, string source, CancellationToken cancellationToken = default)
     {
@@ -75,6 +81,7 @@ public class DocumentIngestionService(
 
         // 2. Chunking
         List<string> paragraphs;
+        var chunkingTokens = 0;
         if (string.IsNullOrWhiteSpace(document.Content))
         {
             logger.LogInformation("El blob {BlobPath} tiene texto vacío; se guardará un chunk con sus metadatos", blobPath);
@@ -83,7 +90,9 @@ public class DocumentIngestionService(
         }
         else
         {
-            paragraphs = chunkingStrategy.ChunkText(document.Content).Select(c => c.Text).ToList();
+            var chunkResults = await chunkingStrategy.ChunkTextAsync(document.Content, cancellationToken);
+            paragraphs = chunkResults.Select(c => c.Text).ToList();
+            chunkingTokens = chunkResults.Sum(c => c.EmbeddedTokens ?? 0);
         }
 
         // 3. Obtener servicio de embeddings
@@ -95,7 +104,7 @@ public class DocumentIngestionService(
         var chunkedParagraphs = paragraphs.Chunk(batchSize).ToList();
         for (int i = 0; i < chunkedParagraphs.Count; i++)
         {
-            logger.LogInformation("[Baseline {DocumentId}] Vectorizando lote {Batch}/{Batches}", documentId, i + 1, chunkedParagraphs.Count);
+            logger.LogInformation("[{Pipeline} {DocumentId}] Vectorizando lote {Batch}/{Batches}", variant.Pipeline, documentId, i + 1, chunkedParagraphs.Count);
             var batchEmbeddings = await embeddingGenerator.GenerateAsync(chunkedParagraphs[i].ToList(), cancellationToken: cancellationToken);
             allEmbeddings.AddRange(batchEmbeddings);
         }
@@ -111,7 +120,8 @@ public class DocumentIngestionService(
             Department = document.Metadata?.Department ?? string.Empty,
             Content = p,
             ChunkIndex = i,
-            PublicationDate = publicationDate
+            PublicationDate = publicationDate,
+            ChunkingStrategy = variant.ChunkingStrategy
         }).ToList();
 
         try
@@ -123,7 +133,7 @@ public class DocumentIngestionService(
                 foreach (var chunk in chunks) chunk.Id = 0;
 
                 await dbContext.DocumentChunks
-                    .Where(c => c.DocumentId == documentId)
+                    .Where(c => c.DocumentId == documentId && c.ChunkingStrategy == variant.ChunkingStrategy)
                     .ExecuteDeleteAsync(ct);
 
                 await dbContext.DocumentChunks.AddRangeAsync(chunks, ct);
@@ -140,8 +150,8 @@ public class DocumentIngestionService(
         try
         {
             var vectors = allEmbeddings.Select(e => e.Vector.ToArray()).ToList();
-            await vectorStore.EnsureCollectionAsync(VectorCollection.DocumentChunks, vectors[0].Length, cancellationToken);
-            await vectorStore.DeleteDocumentAsync(VectorCollection.DocumentChunks, documentId, cancellationToken: cancellationToken);
+            await vectorStore.EnsureCollectionAsync(variant.Collection, vectors[0].Length, cancellationToken);
+            await vectorStore.DeleteDocumentAsync(variant.Collection, documentId, cancellationToken: cancellationToken);
 
             var points = chunks.Select((chunk, i) => new VectorPoint(chunk.Id, vectors[i], new Dictionary<string, object>
             {
@@ -155,7 +165,7 @@ public class DocumentIngestionService(
                 [VectorPayloadKeys.PublicationDate] = chunk.PublicationDate.ToString("O")
             })).ToList();
 
-            await vectorStore.UpsertAsync(VectorCollection.DocumentChunks, points, cancellationToken);
+            await vectorStore.UpsertAsync(variant.Collection, points, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -165,15 +175,16 @@ public class DocumentIngestionService(
         }
 
         await SetJobStateAsync(documentId, JobStatus.Completed, null, cancellationToken);
-        logger.LogInformation("Documento {DocumentId} vectorizado con {ChunkCount} chunks", documentId, chunks.Count);
+        logger.LogInformation("Documento {DocumentId} vectorizado con {ChunkCount} chunks ({Strategy})", documentId, chunks.Count, variant.ChunkingStrategy);
 
-        // Same IngestionMetrics as the hierarchical pipeline, so both can be compared (no LLM calls here).
+        // Same IngestionMetrics as the hierarchical pipeline, so the variants can be compared (no LLM calls here).
+        // Embedded tokens include those the strategy embedded to chunk (semantic sentence windows).
         stopwatch.Stop();
         await metricsService.TrackIngestionAsync(
-            PipelineType.Baseline,
+            variant.Pipeline,
             Enum.Parse<BulletinType>(source, ignoreCase: true),
             documentId,
-            tokensEmbedded: paragraphs.Sum(p => p.Length) / 4, // estimate, as in the hierarchical pipeline
+            tokensEmbedded: paragraphs.Sum(ChunkTokenCounter.Count) + chunkingTokens, // estimate, as in the hierarchical pipeline
             llmCalls: 0,
             llmTokens: 0,
             chunksGenerated: chunks.Count,
@@ -186,8 +197,8 @@ public class DocumentIngestionService(
     {
         try
         {
-            // Only the baseline column changes; the notification carries the document's summary.
-            var state = await DocumentJobStateUpdates.SetPipelineStatusAsync(dbContext, documentId, PipelineType.Baseline, status, error, cancellationToken);
+            // Only this variant's column changes; the notification carries the document's summary.
+            var state = await DocumentJobStateUpdates.SetPipelineStatusAsync(dbContext, documentId, variant.Pipeline, status, error, cancellationToken);
             await notificationService.NotifyDocumentStatusChangedAsync(documentId, state.Status.ToString());
         }
         catch (Exception ex)

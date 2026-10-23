@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { PipelineStats } from '../models/documents.models';
+import { DOCUMENT_PIPELINES, PipelineStats } from '../models/documents.models';
 
 type SegmentKey = 'completed' | 'processing' | 'queued' | 'failed' | 'pending' | 'notSent';
 
@@ -12,7 +12,7 @@ const SEGMENTS: readonly { key: SegmentKey; label: string; bar: string; dot: str
   { key: 'notSent', label: 'No enviados', bar: 'bg-gray-300', dot: 'bg-gray-300' },
 ];
 
-const LABELS: Record<string, string> = { baseline: 'Baseline', hierarchical: 'Jerárquica' };
+const LABELS: Record<string, string> = Object.fromEntries(DOCUMENT_PIPELINES.map(p => [p.key, p.label]));
 
 /** One stacked progress bar per pipeline: completed, processing, queued, failed, pending and not sent out of the total. */
 @Component({

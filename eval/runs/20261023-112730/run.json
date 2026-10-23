@@ -1,0 +1,21 @@
+{
+  "run_id": "20261023-112730",
+  "started_at": "2026-10-23T11:27:30.31309Z",
+  "finished_at": "2026-10-23T11:37:32.796885Z",
+  "git_commit": "4c625cdc72a66525c32effa147d05c681d9452d8",
+  "seed": 1864480339,
+  "chat_provider": "ollama",
+  "chat_model": "qwen2.5:7b-instruct-q4_K_M",
+  "temperature": 0,
+  "embedding_model": "qwen3-embedding:0.6b",
+  "query_instruction": "Given a question from a citizen or municipal staff, retrieve passages of Spanish official bulletins (BOE and BOJA) that answer it",
+  "pipelines": [
+    "Baseline",
+    "Hierarchical",
+    "Recursive",
+    "Semantic"
+  ],
+  "question_count": 25,
+  "dataset_hash": "sha256:107ca06abcc211cc205cc43a37164ce4fa1376e03e1a0b0b43fb5110d4add90a",
+  "corpus_hash": "sha256:31aaaa8f423db3805783ff88c5d4ee5c05a25326de3e0cbcf3a094224ff70897"
+}

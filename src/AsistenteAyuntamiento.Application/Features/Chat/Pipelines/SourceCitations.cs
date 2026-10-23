@@ -29,13 +29,13 @@ public static class SourceCitations
     public static string FromHits(IEnumerable<VectorSearchHit> hits) => Format(hits.Select(hit =>
     {
         var documentId = hit.GetString(VectorPayloadKeys.DocumentId);
-        return (documentId, hit.GetString(VectorPayloadKeys.Title), BaselineRagPipeline.GetPublicUrl(hit.GetString(VectorPayloadKeys.Source), documentId));
+        return (documentId, hit.GetString(VectorPayloadKeys.Title), FlatChunkRagPipeline.GetPublicUrl(hit.GetString(VectorPayloadKeys.Source), documentId));
     }));
 
     /// <summary>Hierarchical: the parent documents of the retrieved fragments.</summary>
     public static string FromRetrieval(IEnumerable<RetrievalResult> results) => Format(results
         .Where(r => r.Bulletin is not null)
-        .Select(r => (r.ParentDocumentId, r.ParentTitle, BaselineRagPipeline.GetPublicUrl(r.Bulletin!.Value.ToString(), r.ParentDocumentId))));
+        .Select(r => (r.ParentDocumentId, r.ParentTitle, FlatChunkRagPipeline.GetPublicUrl(r.Bulletin!.Value.ToString(), r.ParentDocumentId))));
 
     /// <summary>Titles are free text: brackets and line breaks would break the Markdown link.</summary>
     private static string LinkText(string title) =>

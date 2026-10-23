@@ -14,6 +14,16 @@ const busy: PipelineStats[] = [
   { pipeline: 'Baseline', total: 201, completed: 150, processing: 5, queued: 46, failed: 0, pending: 0, notSent: 0 },
   { pipeline: 'Hierarchical', total: 201, completed: 3, processing: 5, queued: 193, failed: 0, pending: 0, notSent: 0 },
 ];
+const progressed: PipelineStats[] = [
+  { pipeline: 'Baseline', total: 201, completed: 160, processing: 5, queued: 36, failed: 0, pending: 0, notSent: 0 },
+  { pipeline: 'Hierarchical', total: 201, completed: 8, processing: 5, queued: 188, failed: 0, pending: 0, notSent: 0 },
+];
+/** Production done; the study queue has messages but no study worker runs. */
+const unconsumedStudy: PipelineStats[] = [
+  ...idle,
+  { pipeline: 'Recursive', total: 1, completed: 0, processing: 0, queued: 1, failed: 0, pending: 0, notSent: 0 },
+  { pipeline: 'Semantic', total: 1, completed: 0, processing: 0, queued: 1, failed: 0, pending: 0, notSent: 0 },
+];
 
 const page = (names: string[], pipelineStats: PipelineStats[] = idle): PaginatedBlobsResponse => ({
   items: names.map(name => ({
@@ -129,10 +139,46 @@ describe('DocumentsPageComponent', () => {
     expect(hierarchical.getAttribute('title')).toBeNull();
   });
 
+  it('hides the study variants until some document is sent to them', async () => {
+    await create([
+      ...idle,
+      { pipeline: 'Recursive', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 1 },
+      { pipeline: 'Semantic', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 1 },
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelectorAll('[data-testid="pipeline-progress"]')).toHaveLength(2);
+    expect(element.querySelector('[data-testid="recursive-status"]')).toBeNull();
+  });
+
+  it('shows four progress bars and four status columns while the chunking study runs', async () => {
+    await create([
+      ...idle,
+      { pipeline: 'Recursive', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 0 },
+      { pipeline: 'Semantic', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 1 },
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const bars = [...element.querySelectorAll('[data-testid="pipeline-progress"]')].map(b => b.querySelector('h2')!.textContent);
+    expect(bars).toEqual(['Baseline', 'Jerárquica', 'Recursiva', 'Semántica']);
+    const headers = [...element.querySelectorAll('th')].map(th => th.textContent!.trim());
+    expect(headers).toEqual(expect.arrayContaining(['Baseline', 'Jerárquica', 'Recursiva', 'Semántica']));
+    expect(element.querySelector('[data-testid="semantic-status"] span')!.textContent).toContain('No enviado');
+  });
+
+  it('offers the study variants as processing targets', async () => {
+    await create();
+    const options = [...(fixture.nativeElement as HTMLElement).querySelectorAll('#pipeline-mode option')].map(o => (o as HTMLOptionElement).value);
+
+    expect(options).toEqual(['BOTH', 'BASELINE', 'HIERARCHICAL', 'RECURSIVE', 'SEMANTIC', 'RECURSIVE,SEMANTIC', 'ALL']);
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('#pipeline-mode')!.value).toBe('BOTH');
+  });
+
   it('refreshes every 10 seconds while something is queued or processing, and stops when nothing is', async () => {
     await create(busy);
     expect(ingestion.queries).toHaveLength(1);
 
+    ingestion.pipelineStats = progressed;
     await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
     expect(ingestion.queries).toHaveLength(2);
 
@@ -143,6 +189,30 @@ describe('DocumentsPageComponent', () => {
 
     await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS * 3);
     expect(ingestion.queries).toHaveLength(3);
+  });
+
+  it('stops refreshing when two loads in a row return the same counters (a study queue nobody consumes)', async () => {
+    await create(unconsumedStudy);
+    await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+    expect(ingestion.queries).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS * 3);
+    expect(ingestion.queries).toHaveLength(2);
+  });
+
+  it('resumes refreshing once the counters move again', async () => {
+    await create(busy);
+    await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS * 3);
+    expect(ingestion.queries).toHaveLength(2);
+
+    ingestion.pipelineStats = progressed;
+    changeFilters({ minSizeKb: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ingestion.queries).toHaveLength(3);
+
+    ingestion.pipelineStats = busy;
+    await vi.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+    expect(ingestion.queries).toHaveLength(4);
   });
 
   it('does not refresh when nothing is being ingested', async () => {

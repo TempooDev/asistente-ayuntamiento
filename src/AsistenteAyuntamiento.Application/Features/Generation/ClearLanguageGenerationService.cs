@@ -250,7 +250,7 @@ public class ClearLanguageGenerationService(
         var label = new StringBuilder($"[Documento: {title} | Boletín: {bulletin} | Referencia: {result.ParentDocumentId}");
         if (!string.IsNullOrWhiteSpace(result.IssuingBody)) label.Append($" | Organismo: {result.IssuingBody}");
         if (result.PublicationDate is { } date) label.Append($" | Fecha: {date:yyyy-MM-dd}");
-        label.Append($" | URL: {BaselineRagPipeline.GetPublicUrl(bulletin.ToString(), result.ParentDocumentId)}]");
+        label.Append($" | URL: {FlatChunkRagPipeline.GetPublicUrl(bulletin.ToString(), result.ParentDocumentId)}]");
         return label.ToString();
     }
 }

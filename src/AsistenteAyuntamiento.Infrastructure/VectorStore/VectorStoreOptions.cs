@@ -11,10 +11,16 @@ public sealed class VectorStoreOptions
 
     public string ChildFragmentsCollection { get; set; } = "child_fragments";
 
+    public string RecursiveChunksCollection { get; set; } = "document_chunks_recursive";
+
+    public string SemanticChunksCollection { get; set; } = "document_chunks_semantic";
+
     public string NameOf(VectorCollection collection) => collection switch
     {
         VectorCollection.DocumentChunks => DocumentChunksCollection,
         VectorCollection.ChildFragments => ChildFragmentsCollection,
+        VectorCollection.RecursiveChunks => RecursiveChunksCollection,
+        VectorCollection.SemanticChunks => SemanticChunksCollection,
         _ => throw new ArgumentOutOfRangeException(nameof(collection), collection, null)
     };
 }

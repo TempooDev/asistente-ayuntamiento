@@ -177,11 +177,22 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext, ILlmUsageMetr
             .Select(g => new
             {
                 Baseline = g.Count(j => j.BaselineStatus == JobStatus.Failed || j.BaselineStatus == JobStatus.VectorSyncFailed),
-                Hierarchical = g.Count(j => j.HierarchicalStatus == JobStatus.Failed || j.HierarchicalStatus == JobStatus.VectorSyncFailed)
+                Hierarchical = g.Count(j => j.HierarchicalStatus == JobStatus.Failed || j.HierarchicalStatus == JobStatus.VectorSyncFailed),
+                Recursive = g.Count(j => j.RecursiveStatus == JobStatus.Failed || j.RecursiveStatus == JobStatus.VectorSyncFailed),
+                Semantic = g.Count(j => j.SemanticStatus == JobStatus.Failed || j.SemanticStatus == JobStatus.VectorSyncFailed)
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        var pipelines = new[] { PipelineType.Baseline, PipelineType.Hierarchical }
+        int FailedOf(PipelineType pipeline) => pipeline switch
+        {
+            PipelineType.Hierarchical => failed?.Hierarchical ?? 0,
+            PipelineType.Recursive => failed?.Recursive ?? 0,
+            PipelineType.Semantic => failed?.Semantic ?? 0,
+            _ => failed?.Baseline ?? 0,
+        };
+
+        // The four variants of the chunking study, always in the same order (the page hides the empty study rows).
+        var pipelines = Enum.GetValues<PipelineType>()
             .Select(pipeline =>
             {
                 var rows = latest.Where(m => m.Pipeline == pipeline).ToList();
@@ -195,7 +206,7 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext, ILlmUsageMetr
                     rows.Sum(m => (long)m.TotalTokensEmbedded),
                     rows.Sum(m => (long)m.TotalLlmCalls),
                     rows.Sum(m => (long)m.TotalLlmTokens),
-                    pipeline == PipelineType.Baseline ? failed?.Baseline ?? 0 : failed?.Hierarchical ?? 0);
+                    FailedOf(pipeline));
             })
             .ToList();
 

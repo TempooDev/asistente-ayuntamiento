@@ -7,6 +7,7 @@ using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Application.Features.Generation;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Features.Chat;
@@ -60,12 +61,13 @@ public class AiChatServiceCompletionTests
             new AiCallRecorder(db.Object, Mock.Of<IAiMetricsService>(), Mock.Of<ILlmUsageMetrics>(), NullLogger<AiCallRecorder>.Instance),
             NullLogger<ChatStreamingService>.Instance);
 
-        var baseline = new BaselineRagPipeline(
+        var baseline = new FlatChunkRagPipeline(
+            FlatChunkVariant.Baseline,
             kernelBuilder.Build(),
             EmptyVectorStore(),
             preferences.Object,
             streaming,
-            NullLogger<BaselineRagPipeline>.Instance);
+            NullLogger<FlatChunkRagPipeline>.Instance);
 
         return new AiChatService(
             baseline,

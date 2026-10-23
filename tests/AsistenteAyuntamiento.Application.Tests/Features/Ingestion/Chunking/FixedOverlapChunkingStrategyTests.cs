@@ -9,27 +9,27 @@ namespace AsistenteAyuntamiento.Application.Tests.Features.Ingestion.Chunking;
 public class FixedOverlapChunkingStrategyTests
 {
     [Fact]
-    public void ChunkText_WithEmptyText_ReturnsEmpty()
+    public async Task ChunkText_WithEmptyText_ReturnsEmpty()
     {
         // Arrange
         var strategy = new FixedOverlapChunkingStrategy(400, 50);
 
         // Act
-        var result = strategy.ChunkText("");
+        var result = await strategy.ChunkTextAsync("");
 
         // Assert
         Assert.Empty(result);
     }
 
     [Fact]
-    public void ChunkText_WithSmallText_ReturnsSingleChunk()
+    public async Task ChunkText_WithSmallText_ReturnsSingleChunk()
     {
         // Arrange
         var strategy = new FixedOverlapChunkingStrategy(400, 50);
         var text = "This is a short text that should fit in a single chunk.";
 
         // Act
-        var result = strategy.ChunkText(text).ToList();
+        var result = (await strategy.ChunkTextAsync(text)).ToList();
 
         // Assert
         Assert.Single(result);
@@ -37,7 +37,7 @@ public class FixedOverlapChunkingStrategyTests
     }
 
     [Fact]
-    public void ChunkText_WithLargeText_SplitsIntoChunksWithOverlap()
+    public async Task ChunkText_WithLargeText_SplitsIntoChunksWithOverlap()
     {
         // Arrange
         var strategy = new FixedOverlapChunkingStrategy(maxTokens: 10, overlapTokens: 2);
@@ -48,7 +48,7 @@ public class FixedOverlapChunkingStrategyTests
         var words = string.Join(" ", Enumerable.Range(1, 30).Select(i => $"word{i}"));
 
         // Act
-        var result = strategy.ChunkText(words).ToList();
+        var result = (await strategy.ChunkTextAsync(words)).ToList();
 
         // Assert
         Assert.True(result.Count > 1, "Text should be split into multiple chunks.");
@@ -62,26 +62,26 @@ public class FixedOverlapChunkingStrategyTests
     private static readonly string LongSentence = string.Join(" ", Enumerable.Range(1, 60).Select(i => $"word{i}"));
 
     [Fact]
-    public void ChunkText_MaxLineTokens_ChangesHowLinesAreCut()
+    public async Task ChunkText_MaxLineTokens_ChangesHowLinesAreCut()
     {
         var longLines = new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 5, maxLineTokens: 200);
         var shortLines = new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 5, maxLineTokens: 4);
 
-        var withLongLines = longLines.ChunkText(LongSentence).Select(c => c.Text).ToList();
-        var withShortLines = shortLines.ChunkText(LongSentence).Select(c => c.Text).ToList();
+        var withLongLines = (await longLines.ChunkTextAsync(LongSentence)).Select(c => c.Text).ToList();
+        var withShortLines = (await shortLines.ChunkTextAsync(LongSentence)).Select(c => c.Text).ToList();
 
         Assert.NotEqual(withLongLines, withShortLines);
     }
 
     [Fact]
-    public void Constructor_DefaultMaxLineTokens_Is200()
+    public async Task Constructor_DefaultMaxLineTokens_Is200()
     {
         var byDefault = new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 5);
         var explicit200 = new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 5, maxLineTokens: 200);
 
         Assert.Equal(
-            explicit200.ChunkText(LongSentence).Select(c => c.Text),
-            byDefault.ChunkText(LongSentence).Select(c => c.Text));
+            (await explicit200.ChunkTextAsync(LongSentence)).Select(c => c.Text),
+            (await byDefault.ChunkTextAsync(LongSentence)).Select(c => c.Text));
     }
 
     [Theory]
@@ -98,7 +98,7 @@ public class FixedOverlapChunkingStrategyTests
     }
 
     [Fact]
-    public void AddApplicationServices_BindsChunkMaxLines()
+    public async Task AddApplicationServices_BindsChunkMaxLines()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -112,8 +112,8 @@ public class FixedOverlapChunkingStrategyTests
 
         var expected = new FixedOverlapChunkingStrategy(maxTokens: 20, overlapTokens: 5, maxLineTokens: 4);
         Assert.Equal(
-            expected.ChunkText(LongSentence).Select(c => c.Text),
-            registered.ChunkText(LongSentence).Select(c => c.Text));
+            (await expected.ChunkTextAsync(LongSentence)).Select(c => c.Text),
+            (await registered.ChunkTextAsync(LongSentence)).Select(c => c.Text));
     }
 
     [Fact]

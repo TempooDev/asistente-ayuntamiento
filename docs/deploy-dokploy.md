@@ -35,9 +35,19 @@ Como tus imágenes Docker se subirán al registro privado de GitHub (GHCR), Dokp
 5. **MUY IMPORTANTE**: En los selectores de arriba, asegúrate de marcar tu registro `GitHub Container Registry` para que Dokploy sepa usar esas credenciales al tirar de `ghcr.io`.
 6. Haz clic en **Deploy**. Dokploy descargará las imágenes y levantará toda la arquitectura (MinIO, RabbitMQ, Web, API, Worker, Gateway, y el Scraper).
 
+### Workers del estudio de chunking (perfil `chunking-study`)
+
+`worker-recursive` y `worker-semantic` ingieren las variantes recursiva y semántica del estudio de chunking (`eval/README.md`). Usan la misma imagen que los otros workers y solo arrancan con el perfil de Compose `chunking-study`, así que un despliegue normal levanta únicamente `worker-baseline` y `worker-hierarchical`:
+
+```bash
+docker compose --profile chunking-study up -d worker-recursive worker-semantic
+```
+
+En Dokploy, añade `COMPOSE_PROFILES=chunking-study` en la pestaña **Environment** para activarlos. Sin ellos, los documentos que un administrador encole para estas variantes esperan en `documents_to_process_recursive` y `documents_to_process_semantic`. Ajustes opcionales (por defecto, los de `AI_EMBEDDINGS_*`): `AI_CHUNKING_RECURSIVE_CHUNK_MAX_TOKENS`, `AI_CHUNKING_RECURSIVE_CHUNK_OVERLAP_TOKENS`, `AI_CHUNKING_SEMANTIC_BUFFER_SIZE` (1), `AI_CHUNKING_SEMANTIC_BREAKPOINT_PERCENTILE` (95) y `AI_CHUNKING_SEMANTIC_CHUNK_MAX_TOKENS`. El tamaño mínimo de chunk semántico no se fija en el compose: el Worker usa `min(100, ChunkMaxTokens / 4)`, de modo que un `ChunkMaxTokens` pequeño sigue siendo válido. La variante semántica embebe cada frase del documento con el modelo de embeddings de la plataforma, así que con un proveedor de pago la ingesta cuesta varias veces lo que la baseline.
+
 ## Paso 4: Versiones de las imágenes y vuelta atrás (rollback)
 
-El `docker-compose.yml` del repositorio usa `${IMAGE_TAG:-latest}` en todas las imágenes de la aplicación (`apiservice`, `worker-baseline`, `worker-hierarchical`, `go-scraper` y `gateway`). Sin `IMAGE_TAG`, o con `IMAGE_TAG=latest`, se despliega la última versión publicada.
+El `docker-compose.yml` del repositorio usa `${IMAGE_TAG:-latest}` en todas las imágenes de la aplicación (`apiservice`, `worker-baseline`, `worker-hierarchical`, `worker-recursive`, `worker-semantic`, `go-scraper` y `gateway`). Sin `IMAGE_TAG`, o con `IMAGE_TAG=latest`, se despliega la última versión publicada.
 
 Cada despliegue de `.github/workflows/deploy.yml` publica la etiqueta `sha-<7 primeros caracteres del commit>`:
 

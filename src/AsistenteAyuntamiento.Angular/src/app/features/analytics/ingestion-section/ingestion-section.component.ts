@@ -3,14 +3,14 @@ import { IngestionUsage } from '../models/analytics.models';
 import { ChartTheme } from '../shared/chart-theme';
 import { formatMs, formatNumber } from '../shared/format';
 import { percentChange } from '../shared/period';
-import { pipelineLabel } from '../shared/pipelines';
+import { isStudyPipeline, pipelineLabel } from '../shared/pipelines';
 
 /** "Ingesta": one column per pipeline, each document counted once (its latest ingestion). */
 @Component({
   selector: 'app-ingestion-section',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
       @for (p of columns(); track p.pipeline) {
         <div class="bg-surface-container-lowest p-5 rounded-xl shadow-xs border border-gray-100 border-t-4" [style.border-top-color]="p.color" data-testid="ingestion-pipeline">
           <h3 class="text-lg font-bold text-gray-800 mb-3">{{ p.label }}</h3>
@@ -53,7 +53,8 @@ export class IngestionSectionComponent {
   protected readonly columns = computed(() => {
     const colors = this.chartTheme.colors();
     const previous = new Map((this.previous()?.pipelines ?? []).map(p => [p.pipeline.toLowerCase(), p.documents]));
-    return this.usage().pipelines.map(p => ({
+    // The study variants (recursive, semantic) only appear when they ingested or failed something in the period.
+    return this.usage().pipelines.filter(p => !isStudyPipeline(p.pipeline) || p.documents > 0 || p.failedDocuments > 0).map(p => ({
       ...p,
       label: pipelineLabel(p.pipeline),
       color: colors.pipeline(p.pipeline),

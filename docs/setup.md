@@ -28,7 +28,7 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 | Servicio | Imagen Docker | Propósito |
 |---|---|---|
 | **PostgreSQL** | `pgvector/pgvector:pg16` | Base de datos principal y búsqueda de texto completo |
-| **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks` y `child_fragments`) |
+| **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks`, `child_fragments` y, para el estudio de chunking, `document_chunks_recursive` y `document_chunks_semantic`) |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
 | **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (la API crea el bucket privado al arrancar) |
 | **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`qwen3-embedding:0.6b`) y LLM de fallback (`llama3.2`) |
@@ -77,7 +77,23 @@ Para producción, crear un bucket en [Cloudflare R2](https://developers.cloudfla
 
 #### Modelos de IA
 
-Por defecto todo funciona con Ollama local (`llama3.2` para chat y `qwen3-embedding:0.6b` para embeddings). Los parámetros `ai-chat-*` fijan el modelo por defecto de la plataforma. Cada tenant puede elegir el suyo en *Configuración → IA*; su clave se guarda cifrada con Data Protection. Los embeddings son siempre los de la plataforma (`ai-embeddings-*`). En local, las consultas se embeben con la instrucción de tarea que recomienda Qwen3-Embedding (`Instruct: …\nQuery: …`): el texto está en `PromptCatalog.EmbeddingQueryInstruction` y se activa con `Ai:Embeddings:UseQueryInstruction=true`; los documentos se embeben sin ella. Desactivada (por defecto), las consultas se embeben tal cual. Para el modelo de respaldo ante cuota agotada se usa `Ai:Fallback:{Provider,Endpoint,ModelId,ApiKey}`.
+Por defecto todo funciona con Ollama local (`llama3.2` para chat y `qwen3-embedding:0.6b` para embeddings). Los parámetros `ai-chat-*` fijan el modelo por defecto de la plataforma. Cada tenant puede elegir el suyo en *Configuración → IA*; su clave se guarda cifrada con Data Protection. Los embeddings son siempre los de la plataforma (`ai-embeddings-*`). En local, las consultas se embeben con la instrucción de tarea que recomienda Qwen3-Embedding (`Instruct: …\nQuery: …`): el texto está en `PromptCatalog.EmbeddingQueryInstruction` y se activa con `Ai:Embeddings:UseQueryInstruction=true`; los documentos se embeben sin ella. Desactivada (por defecto), las consultas se embeben tal cual. El pipeline que responde en el chat se fija con `Rag:ProductionPipeline` (`Baseline`, `Hierarchical`, `Recursive` o `Semantic`; en local, `dotnet user-secrets set "Rag:ProductionPipeline" "Semantic" --project src/AsistenteAyuntamiento.AppHost`); sin valor responde el que más gana en la Arena. Para el modelo de respaldo ante cuota agotada se usa `Ai:Fallback:{Provider,Endpoint,ModelId,ApiKey}`.
+
+#### Estrategias de chunking
+
+Aspire arranca cuatro workers, uno por variante RAG (`WORKER_PIPELINE_MODE`): `worker-baseline` (`BASELINE`, chunks de tamaño fijo con solapamiento), `worker-hierarchical` (`HIERARCHICAL`), y las dos variantes del estudio de chunking, `worker-recursive` (`RECURSIVE`) y `worker-semantic` (`SEMANTIC`). Las del estudio solo procesan lo que un administrador encola para ellas desde *Documentos* (o con `pipelineMode=RECURSIVE`, `SEMANTIC`, `RECURSIVE,SEMANTIC` o `ALL` en `/api/ingestion/enqueue-bulk` y `/api/ingestion/reprocess-all`); el chat sigue respondiendo con la baseline o la jerárquica.
+
+| Ajuste | Por defecto | Para qué |
+|---|---|---|
+| `Ai:Embeddings:ChunkMaxTokens` / `ChunkOverlapTokens` / `ChunkMaxLines` | 400 / 50 / 200 | Estrategia fija (baseline y división de artículos de la jerárquica) |
+| `Ai:Chunking:Recursive:ChunkMaxTokens` / `ChunkOverlapTokens` | los de `Ai:Embeddings` | Estrategia recursiva: párrafos, líneas, frases, palabras y, en último caso, caracteres |
+| `Ai:Chunking:Semantic:BufferSize` | 1 | Frases vecinas que se embeben con cada frase |
+| `Ai:Chunking:Semantic:BreakpointPercentile` | 95 | Percentil de la distancia entre ventanas consecutivas a partir del cual empieza un chunk nuevo |
+| `Ai:Chunking:Semantic:MinTokens` | 100 (un cuarto del máximo si es menor de 400) | Los chunks más cortos se unen al siguiente |
+| `Ai:Chunking:Semantic:ChunkMaxTokens` | el de `Ai:Embeddings` | Los chunks más largos se dividen con la estrategia recursiva |
+| `VectorStore:RecursiveChunksCollection` / `SemanticChunksCollection` | `document_chunks_recursive` / `document_chunks_semantic` | Colecciones de Qdrant de cada variante |
+
+Todas cuentan tokens con la misma estimación (cuatro caracteres por token, la de `TextChunker`). Un valor no válido impide arrancar el host. La estrategia semántica embebe cada frase con sus vecinas usando el modelo de embeddings de la plataforma, sin la instrucción de consulta, y suma esos tokens a las métricas de ingesta del documento.
 
 ---
 

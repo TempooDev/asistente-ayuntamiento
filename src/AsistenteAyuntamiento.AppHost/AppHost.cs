@@ -169,6 +169,12 @@ if (string.IsNullOrEmpty(blobEndpoint))
     apiService.WaitFor(minio);
 }
 apiService.WithEnvironment("Internal__GrpcApiKey", internalGrpcKey);
+// Pipeline that answers the chat (Baseline, Hierarchical, Recursive or Semantic); unset: the Arena winner.
+// dotnet user-secrets set "Rag:ProductionPipeline" "Semantic" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Rag:ProductionPipeline"] is { Length: > 0 } productionPipeline)
+{
+    apiService.WithEnvironment("Rag__ProductionPipeline", productionPipeline);
+}
 
 var webfrontend = builder.AddJavaScriptApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
     .WithHttpEndpoint(port: 4200, targetPort: 4201, env: "PORT")
@@ -209,39 +215,33 @@ goScraper.WithEnvironment("INTERNAL_GRPC_KEY", internalGrpcKey);
 
 apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
-var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-baseline")
-    // Health endpoints only; each replica gets its own port.
-    .WithHttpEndpoint()
-    .WithHttpHealthCheck("/health")
-    .WithReference(db)
-    .WithReference(rabbitmq)
-    .WithReference(ollama)
-    .WithReference(qdrant)
-    .WaitFor(db)
-    .WaitFor(rabbitmq)
-    .WaitFor(ollama)
-    .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE");
+// One Worker per ingestion pipeline (WORKER_PIPELINE_MODE). Recursive and semantic are the chunking study variants:
+// they only consume what the administrator enqueues to them (eval/README.md).
+foreach (var (name, mode) in new[]
+{
+    ("worker-baseline", "BASELINE"),
+    ("worker-hierarchical", "HIERARCHICAL"),
+    ("worker-recursive", "RECURSIVE"),
+    ("worker-semantic", "SEMANTIC"),
+})
+{
+    var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>(name)
+        // Health endpoints only; each replica gets its own port.
+        .WithHttpEndpoint()
+        .WithHttpHealthCheck("/health")
+        .WithReference(db)
+        .WithReference(rabbitmq)
+        .WithReference(ollama)
+        .WithReference(qdrant)
+        .WaitFor(db)
+        .WaitFor(rabbitmq)
+        .WaitFor(ollama)
+        .WaitFor(qdrant)
+        .WithEnvironment("WORKER_PIPELINE_MODE", mode);
 
-WithAi(workerBaseline);
-WithBlobStorage(workerBaseline);
-
-var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-hierarchical")
-    // Health endpoints only; each replica gets its own port.
-    .WithHttpEndpoint()
-    .WithHttpHealthCheck("/health")
-    .WithReference(db)
-    .WithReference(rabbitmq)
-    .WithReference(ollama)
-    .WithReference(qdrant)
-    .WaitFor(db)
-    .WaitFor(rabbitmq)
-    .WaitFor(ollama)
-    .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL");
-
-WithAi(workerHierarchical);
-WithBlobStorage(workerHierarchical);
+    WithAi(worker);
+    WithBlobStorage(worker);
+}
 
 // Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
 // answers with its own model (Evaluation:ChatModel).
@@ -250,14 +250,24 @@ var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("
     // The whole question set, then score (eval/ragas, needs uv) and import. Add "--limit", "3" for a quick try.
     .WithArgs("--score")
     .WithReference(db)
-    .WithReference(ollama)
     .WithReference(qdrant)
     .WaitFor(db)
     .WaitFor(qdrant)
     .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
-if (evaluationModel is not null)
+// The evaluation can run its models (answers, query embeddings and the RAGAS judge) on another machine's Ollama, such
+// as a desktop GPU, while the data stays here. It needs the same models pulled there:
+// dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evaluationOllama)
 {
-    evaluation.WaitFor(evaluationModel);
+    evaluation.WithEnvironment("ConnectionStrings__ollama", $"Endpoint={evaluationOllama}");
+}
+else
+{
+    evaluation.WithReference(ollama);
+    if (evaluationModel is not null)
+    {
+        evaluation.WaitFor(evaluationModel);
+    }
 }
 
 WithAi(evaluation);

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
-using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Common.Enums;
@@ -14,15 +14,17 @@ using Microsoft.SemanticKernel.ChatCompletion;
 namespace AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 
 /// <summary>
-/// Baseline RAG: dense search over <see cref="VectorCollection.DocumentChunks"/>, context injected into the
-/// last user message, answer from the tenant's chat model (with fallback) via <see cref="IChatStreamingService"/>.
+/// Flat-chunk RAG (baseline, recursive and semantic variants): dense search over the variant's collection, context
+/// injected into the last user message, answer from the tenant's chat model (with fallback) via
+/// <see cref="IChatStreamingService"/>. The variants differ only in the chunks they search (<see cref="FlatChunkVariant"/>).
 /// </summary>
-public sealed class BaselineRagPipeline(
+public sealed class FlatChunkRagPipeline(
+    FlatChunkVariant variant,
     Kernel kernel,
     IVectorStore vectorStore,
     IUserPreferenceService userPreferenceService,
     IChatStreamingService chatStreamingService,
-    ILogger<BaselineRagPipeline> logger) : IRagPipeline
+    ILogger<FlatChunkRagPipeline> logger) : IRagPipeline
 {
     /// <summary>Messages (latest first) whose text is embedded for the search, so follow-up questions keep their topic.</summary>
     private const int SearchHistoryDepth = 3;
@@ -36,7 +38,7 @@ public sealed class BaselineRagPipeline(
     /// </summary>
     private static readonly RagSearch EvaluationSearch = new(Limit: 5, ScoreThreshold: null);
 
-    public PipelineType Type => PipelineType.Baseline;
+    public PipelineType Type => variant.Pipeline;
 
     /// <summary>Non-streaming answer. Never throws for model errors (see <see cref="IChatStreamingService.CompleteAsync"/>).</summary>
     public async Task<AiCompletionResult> CompleteAsync(ChatTurn turn, CancellationToken cancellationToken = default)
@@ -112,7 +114,7 @@ public sealed class BaselineRagPipeline(
             chatStreamingService.StreamAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken), contexts, context, cancellationToken);
     }
 
-    private static string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? LlmPipelines.Baseline;
+    private string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? variant.TelemetryPipeline;
 
     /// <summary>Public link of a bulletin document (BOJA has no stable per-document URL yet).</summary>
     public static string GetPublicUrl(string source, string documentId) => source.ToUpperInvariant() switch
@@ -140,13 +142,13 @@ public sealed class BaselineRagPipeline(
             var vector = await embeddingGenerator.EmbedQueryAsync(searchText, QueryEmbeddingOptions.From(kernel), cancellationToken);
 
             return await vectorStore.SearchAsync(
-                VectorCollection.DocumentChunks,
+                variant.Collection,
                 new VectorSearchRequest(vector, search.Limit, search.ScoreThreshold),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Baseline RAG search failed; answering without retrieved context");
+            logger.LogWarning(ex, "{Pipeline} RAG search failed; answering without retrieved context", variant.Pipeline);
             return [];
         }
     }

@@ -57,7 +57,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<DocumentChunk>().ToTable("DocumentChunks", "ingestion");
+        modelBuilder.Entity<DocumentChunk>(entity =>
+        {
+            entity.ToTable("DocumentChunks", "ingestion");
+            // Rows from before the chunking study are the baseline's; each variant replaces only its own rows.
+            entity.Property(c => c.ChunkingStrategy).HasDefaultValue(DocumentChunk.FixedOverlapStrategy);
+            entity.HasIndex(c => new { c.DocumentId, c.ChunkingStrategy });
+        });
 
         // Habilitar pgvector
 
@@ -140,7 +146,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
             entity.Property(e => e.Status).HasConversion<string>();
             entity.Property(e => e.BaselineStatus).HasConversion<string>();
             entity.Property(e => e.HierarchicalStatus).HasConversion<string>();
-            // Both workers update the same row: PostgreSQL's xmin detects a concurrent change and the update is retried.
+            entity.Property(e => e.RecursiveStatus).HasConversion<string>();
+            entity.Property(e => e.SemanticStatus).HasConversion<string>();
+            // Every worker updates the same row: PostgreSQL's xmin detects a concurrent change and the update is retried.
             entity.Property<uint>("Version").IsRowVersion();
         });
 
