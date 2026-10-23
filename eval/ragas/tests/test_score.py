@@ -27,10 +27,12 @@ def ollama_ok(monkeypatch):
 
 @pytest.fixture
 def stub_ragas(monkeypatch):
-    calls = {}
+    calls = {"rows": [], "batches": 0}
 
     def fake(rows, cfg):
-        calls["rows"], calls["cfg"] = rows, cfg
+        calls["rows"] = calls["rows"] + rows
+        calls["cfg"] = cfg
+        calls["batches"] += 1
         out = []
         for r in rows:
             s = {"context_precision": 0.8, "context_recall": 0.6, "faithfulness": 0.9, "answer_relevancy": 0.7}
@@ -94,7 +96,7 @@ def test_ollama_unreachable_writes_nothing(run_dir, dataset_dir, monkeypatch, st
     err = capsys.readouterr().err
     assert "http://nohost:11434" in err and "qwen2.5:7b-instruct-q4_K_M" in err
     assert not any((run_dir / f).exists() for f in ("scores.csv", "summary.csv", "scoring.json"))
-    assert "rows" not in stub_ragas
+    assert stub_ragas["batches"] == 0
 
 
 def test_missing_model_writes_nothing(run_dir, dataset_dir, monkeypatch, stub_ragas, capsys):
@@ -102,3 +104,40 @@ def test_missing_model_writes_nothing(run_dir, dataset_dir, monkeypatch, stub_ra
     assert score.main([str(run_dir), "--dataset", str(dataset_dir)]) == 1
     assert "qwen3-embedding:0.6b" in capsys.readouterr().err
     assert not (run_dir / "scores.csv").exists()
+
+
+def test_interrupted_scoring_resumes_from_the_cache(run_dir, dataset_dir, ollama_ok, stub_ragas, monkeypatch):
+    real = score.run_ragas
+
+    def dies_on_third_batch(rows, cfg):
+        if stub_ragas["batches"] == 2:
+            raise KeyboardInterrupt
+        return real(rows, cfg)
+
+    monkeypatch.setattr(score, "run_ragas", dies_on_third_batch)
+    with pytest.raises(KeyboardInterrupt):
+        score.main([str(run_dir), "--dataset", str(dataset_dir), "--checkpoint-batch", "3"])
+    assert not (run_dir / "summary.csv").exists()
+    cached = (run_dir / score.CACHE_FILE).read_text().splitlines()
+    assert len(cached) == 6  # two batches of 3 were saved before the interruption
+
+    monkeypatch.setattr(score, "run_ragas", real)
+    stub_ragas["rows"] = []
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir), "--checkpoint-batch", "3"]) == 0
+    assert len(stub_ragas["rows"]) == 2  # only the samples that were not scored yet
+    assert len(pd.read_csv(run_dir / "scores.csv")) == 9
+
+
+def test_fresh_ignores_the_cache_and_another_judge_does_not_reuse_it(run_dir, dataset_dir, ollama_ok, stub_ragas, monkeypatch):
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir)]) == 0
+    stub_ragas["rows"] = []
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir)]) == 0
+    assert stub_ragas["rows"] == []  # everything came from the cache
+
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir), "--fresh"]) == 0
+    assert len(stub_ragas["rows"]) == 8
+
+    stub_ragas["rows"] = []
+    monkeypatch.setattr(score.requests, "get", lambda *a, **k: FakeResp(["qwen2.5:14b", "qwen3-embedding:0.6b"]))
+    assert score.main([str(run_dir), "--dataset", str(dataset_dir), "--judge-model", "qwen2.5:14b"]) == 0
+    assert len(stub_ragas["rows"]) == 8

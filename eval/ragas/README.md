@@ -37,6 +37,8 @@ uv run python score.py ../runs/<runId> [--dataset ../dataset] [--judge-model M] 
 | `HALLUCINATION_THRESHOLD` | `0.8` |
 | `EVAL_MAX_WORKERS` / `EVAL_TIMEOUT` / `EVAL_JUDGE_NUM_CTX` | `2` / `300` s / `8192` |
 
+Las muestras se puntúan por lotes (`--checkpoint-batch`, 4 por defecto) y cada lote se guarda en `scoring-cache.jsonl` dentro de la ejecución: si se corta, al volver a lanzarlo solo puntúa lo que faltaba. La caché solo se reutiliza con el mismo juez y modelo de embeddings; `--fresh` la descarta.
+
 Escribe `scores.csv` (fila por pregunta y pipeline), `summary.csv` (media y desviación por pipeline, tasa de alucinación, fallidas y ausentes) y `scoring.json` (modelos, versión de RAGAS, fecha). Si Ollama no responde o falta un modelo, no escribe nada.
 
 Notas de método:

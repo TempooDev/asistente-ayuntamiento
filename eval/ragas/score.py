@@ -121,7 +121,27 @@ def run_ragas(rows: list[dict], cfg: dict) -> list[dict]:
 
 # ---------------------------------------------------------------- assembly
 
-def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict) -> pd.DataFrame:
+CACHE_FILE = "scoring-cache.jsonl"
+
+
+def _cache_key(question_id: str, pipeline: str, cfg: dict) -> str:
+    """A cached score is reused only with the same judge and embedding model."""
+    return f"{question_id}|{pipeline}|{cfg['judge_model']}|{cfg['embedding_model']}"
+
+
+def _read_cache(path: Path | None) -> dict[str, dict]:
+    if path is None or not path.exists():
+        return {}
+    cache = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            entry = json.loads(line)  # later lines win: a re-scored sample replaces the old one
+            cache[entry["key"]] = entry["scores"]
+    return cache
+
+
+def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict, cache_path: Path | None = None) -> pd.DataFrame:
+    """Judged samples are appended to `cache_path` batch by batch, so an interrupted run resumes where it stopped."""
     unknown = sorted({a["question_id"] for a in answers} - questions.keys())
     if unknown:
         raise ConfigError(f"Preguntas de answers.jsonl que no están en questions.jsonl: {', '.join(unknown)}")
@@ -147,12 +167,29 @@ def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict) -> 
                                    "reference": q["reference"], "contexts": [c["text"] for c in contexts],
                                    "generation_context": a.get("generation_context") or ""}))
 
-    if to_judge:
-        judged = run_ragas([row for _, row in to_judge], cfg)
-        for (rec, _), scores in zip(to_judge, judged):
-            for c in RAGAS_COLUMNS:
-                v = scores.get(c)
-                rec[c] = NAN if v is None or pd.isna(v) else float(v)
+    cache = _read_cache(cache_path)
+    pending = [(rec, row) for rec, row in to_judge if _cache_key(rec["question_id"], rec["pipeline"], cfg) not in cache]
+    if len(pending) < len(to_judge):
+        print(f"Reutilizando {len(to_judge) - len(pending)} muestras ya puntuadas de {cache_path}", file=sys.stderr)
+    batch = max(1, cfg.get("checkpoint_batch", 4))
+    for start in range(0, len(pending), batch):
+        chunk = pending[start:start + batch]
+        judged = run_ragas([row for _, row in chunk], cfg)
+        lines = []
+        for (rec, _), scores in zip(chunk, judged):
+            key = _cache_key(rec["question_id"], rec["pipeline"], cfg)
+            clean = {c: None if scores.get(c) is None or pd.isna(scores.get(c)) else float(scores[c]) for c in RAGAS_COLUMNS}
+            cache[key] = clean
+            lines.append(json.dumps({"key": key, "scores": clean}, ensure_ascii=False))
+        if cache_path is not None:
+            with cache_path.open("a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+
+    for rec, _ in to_judge:
+        scores = cache.get(_cache_key(rec["question_id"], rec["pipeline"], cfg), {})
+        for c in RAGAS_COLUMNS:
+            v = scores.get(c)
+            rec[c] = NAN if v is None or pd.isna(v) else float(v)
     return pd.DataFrame.from_records(records)
 
 
@@ -191,6 +228,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-workers", type=int, default=int(os.environ.get("EVAL_MAX_WORKERS", "2")))
     ap.add_argument("--timeout", type=int, default=int(os.environ.get("EVAL_TIMEOUT", "300")))
     ap.add_argument("--num-ctx", type=int, default=int(os.environ.get("EVAL_JUDGE_NUM_CTX", "8192")))
+    ap.add_argument("--checkpoint-batch", type=int, default=int(os.environ.get("EVAL_CHECKPOINT_BATCH", "4")),
+                    help="muestras juzgadas por lote antes de guardarlas en scoring-cache.jsonl")
+    ap.add_argument("--fresh", action="store_true", help="ignora scoring-cache.jsonl y puntúa todo de nuevo")
     args = ap.parse_args(argv)
 
     try:
@@ -199,9 +239,12 @@ def main(argv: list[str] | None = None) -> int:
         cfg = {"judge_model": args.judge_model or run["chat_model"],
                "embedding_model": args.embedding_model or run["embedding_model"],
                "ollama_url": args.ollama_url, "max_workers": args.max_workers,
-               "timeout": args.timeout, "num_ctx": args.num_ctx}
+               "timeout": args.timeout, "num_ctx": args.num_ctx, "checkpoint_batch": args.checkpoint_batch}
         check_ollama(cfg["ollama_url"], [cfg["judge_model"], cfg["embedding_model"]])
-        scores = build_scores(answers, questions, cfg)
+        cache_path = args.run_dir / CACHE_FILE
+        if args.fresh and cache_path.exists():
+            cache_path.unlink()
+        scores = build_scores(answers, questions, cfg, cache_path)
     except (ConfigError, FileNotFoundError, KeyError) as ex:
         print(f"ERROR {ex}", file=sys.stderr)
         return 1
