@@ -5,30 +5,144 @@
 \chapter{Estudio comparativo de estrategias de \emph{chunking}}
 \label{cap:estudio-chunking}
 
+Este capítulo compara cuatro formas de fragmentar los boletines y mide su efecto en la recuperación, en la calidad de las respuestas, en la latencia y en el coste de indexación. La comparación se hace sobre un corpus y un conjunto de preguntas fijos, con los mismos modelos para todas las variantes, de modo que la diferencia entre ellas se deba, en lo posible, solo a la fragmentación.
+
 \section{Estrategias comparadas}
 \label{sec:estrategias}
-% TODO: Fixed-size con solapamiento, recursive, semantic y jerárquica padre/hijo, con sus parámetros.
+
+Las cuatro variantes son \emph{pipelines} RAG completas del sistema (sección~\ref{sec:pipelines}). Tres de ellas comparten la ingesta y la generación de la \emph{pipeline} básica y solo cambian la estrategia de fragmentación; la cuarta es la \emph{pipeline} jerárquica.
+
+\begin{itemize}
+  \item \textbf{Tamaño fijo con solapamiento} (\emph{Baseline}). Divide el texto en fragmentos de hasta 400 tokens con 50 de solapamiento, agrupando líneas en párrafos con el \texttt{TextChunker} de Semantic Kernel. Es la estrategia de referencia.
+  \item \textbf{División recursiva} (\emph{Recursive}). Intenta cortar primero por párrafos, después por saltos de línea, por finales de frase (punto, punto y coma, dos puntos), por espacios y, solo en último caso, por caracteres. Las piezas que caben se conservan enteras y se unen hasta el mismo límite de 400 tokens, con hasta 50 tokens de solapamiento formado por piezas completas.
+  \item \textbf{Fragmentación semántica} (\emph{Semantic}). Divide el texto en frases con un separador adaptado al español jurídico, que no corta tras abreviaturas habituales en los boletines (\emph{art.}, \emph{núm.}, \emph{apdo.}, \emph{D.}, \emph{Dña.}, ordinales). Calcula el \emph{embedding} de cada frase junto con sus vecinas y abre un fragmento nuevo donde la distancia coseno entre ventanas consecutivas supera el percentil 95 de las distancias del documento. Los fragmentos de menos de 100 tokens se unen al siguiente y los de más de 400 se dividen con la estrategia recursiva. Las frases demasiado largas (tablas sin puntos) se parten antes de calcular su \emph{embedding}.
+  \item \textbf{Jerárquica padre-hijo} (\emph{Hierarchical}). Guarda cada artículo o disposición como documento padre y lo divide en fragmentos hijo enriquecidos con preguntas sintéticas generadas por un LLM. Al responder, reformula la consulta, combina la búsqueda semántica y la léxica con fusión RRF y entrega al modelo el texto de los padres (sección~\ref{sec:impl-rag}).
+\end{itemize}
+
+Las tres variantes planas guardan sus fragmentos en la misma tabla, distinguidos por la estrategia, y cada una tiene su colección en Qdrant, su cola de ingesta y su estado por documento. Así las cuatro se ingieren y se consultan por separado sobre los mismos documentos.
 
 \section{Diseño experimental}
 \label{sec:diseno-experimental}
-% TODO: Corpus fijo, preguntas de referencia con \emph{ground truth}, mismos modelos de embeddings y generación.
+
+\paragraph{Corpus y preguntas.} El corpus del estudio son 17 documentos del BOE y del BOJA, que cada variante ingiere por completo. Sobre ellos se redactaron 25 preguntas formuladas como las haría el personal municipal, cada una con su respuesta de referencia, copiada del propio documento, y la lista de documentos que la responden: 10 de empleo público, 6 de ayudas y subvenciones, 4 de normativa, 2 de tributos y catastro, y 3 cuya respuesta no está en el corpus, para medir si el sistema reconoce que no tiene la información. El conjunto está versionado en el repositorio (\texttt{eval/dataset}) y un validador comprueba su formato y que todos los documentos citados estén en el corpus.
+
+\paragraph{Condiciones comunes.} Todas las variantes usan el mismo modelo de \emph{embeddings} (\texttt{qwen3-embedding:0.6b}, con la instrucción de tarea en las consultas y sin ella en los documentos), el mismo modelo de generación (\texttt{qwen2.5:7b-instruct} cuantizado a 4 bits, a temperatura 0) y recuperan las mismas cinco unidades por pregunta, sin umbral de similitud, porque el umbral depende del modelo de \emph{embeddings}.
+
+\paragraph{Ejecución.} Un programa de evaluación en .NET construye los mismos servicios que la API y llama a cada \emph{pipeline} en el propio proceso, sin pasar por el chat ni guardar mensajes. Antes de empezar comprueba que cada colección existe, tiene la dimensión del modelo de \emph{embeddings} y contiene todos los documentos del corpus. En cada pregunta el orden de las variantes se baraja con una semilla registrada, para que ninguna se beneficie siempre de un modelo ya cargado, y la primera pregunta de cada variante se descarta como calentamiento en las latencias. De cada respuesta se guardan los contextos recuperados, el texto entregado al modelo, los tokens y el tiempo de cada etapa. Después, un programa en Python puntúa la ejecución con RAGAS y la ejecución completa se importa en la base de datos, desde donde la página de métricas la muestra junto al historial de ejecuciones.
 
 \section{Entorno de evaluación local}
 \label{sec:entorno-local}
-% TODO: RAGAS en local con Ollama como juez; justificación por coste.
+
+Toda la evaluación se hace con modelos abiertos ejecutados en local con Ollama, sin coste por uso. Un estudio con varias decenas de preguntas, cuatro variantes y un juez que hace varias llamadas por respuesta supone cientos de llamadas a un LLM en cada ejecución, y repetirlo con modelos de pago tendría un coste difícil de justificar en un TFG.
+
+La generación de respuestas y la evaluación con RAGAS se ejecutaron mediante Ollama en un equipo de sobremesa con una GPU NVIDIA GeForce RTX 4060 (8\,GB de VRAM), al que se accede por una VPN (Tailscale), con un contexto de 16.384 tokens. La base de datos, el almacén vectorial y el corpus residen en el equipo de desarrollo (sección~\ref{sec:recursos}). En el portátil, el primer token de cada respuesta tardaba entre 13 y 17 segundos; en la RTX 4060 tarda alrededor de un segundo, lo que permite repetir el estudio completo en una sesión. Las latencias de este capítulo corresponden, por tanto, a ese hardware.
+
+El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7b-instruct}, a temperatura 0, con la versión 0.3.9 de RAGAS. Las puntuaciones se guardan por lotes, de modo que una puntuación interrumpida se retoma donde se quedó.
 
 \section{Métricas}
 \label{sec:metricas}
-% TODO: Precisión y recall de contexto, fidelidad, relevancia, tasa de alucinación, latencia y coste de indexación.
+
+\begin{itemize}
+  \item \textbf{Precisión de contexto} (\emph{context precision}): proporción de los fragmentos recuperados que son útiles para la respuesta de referencia, ponderada por su posición.
+  \item \textbf{Recall de contexto} (\emph{context recall}): proporción de las afirmaciones de la respuesta de referencia que se pueden atribuir a los fragmentos recuperados.
+  \item \textbf{Fidelidad} (\emph{faithfulness}): proporción de las afirmaciones de la respuesta que se deducen del texto entregado al modelo. En la variante jerárquica ese texto son los documentos padre, no los fragmentos recuperados.
+  \item \textbf{Relevancia de la respuesta} (\emph{answer relevancy}): similitud entre la pregunta y las preguntas que el juez reconstruye a partir de la respuesta.
+  \item \textbf{Tasa de alucinación}: proporción de respuestas con una fidelidad inferior a 0,8.
+  \item \textbf{Acierto en la recuperación} (hit@1, hit@3, hit@5) y \textbf{rango recíproco medio} (MRR): si alguno de los documentos de referencia aparece entre los primeros resultados y en qué posición. Se calculan sin LLM, comparando identificadores, y no dependen del juez.
+  \item \textbf{Detección de preguntas sin respuesta}: en las preguntas cuya respuesta no está en el corpus, proporción de respuestas que reconocen que los boletines no la recogen.
+  \item \textbf{Latencia}: mediana (p50) y percentil 95 de la reformulación de la consulta, la recuperación, el primer token, la generación y el total.
+  \item \textbf{Coste de indexación}: tiempo de ingesta por documento, fragmentos por documento, tokens enviados al modelo de \emph{embeddings} (en la variante semántica incluyen los usados para fragmentar) y llamadas y tokens de LLM (las preguntas sintéticas de la jerárquica).
+\end{itemize}
 
 \section{Resultados}
 \label{sec:resultados}
-% TODO: Tablas y gráficas por estrategia y métrica.
+
+\subsection{Primera ejecución y ajuste de los \emph{prompts}}
+\label{sec:ajuste-prompts}
+
+Antes del estudio completo se hizo una primera ejecución con las dos \emph{pipelines} que ya existían, la básica y la jerárquica, sobre las 25 preguntas. Se ejecutó en el portátil, con otros procesos compartiendo el mismo Ollama, así que sus latencias no se comparan con las del estudio. Las métricas de recuperación fueron altas en las dos (hit@1 de 0,91 y 1,00, MRR de 0,93 y 1,00), pero la tasa de alucinación salió del 44\,\% en la básica y del 48\,\% en la jerárquica, y la relevancia de la respuesta fue baja en la básica (0,38).
+
+Al revisar a mano las respuestas con fidelidad inferior a 0,8 se vio que la mayoría daban el dato correcto, pero añadían frases que no estaban en los documentos: fórmulas de cortesía al final («si tienes alguna otra pregunta\ldots{} estoy aquí para ayudarte») o consejos genéricos («es importante que revises las bases completas»). La métrica de fidelidad divide la respuesta en afirmaciones y calcula qué proporción se deduce del contexto, de modo que en una respuesta corta una sola frase de relleno basta para bajar la fidelidad a 0,5 y contarla como alucinación, aunque el contenido sea correcto. Por ejemplo, a la pregunta por el plazo de la plaza de Administrativo de Torrox, la \emph{pipeline} jerárquica respondió correctamente «veinte días hábiles» y citó el boletín provincial, pero obtuvo 0,5 por la recomendación final. La jerárquica lo hacía más a menudo porque su \emph{prompt} de lenguaje claro le pide un tono servicial y orientar al ciudadano, y sus respuestas son más largas.
+
+Esas frases no aportan información al personal municipal y, además, no se pueden comprobar en las fuentes, que es justo lo que el sistema promete. Por eso se modificaron los \emph{prompts} de generación de las dos \emph{pipelines} para que se limiten a lo que dicen los documentos, sin consejos generales ni fórmulas de cortesía (apéndice~\ref{ap:prompts}). El cambio se hizo antes del estudio de las cuatro variantes y se aplica por igual a todas, de modo que no favorece a ninguna. Los resultados que siguen se obtuvieron ya con los \emph{prompts} ajustados.
+
+\subsection{Estudio de las cuatro variantes}
+\label{sec:resultados-variantes}
+
+Las tablas~\ref{tab:resultados-calidad}, \ref{tab:resultados-latencia} y~\ref{tab:resultados-indexacion} resumen la ejecución \texttt{20261023-112730}: 25 preguntas por variante, 100 respuestas en total, ninguna fallida y una sola muestra que el juez no pudo puntuar. Las métricas de recuperación (hit@1 y MRR) se calculan sobre las 22 preguntas que tienen respuesta en el corpus. Los resultados por pregunta y la comparación con los \emph{prompts} anteriores están en el apéndice~\ref{ap:chunking}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Calidad de la recuperación y de las respuestas por variante (medias sobre 25 preguntas)}
+\label{tab:resultados-calidad}
+\begin{tabular}{@{}l rrrr rr r@{}}
+\toprule
+\textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Alucinación} \\
+\midrule
+Tamaño fijo & 0,44 & 0,62 & 0,78 & 0,36 & 0,91 & 0,93 & 44\,\% \\
+Recursiva   & 0,52 & 0,79 & 0,82 & 0,50 & 1,00 & 1,00 & 36\,\% \\
+Semántica   & 0,42 & 0,75 & 0,83 & 0,49 & 1,00 & 1,00 & 36\,\% \\
+Jerárquica  & 0,77 & 0,92 & 0,76 & 0,62 & 1,00 & 1,00 & 46\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Latencia por variante en la RTX 4060, en segundos (sin la pregunta de calentamiento)}
+\label{tab:resultados-latencia}
+\begin{tabular}{@{}l r rr rr@{}}
+\toprule
+& \textbf{Reformulación} & \multicolumn{2}{c}{\textbf{Primer token}} & \multicolumn{2}{c}{\textbf{Total}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+\textbf{Variante} & p50 & p50 & p95 & p50 & p95 \\
+\midrule
+Tamaño fijo & --- & 2,2 & 2,4 & 4,5 & 6,6 \\
+Recursiva   & --- & 2,2 & 2,5 & 4,6 & 8,3 \\
+Semántica   & --- & 2,1 & 2,4 & 4,4 & 5,8 \\
+Jerárquica  & 1,4 & 2,5 & 4,2 & 8,5 & 16,3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Coste de indexación de los 17 documentos del corpus por variante}
+\label{tab:resultados-indexacion}
+\begin{tabular}{@{}l rr r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Tiempo por documento}} & \textbf{Fragmentos} & \textbf{Tokens de} & \textbf{Llamadas} \\
+\cmidrule(lr){2-3}
+\textbf{Variante} & p50 & p95 & \textbf{por doc.} & \textbf{\emph{embeddings}} & \textbf{al LLM} \\
+\midrule
+Tamaño fijo & 0,7\,s & 36\,s & 16,7 & 85.289 & 0 \\
+Recursiva   & 11,9\,s & 44\,s & 16,4 & 87.115 & 0 \\
+Semántica   & 47,4\,s & 107\,s & 13,5 & 273.076 & 0 \\
+Jerárquica  & 14,7\,s & 938\,s & 15,8 & 126.279 & 269 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los tiempos de indexación se midieron en el portátil y con otros procesos compartiendo Ollama, por lo que solo sirven como orden de magnitud. Los tokens de \emph{embeddings} y las llamadas al LLM no dependen del hardware.
 
 \section{Discusión}
 \label{sec:discusion}
-% TODO: Qué estrategia gana, con qué coste, y si confirma la jerárquica en producción.
+
+\paragraph{Recuperación.} Las cuatro variantes encuentran casi siempre el documento correcto: la recursiva, la semántica y la jerárquica lo devuelven en primera posición en las 22 preguntas que tienen respuesta en el corpus, y la de tamaño fijo en 20 de 22 (hit@1 de 0,91). Donde se separan es en lo útil que es el texto recuperado para responder. La jerárquica es claramente la mejor (recall de contexto de 0,92 y precisión de 0,77), porque entrega artículos completos y su búsqueda híbrida y su reformulación de la consulta afinan el resultado. Entre las variantes planas, la recursiva y la semántica mejoran a la de tamaño fijo en recall (0,79 y 0,75 frente a 0,62): cortar por párrafos y frases conserva mejor las unidades de sentido de los boletines que cortar por número de tokens.
+
+\paragraph{Calidad de las respuestas.} La jerárquica da las respuestas más centradas en la pregunta (relevancia de 0,62), pero no las más fieles: sus respuestas son el doble de largas, porque su \emph{prompt} pide explicar en lenguaje claro, y cada frase añadida es una ocasión de afirmar algo que no está en el documento. La recursiva y la semántica obtienen la mejor fidelidad (0,82 y 0,83) y la menor tasa de alucinación (36\,\%). La comparación entre las dos ejecuciones del apéndice~\ref{ap:chunking} muestra que el juez varía hasta 0,04 en la precisión y el recall de contexto, que no deberían cambiar porque la recuperación es la misma, y que el ajuste de los \emph{prompts} movió la fidelidad entre 0,01 y 0,08. Las diferencias de fidelidad entre variantes son del mismo orden, así que no permiten ordenarlas con seguridad. La tasa de alucinación, además, sigue contando como alucinadas respuestas correctas con alguna frase sin respaldo, por lo que sobreestima los errores reales (sección~\ref{sec:ajuste-prompts}).
+
+\paragraph{Coste.} La recursiva tiene el mismo coste de respuesta que la de tamaño fijo y un coste de indexación casi igual en tokens. La semántica necesita tres veces más tokens de \emph{embeddings}, porque calcula el vector de cada frase para decidir dónde cortar, sin mejorar a la recursiva en ninguna métrica. La jerárquica es la más cara: duplica la latencia total, porque reformula la consulta y genera respuestas más largas, y su indexación hace una llamada al LLM por fragmento para generar las preguntas sintéticas.
+
+\paragraph{Conclusión.} No hay una variante que gane en todo. La jerárquica ofrece la mejor recuperación y las respuestas más relevantes, a cambio del doble de latencia y de una indexación mucho más cara, y confirma que la \emph{pipeline} avanzada aporta valor frente a la básica. Entre las variantes planas, la división recursiva es la mejor relación calidad--coste: mejora claramente la recuperación de la estrategia de tamaño fijo sin coste adicional, mientras que la semántica no compensa su coste de indexación. Para producción, la jerárquica sigue siendo la opción de más calidad, y la recursiva la alternativa si se prioriza la latencia; la Arena (sección~\ref{sec:impl-arena}) permite contrastar esta conclusión con la preferencia de los usuarios.
 
 \section{Amenazas a la validez}
 \label{sec:validez}
-% TODO: Tamaño del conjunto de preguntas, modelo local como juez, representatividad del corpus.
+
+\begin{itemize}
+  \item \textbf{Tamaño del conjunto de preguntas.} 25 preguntas permiten ver diferencias grandes, pero no distinguir con seguridad diferencias pequeñas entre variantes. Las tablas por pregunta del apéndice~\ref{ap:chunking} permiten comprobar si una media se debe a unos pocos casos.
+  \item \textbf{Modelo local como juez.} Un juez de 7.000 millones de parámetros es ruidoso: en una prueba previa asignó una fidelidad de 0 a una respuesta correcta copiada literalmente del documento. Además, el juez es el mismo modelo que genera las respuestas, y los modelos tienden a favorecer sus propias respuestas \cite{zheng2023judge}. Por eso se dan junto a RAGAS las métricas de recuperación, que no dependen del juez.
+  \item \textbf{Representatividad del corpus.} Buena parte de los documentos del BOE son anuncios cortos de convocatoria que caben en un solo fragmento, y en ellos las estrategias se comportan igual; las diferencias aparecen en las normas largas. Algunos textos del BOJA conservan restos de la página web de origen, que añaden ruido a todas las variantes por igual.
+  \item \textbf{La variante jerárquica difiere en más que la fragmentación.} Además de fragmentar distinto, enriquece los fragmentos, reformula la consulta, combina búsqueda léxica y semántica y entrega documentos completos al modelo. Sus resultados miden la \emph{pipeline} completa, no solo su fragmentación.
+  \item \textbf{Dependencia del hardware.} Las latencias se midieron en una RTX 4060 sin otra carga; en otro equipo, o en producción con proveedores en la nube, los valores absolutos serán distintos, aunque la proporción entre variantes debería mantenerse.
+\end{itemize}
