@@ -5,6 +5,8 @@ public static class LlmPipelines
 {
     public const string Baseline = "baseline";
     public const string Hierarchical = "hierarchical";
+    public const string Recursive = "recursive";
+    public const string Semantic = "semantic";
     public const string ArenaAlfa = "arena_alfa";
     public const string ArenaBeta = "arena_beta";
     public const string Shadow = "shadow";

@@ -55,7 +55,7 @@ When `Ai:Embeddings:UseQueryInstruction` is `true`, every embedding of a user qu
 - **THEN** it SHALL be cut by characters into chunks of at most 400 tokens
 
 ### Requirement: Semantic Chunking Strategy
-`SemanticChunkingStrategy` SHALL split the text into sentences with a splitter that does not cut after the abbreviations common in bulletins (`art.`, `arts.`, `núm.`, `apdo.`, `Sr.`, `Sra.`, `D.`, `Dña.`, `etc.`, ordinals such as `1.º`), embed each sentence together with `BufferSize` neighbours on each side (default 1) with the platform embedding generator in batches of 100, and start a new chunk where the cosine distance between consecutive windows is above the `BreakpointPercentile` (default 95) of all distances of the document. Chunks under `MinTokens` (default 100) SHALL be merged with the next one, and chunks over `ChunkMaxTokens` SHALL be split with `RecursiveChunkingStrategy`. Settings come from `Ai:Chunking:Semantic:*`. The tokens embedded for chunking SHALL be returned in the result so ingestion metrics include them.
+`SemanticChunkingStrategy` SHALL split the text into sentences with a splitter that does not cut after the abbreviations common in bulletins (`art.`, `arts.`, `núm.`, `apdo.`, `Sr.`, `Sra.`, `D.`, `Dña.`, `etc.`, ordinals such as `1.º`), embed each sentence together with `BufferSize` neighbours on each side (default 1) with the platform embedding generator in batches of 100, and start a new chunk where the cosine distance between consecutive windows is above the `BreakpointPercentile` (default 95) of all distances of the document. Chunks under `MinTokens` (default 100, and at most a quarter of `ChunkMaxTokens` when it is not configured) SHALL be merged with the next one, and chunks over `ChunkMaxTokens` SHALL be split with `RecursiveChunkingStrategy`. Before embedding, a "sentence" over `ChunkMaxTokens` (a table or list without full stops) SHALL be split the same way, and each sentence window SHALL be limited to `4 × ChunkMaxTokens` tokens by taking fewer neighbours, so no embedding call exceeds that budget. Settings come from `Ai:Chunking:Semantic:*`. The tokens embedded for chunking SHALL be returned in the result so ingestion metrics include them.
 
 #### Scenario: Topic change
 - **WHEN** a document has six sentences about a tax ordinance followed by six about a job offer
@@ -68,6 +68,11 @@ When `Ai:Embeddings:UseQueryInstruction` is `true`, every embedding of a user qu
 #### Scenario: Short document
 - **WHEN** the text has a single sentence or is under `MinTokens`
 - **THEN** it SHALL return one chunk with the whole text
+
+#### Scenario: Long text without sentence ends
+- **WHEN** the text is a table of thousands of tokens without full stops
+- **THEN** every window sent to the embedding model SHALL be at most `4 × ChunkMaxTokens` tokens
+- **AND** every returned chunk SHALL be at most `ChunkMaxTokens` tokens
 
 #### Scenario: Embedding model fails
 - **WHEN** the embedding call fails while chunking

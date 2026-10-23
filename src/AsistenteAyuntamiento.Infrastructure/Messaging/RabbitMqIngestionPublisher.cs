@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AsistenteAyuntamiento.Application.Common.Messaging;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
@@ -34,14 +35,9 @@ public sealed class RabbitMqIngestionPublisher(IConnectionFactory connectionFact
         {
             var channel = await EnsureChannelAsync(cancellationToken);
 
-            if (pipelines.HasFlag(IngestionPipelines.Baseline))
+            foreach (var pipeline in pipelines.ToPipelineTypes())
             {
-                await channel.BasicPublishAsync(string.Empty, RabbitMqTopology.BaselineQueue, mandatory: true, properties, body, cancellationToken);
-            }
-
-            if (pipelines.HasFlag(IngestionPipelines.Hierarchical))
-            {
-                await channel.BasicPublishAsync(string.Empty, RabbitMqTopology.HierarchicalQueue, mandatory: true, properties, body, cancellationToken);
+                await channel.BasicPublishAsync(string.Empty, RabbitMqTopology.QueueOf(pipeline), mandatory: true, properties, body, cancellationToken);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -69,8 +65,10 @@ public sealed class RabbitMqIngestionPublisher(IConnectionFactory connectionFact
             new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
             cancellationToken);
 
-        await RabbitMqTopology.DeclareWorkQueueAsync(_channel, RabbitMqTopology.BaselineQueue, cancellationToken);
-        await RabbitMqTopology.DeclareWorkQueueAsync(_channel, RabbitMqTopology.HierarchicalQueue, cancellationToken);
+        foreach (var pipeline in Enum.GetValues<PipelineType>())
+        {
+            await RabbitMqTopology.DeclareWorkQueueAsync(_channel, RabbitMqTopology.QueueOf(pipeline), cancellationToken);
+        }
         return _channel;
     }
 

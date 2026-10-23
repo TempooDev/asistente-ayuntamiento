@@ -26,6 +26,8 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         { "POST", "/api/ingestion/reset-stuck-processing" },
         { "POST", "/api/ingestion/enqueue-bulk" },
         { "POST", "/api/ingestion/reprocess-all" },
+        { "POST", "/api/ingestion/enqueue-bulk?pipelineMode=ALL" },
+        { "POST", "/api/ingestion/reprocess-all?pipelineMode=RECURSIVE,SEMANTIC" },
         { "GET", "/api/scraper/filters" },
         { "POST", "/api/scraper/filters" },
         { "DELETE", "/api/scraper/filters/1" },
@@ -123,6 +125,19 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         var response = await factory.CreateClientAs("auth0|old-admin", Org, "administrador").GetAsync(path);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/ingestion/reprocess-all?pipelineMode=FIXED", "FIXED")]
+    [InlineData("/api/ingestion/enqueue-bulk?pipelineMode=RECURSIVE,SEMANTIK", "SEMANTIK")]
+    public async Task An_unknown_pipeline_mode_is_rejected_naming_the_value(string path, string unknown)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(Array.Empty<object>()) };
+
+        var response = await factory.CreateClientAs("auth0|platform-admin", Org, Roles.PlatformAdmin).SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains($"'{unknown}'", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

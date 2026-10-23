@@ -9,6 +9,7 @@ import { DocumentFilters, DocumentFiltersComponent } from '../document-filters/d
 import { DocumentStatsComponent } from '../document-stats/document-stats.component';
 import { DocumentTableComponent, documentIdOf, sourceOf } from '../document-table/document-table.component';
 import { PipelineProgressComponent } from '../pipeline-progress/pipeline-progress.component';
+import { isStudyPipeline } from '../../analytics/shared/pipelines';
 import {
   BlobInfo,
   BlobQuery,
@@ -55,6 +56,25 @@ export class DocumentsPageComponent {
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly pipelineMode = signal<PipelineMode>('BOTH');
 
+  /** Where "Encolar" and "Reprocesar" publish; the study variants are never sent unless chosen. */
+  protected readonly pipelineModes: readonly { value: PipelineMode; label: string }[] = [
+    { value: 'BOTH', label: 'Baseline y jerárquica' },
+    { value: 'BASELINE', label: 'Solo baseline (chunks fijos)' },
+    { value: 'HIERARCHICAL', label: 'Solo jerárquica' },
+    { value: 'RECURSIVE', label: 'Solo recursiva (estudio)' },
+    { value: 'SEMANTIC', label: 'Solo semántica (estudio)' },
+    { value: 'RECURSIVE,SEMANTIC', label: 'Recursiva y semántica (estudio)' },
+    { value: 'ALL', label: 'Las cuatro variantes' },
+  ];
+
+  /** The chunking study variants are shown once some document was sent to them. */
+  protected readonly studyActive = computed(() =>
+    this.pipelineStats().some(p => isStudyPipeline(p.pipeline) && p.notSent < p.total),
+  );
+  protected readonly visiblePipelineStats = computed(() =>
+    this.pipelineStats().filter(p => !isStudyPipeline(p.pipeline) || this.studyActive()),
+  );
+
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredCount() / this.filters().pageSize)));
   private readonly query = computed<BlobQuery & { reload: number }>(() => ({ ...this.filters(), page: this.page(), reload: this.reload() }));
 
@@ -71,6 +91,14 @@ export class DocumentsPageComponent {
     const s = this.stats();
     return !!s && s.queued + s.processing > 0;
   });
+
+  /**
+   * The last load returned the same per-pipeline counters as the one before it: nothing is moving (for example a study
+   * queue that no worker consumes, or a worker that died), so the periodic refresh pauses. It resumes as soon as the
+   * counters change again (after a status notification, an action or a reload).
+   */
+  private readonly stalled = signal(false);
+  private readonly autoRefresh = computed(() => this.ingesting() && !this.stalled());
 
   constructor() {
     effect(() => saveFilters(this.filters()));
@@ -101,10 +129,10 @@ export class DocumentsPageComponent {
         if (result) this.applyPage(result);
       });
 
-    // Silent refresh (no spinner) of the counters and the visible page: every 10 s while something is being ingested,
-    // and once shortly after a status change or an action.
+    // Silent refresh (no spinner) of the counters and the visible page: every 10 s while something is being ingested and
+    // the counters keep moving, and once shortly after a status change or an action.
     merge(
-      toObservable(this.ingesting).pipe(
+      toObservable(this.autoRefresh).pipe(
         distinctUntilChanged(),
         switchMap(active => (active ? interval(AUTO_REFRESH_MS) : EMPTY)),
       ),
@@ -208,7 +236,9 @@ export class DocumentsPageComponent {
   private applyPage(result: PaginatedBlobsResponse): void {
     this.blobs.set(result.items);
     this.stats.set(result.stats);
-    this.pipelineStats.set(result.pipelineStats ?? []);
+    const pipelineStats = result.pipelineStats ?? [];
+    this.stalled.set(pipelineStats.length > 0 && JSON.stringify(pipelineStats) === JSON.stringify(this.pipelineStats()));
+    this.pipelineStats.set(pipelineStats);
     this.filteredCount.set(result.total);
   }
 

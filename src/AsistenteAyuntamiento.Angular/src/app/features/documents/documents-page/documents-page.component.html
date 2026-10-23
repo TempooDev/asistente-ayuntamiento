@@ -5,9 +5,9 @@
     <div class="flex gap-2 items-center flex-wrap">
       <label class="sr-only" for="pipeline-mode">Pipeline de procesamiento</label>
       <select id="pipeline-mode" #mode class="px-2 py-1 border rounded-sm bg-surface" (change)="setPipelineMode(mode.value)">
-        <option value="BOTH" [selected]="pipelineMode() === 'BOTH'">Ambos pipelines</option>
-        <option value="BASELINE" [selected]="pipelineMode() === 'BASELINE'">Solo Flat-Chunk (Antiguo)</option>
-        <option value="HIERARCHICAL" [selected]="pipelineMode() === 'HIERARCHICAL'">Solo Jerárquico (Nuevo)</option>
+        @for (option of pipelineModes; track option.value) {
+          <option [value]="option.value" [selected]="pipelineMode() === option.value">{{ option.label }}</option>
+        }
       </select>
       @if (selected().size > 0) {
         <button type="button" class="btn btn-sm btn-primary rounded-sm px-3 py-1 transition-colors" (click)="enqueueSelected()">
@@ -24,7 +24,7 @@
   </div>
 
   @if (pipelineStats().length > 0) {
-    <app-pipeline-progress [stats]="pipelineStats()" />
+    <app-pipeline-progress [stats]="visiblePipelineStats()" />
   }
 
   @if (stats(); as s) {
@@ -48,6 +48,7 @@
     <app-document-table
       [blobs]="blobs()"
       [selected]="selected()"
+      [showStudy]="studyActive()"
       (toggle)="toggle($event)"
       (toggleAll)="toggleAll($event)"
       (process)="process($event)"

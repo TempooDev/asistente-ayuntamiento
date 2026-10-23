@@ -1,47 +1,47 @@
 ## 1. Asynchronous chunking contract
 
-- [ ] 1.1 Change `IChunkingStrategy` to `ChunkTextAsync(string, CancellationToken)` returning `IReadOnlyList<DocumentChunkResult>`, add an optional `EmbeddedTokens` to the result, and adapt `FixedOverlapChunkingStrategy` (`src/AsistenteAyuntamiento.Application/Features/Ingestion/Chunking/IChunkingStrategy.cs`, `FixedOverlapChunkingStrategy.cs`, `DocumentChunkResult.cs`).
-- [ ] 1.2 Await the new method in `DocumentIngestionService.cs`, `BoeIngestionService.cs` and `BojaIngestionService.cs`, and update `tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/FixedOverlapChunkingStrategyTests.cs` and the ingestion tests that mock the strategy.
-- [ ] 1.3 Extract the token estimator used by `TextChunker` into a shared `ChunkTokenCounter` used by every strategy (`Application/Features/Ingestion/Chunking/ChunkTokenCounter.cs`).
+- [x] 1.1 Change `IChunkingStrategy` to `ChunkTextAsync(string, CancellationToken)` returning `IReadOnlyList<DocumentChunkResult>`, add an optional `EmbeddedTokens` to the result, and adapt `FixedOverlapChunkingStrategy` (`src/AsistenteAyuntamiento.Application/Features/Ingestion/Chunking/IChunkingStrategy.cs`, `FixedOverlapChunkingStrategy.cs`, `DocumentChunkResult.cs`).
+- [x] 1.2 Await the new method in `DocumentIngestionService.cs`, `BoeIngestionService.cs` and `BojaIngestionService.cs`, and update `tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/FixedOverlapChunkingStrategyTests.cs` and the ingestion tests that mock the strategy.
+- [x] 1.3 Extract the token estimator used by `TextChunker` into a shared `ChunkTokenCounter` used by every strategy (`Application/Features/Ingestion/Chunking/ChunkTokenCounter.cs`).
 - [x] 1.4 Add `PromptCatalog.EmbeddingQueryInstruction`, the switch `Ai:Embeddings:UseQueryInstruction` and a small query-embedding helper that applies `Instruct: …\nQuery: …` when it is on; use it in `BaselineRagPipeline.cs`, `HybridRetrievalService.cs` and `ArenaService.cs`, turn it on in the local AppHost and document it in `docs/setup.md`, with tests for both cases.
 
 ## 2. Recursive strategy
 
-- [ ] 2.1 Implement `RecursiveChunkingStrategy` (separators, merge, overlap by whole pieces, character fallback) with settings `Ai:Chunking:Recursive:*` falling back to `Ai:Embeddings:*` (`Application/Features/Ingestion/Chunking/RecursiveChunkingStrategy.cs`).
-- [ ] 2.2 Unit tests for paragraphs that fit, long paragraphs, text without separators, overlap and limits (`tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/RecursiveChunkingStrategyTests.cs`).
+- [x] 2.1 Implement `RecursiveChunkingStrategy` (separators, merge, overlap by whole pieces, character fallback) with settings `Ai:Chunking:Recursive:*` falling back to `Ai:Embeddings:*` (`Application/Features/Ingestion/Chunking/RecursiveChunkingStrategy.cs`).
+- [x] 2.2 Unit tests for paragraphs that fit, long paragraphs, text without separators, overlap and limits (`tests/AsistenteAyuntamiento.Application.Tests/Features/Ingestion/Chunking/RecursiveChunkingStrategyTests.cs`).
 
 ## 3. Semantic strategy
 
-- [ ] 3.1 Implement `SpanishSentenceSplitter` with the bulletin abbreviation list and tests (`Application/Features/Ingestion/Chunking/SpanishSentenceSplitter.cs`, `tests/.../Chunking/SpanishSentenceSplitterTests.cs`).
-- [ ] 3.2 Implement `SemanticChunkingStrategy` (buffered sentence windows, batched embeddings, percentile breakpoints, min merge, recursive split over the maximum, embedded tokens) with settings `Ai:Chunking:Semantic:*` (`Application/Features/Ingestion/Chunking/SemanticChunkingStrategy.cs`).
-- [ ] 3.3 Unit tests with a fake embedding generator: topic change, short text, empty text without calls, oversize chunk, embedding failure (`tests/.../Chunking/SemanticChunkingStrategyTests.cs`).
-- [ ] 3.4 Register the three strategies as keyed singletons (`FixedOverlap` also unkeyed) with startup validation (`src/AsistenteAyuntamiento.Application/DependencyInjection.cs`), and add the settings to `appsettings.json`, `docker-compose.yml` and `docs/setup.md`.
+- [x] 3.1 Implement `SpanishSentenceSplitter` with the bulletin abbreviation list and tests (`Application/Features/Ingestion/Chunking/SpanishSentenceSplitter.cs`, `tests/.../Chunking/SpanishSentenceSplitterTests.cs`).
+- [x] 3.2 Implement `SemanticChunkingStrategy` (buffered sentence windows, batched embeddings, percentile breakpoints, min merge, recursive split over the maximum, embedded tokens) with settings `Ai:Chunking:Semantic:*` (`Application/Features/Ingestion/Chunking/SemanticChunkingStrategy.cs`).
+- [x] 3.3 Unit tests with a fake embedding generator: topic change, short text, empty text without calls, oversize chunk, embedding failure (`tests/.../Chunking/SemanticChunkingStrategyTests.cs`).
+- [x] 3.4 Register the three strategies as keyed singletons (`FixedOverlap` also unkeyed) with startup validation (`src/AsistenteAyuntamiento.Application/DependencyInjection.cs`), and add the settings to `appsettings.json`, `docker-compose.yml` and `docs/setup.md`.
 
 ## 4. Domain, persistence and vectors
 
-- [ ] 4.1 Add `PipelineType.Recursive = 3` and `Semantic = 4`, `IngestionPipelines.Recursive`, `Semantic` and `All`, and `ChunkingStrategy` on `DocumentChunk` (`src/AsistenteAyuntamiento.Domain/Common/Enums/PipelineType.cs`, `Application/Common/Messaging/IngestionPipelines.cs`, `Domain/Features/Ingestion/DocumentChunk.cs`).
-- [ ] 4.2 Add `RecursiveStatus` and `SemanticStatus` to `DocumentJobState`, handle them in `SetPipelineStatus`, `Reset` and `Summarize`, and extend `DocumentJobStateUpdates.cs` and `IngestionAdminService.cs` (`Domain/Features/Ingestion/DocumentJobState.cs`); update `tests/AsistenteAyuntamiento.Domain.Tests`.
+- [x] 4.1 Add `PipelineType.Recursive = 3` and `Semantic = 4`, `IngestionPipelines.Recursive`, `Semantic` and `All`, and `ChunkingStrategy` on `DocumentChunk` (`src/AsistenteAyuntamiento.Domain/Common/Enums/PipelineType.cs`, `Application/Common/Messaging/IngestionPipelines.cs`, `Domain/Features/Ingestion/DocumentChunk.cs`).
+- [x] 4.2 Add `RecursiveStatus` and `SemanticStatus` to `DocumentJobState`, handle them in `SetPipelineStatus`, `Reset` and `Summarize`, and extend `DocumentJobStateUpdates.cs` and `IngestionAdminService.cs` (`Domain/Features/Ingestion/DocumentJobState.cs`); update `tests/AsistenteAyuntamiento.Domain.Tests`.
 - [x] 4.3 Add `TimeToFirstTokenMs` to `AiCallLog` and fill it where streamed calls record time to first token (`Domain/Features/Chat/AiCallLog.cs`, `Application/Features/Chat/AiCallRecorder.cs`, `Application/Features/Chat/Telemetry/MeteredChatCompletion.cs`).
-- [ ] 4.4 EF configuration and one migration: `DocumentChunks.ChunkingStrategy` (default `FixedOverlap`, index with `DocumentId`), the two status columns and `AiCallLogs.TimeToFirstTokenMs` (`src/AsistenteAyuntamiento.Infrastructure/Data/`), with a Testcontainers test that existing rows keep `FixedOverlap`.
-- [ ] 4.5 Add `VectorCollection.RecursiveChunks` and `SemanticChunks` with settings `VectorStore:RecursiveChunksCollection` and `VectorStore:SemanticChunksCollection` (`Application/Common/VectorStore/VectorCollection.cs`, `Infrastructure/VectorStore/QdrantVectorStore.cs`), including bootstrap and delete-by-document tests.
+- [x] 4.4 EF configuration and one migration: `DocumentChunks.ChunkingStrategy` (default `FixedOverlap`, index with `DocumentId`), the two status columns and `AiCallLogs.TimeToFirstTokenMs` (`src/AsistenteAyuntamiento.Infrastructure/Data/`), with a Testcontainers test that existing rows keep `FixedOverlap`.
+- [x] 4.5 Add `VectorCollection.RecursiveChunks` and `SemanticChunks` with settings `VectorStore:RecursiveChunksCollection` and `VectorStore:SemanticChunksCollection` (`Application/Common/VectorStore/VectorCollection.cs`, `Infrastructure/VectorStore/QdrantVectorStore.cs`), including bootstrap and delete-by-document tests.
 
 ## 5. Flat-chunk variants (ingestion)
 
-- [ ] 5.1 Introduce `FlatChunkVariant` and parameterize `DocumentIngestionService` by it: keyed strategy, `ChunkingStrategy` filter on delete/insert, collection, `PipelineType` for job state and metrics, embedded chunking tokens in the metrics (`Application/Features/Ingestion/DocumentIngestionService.cs`, `FlatChunkVariant.cs`).
-- [ ] 5.2 Add queues `documents_to_process_recursive` and `documents_to_process_semantic` (with `.retry`, `.dlq`) and a generic flat-chunk consumer per variant; update `docs/messaging-contract.md` (`src/AsistenteAyuntamiento.Infrastructure/Features/Ingestion/`, `Infrastructure/Messaging/RabbitMqTopology.cs`).
-- [ ] 5.3 Worker modes `RECURSIVE` and `SEMANTIC` (`src/AsistenteAyuntamiento.Worker/Program.cs`) and tests in `tests/AsistenteAyuntamiento.Worker.Tests`.
-- [ ] 5.4 Add `worker-recursive` and `worker-semantic` to the AppHost (`src/AsistenteAyuntamiento.AppHost/AppHost.cs`) and to `docker-compose.yml` under the profile `chunking-study`; document it in `docs/deploy-dokploy.md`.
-- [ ] 5.5 Accept `RECURSIVE`, `SEMANTIC`, combinations and `ALL` in `pipelineMode` (`ApiService/Features/Ingestion/IngestionEndpoints.cs`, `IngestionAdminService.cs`) with the 403 test for non platform admins, and add the options to the admin documents page (`src/AsistenteAyuntamiento.Angular/src/app/features/documents/`).
+- [x] 5.1 Introduce `FlatChunkVariant` and parameterize `DocumentIngestionService` by it: keyed strategy, `ChunkingStrategy` filter on delete/insert, collection, `PipelineType` for job state and metrics, embedded chunking tokens in the metrics (`Application/Features/Ingestion/DocumentIngestionService.cs`, `FlatChunkVariant.cs`).
+- [x] 5.2 Add queues `documents_to_process_recursive` and `documents_to_process_semantic` (with `.retry`, `.dlq`) and a generic flat-chunk consumer per variant; update `docs/messaging-contract.md` (`src/AsistenteAyuntamiento.Infrastructure/Features/Ingestion/`, `Infrastructure/Messaging/RabbitMqTopology.cs`).
+- [x] 5.3 Worker modes `RECURSIVE` and `SEMANTIC` (`src/AsistenteAyuntamiento.Worker/Program.cs`) and tests in `tests/AsistenteAyuntamiento.Worker.Tests`.
+- [x] 5.4 Add `worker-recursive` and `worker-semantic` to the AppHost (`src/AsistenteAyuntamiento.AppHost/AppHost.cs`) and to `docker-compose.yml` under the profile `chunking-study`; document it in `docs/deploy-dokploy.md`.
+- [x] 5.5 Accept `RECURSIVE`, `SEMANTIC`, combinations and `ALL` in `pipelineMode` (`ApiService/Features/Ingestion/IngestionEndpoints.cs`, `IngestionAdminService.cs`) with the 403 test for non platform admins, and add the options to the admin documents page (`src/AsistenteAyuntamiento.Angular/src/app/features/documents/`).
 
 ## 6. Flat-chunk variants (answering) and evaluation run
 
-- [ ] 6.1 Rename `BaselineRagPipeline` to `FlatChunkRagPipeline` parameterized by `FlatChunkVariant`, register one `IRagPipeline` per variant (`Application/Features/Chat/Pipelines/BaselineRagPipeline.cs`, `DependencyInjection.cs`, `AiChatService.cs`), keeping the baseline's behaviour and tests.
+- [x] 6.1 Rename `BaselineRagPipeline` to `FlatChunkRagPipeline` parameterized by `FlatChunkVariant`, register one `IRagPipeline` per variant (`Application/Features/Chat/Pipelines/BaselineRagPipeline.cs`, `DependencyInjection.cs`, `AiChatService.cs`), keeping the baseline's behaviour and tests.
 - [x] 6.2 Split retrieval and generation inside both pipelines and add `RunForEvaluationAsync` with `RagEvaluationResult` and stage timings (`Application/Features/Chat/Pipelines/IRagPipeline.cs`, `FlatChunkRagPipeline.cs`, `HierarchicalRagPipeline.cs`, `RagEvaluationResult.cs`).
 - [x] 6.3 Tests: evaluation run returns contexts and timings, persists nothing, maps model errors to codes (`tests/AsistenteAyuntamiento.Application.Tests/Features/Chat/Pipelines/`).
 
 ## 7. Production variant and Arena
 
-- [ ] 7.1 Add `Rag:ProductionPipeline` and `Rag:ArenaPipelines` options with startup validation, and make `WinningPipelineSelector` return the configured variant or the most-winning enabled one (`Application/Features/Chat/WinningPipelineSelector.cs`, `RagOptions.cs`).
+- [ ] 7.1 (`Rag:ProductionPipeline` done: `WinningPipelineSelector` returns the configured variant, AppHost passes it through; `Rag:ArenaPipelines` and startup validation pending with the Arena) Add `Rag:ProductionPipeline` and `Rag:ArenaPipelines` options with startup validation, and make `WinningPipelineSelector` return the configured variant or the most-winning enabled one (`Application/Features/Chat/WinningPipelineSelector.cs`, `RagOptions.cs`).
 - [ ] 7.2 Pick a challenger among the other enabled pipelines in `ArenaStreamingService.cs`, `ArenaService.cs` and `ShadowTestScheduler.cs`; tests for default pairing, challenger distribution and single-pipeline (no shadow).
 - [ ] 7.3 Per-pipeline and per-pair aggregates in `ArenaAnalyticsService.cs` and `PipelineMetrics`, and labels for the new variants in the Arena reveal and the metrics page (`src/AsistenteAyuntamiento.Angular/src/app/features/arena/`, `features/analytics/`).
 

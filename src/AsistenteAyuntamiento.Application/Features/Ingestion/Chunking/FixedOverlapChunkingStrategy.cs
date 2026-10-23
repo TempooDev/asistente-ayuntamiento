@@ -12,7 +12,7 @@ public class FixedOverlapChunkingStrategy : IChunkingStrategy
     private readonly int _overlapTokens;
     private readonly int _maxLineTokens;
 
-    public string StrategyName => "FixedOverlap";
+    public string StrategyName => ChunkingStrategies.FixedOverlap;
 
     /// <param name="maxTokens">Maximum tokens per chunk (Ai:Embeddings:ChunkMaxTokens).</param>
     /// <param name="overlapTokens">Tokens shared by consecutive chunks (Ai:Embeddings:ChunkOverlapTokens).</param>
@@ -34,21 +34,22 @@ public class FixedOverlapChunkingStrategy : IChunkingStrategy
         _maxLineTokens = maxLineTokens;
     }
 
-    public IEnumerable<DocumentChunkResult> ChunkText(string text)
+    public Task<IReadOnlyList<DocumentChunkResult>> ChunkTextAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return Enumerable.Empty<DocumentChunkResult>();
+            return Task.FromResult<IReadOnlyList<DocumentChunkResult>>([]);
         }
 
-        var lines = TextChunker.SplitPlainTextLines(text, _maxLineTokens);
-        var rawChunks = TextChunker.SplitPlainTextParagraphs(lines, _maxTokens, _overlapTokens);
+        var lines = TextChunker.SplitPlainTextLines(text, _maxLineTokens, ChunkTokenCounter.Count);
+        var rawChunks = TextChunker.SplitPlainTextParagraphs(lines, _maxTokens, _overlapTokens, tokenCounter: ChunkTokenCounter.Count);
 
-        return rawChunks.Select((c, i) => new DocumentChunkResult
+        IReadOnlyList<DocumentChunkResult> chunks = rawChunks.Select((c, i) => new DocumentChunkResult
         {
             Text = c,
             ChunkIndex = i,
             Metadata = new Dictionary<string, string> { { "Strategy", StrategyName } }
-        });
+        }).ToList();
+        return Task.FromResult(chunks);
     }
 }

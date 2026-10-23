@@ -2,20 +2,31 @@ using AsistenteAyuntamiento.Application.Common.Interfaces;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 
 namespace AsistenteAyuntamiento.Application.Features.Chat;
 
 /// <summary>
-/// The pipeline with more Arena wins (ties and no votes: <see cref="PipelineType.Baseline"/>). Counted in the
-/// database and cached briefly, since it is read on every streamed answer.
+/// The pipeline that answers the chat: the one set in <c>Rag:ProductionPipeline</c> (any registered variant, for
+/// example the winner of the chunking study), otherwise the one with more Arena wins (ties and no votes:
+/// <see cref="PipelineType.Baseline"/>). Wins are counted in the database and cached briefly, since they are read on
+/// every streamed answer.
 /// </summary>
-public sealed class WinningPipelineSelector(IAppDbContext dbContext, IMemoryCache cache) : IWinningPipelineSelector
+public sealed class WinningPipelineSelector(IAppDbContext dbContext, IMemoryCache cache, IConfiguration? configuration = null) : IWinningPipelineSelector
 {
     internal const string CacheKey = "arena:winning-pipeline";
     internal static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
+    public const string ProductionPipelineKey = "Rag:ProductionPipeline";
+
     public async Task<PipelineType> GetWinnerAsync(CancellationToken cancellationToken = default)
     {
+        if (Enum.TryParse<PipelineType>(configuration?[ProductionPipelineKey], ignoreCase: true, out var configured)
+            && Enum.IsDefined(configured))
+        {
+            return configured;
+        }
+
         if (cache.TryGetValue(CacheKey, out PipelineType cached))
         {
             return cached;

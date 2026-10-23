@@ -32,7 +32,9 @@ public class ArenaAnalyticsService(IAppDbContext dbContext) : IArenaAnalyticsSer
         var pending = battles.Count(b => b.Winner == BattleWinner.Pending);
         var completed = total - pending;
 
-        var pipelines = Enum.GetValues<PipelineType>();
+        // Baseline and hierarchical always; the study variants only once they have battles.
+        var pipelines = Enum.GetValues<PipelineType>()
+            .Where(p => p is PipelineType.Baseline or PipelineType.Hierarchical || battles.Any(b => b.LeftSystem == p || b.RightSystem == p));
         var metricsList = new List<PipelineMetrics>();
 
         foreach (var p in pipelines)
