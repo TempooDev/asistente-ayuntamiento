@@ -51,8 +51,20 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.GetValueOrDefault("import"),
             values.ContainsKey("score"),
             values.ContainsKey("latency-report"),
-            values.TryGetValue("from", out var from) ? DateOnly.Parse(from, System.Globalization.CultureInfo.InvariantCulture) : null,
-            values.TryGetValue("to", out var to) ? DateOnly.Parse(to, System.Globalization.CultureInfo.InvariantCulture) : null);
+            Date(values, "from"),
+            Date(values, "to"));
+    }
+
+    private static DateOnly? Date(Dictionary<string, string> values, string name)
+    {
+        if (!values.TryGetValue(name, out var text))
+        {
+            return null;
+        }
+
+        return DateOnly.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
+            ? date
+            : throw new ArgumentException($"--{name} must be a date like 2026-11-01, got '{text}'.");
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

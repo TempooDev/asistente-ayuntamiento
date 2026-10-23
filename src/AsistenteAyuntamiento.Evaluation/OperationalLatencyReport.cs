@@ -16,6 +16,8 @@ public sealed class OperationalLatencyReport(string connectionString)
     public const string ConnectionVariable = "EVAL_LATENCY_DB";
 
     // Percentiles with percentile_cont, as in the evaluation; durations in milliseconds; "to" is exclusive.
+    // Chat answers are what users waited for: background shadow runs and evaluation calls are left out (shadow battles
+    // still appear in the Arena sides, where both latencies are real pipeline runs). LLM calls cover every step.
     internal const string ChatAnswersSql = """
         SELECT COALESCE(NULLIF("Pipeline", ''), 'baseline') AS pipeline,
                COUNT(*) AS answers,
@@ -23,12 +25,12 @@ public sealed class OperationalLatencyReport(string connectionString)
                ROUND(AVG("DurationMs") FILTER (WHERE "Success")::numeric, 1) AS mean_ms,
                ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "DurationMs") FILTER (WHERE "Success"))::numeric, 1) AS p50_ms,
                ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "DurationMs") FILTER (WHERE "Success"))::numeric, 1) AS p95_ms,
-               COUNT("TimeToFirstTokenMs") AS ttft_n,
-               ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs"))::numeric, 1) AS ttft_p50_ms,
-               ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs"))::numeric, 1) AS ttft_p95_ms
+               COUNT("TimeToFirstTokenMs") FILTER (WHERE "Success") AS ttft_n,
+               ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs") FILTER (WHERE "Success"))::numeric, 1) AS ttft_p50_ms,
+               ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs") FILTER (WHERE "Success"))::numeric, 1) AS ttft_p95_ms
         FROM chat."AiCallLogs"
         WHERE "Operation" = 'answer' AND "CreatedAt" >= @from AND "CreatedAt" < @to
-          AND COALESCE("Pipeline", '') <> 'evaluation'
+          AND COALESCE("Pipeline", '') NOT IN ('evaluation', 'shadow')
         GROUP BY 1 ORDER BY 1
         """;
 
@@ -65,11 +67,13 @@ public sealed class OperationalLatencyReport(string connectionString)
         GROUP BY 1 ORDER BY 1
         """;
 
+    // A snapshot of the current job states last touched in the period: finished documents only (queued or pending
+    // ones are not failures yet). A later retry moves a document to the period of that retry.
     internal const string IngestionFailuresSql = """
-        SELECT pipeline, COUNT(*) FILTER (WHERE status IS NOT NULL) AS documents,
+        SELECT pipeline, COUNT(*) FILTER (WHERE status IN ('Completed', 'Failed', 'VectorSyncFailed')) AS documents,
                COUNT(*) FILTER (WHERE status IN ('Failed', 'VectorSyncFailed')) AS failed,
                ROUND((COUNT(*) FILTER (WHERE status IN ('Failed', 'VectorSyncFailed')))::numeric
-                     / NULLIF(COUNT(*) FILTER (WHERE status IS NOT NULL), 0), 4) AS failed_share
+                     / NULLIF(COUNT(*) FILTER (WHERE status IN ('Completed', 'Failed', 'VectorSyncFailed')), 0), 4) AS failed_share
         FROM ingestion."DocumentJobStates" j
         CROSS JOIN LATERAL (VALUES ('Baseline', j."BaselineStatus"), ('Hierarchical', j."HierarchicalStatus"),
                                    ('Recursive', j."RecursiveStatus"), ('Semantic', j."SemanticStatus")) AS p(pipeline, status)

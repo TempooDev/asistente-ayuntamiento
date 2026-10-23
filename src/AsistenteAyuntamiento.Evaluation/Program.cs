@@ -27,7 +27,7 @@ var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
 
 if (options.LatencyReport)
 {
-    // Read-only aggregates for chapter 8; never falls back to the application's credentials.
+    // Read-only aggregates for chapter 8; the connection comes only from EVAL_LATENCY_DB (a read-only role, see eval/README.md).
     var connection = Environment.GetEnvironmentVariable(OperationalLatencyReport.ConnectionVariable);
     if (string.IsNullOrWhiteSpace(connection))
     {
@@ -35,8 +35,13 @@ if (options.LatencyReport)
         return 1;
     }
 
-    var to = options.To ?? DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+    var to = options.To ?? (options.From is { } start ? start.AddDays(30) : DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1));
     var from = options.From ?? to.AddDays(-30);
+    if (from >= to)
+    {
+        Console.Error.WriteLine($"--from ({from:yyyy-MM-dd}) must be before --to ({to:yyyy-MM-dd}); --to is exclusive.");
+        return 1;
+    }
     var reportDirectory = options.Output ?? Path.Combine(repository, "eval", "latency", $"{from:yyyy-MM-dd}_{to:yyyy-MM-dd}");
     foreach (var file in await new OperationalLatencyReport(connection).WriteAsync(from, to, reportDirectory))
     {
@@ -135,6 +140,10 @@ if (problems.Count > 0)
     return 1;
 }
 
+// The Ollama that answers (and judges, with --score). Recorded only when the chat model runs on Ollama.
+var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
+var answeringEndpoint = string.Equals(chatProvider, "ollama", StringComparison.OrdinalIgnoreCase) ? ollamaUrl : null;
+
 var runId = options.Resume ?? DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
 var runDirectory = Path.Combine(runsDirectory, runId);
 var runFile = Path.Combine(runDirectory, EvaluationRunner.RunFile);
@@ -149,6 +158,12 @@ if (options.Resume is not null && File.Exists(runFile))
             runId, info.ChatModel, info.DatasetHash, chatModel, dataset.DatasetHash);
         return 1;
     }
+    // Latencies of one run must come from one machine.
+    if (info.OllamaEndpoint is not null && !string.Equals(info.OllamaEndpoint, answeringEndpoint, StringComparison.OrdinalIgnoreCase))
+    {
+        logger.LogError("Run {RunId} was answered by {Endpoint}; resume it against the same Ollama, not {CurrentEndpoint}", runId, info.OllamaEndpoint, answeringEndpoint);
+        return 1;
+    }
 }
 else
 {
@@ -156,7 +171,7 @@ else
         chatProvider, chatModel, temperature, builder.Configuration["Ai:Embeddings:Model"] ?? "qwen3-embedding:0.6b",
         host.Services.GetRequiredService<QueryEmbeddingOptions>().Instruction, options.Pipelines, dataset.Questions.Count, dataset.DatasetHash, dataset.CorpusHash,
         // Where the models ran: latencies are only comparable between runs on the same hardware.
-        EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama")), builder.Configuration["Evaluation:Hardware"]);
+        answeringEndpoint, builder.Configuration["Evaluation:Hardware"]);
 }
 
 logger.LogInformation("Run {RunId}: {Questions} questions × {Pipelines} with {Model} (seed {Seed}) → {Directory}",
@@ -169,7 +184,6 @@ if (!options.Score)
     return 0;
 }
 
-var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
 if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, ollamaUrl, cancellation.Token))
 {
     return 1;

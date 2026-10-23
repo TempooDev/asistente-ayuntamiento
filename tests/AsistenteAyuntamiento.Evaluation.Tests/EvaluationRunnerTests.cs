@@ -100,6 +100,7 @@ public sealed class EvaluationRunnerTests : IDisposable
         args.Score.Should().BeFalse();
         EvaluationArguments.Parse(["--latency-report", "--from", "2026-11-01", "--to", "2026-12-01"]).Should().Match<EvaluationArguments>(a =>
             a.LatencyReport && a.From == new DateOnly(2026, 11, 1) && a.To == new DateOnly(2026, 12, 1));
+        FluentActions.Invoking(() => EvaluationArguments.Parse(["--latency-report", "--from", "01/11/2026"])).Should().Throw<ArgumentException>().WithMessage("*--from*");
         EvaluationArguments.Parse(["--limit", "3", "--score"]).Should().Match<EvaluationArguments>(a => a.Score && a.Limit == 3);
         EvaluationScorer.OllamaUrl("Endpoint=http://localhost:11434").Should().Be("http://localhost:11434");
         EvaluationArguments.Parse([]).Pipelines.Should().Equal(PipelineType.Baseline, PipelineType.Hierarchical, PipelineType.Recursive, PipelineType.Semantic);

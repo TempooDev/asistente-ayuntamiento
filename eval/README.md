@@ -37,7 +37,7 @@ dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src
 | `--limit 3 --score` | Prueba rápida con 3 preguntas |
 | `--pipelines Recursive,Semantic --score` | Solo algunas variantes |
 | `--import latest` | Importa la ejecución puntuada más reciente |
-| `--latency-report --from 2026-11-01 --to 2026-12-01` | Informe de latencia operativa (Aspire le pasa la base en `EVAL_LATENCY_DB`) |
+| `--latency-report --from 2026-11-01 --to 2026-12-01` | Informe de latencia operativa (necesita `Evaluation:LatencyConnection`, ver abajo) |
 
 Para volver al modo por defecto: `dotnet user-secrets remove "Evaluation:Arguments" --project src/AsistenteAyuntamiento.AppHost`. Los cambios se aplican al reiniciar el AppHost.
 
@@ -57,7 +57,22 @@ dotnet user-secrets set "Evaluation:Hardware" "RTX 4060 8 GB, Ollama, Windows" -
 
 ## Informe de latencia operativa (capítulo 8)
 
-Latencias reales de la plataforma en un periodo, a partir de lo que ya guarda la base (`AiCallLogs`, `ArenaBattles`, `IngestionMetrics`, `DocumentJobStates`): respuestas del chat (media, p50, p95, tiempo al primer token y proporción de fallos) por pipeline, llamadas al LLM por paso, lados de la Arena, ingesta por documento y fallos de ingesta. Solo lee agregados de columnas numéricas y de estado, nunca preguntas, respuestas ni identificadores, y abre la sesión en solo lectura. La cadena de conexión se pasa en `EVAL_LATENCY_DB` (mejor con un rol de solo lectura); sin ella no se ejecuta.
+Latencias reales de la plataforma en un periodo, a partir de lo que ya guarda la base (`AiCallLogs`, `ArenaBattles`, `IngestionMetrics`, `DocumentJobStates`): respuestas del chat que esperaron los usuarios (media, p50, p95, tiempo al primer token y proporción de fallos) por pipeline, sin las ejecuciones en segundo plano del shadow test ni las de la evaluación; llamadas al LLM por paso; lados de la Arena (incluidas las batallas del shadow test, cuyas dos latencias son ejecuciones reales); ingesta por documento; y fallos de ingesta sobre los documentos terminados cuyo estado se actualizó en el periodo (es una foto del estado actual: un reintento posterior mueve el documento a su periodo). Solo lee agregados de columnas numéricas y de estado, nunca preguntas, respuestas ni identificadores, y abre la sesión en solo lectura.
+
+La cadena de conexión se pasa en `EVAL_LATENCY_DB` y debe ser de un rol de solo lectura; sin ella no se ejecuta. Para crearlo en PostgreSQL:
+
+```sql
+CREATE ROLE lector LOGIN PASSWORD '...';
+GRANT CONNECT ON DATABASE "asistente-ayuntamiento-db" TO lector;
+GRANT USAGE ON SCHEMA chat, arena, ingestion TO lector;
+GRANT SELECT ON chat."AiCallLogs", arena."ArenaBattles", ingestion."IngestionMetrics", ingestion."DocumentJobStates" TO lector;
+```
+
+Desde Aspire, guarda esa cadena en `Evaluation:LatencyConnection` y el recurso `evaluation` la recibe como `EVAL_LATENCY_DB`:
+
+```bash
+dotnet user-secrets set "Evaluation:LatencyConnection" "Host=localhost;Port=5432;Username=lector;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.AppHost
+```
 
 ```bash
 EVAL_LATENCY_DB="Host=...;Username=lector;Password=...;Database=asistente-ayuntamiento-db" \

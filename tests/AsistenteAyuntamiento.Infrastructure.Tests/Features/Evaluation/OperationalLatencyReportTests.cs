@@ -44,6 +44,8 @@ public sealed class OperationalLatencyReportTests : IAsyncLifetime
         }
         db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = false, DurationMs = 99, Pipeline = "baseline", CreatedAt = inPeriod });
         db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = true, DurationMs = 99_999, Pipeline = "evaluation", CreatedAt = inPeriod });
+        db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = true, DurationMs = 99_999, Pipeline = "shadow", CreatedAt = inPeriod });
+        db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = false, DurationMs = 50, TimeToFirstTokenMs = 1, Pipeline = "baseline", CreatedAt = inPeriod });
         db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = true, DurationMs = 99_999, Pipeline = "baseline", CreatedAt = inPeriod.AddMonths(-2) });
         db.ArenaBattles.Add(new ArenaBattle
         {
@@ -87,10 +89,11 @@ public sealed class OperationalLatencyReportTests : IAsyncLifetime
     {
         (await Report()).Select(Path.GetFileName).Should().BeEquivalentTo(OperationalLatencyReport.Measures.Keys);
 
-        // 10 successful answers of 100..1000 ms and one failure; evaluation calls and calls outside the period are left out.
+        // 10 successful answers of 100..1000 ms and two failures (one with a first token that must not count); evaluation
+        // and shadow calls and calls outside the period are left out.
         Lines("chat-answers.csv").Should().Equal(
             "pipeline,answers,failed_share,mean_ms,p50_ms,p95_ms,ttft_n,ttft_p50_ms,ttft_p95_ms",
-            "baseline,11,0.0909,550.0,550.0,955.0,10,55.0,95.5");
+            "baseline,12,0.1667,550.0,550.0,955.0,10,55.0,95.5");
         Lines("arena-sides.csv").Skip(1).Should().Equal("Baseline,1,1000.0,1000.0,1000.0", "Hierarchical,1,3000.0,3000.0,3000.0");
         Lines("ingestion.csv").Skip(1).Should().Equal("Semantic,1,1,4000.0,4000.0,4000.0");
         Lines("ingestion-failures.csv").Skip(1).Should().Contain(["Baseline,1,0,0.0000", "Semantic,1,1,1.0000"]);

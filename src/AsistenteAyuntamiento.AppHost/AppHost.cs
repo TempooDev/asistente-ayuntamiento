@@ -253,12 +253,11 @@ foreach (var (name, mode) in new[]
 //   "--latency-report --from 2026-11-01 --to 2026-12-01" operational latency report (chapter 8)
 // dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
 var evaluationArguments = (builder.Configuration["Evaluation:Arguments"] ?? "--score")
+    .Replace(", ", ",", StringComparison.Ordinal)
     .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
     .WithArgs(evaluationArguments)
-    // The latency report reads it in a read-only session (locally the same database user).
-    .WithEnvironment("EVAL_LATENCY_DB", db)
     .WithReference(db)
     .WithReference(qdrant)
     .WaitFor(db)
@@ -269,6 +268,12 @@ var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("
 // dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
 // Recorded in run.json, e.g. "RTX 4060 8 GB, Ollama, Windows":
 // dotnet user-secrets set "Evaluation:Hardware" "RTX 4060 8 GB" --project src/AsistenteAyuntamiento.AppHost
+// The latency report connects only with a read-only database role (eval/README.md); without it, it refuses to run:
+// dotnet user-secrets set "Evaluation:LatencyConnection" "Host=localhost;Port=5432;Username=lector;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Evaluation:LatencyConnection"] is { Length: > 0 } latencyConnection)
+{
+    evaluation.WithEnvironment("EVAL_LATENCY_DB", latencyConnection);
+}
 if (builder.Configuration["Evaluation:Hardware"] is { Length: > 0 } evaluationHardware)
 {
     evaluation.WithEnvironment("Evaluation__Hardware", evaluationHardware);
