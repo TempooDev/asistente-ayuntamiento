@@ -169,6 +169,12 @@ if (string.IsNullOrEmpty(blobEndpoint))
     apiService.WaitFor(minio);
 }
 apiService.WithEnvironment("Internal__GrpcApiKey", internalGrpcKey);
+// Pipeline that answers the chat (Baseline, Hierarchical, Recursive or Semantic); unset: the Arena winner.
+// dotnet user-secrets set "Rag:ProductionPipeline" "Semantic" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Rag:ProductionPipeline"] is { Length: > 0 } productionPipeline)
+{
+    apiService.WithEnvironment("Rag__ProductionPipeline", productionPipeline);
+}
 
 var webfrontend = builder.AddJavaScriptApp("webfrontend", "../AsistenteAyuntamiento.Angular", "start")
     .WithHttpEndpoint(port: 4200, targetPort: 4201, env: "PORT")

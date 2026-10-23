@@ -4,6 +4,7 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 using AsistenteAyuntamiento.Domain.Features.Arena;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using MockQueryable.Moq;
 using Moq;
 
@@ -60,5 +61,27 @@ public class WinningPipelineSelectorTests
         await sut.GetWinnerAsync();
 
         db.Verify(d => d.ArenaBattles, Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Semantic", PipelineType.Semantic)]
+    [InlineData("recursive", PipelineType.Recursive)]
+    public async Task A_configured_production_pipeline_answers_whatever_the_votes(string setting, PipelineType expected)
+    {
+        var db = new Mock<IAppDbContext>();
+        db.Setup(d => d.ArenaBattles).Returns(new List<ArenaBattle> { Battle(PipelineType.Hierarchical, PipelineType.Baseline, BattleWinner.Alfa) }.BuildMockDbSet().Object);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [WinningPipelineSelector.ProductionPipelineKey] = setting }).Build();
+
+        (await new WinningPipelineSelector(db.Object, new MemoryCache(new MemoryCacheOptions()), config).GetWinnerAsync()).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task An_unknown_production_pipeline_falls_back_to_the_votes()
+    {
+        var db = new Mock<IAppDbContext>();
+        db.Setup(d => d.ArenaBattles).Returns(new List<ArenaBattle> { Battle(PipelineType.Hierarchical, PipelineType.Baseline, BattleWinner.Alfa) }.BuildMockDbSet().Object);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [WinningPipelineSelector.ProductionPipelineKey] = "Nope" }).Build();
+
+        (await new WinningPipelineSelector(db.Object, new MemoryCache(new MemoryCacheOptions()), config).GetWinnerAsync()).Should().Be(PipelineType.Hierarchical);
     }
 }

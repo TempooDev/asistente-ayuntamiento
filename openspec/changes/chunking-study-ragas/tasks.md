@@ -41,7 +41,7 @@
 
 ## 7. Production variant and Arena
 
-- [ ] 7.1 Add `Rag:ProductionPipeline` and `Rag:ArenaPipelines` options with startup validation, and make `WinningPipelineSelector` return the configured variant or the most-winning enabled one (`Application/Features/Chat/WinningPipelineSelector.cs`, `RagOptions.cs`).
+- [ ] 7.1 (`Rag:ProductionPipeline` done: `WinningPipelineSelector` returns the configured variant, AppHost passes it through; `Rag:ArenaPipelines` and startup validation pending with the Arena) Add `Rag:ProductionPipeline` and `Rag:ArenaPipelines` options with startup validation, and make `WinningPipelineSelector` return the configured variant or the most-winning enabled one (`Application/Features/Chat/WinningPipelineSelector.cs`, `RagOptions.cs`).
 - [ ] 7.2 Pick a challenger among the other enabled pipelines in `ArenaStreamingService.cs`, `ArenaService.cs` and `ShadowTestScheduler.cs`; tests for default pairing, challenger distribution and single-pipeline (no shadow).
 - [ ] 7.3 Per-pipeline and per-pair aggregates in `ArenaAnalyticsService.cs` and `PipelineMetrics`, and labels for the new variants in the Arena reveal and the metrics page (`src/AsistenteAyuntamiento.Angular/src/app/features/arena/`, `features/analytics/`).
 
