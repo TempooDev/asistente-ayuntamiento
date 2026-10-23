@@ -35,6 +35,8 @@ All three flat strategies use the same token counter as `TextChunker` (its defau
 `PipelineType.Recursive = 3` and `PipelineType.Semantic = 4`; `IngestionPipelines.Recursive = 4`, `Semantic = 8`, `All`; `DocumentJobState.RecursiveStatus` and `SemanticStatus`, included in `Summarize`. Worker modes `RECURSIVE` and `SEMANTIC` consume `documents_to_process_recursive` and `documents_to_process_semantic` with the existing retry and dead-letter policy. Aspire always runs four workers; `docker-compose.yml` adds `worker-recursive` and `worker-semantic` under the profile `chunking-study`, so production runs them only when enabled.
 
 ### 5. Production variant and Arena challengers
+*Implemented: `Rag:ProductionPipeline`. `Rag:ArenaPipelines` and the challengers below moved to the change `arena-study-variants`.*
+
 `Rag:ProductionPipeline` names the variant that answers the chat. When it is not set, the current behaviour stays (the variant with more Arena wins, `Baseline` on ties), now over all enabled variants. `Rag:ArenaPipelines` lists the enabled variants (default `Baseline,Hierarchical`, so nothing changes until the study variants are ingested). Each Arena battle and each shadow test pairs the production variant with a challenger chosen uniformly from the other enabled variants; Alfa/Beta stay random 50/50.
 
 ### 6. Evaluation run on the pipeline

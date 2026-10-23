@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // ── Auth0 secrets ─────────────────────────────────────────────────────────────
@@ -245,18 +247,45 @@ foreach (var (name, mode) in new[]
 
 // Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
 // answers with its own model (Evaluation:ChatModel).
+// What the ▶ of the evaluation resource does (eval/README.md). Default: the whole question set, then score (eval/ragas,
+// needs uv) and import. Other modes, for example:
+//   "--limit 3 --score"                                  quick try
+//   "--pipelines Recursive,Semantic --score"             only some variants
+//   "--import latest"                                    store the newest scored run
+//   "--latency-report --from 2026-11-01 --to 2026-12-01" operational latency report (chapter 8)
+// dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
+// Split on whitespace (spaces after commas are dropped); values with spaces, such as quoted paths, are not supported.
+var evaluationArguments = Regex.Split(Regex.Replace(builder.Configuration["Evaluation:Arguments"] is { Length: > 0 } a && !string.IsNullOrWhiteSpace(a) ? a : "--score", @",\s+", ","), @"\s+")
+    .Where(arg => arg.Length > 0)
+    .ToArray();
+// The latency report only reads the database: it must not wait for Qdrant or the evaluation model.
+var latencyReportOnly = evaluationArguments.Contains("--latency-report", StringComparer.OrdinalIgnoreCase);
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
-    // The whole question set, then score (eval/ragas, needs uv) and import. Add "--limit", "3" for a quick try.
-    .WithArgs("--score")
+    .WithArgs(evaluationArguments)
     .WithReference(db)
     .WithReference(qdrant)
     .WaitFor(db)
-    .WaitFor(qdrant)
     .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
+if (!latencyReportOnly)
+{
+    evaluation.WaitFor(qdrant);
+}
 // The evaluation can run its models (answers, query embeddings and the RAGAS judge) on another machine's Ollama, such
 // as a desktop GPU, while the data stays here. It needs the same models pulled there:
 // dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
+// Recorded in run.json, e.g. "RTX 4060 8 GB, Ollama, Windows":
+// dotnet user-secrets set "Evaluation:Hardware" "RTX 4060 8 GB" --project src/AsistenteAyuntamiento.AppHost
+// The latency report connects only with a read-only database role (eval/README.md); without it, it refuses to run:
+// dotnet user-secrets set "Evaluation:LatencyConnection" "Host=localhost;Port=5432;Username=lector;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Evaluation:LatencyConnection"] is { Length: > 0 } latencyConnection)
+{
+    evaluation.WithEnvironment("EVAL_LATENCY_DB", latencyConnection);
+}
+if (builder.Configuration["Evaluation:Hardware"] is { Length: > 0 } evaluationHardware)
+{
+    evaluation.WithEnvironment("Evaluation__Hardware", evaluationHardware);
+}
 if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evaluationOllama)
 {
     evaluation.WithEnvironment("ConnectionStrings__ollama", $"Endpoint={evaluationOllama}");
@@ -264,7 +293,7 @@ if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evalua
 else
 {
     evaluation.WithReference(ollama);
-    if (evaluationModel is not null)
+    if (evaluationModel is not null && !latencyReportOnly)
     {
         evaluation.WaitFor(evaluationModel);
     }

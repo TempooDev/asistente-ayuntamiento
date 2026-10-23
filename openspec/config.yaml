@@ -9,23 +9,28 @@ context: |
   ### Services
   - Frontend: Angular SPA (signals, OnPush, lazy routes; core/ shared/ features/), served by the YARP Gateway
   - API: ASP.NET Core (AsistenteAyuntamiento.ApiService) — minimal APIs, SignalR hubs (/hubs/chat, /hubs/notifications), gRPC
-  - Ingestion workers: .NET Worker in BASELINE or HIERARCHICAL mode (Semantic Kernel)
+  - Ingestion workers: .NET Worker in BASELINE, HIERARCHICAL, RECURSIVE or SEMANTIC mode (Semantic Kernel); the study
+    variants RECURSIVE and SEMANTIC run in production only with the docker-compose profile chunking-study
+  - Evaluation: AsistenteAyuntamiento.Evaluation console runner (RAGAS study, --import, --latency-report) and the Python
+    scorer in eval/ragas; scored runs stored in the evaluation schema and shown on the metrics page
   - Scraper: Go service (src/go-scraper, cmd/scraper) for BOE and BOJA (the only bulletins in scope)
 
   ### Data & Storage
   - PostgreSQL (EF Core): users, chat, tenant AI configuration, job states, document chunks, parent/child fragments
     (full-text search on child fragments). The migration history is kept (production data must survive).
-  - Vectors: Qdrant, collections document_chunks (baseline) and child_fragments (hierarchical), created on first write
+  - Vectors: Qdrant, collections document_chunks (baseline), document_chunks_recursive, document_chunks_semantic and
+    child_fragments (hierarchical), created on first write; the flat variants share DocumentChunks (ChunkingStrategy column)
   - Blob storage: S3-compatible bucket — MinIO in development, Cloudflare R2 in production
     (json/{SOURCE}/{id}.json parsed documents, raw-xml|raw-html/{SOURCE}/{id}.* originals)
-  - Messaging: RabbitMQ — documents_to_process_{baseline,hierarchical} with .retry and .dlq queues, persistent
+  - Messaging: RabbitMQ — documents_to_process_{baseline,hierarchical,recursive,semantic} with .retry and .dlq queues, persistent
     messages and publisher confirms (docs/messaging-contract.md)
 
   ### AI / LLM
   - Chat model: per tenant (AiConfiguration): ollama, openai, openrouter or google; platform defaults in Ai:Chat:*
   - Tenant API keys: encrypted with ASP.NET Core Data Protection, write-only (never returned to clients)
   - Fallback on quota exhaustion (429): platform model with its own credentials (Ai:Fallback:*); tenant keys never leave their provider
-  - Embeddings: platform-wide (Ai:Embeddings:*, default Ollama nomic-embed-text), never per tenant
+  - Embeddings: platform-wide (Ai:Embeddings:*, local Ollama qwen3-embedding:0.6b with a query instruction from
+    PromptCatalog when Ai:Embeddings:UseQueryInstruction is on), never per tenant
 
   ### Auth & Identity
   - Auth0 B2B: organizations are tenants (org_id claim); roles in {namespace}/roles ('admin-plataforma' = shared knowledge base, 'admin-organizacion' = own tenant)
@@ -38,8 +43,8 @@ context: |
   - Chat sessions, messages, Arena battles and AI configuration are per TENANT and per USER (EF query filters;
     IgnoreQueryFilters only in allow-listed files with an explicit predicate)
   - Requests without a tenant are rejected outside Development
-  - Two retrieval pipelines compete in the Arena (baseline vs hierarchical); the winner answers users and a sample
-    gets a background shadow run
+  - Four RAG variants (fixed-size baseline, recursive, semantic, hierarchical); the chat answers with Rag:ProductionPipeline
+    or, when unset, the Arena winner; the Arena and shadow runs still pair baseline and hierarchical
 
   ## Deployment
   - Dev: .NET Aspire AppHost (Postgres, RabbitMQ, Qdrant, MinIO, Ollama, Angular, Go)

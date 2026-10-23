@@ -86,6 +86,10 @@ For platform administrators the page SHALL show, at the end and collapsed by def
 - **WHEN** a platform administrator opens the page
 - **THEN** the Arena section SHALL be collapsed and SHALL be requested only when it is expanded
 
+#### Scenario: Filtering by date
+- **WHEN** a platform administrator changes the period while the Arena section is expanded
+- **THEN** the page SHALL request the analytics again with the period as `startDate` and `endDate` and show the new aggregates
+
 #### Scenario: Win rate
 - **WHEN** a pipeline took part in voted battles
 - **THEN** its win rate SHALL be its wins divided by its decisive votes (wins plus losses); ties, "both bad" votes and pending battles SHALL NOT count in the denominator

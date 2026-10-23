@@ -23,6 +23,24 @@ Compara las variantes de chunking con las mismas preguntas, el mismo corpus y lo
 5. **Puntuar e informes:** `uv run python score.py ../runs/{runId}` y `uv run python report.py ../runs/{runId}`.
 6. **Guardar en la base de datos:** pulsa ▶ en el recurso `evaluation-import` de Aspire (importa la ejecución más reciente), o `dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import {runId}` (también acepta `latest`). Lee `run.json`, `summary.csv`, `latency.csv`, `indexing.csv` y `scoring.json`, y guarda la ejecución en `evaluation.EvaluationRuns` y `evaluation.EvaluationPipelineResults` (si ya estaba, la reemplaza). La sección «Evaluación offline» de Métricas la muestra (`GET /api/evaluation/runs`, solo administradores de plataforma). Solo usa la base de datos. Fuera de Aspire, la cadena de conexión se lee de los user secrets del proyecto: `dotnet user-secrets set "ConnectionStrings:asistente-ayuntamiento-db" "Host=localhost;Port=5432;Username=postgres;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.Evaluation`.
 
+## Elegir qué hace el recurso `evaluation` de Aspire
+
+Por defecto, el ▶ del recurso `evaluation` evalúa todas las preguntas con todas las variantes, puntúa e importa (`--score`). Otro modo se elige con los argumentos en los secretos del AppHost:
+
+```bash
+dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
+```
+
+| Argumentos | Qué hace |
+|---|---|
+| `--score` (por defecto) | Evaluación completa, puntuación e importación |
+| `--limit 3 --score` | Prueba rápida con 3 preguntas |
+| `--pipelines Recursive,Semantic --score` | Solo algunas variantes |
+| `--import latest` | Importa la ejecución puntuada más reciente |
+| `--latency-report --from 2026-11-01 --to 2026-12-01` | Informe de latencia operativa (necesita `Evaluation:LatencyConnection`, ver abajo) |
+
+Para volver al modo por defecto: `dotnet user-secrets remove "Evaluation:Arguments" --project src/AsistenteAyuntamiento.AppHost`. Los cambios se aplican al reiniciar el AppHost.
+
 ## Evaluar en otra máquina (GPU)
 
 La evaluación puede usar el Ollama de otra máquina (por ejemplo un sobremesa con GPU) mientras la base, Qdrant y el corpus siguen en local. En esa máquina: Ollama con `OLLAMA_HOST=0.0.0.0` (y el puerto 11434 abierto), `ollama pull qwen2.5:7b-instruct-q4_K_M` y `ollama pull qwen3-embedding:0.6b`. Aquí:
@@ -31,7 +49,37 @@ La evaluación puede usar el Ollama de otra máquina (por ejemplo un sobremesa c
 dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://<ip>:11434" --project src/AsistenteAyuntamiento.AppHost
 ```
 
-El recurso `evaluation` usará ese Ollama para las respuestas, los embeddings de las consultas y el juez de RAGAS (`--score` le pasa la misma URL a `score.py`). Las latencias medidas serán las de esa máquina: anótalo junto a los resultados.
+El recurso `evaluation` usará ese Ollama para las respuestas, los embeddings de las consultas y el juez de RAGAS (`--score` le pasa la misma URL a `score.py`). Las latencias medidas serán las de esa máquina. `run.json` guarda la URL de Ollama usada (`ollama_endpoint`) y, si se configura, una descripción del equipo:
+
+```bash
+dotnet user-secrets set "Evaluation:Hardware" "RTX 4060 8 GB, Ollama, Windows" --project src/AsistenteAyuntamiento.AppHost
+```
+
+## Informe de latencia operativa (capítulo 8)
+
+Latencias reales de la plataforma en un periodo, a partir de lo que ya guarda la base (`AiCallLogs`, `ArenaBattles`, `IngestionMetrics`, `DocumentJobStates`): respuestas del chat que esperaron los usuarios (media, p50, p95, tiempo al primer token y proporción de fallos) por pipeline, sin las ejecuciones en segundo plano del shadow test ni las de la evaluación; llamadas al LLM por paso; lados de la Arena (incluidas las batallas del shadow test, cuyas dos latencias son ejecuciones reales); ingesta por documento; y fallos de ingesta sobre los documentos terminados cuyo estado se actualizó en el periodo (es una foto del estado actual: un reintento posterior mueve el documento a su periodo). Solo lee agregados de columnas numéricas y de estado, nunca preguntas, respuestas ni identificadores, y abre la sesión en solo lectura.
+
+La cadena de conexión se pasa en `EVAL_LATENCY_DB` y debe ser de un rol de solo lectura; sin ella no se ejecuta. Para crearlo en PostgreSQL:
+
+```sql
+CREATE ROLE lector LOGIN PASSWORD '...';
+GRANT CONNECT ON DATABASE "asistente-ayuntamiento-db" TO lector;
+GRANT USAGE ON SCHEMA chat, arena, ingestion TO lector;
+GRANT SELECT ON chat."AiCallLogs", arena."ArenaBattles", ingestion."IngestionMetrics", ingestion."DocumentJobStates" TO lector;
+```
+
+Desde Aspire, guarda esa cadena en `Evaluation:LatencyConnection` y el recurso `evaluation` la recibe como `EVAL_LATENCY_DB`:
+
+```bash
+dotnet user-secrets set "Evaluation:LatencyConnection" "Host=localhost;Port=5432;Username=lector;Password=...;Database=asistente-ayuntamiento-db" --project src/AsistenteAyuntamiento.AppHost
+```
+
+```bash
+EVAL_LATENCY_DB="Host=...;Username=lector;Password=...;Database=asistente-ayuntamiento-db" \
+  dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --latency-report --from 2026-11-01 --to 2026-12-01
+```
+
+Escribe `chat-answers.csv`, `llm-calls.csv`, `arena-sides.csv`, `ingestion.csv` e `ingestion-failures.csv` en `eval/latency/{desde}_{hasta}/` (`--to` excluido; por defecto, los últimos 30 días). Las fechas son días en hora de Madrid; Métricas usa días UTC, así que sus cifras para las mismas fechas pueden diferir en las llamadas de una o dos horas. Los percentiles solo cuentan llamadas correctas (los fallos aparecen en `failed_share`), y los dos lados del Arena (`arena_alfa`, `arena_beta`) se agrupan como `arena`, como en Métricas. La ingesta cuenta la última ejecución de cada documento y pipeline (`ingestions` cuenta todas). Los ficheros solo se escriben si todas las consultas terminan bien. Al reanudar una evaluación se exige el mismo host de Ollama y el mismo `Evaluation:Hardware`. `--from`/`--to` sin `--latency-report`, o `--latency-report` junto a opciones de la evaluación, se rechazan. En este modo el recurso `evaluation` de Aspire no espera a Qdrant ni al modelo.
 
 ## Decisiones de la medición
 

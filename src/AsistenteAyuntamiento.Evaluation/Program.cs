@@ -18,11 +18,37 @@ using Microsoft.SemanticKernel;
 //       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR] [--score]   (--score: then score.py, report.py and import)
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID|latest    (after score.py and report.py;
 //   also the Aspire resource "evaluation-import")
+//   EVAL_LATENCY_DB=... dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --latency-report [--from 2026-11-01] [--to 2026-12-01]
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
 var options = EvaluationArguments.Parse(args);
 var repository = EvaluationArguments.FindRepository();
 var datasetDirectory = options.Dataset ?? Path.Combine(repository, "eval", "dataset");
 var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
+
+if (options.LatencyReport)
+{
+    // Read-only aggregates for chapter 8 (dates in Spanish local time); the connection comes only from EVAL_LATENCY_DB (a read-only role, see eval/README.md).
+    var connection = Environment.GetEnvironmentVariable(OperationalLatencyReport.ConnectionVariable);
+    if (string.IsNullOrWhiteSpace(connection))
+    {
+        Console.Error.WriteLine($"Set {OperationalLatencyReport.ConnectionVariable} to a read-only connection string of the database.");
+        return 1;
+    }
+
+    var to = options.To ?? (options.From is { } start ? start.AddDays(30) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, OperationalLatencyReport.PeriodTimeZone)).AddDays(1));
+    var from = options.From ?? to.AddDays(-30);
+    if (from >= to)
+    {
+        Console.Error.WriteLine($"--from ({from:yyyy-MM-dd}) must be before --to ({to:yyyy-MM-dd}); --to is exclusive.");
+        return 1;
+    }
+    var reportDirectory = options.Output ?? Path.Combine(repository, "eval", "latency", $"{from:yyyy-MM-dd}_{to:yyyy-MM-dd}");
+    foreach (var file in await new OperationalLatencyReport(connection).WriteAsync(from, to, reportDirectory))
+    {
+        Console.WriteLine(file);
+    }
+    return 0;
+}
 
 var builder = Host.CreateApplicationBuilder();
 
@@ -114,6 +140,10 @@ if (problems.Count > 0)
     return 1;
 }
 
+// The Ollama that answers (and judges, with --score). Recorded only when the chat model runs on Ollama.
+var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
+var answeringEndpoint = string.Equals(chatProvider, "ollama", StringComparison.OrdinalIgnoreCase) ? ollamaUrl : null;
+
 var runId = options.Resume ?? DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
 var runDirectory = Path.Combine(runsDirectory, runId);
 var runFile = Path.Combine(runDirectory, EvaluationRunner.RunFile);
@@ -128,12 +158,24 @@ if (options.Resume is not null && File.Exists(runFile))
             runId, info.ChatModel, info.DatasetHash, chatModel, dataset.DatasetHash);
         return 1;
     }
+    // Latencies of one run must come from one machine: compared by host, since the Aspire Ollama container gets a new
+    // local port on every start, and by the recorded hardware (it tells a local container from a native Ollama).
+    var hardware = builder.Configuration["Evaluation:Hardware"];
+    if ((info.OllamaEndpoint is not null && !string.Equals(EvaluationScorer.OllamaHost(info.OllamaEndpoint), EvaluationScorer.OllamaHost(answeringEndpoint), StringComparison.OrdinalIgnoreCase))
+        || !string.Equals(info.Hardware, hardware, StringComparison.OrdinalIgnoreCase))
+    {
+        logger.LogError("Run {RunId} was answered by {Endpoint} ({Hardware}); resume it on the same machine, not {CurrentEndpoint} ({CurrentHardware})",
+            runId, info.OllamaEndpoint, info.Hardware, answeringEndpoint, hardware);
+        return 1;
+    }
 }
 else
 {
     info = new RunInfo(runId, DateTime.UtcNow, null, EvaluationArguments.GitCommit(repository), options.Seed ?? Random.Shared.Next(),
         chatProvider, chatModel, temperature, builder.Configuration["Ai:Embeddings:Model"] ?? "qwen3-embedding:0.6b",
-        host.Services.GetRequiredService<QueryEmbeddingOptions>().Instruction, options.Pipelines, dataset.Questions.Count, dataset.DatasetHash, dataset.CorpusHash);
+        host.Services.GetRequiredService<QueryEmbeddingOptions>().Instruction, options.Pipelines, dataset.Questions.Count, dataset.DatasetHash, dataset.CorpusHash,
+        // Where the models ran: latencies are only comparable between runs on the same hardware.
+        answeringEndpoint, builder.Configuration["Evaluation:Hardware"]);
 }
 
 logger.LogInformation("Run {RunId}: {Questions} questions × {Pipelines} with {Model} (seed {Seed}) → {Directory}",
@@ -146,7 +188,6 @@ if (!options.Score)
     return 0;
 }
 
-var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
 if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, ollamaUrl, cancellation.Token))
 {
     return 1;

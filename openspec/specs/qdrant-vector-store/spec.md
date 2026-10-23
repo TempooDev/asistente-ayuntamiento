@@ -2,11 +2,9 @@
 
 ## Purpose
 Use Qdrant as the only vector database of the platform, behind the `IVectorStore` port (`QdrantVectorStore` in Infrastructure). pgvector indexes are limited to 2,000 dimensions and models such as Qwen3-Embedding-8B produce 4,096, so dense embeddings are stored and searched in Qdrant, while PostgreSQL remains the source of truth for relational data, text and full-text search. Archived change: `2026-10-13-migrate-embeddings-qdrant`.
-
 ## Requirements
-
 ### Requirement: Collections per Retrieval Pipeline
-The system SHALL store the vectors of each pipeline in its own Qdrant collection with Cosine distance: `document_chunks` for the baseline pipeline (one point per `DocumentChunks` row) and `child_fragments` for the hierarchical pipeline (one point per `ChildFragments` row). The names come from `VectorStore:DocumentChunksCollection` and `VectorStore:ChildFragmentsCollection`. Each point id SHALL be the id of its PostgreSQL row, and PostgreSQL SHALL NOT store embedding columns for these entities.
+The system SHALL store the vectors of each pipeline in its own Qdrant collection with Cosine distance: `document_chunks` for the baseline pipeline, `document_chunks_recursive` and `document_chunks_semantic` for the recursive and semantic flat-chunk variants (one point per `DocumentChunks` row of the variant's strategy), and `child_fragments` for the hierarchical pipeline (one point per `ChildFragments` row). The names come from `VectorStore:DocumentChunksCollection`, `VectorStore:RecursiveChunksCollection`, `VectorStore:SemanticChunksCollection` and `VectorStore:ChildFragmentsCollection`. Each point id SHALL be the id of its PostgreSQL row, and PostgreSQL SHALL NOT store embedding columns for these entities.
 
 #### Scenario: Indexing a child fragment
 - **WHEN** the hierarchical ingestion stores a child fragment
@@ -16,9 +14,14 @@ The system SHALL store the vectors of each pipeline in its own Qdrant collection
 - **WHEN** the baseline ingestion stores a document chunk
 - **THEN** it SHALL upsert a point into `document_chunks` with id = `DocumentChunks.Id` and payload `DocumentId`, `Source`, `Title`, `Department`, `Municipality` (the same match key as the hierarchical pipeline, empty string when none), `Content`, `ChunkIndex` and `PublicationDate` (ISO 8601), used by the baseline answer to cite its sources
 
+#### Scenario: Indexing a flat chunk
+- **WHEN** a flat-chunk variant stores a document chunk
+- **THEN** it SHALL upsert a point into that variant's collection with id = `DocumentChunks.Id` and payload `DocumentId`, `Source`, `Title`, `Department`, `Municipality` (the same match key as the hierarchical pipeline, empty string when none), `Content`, `ChunkIndex` and `PublicationDate` (ISO 8601), used by the answer to cite its sources
+
 #### Scenario: Deleting a document's vectors
-- **WHEN** a document is re-ingested
-- **THEN** the pipeline SHALL delete the points whose `DocumentId` matches it (and, in `child_fragments`, those whose `ParentId` is one of its previous parents) before upserting the new ones
+- **WHEN** a document is re-ingested by one pipeline
+- **THEN** that pipeline SHALL delete the points of its own collection whose `DocumentId` matches it (and, in `child_fragments`, those whose `ParentId` is one of its previous parents) before upserting the new ones
+- **AND** the points of the other collections SHALL NOT change
 
 ### Requirement: Collection Bootstrap
 Before writing to a collection, the system SHALL ensure it exists with the vector size produced by the embedding model and Cosine distance, creating it when missing. If the collection exists with another vector size, the write SHALL fail with an error that names the collection, the existing size and the expected size. No manual setup or dimension setting is required.
@@ -56,3 +59,4 @@ In the Production environment, the API and the Workers SHALL refuse to start unl
 #### Scenario: Request without API key in production
 - **WHEN** a client without the API key calls the production Qdrant instance
 - **THEN** Qdrant SHALL reject the request
+

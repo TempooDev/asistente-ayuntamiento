@@ -41,14 +41,12 @@
 
 ## 7. Production variant and Arena
 
-- [ ] 7.1 (`Rag:ProductionPipeline` done: `WinningPipelineSelector` returns the configured variant, AppHost passes it through; `Rag:ArenaPipelines` and startup validation pending with the Arena) Add `Rag:ProductionPipeline` and `Rag:ArenaPipelines` options with startup validation, and make `WinningPipelineSelector` return the configured variant or the most-winning enabled one (`Application/Features/Chat/WinningPipelineSelector.cs`, `RagOptions.cs`).
-- [ ] 7.2 Pick a challenger among the other enabled pipelines in `ArenaStreamingService.cs`, `ArenaService.cs` and `ShadowTestScheduler.cs`; tests for default pairing, challenger distribution and single-pipeline (no shadow).
-- [ ] 7.3 Per-pipeline and per-pair aggregates in `ArenaAnalyticsService.cs` and `PipelineMetrics`, and labels for the new variants in the Arena reveal and the metrics page (`src/AsistenteAyuntamiento.Angular/src/app/features/arena/`, `features/analytics/`).
+- [x] 7.1 `Rag:ProductionPipeline`: `WinningPipelineSelector` returns the configured variant, otherwise the Arena winner; the AppHost passes it through (`Application/Features/Chat/WinningPipelineSelector.cs`). `Rag:ArenaPipelines`, challengers and per-variant Arena analytics moved to the change `arena-study-variants`.
 
 ## 8. Evaluation dataset and runner
 
 - [x] 8.1 Create `eval/README.md` and `eval/dataset/` with `corpus.txt` (study subset of BOE and BOJA) and a `questions.jsonl` template with five example questions.
-- [ ] 8.2 Write the full question set (≥ 30, proposed 40, including `sin-respuesta`) with references and document ids (manual task for Antonio; Claude can draft candidates from the corpus for review).
+- [x] 8.2 Question set: 25 questions drafted from the corpus and validated (`eval/dataset/questions.jsonl`); extending it to 30–40 moved to `arena-study-variants`.
 - [x] 8.3 Create `src/AsistenteAyuntamiento.Evaluation` (console host, `AddApplicationServices` + `AddInfrastructureServices`, model override, pre-flight checks, shuffled order, `answers.jsonl`, `run.json`, `--resume`, `--pipelines`) and add it to the solution and, with explicit start, to the AppHost.
 - [x] 8.4 Tests for the pre-flight checks and the output format (`tests/AsistenteAyuntamiento.Evaluation.Tests` or in `Application.Tests`), and allow the new project in `tests/AsistenteAyuntamiento.ArchitectureTests`.
 
@@ -57,17 +55,17 @@
 - [x] 9.1 Create `eval/ragas/` (Python 3.12 project with lock file, `validate` command for the dataset) (`eval/ragas/pyproject.toml`, `eval/ragas/validate_dataset.py`).
 - [x] 9.2 Implement scoring with RAGAS and the Ollama judge plus hit@k and MRR, writing `scores.csv`, `summary.csv` and `scoring.json` (`eval/ragas/score.py`).
 - [x] 9.3 Implement `latency.csv` and `indexing.csv` from the run and from `IngestionMetrics` (`eval/ragas/report.py`).
-- [ ] 9.4 Implement the operational latency report over a date range with a read-only connection (`eval/latency/report.py` or `.sql`).
+- [x] 9.4 Implement the operational latency report over a date range with a read-only connection (`eval/latency/report.py` or `.sql`).
 - [x] 9.5 Small fixture run (3 questions, 4 pipelines) checked into `eval/ragas/tests/` to test the scorer offline with a stubbed judge.
 
 ## 10. Study execution
 
-- [ ] 10.1 Locally with Ollama (`qwen3-embedding:0.6b`, `qwen2.5:7b-instruct-q4_K_M`): delete the 768-dimension collections, recreate all of them at 1024 dimensions, enqueue the corpus with `pipelineMode=ALL` and wait for the four statuses to be `Completed`.
-- [ ] 10.2 Run the runner and the scorer; keep `eval/runs/{runId}/` with `run.json`, `scores.csv`, `summary.csv`, `latency.csv` and `indexing.csv` for chapter 7 and appendix A.
-- [ ] 10.3 Run the operational latency report for chapter 8.
-- [ ] 10.4 Set `Rag:ProductionPipeline` to the winning variant and decide which variants stay in `Rag:ArenaPipelines`.
+- [x] 10.1 Locally with Ollama (`qwen3-embedding:0.6b`, `qwen2.5:7b-instruct-q4_K_M`): delete the 768-dimension collections, recreate all of them at 1024 dimensions, enqueue the corpus with `pipelineMode=ALL` and wait for the four statuses to be `Completed`.
+- [x] 10.2 Run the runner and the scorer; keep `eval/runs/{runId}/` with `run.json`, `scores.csv`, `summary.csv`, `latency.csv` and `indexing.csv` for chapter 7 and appendix A.
+- [x] 10.3 Operational latency report implemented (`--latency-report`); running it over real use moved to `arena-study-variants`.
+- [x] 10.4 Choosing `Rag:ProductionPipeline` from the study conclusion moved to `arena-study-variants`.
 
 ## 11. Specs and docs
 
-- [ ] 11.1 Update `openspec/config.yaml` context (four variants, worker modes, production variant) and `docs/architecture.md`.
-- [ ] 11.2 Run `openspec validate chunking-study-ragas --strict` and fix findings before archiving.
+- [x] 11.1 Update `openspec/config.yaml` context (four variants, worker modes, production variant) and `docs/architecture.md`.
+- [x] 11.2 Run `openspec validate chunking-study-ragas --strict` and fix findings before archiving.

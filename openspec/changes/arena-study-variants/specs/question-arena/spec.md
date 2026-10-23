@@ -1,11 +1,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Randomized Blind Presentation
-Each battle SHALL pair the production variant (see `query-api-semantic-kernel`) with a challenger chosen uniformly among the other enabled pipelines (`Rag:ArenaPipelines`). The system SHALL randomly assign (50/50) which of the two is "Alfa" and which is "Beta", and SHALL NOT reveal the assignment before the vote. Each battle SHALL be stored as an `ArenaBattle` with `LeftSystem`/`LeftResponse` for Alfa and `RightSystem`/`RightResponse` for Beta, both latencies, token counts estimated from the text length, and `Winner = Pending`. With the default `Rag:ArenaPipelines` the pair is always `Baseline` and `Hierarchical`, as before this change.
+Each battle SHALL pair the production variant (see `query-api-semantic-kernel`) with a challenger chosen uniformly among the other enabled pipelines (`Rag:ArenaPipelines`). The system SHALL randomly assign (50/50) which of the two is "Alfa" and which is "Beta", and SHALL NOT reveal the assignment before the vote. Each battle SHALL be stored as an `ArenaBattle` with `LeftSystem`/`LeftResponse` for Alfa and `RightSystem`/`RightResponse` for Beta, both latencies, token counts estimated from the text length, its origin (`Chat` for a battle a user started in the chat Arena, `Shadow` for a background shadow test; battles stored before this change count as `Chat`), and `Winner = Pending`. With the default `Rag:ArenaPipelines` the pair is always `Baseline` and `Hierarchical`, as before this change.
 
 #### Scenario: Chat battle stored
 - **WHEN** both sides of a chat Arena stream have finished without failing
-- **THEN** the battle SHALL be saved with the battle id sent first in the stream and the trace id of the request
+- **THEN** the battle SHALL be saved with the battle id sent first in the stream, the trace id of the request and origin `Chat`
+
+#### Scenario: Shadow battle stored
+- **WHEN** a shadow test finishes in the background
+- **THEN** its battle SHALL be saved with origin `Shadow`
 
 #### Scenario: Challenger among the study variants
 - **WHEN** `Rag:ProductionPipeline = Hierarchical` and `Rag:ArenaPipelines = Baseline,Hierarchical,Recursive,Semantic`

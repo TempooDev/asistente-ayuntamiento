@@ -20,7 +20,7 @@ The system SHALL split text through the `IChunkingStrategy` abstraction (`Applic
 - **WHEN** any strategy receives an empty or whitespace text
 - **THEN** it SHALL return no chunks, and the semantic strategy SHALL NOT call the embedding model
 
-#### Scenario: Hierarchical pipeline splitting
+#### Scenario: Shared by both pipelines
 - **WHEN** the hierarchical pipeline splits a BOE article or a BOJA text
 - **THEN** it SHALL use the unkeyed `IChunkingStrategy` (`FixedOverlap`), whatever flat variants are enabled
 

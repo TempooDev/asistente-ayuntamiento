@@ -2,9 +2,7 @@
 
 ## Purpose
 Answer chat questions with retrieval-augmented generation on Microsoft Semantic Kernel: search the bulletin fragments (BOE, BOJA) in Qdrant, build the prompt from `PromptCatalog`, and generate the answer with the right model, streaming it through the chat hub.
-
 ## Requirements
-
 ### Requirement: Baseline Document Search
 `BaselineRagPipeline` SHALL embed the text of the last 3 user messages with the platform embedding generator (never the tenant's chat model) and search the `DocumentChunks` collection through `IVectorStore` (Qdrant, cosine). The non-streaming path SHALL take the top 5 hits; the streaming path the top 3 with a minimum score of 0.65. A failed search SHALL degrade to answering without context.
 
@@ -49,10 +47,18 @@ The baseline pipeline SHALL generate with the tenant's chat model, built by `ICh
 - **THEN** the baseline pipeline SHALL answer through `CompleteAsync`, which never throws for model errors and returns no sources
 
 ### Requirement: Streaming Routed to the Arena Winner
-Streamed answers SHALL come from the pipeline with more Arena wins across all tenants (`WinningPipelineSelector`, cached for 5 minutes; ties and no votes choose `Baseline`). For 40% of streamed answers, the other pipeline SHALL also run in the background (shadow test) and the pair SHALL be stored as a pending `ArenaBattle`.
+Streamed answers SHALL come from the production variant: the pipeline named in `Rag:ProductionPipeline` (`Baseline`, `Hierarchical`, `Recursive` or `Semantic`) when it is set, or otherwise the pipeline with more Arena wins across all tenants (`WinningPipelineSelector`, cached for 5 minutes; ties and no votes choose `Baseline`). An unknown value in `Rag:ProductionPipeline` SHALL be ignored, falling back to the Arena winner. For 40% of streamed answers, the other of `Baseline` and `Hierarchical` SHALL also run in the background (shadow test) and the pair SHALL be stored as a pending `ArenaBattle`; challengers among the study variants are left to a later change.
+
+#### Scenario: Production variant configured
+- **WHEN** `Rag:ProductionPipeline = Semantic`
+- **THEN** streamed answers SHALL come from the semantic flat-chunk pipeline whatever the Arena votes are
+
+#### Scenario: Unknown production variant
+- **WHEN** `Rag:ProductionPipeline` names no pipeline (for example `Nope`)
+- **THEN** streamed answers SHALL come from the Arena winner, as when it is not set
 
 #### Scenario: Hierarchical pipeline is winning
-- **WHEN** `Hierarchical` has more Arena wins than `Baseline`
+- **WHEN** `Rag:ProductionPipeline` is not set and `Hierarchical` has more Arena wins than `Baseline`
 - **THEN** streamed answers SHALL come from `HierarchicalRagPipeline`: query expansion with the ingestion model, hybrid retrieval (Qdrant `ChildFragments` plus PostgreSQL full text, fused with RRF, top 5) and a plain-language answer from the platform chat model (`Ai:Chat:*`), based only on the latest question
 
 #### Scenario: Hierarchical pipeline finds nothing
@@ -61,4 +67,5 @@ Streamed answers SHALL come from the pipeline with more Arena wins across all te
 
 #### Scenario: Shadow run
 - **WHEN** a streamed answer is sampled for a shadow test
-- **THEN** the other pipeline SHALL answer the same turn on the background work queue, and the battle SHALL be saved with `Winner = Pending`
+- **THEN** the other of `Baseline` and `Hierarchical` SHALL answer the same turn on the background work queue, and the battle SHALL be saved with `Winner = Pending`
+
