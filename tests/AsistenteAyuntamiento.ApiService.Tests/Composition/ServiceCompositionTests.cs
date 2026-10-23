@@ -35,6 +35,18 @@ public class ServiceCompositionTests(ApiFactory factory) : IClassFixture<ApiFact
 
         var types = scope.ServiceProvider.GetServices<IRagPipeline>().Select(p => p.Type).ToList();
 
-        Assert.Equal([PipelineType.Baseline, PipelineType.Hierarchical], types.Order());
+        Assert.Equal([PipelineType.Baseline, PipelineType.Hierarchical, PipelineType.Recursive, PipelineType.Semantic], types.Order());
+    }
+
+    [Fact]
+    public void The_chat_completion_uses_the_baseline_flat_chunk_pipeline()
+    {
+        using var scope = factory.Services.CreateScope();
+
+        var baseline = scope.ServiceProvider.GetRequiredKeyedService<FlatChunkRagPipeline>(PipelineType.Baseline);
+
+        Assert.Equal(PipelineType.Baseline, baseline.Type);
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAiChatService>());
+        Assert.Equal(PipelineType.Baseline, scope.ServiceProvider.GetServices<IRagPipeline>().Get(PipelineType.Baseline).Type);
     }
 }

@@ -165,6 +165,108 @@ services:
     extra_hosts:
       - "postgres:host-gateway"
 
+  worker-recursive:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:${IMAGE_TAG:-latest}
+    pull_policy: always
+    # Chunking study only (eval/README.md): `docker compose --profile chunking-study up -d`.
+    profiles: ["chunking-study"]
+    container_name: asistente-worker-recursive
+    restart: always
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=worker-recursive
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
+      - ASPNETCORE_ENVIRONMENT=Production
+      - WORKER_PIPELINE_MODE=RECURSIVE
+      # Internal only (no published port): serves /health and /alive for the healthcheck below.
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
+      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
+      - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
+      - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
+      - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
+      - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
+      - Ai__Embeddings__EndpointUrl=${AI_EMBEDDINGS_ENDPOINT_URL:-}
+      - Ai__Embeddings__ChunkMaxTokens=${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}
+      - Ai__Embeddings__ChunkOverlapTokens=${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}
+      - Ai__Embeddings__ChunkMaxLines=${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}
+      - Ai__Chunking__Recursive__ChunkMaxTokens=${AI_CHUNKING_RECURSIVE_CHUNK_MAX_TOKENS:-${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}}
+      - Ai__Chunking__Recursive__ChunkOverlapTokens=${AI_CHUNKING_RECURSIVE_CHUNK_OVERLAP_TOKENS:-${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    # The image has no curl/wget: the Worker binary probes its own /health.
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/AsistenteAyuntamiento.Worker.dll", "--health-probe", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - rabbitmq
+      - apiservice
+    networks:
+      - dokploy-network
+    extra_hosts:
+      - "postgres:host-gateway"
+
+  worker-semantic:
+    image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-asistenteayuntamiento-worker:${IMAGE_TAG:-latest}
+    pull_policy: always
+    # Chunking study only (eval/README.md): `docker compose --profile chunking-study up -d`.
+    profiles: ["chunking-study"]
+    container_name: asistente-worker-semantic
+    restart: always
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - OTEL_SERVICE_NAME=worker-semantic
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
+      - ASPNETCORE_ENVIRONMENT=Production
+      - WORKER_PIPELINE_MODE=SEMANTIC
+      # Internal only (no published port): serves /health and /alive for the healthcheck below.
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__asistente-ayuntamiento-db=Host=${POSTGRES_HOST};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASS}
+      - ConnectionStrings__qdrant=Endpoint=${QDRANT_ENDPOINT:-http://qdrant:6334};Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
+      - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
+      - Ai__Chat__Provider=${AI_CHAT_PROVIDER:-google}
+      - Ai__Chat__Model=${AI_CHAT_MODEL:-gemini-1.5-pro}
+      - Ai__Chat__ApiKey=${GEMINI_API_KEY}
+      - Ai__Embeddings__Provider=${AI_EMBEDDINGS_PROVIDER:-google}
+      - Ai__Embeddings__Model=${AI_EMBEDDINGS_MODEL:-text-embedding-004}
+      - Ai__Embeddings__ApiKey=${AI_EMBEDDINGS_API_KEY:-${GEMINI_API_KEY}}
+      - Ai__Embeddings__EndpointUrl=${AI_EMBEDDINGS_ENDPOINT_URL:-}
+      - Ai__Embeddings__ChunkMaxTokens=${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}
+      - Ai__Embeddings__ChunkOverlapTokens=${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}
+      - Ai__Embeddings__ChunkMaxLines=${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}
+      - Ai__Chunking__Semantic__BufferSize=${AI_CHUNKING_SEMANTIC_BUFFER_SIZE:-1}
+      - Ai__Chunking__Semantic__BreakpointPercentile=${AI_CHUNKING_SEMANTIC_BREAKPOINT_PERCENTILE:-95}
+      - Ai__Chunking__Semantic__MinTokens=${AI_CHUNKING_SEMANTIC_MIN_TOKENS:-100}
+      - Ai__Chunking__Semantic__ChunkMaxTokens=${AI_CHUNKING_SEMANTIC_CHUNK_MAX_TOKENS:-${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}}
+      - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
+      - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - Blob__SecretAccessKey=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - Blob__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+    # The image has no curl/wget: the Worker binary probes its own /health.
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/AsistenteAyuntamiento.Worker.dll", "--health-probe", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - rabbitmq
+      - apiservice
+    networks:
+      - dokploy-network
+    extra_hosts:
+      - "postgres:host-gateway"
+
   go-scraper:
     image: ghcr.io/${GITHUB_USER}/asistente-ayuntamiento-go-scraper:${IMAGE_TAG:-latest}
     pull_policy: always

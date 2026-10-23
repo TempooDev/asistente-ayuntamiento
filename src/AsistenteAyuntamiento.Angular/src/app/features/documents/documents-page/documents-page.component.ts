@@ -14,6 +14,7 @@ import {
   BlobQuery,
   BlobStats,
   BlobStatusFilter,
+  DOCUMENT_PIPELINES,
   IngestionStatus,
   PaginatedBlobsResponse,
   PipelineMode,
@@ -52,6 +53,25 @@ export class DocumentsPageComponent {
   protected readonly statusMessage = signal('');
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly pipelineMode = signal<PipelineMode>('BOTH');
+
+  /** Where "Encolar" and "Reprocesar" publish; the study variants are never sent unless chosen. */
+  protected readonly pipelineModes: readonly { value: PipelineMode; label: string }[] = [
+    { value: 'BOTH', label: 'Baseline y jerárquica' },
+    { value: 'BASELINE', label: 'Solo baseline (chunks fijos)' },
+    { value: 'HIERARCHICAL', label: 'Solo jerárquica' },
+    { value: 'RECURSIVE', label: 'Solo recursiva (estudio)' },
+    { value: 'SEMANTIC', label: 'Solo semántica (estudio)' },
+    { value: 'RECURSIVE,SEMANTIC', label: 'Recursiva y semántica (estudio)' },
+    { value: 'ALL', label: 'Las cuatro variantes' },
+  ];
+
+  /** The chunking study variants are shown once some document was sent to them. */
+  protected readonly studyActive = computed(() =>
+    this.pipelineStats().some(p => isStudyPipeline(p.pipeline) && p.notSent < p.total),
+  );
+  protected readonly visiblePipelineStats = computed(() =>
+    this.pipelineStats().filter(p => !isStudyPipeline(p.pipeline) || this.studyActive()),
+  );
 
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredCount() / this.filters().pageSize)));
   private readonly query = computed<BlobQuery & { reload: number }>(() => ({ ...this.filters(), page: this.page(), reload: this.reload() }));
@@ -243,6 +263,10 @@ export class DocumentsPageComponent {
       return { ...s, queued, processing, completed };
     });
   }
+}
+
+function isStudyPipeline(pipeline: string): boolean {
+  return DOCUMENT_PIPELINES.some(p => p.study && p.key === pipeline.toLowerCase());
 }
 
 function errorText(err: unknown): string {

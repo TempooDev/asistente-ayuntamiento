@@ -13,8 +13,8 @@ using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Scraper;
 using AsistenteAyuntamiento.Application.Features.Users;
 using AsistenteAyuntamiento.Domain.Common.Enums;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 

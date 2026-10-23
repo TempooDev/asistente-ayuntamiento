@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { BlobQuery, BlobStatusFilter, PipelineFilter } from '../models/documents.models';
+import { BlobQuery, BlobStatusFilter, DOCUMENT_PIPELINES, PipelineFilter } from '../models/documents.models';
 
 export type DocumentFilters = Omit<BlobQuery, 'page'>;
 
@@ -69,11 +69,10 @@ export class DocumentFiltersComponent {
     { value: 'Encolados', label: 'Solo Encolados' },
     { value: 'Pendientes', label: 'Solo Pendientes' },
   ];
-  /** The status filter applies to the summary status ("Ambos") or to one pipeline's own status. */
+  /** The status filter applies to the summary status ("Todos") or to one pipeline's own status. */
   protected readonly pipelines: readonly { value: PipelineFilter | ''; label: string }[] = [
-    { value: '', label: 'Ambos pipelines' },
-    { value: 'BASELINE', label: 'Baseline' },
-    { value: 'HIERARCHICAL', label: 'Jerárquica' },
+    { value: '', label: 'Todos los pipelines' },
+    ...DOCUMENT_PIPELINES.map(p => ({ value: p.filter, label: p.label })),
   ];
   protected readonly pageSizes = [10, 20, 50, 100];
 

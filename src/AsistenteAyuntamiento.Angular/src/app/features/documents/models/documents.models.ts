@@ -17,6 +17,8 @@ export interface BlobInfo {
   /** Status in each pipeline; null when that pipeline never received the document. */
   baselineStatus?: IngestionStatus | null;
   hierarchicalStatus?: IngestionStatus | null;
+  recursiveStatus?: IngestionStatus | null;
+  semanticStatus?: IngestionStatus | null;
   /** Last ingestion error of the document. */
   errorMessage?: string | null;
 }
@@ -25,10 +27,25 @@ export interface ProcessResponse {
   message: string;
 }
 
-export type PipelineMode = 'BOTH' | 'BASELINE' | 'HIERARCHICAL';
+/** Queues a (re)processing request is published to; the study variants are only sent when chosen explicitly. */
+export type PipelineMode = 'BOTH' | 'BASELINE' | 'HIERARCHICAL' | 'RECURSIVE' | 'SEMANTIC' | 'RECURSIVE,SEMANTIC' | 'ALL';
 
 /** Pipeline the status filter applies to; omitted means the summary status. */
-export type PipelineFilter = 'BASELINE' | 'HIERARCHICAL';
+export type PipelineFilter = 'BASELINE' | 'HIERARCHICAL' | 'RECURSIVE' | 'SEMANTIC';
+
+/** The four RAG variants; recursive and semantic only exist for the chunking study. */
+export const DOCUMENT_PIPELINES: readonly {
+  key: 'baseline' | 'hierarchical' | 'recursive' | 'semantic';
+  filter: PipelineFilter;
+  label: string;
+  study: boolean;
+  statusOf: (blob: BlobInfo) => IngestionStatus | null | undefined;
+}[] = [
+  { key: 'baseline', filter: 'BASELINE', label: 'Baseline', study: false, statusOf: b => b.baselineStatus },
+  { key: 'hierarchical', filter: 'HIERARCHICAL', label: 'Jerárquica', study: false, statusOf: b => b.hierarchicalStatus },
+  { key: 'recursive', filter: 'RECURSIVE', label: 'Recursiva', study: true, statusOf: b => b.recursiveStatus },
+  { key: 'semantic', filter: 'SEMANTIC', label: 'Semántica', study: true, statusOf: b => b.semanticStatus },
+];
 
 /** Status filter of the document list (values the API accepts). */
 export type BlobStatusFilter = 'Todos' | 'Procesados' | 'Encolados' | 'Pendientes';
@@ -53,7 +70,7 @@ export interface BlobStats {
   completed: number;
 }
 
-/** Counters of one pipeline on its own status ("Baseline" or "Hierarchical"). */
+/** Counters of one pipeline on its own status ("Baseline", "Hierarchical", "Recursive" or "Semantic"). */
 export interface PipelineStats {
   pipeline: string;
   total: number;

@@ -11,6 +11,10 @@ Fuente de verdad del contrato entre el scraper Go y los servicios .NET. Cualquie
 |---|---|---|
 | `documents_to_process_baseline` | Scraper Go, `IngestionAdminService` (API) | Worker en modo `BASELINE` (`BaselineIngestionConsumer`) |
 | `documents_to_process_hierarchical` | Scraper Go, `IngestionAdminService` (API) | Worker en modo `HIERARCHICAL` (`HierarchicalIngestionConsumer`) |
+| `documents_to_process_recursive` | `IngestionAdminService` (API) | Worker en modo `RECURSIVE` (`RecursiveIngestionConsumer`) |
+| `documents_to_process_semantic` | `IngestionAdminService` (API) | Worker en modo `SEMANTIC` (`SemanticIngestionConsumer`) |
+
+Las colas `recursive` y `semantic` son las variantes del estudio de chunking (cambio OpenSpec `chunking-study-ragas`): solo publica en ellas un administrador, con `pipelineMode` `RECURSIVE`, `SEMANTIC`, una combinación separada por comas o `ALL`; el scraper Go no las conoce y sigue publicando en las dos primeras. Las declaran la API y su worker, con los mismos argumentos que las demás. Sin el perfil `chunking-study` de `docker-compose.yml` no hay worker que las consuma y los mensajes esperan en ellas.
 
 Cada cola de trabajo `Q` tiene dos colas auxiliares, todas `durable`:
 
@@ -30,7 +34,7 @@ Cada cola de trabajo `Q` tiene dos colas auxiliares, todas `durable`:
 { "source": "BOE", "document_id": "BOE-A-2026-1234", "blob_path": "json/BOE/BOE-A-2026-1234.json", "pipelines": ["BASELINE", "HIERARCHICAL"] }
 ```
 
-`pipelines` (opcional) indica a qué colas se ha publicado el documento. El primer worker que lo recibe marca como `Queued` los pipelines de la lista que aún no tienen estado, para que el resumen de la página de Documentos no lo dé por completado mientras el pipeline más lento no lo ha procesado. Los mensajes sin `pipelines` (antiguos o reencolados por un administrador, que registra sus propios estados) no cambian nada.
+`pipelines` (opcional) indica a qué colas se ha publicado el documento (`BASELINE`, `HIERARCHICAL`, `RECURSIVE`, `SEMANTIC`). El primer worker que lo recibe marca como `Queued` los pipelines de la lista que aún no tienen estado, para que el resumen de la página de Documentos no lo dé por completado mientras el pipeline más lento no lo ha procesado. Los mensajes sin `pipelines` (antiguos o reencolados por un administrador, que registra sus propios estados) no cambian nada.
 
 El blob `json/{SOURCE}/{document_id}.json` lo escribe el scraper:
 

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { DocumentSource } from '../../../shared/models/document-source';
-import { BlobInfo, IngestionStatus } from '../models/documents.models';
+import { BlobInfo, DOCUMENT_PIPELINES, IngestionStatus } from '../models/documents.models';
 
 const STATUS_BADGES: Record<IngestionStatus, { label: string; classes: string }> = {
   [IngestionStatus.Completed]: { label: 'Procesado', classes: 'bg-green-100 text-green-800 dark:text-green-300' },
@@ -62,8 +62,9 @@ export function publicUrlOf(blobName: string): string | null {
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Nombre del archivo</th>
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Tamaño</th>
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Última modificación</th>
-            <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Baseline</th>
-            <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Jerárquica</th>
+            @for (column of columns(); track column.key) {
+              <th scope="col" class="p-sm font-label-lg whitespace-nowrap">{{ column.label }}</th>
+            }
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Acciones</th>
           </tr>
         </thead>
@@ -87,10 +88,10 @@ export function publicUrlOf(blobName: string): string | null {
               </td>
               <td class="p-sm font-body-md whitespace-nowrap">{{ kb(blob.size) }} KB</td>
               <td class="p-sm font-body-md whitespace-nowrap">{{ blob.lastModified ? (blob.lastModified | date: 'short') : '-' }}</td>
-              @for (status of [blob.baselineStatus, blob.hierarchicalStatus]; track $index) {
-                <td class="p-sm font-body-md" [attr.data-testid]="$index === 0 ? 'baseline-status' : 'hierarchical-status'">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium" [class]="pipelineBadge(status).classes"
-                        [attr.title]="errorOf(blob, status)">{{ pipelineBadge(status).label }}</span>
+              @for (column of columns(); track column.key) {
+                <td class="p-sm font-body-md" [attr.data-testid]="column.key + '-status'">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium whitespace-nowrap" [class]="pipelineBadge(column.statusOf(blob)).classes"
+                        [attr.title]="errorOf(blob, column.statusOf(blob))">{{ pipelineBadge(column.statusOf(blob)).label }}</span>
                 </td>
               }
               <td class="p-sm font-body-md">
@@ -117,12 +118,15 @@ export function publicUrlOf(blobName: string): string | null {
 export class DocumentTableComponent {
   readonly blobs = input.required<readonly BlobInfo[]>();
   readonly selected = input.required<ReadonlySet<string>>();
+  /** Shows the recursive and semantic columns (only while the chunking study variants have documents). */
+  readonly showStudy = input(false);
   readonly toggle = output<string>();
   readonly toggleAll = output<boolean>();
   readonly process = output<string>();
   readonly reset = output<string>();
 
   protected readonly Status = IngestionStatus;
+  protected readonly columns = computed(() => DOCUMENT_PIPELINES.filter(p => !p.study || this.showStudy()));
   protected readonly allSelected = computed(() => this.blobs().length > 0 && this.blobs().every(b => this.selected().has(b.name)));
 
   protected urlOf = publicUrlOf;

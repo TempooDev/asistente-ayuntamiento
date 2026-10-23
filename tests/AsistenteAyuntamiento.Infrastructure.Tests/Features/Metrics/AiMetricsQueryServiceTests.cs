@@ -207,19 +207,31 @@ public class AiMetricsQueryServiceTests
             db.IngestionMetrics.AddRange(
                 new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Baseline, ProcessingDurationMs = 9000, ChunksGenerated = 9, CreatedAt = DateTime.UtcNow.AddDays(-2) },
                 new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Baseline, ProcessingDurationMs = 1000, ChunksGenerated = 2 },
-                new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Hierarchical, ProcessingDurationMs = 4000, ChunksGenerated = 6, TotalLlmCalls = 6 });
-            db.DocumentJobStates.Add(new DocumentJobState { DocumentId = "BOE-2", BaselineStatus = JobStatus.Completed, HierarchicalStatus = JobStatus.Failed });
+                new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Hierarchical, ProcessingDurationMs = 4000, ChunksGenerated = 6, TotalLlmCalls = 6 },
+                new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Semantic, ProcessingDurationMs = 3000, ChunksGenerated = 3, TotalTokensEmbedded = 2500 });
+            db.DocumentJobStates.Add(new DocumentJobState
+            {
+                DocumentId = "BOE-2",
+                BaselineStatus = JobStatus.Completed,
+                HierarchicalStatus = JobStatus.Failed,
+                RecursiveStatus = JobStatus.VectorSyncFailed,
+            });
             await db.SaveChangesAsync();
         }
         await using var tenant = Context("org_A");
 
         var usage = await Sut(tenant).GetIngestionUsageAsync(Period);
 
-        usage.Documents.Should().Be(2, "one row per document and pipeline");
+        usage.Documents.Should().Be(3, "one row per document and pipeline");
+        usage.Pipelines.Select(p => p.Pipeline).Should().Equal("Baseline", "Hierarchical", "Recursive", "Semantic");
         var baseline = usage.Pipelines.Single(p => p.Pipeline == "Baseline");
         (baseline.Documents, baseline.ProcessingP50Ms, baseline.AverageChunks, baseline.FailedDocuments).Should().Be((1L, 1000d, 2d, 0));
         var hierarchical = usage.Pipelines.Single(p => p.Pipeline == "Hierarchical");
         (hierarchical.Documents, hierarchical.EnrichmentCalls, hierarchical.FailedDocuments).Should().Be((1L, 6L, 1));
+        var recursive = usage.Pipelines.Single(p => p.Pipeline == "Recursive");
+        (recursive.Documents, recursive.FailedDocuments).Should().Be((0L, 1));
+        var semantic = usage.Pipelines.Single(p => p.Pipeline == "Semantic");
+        (semantic.Documents, semantic.EmbeddedTokens, semantic.FailedDocuments).Should().Be((1L, 2500L, 0));
     }
 
     [Theory]

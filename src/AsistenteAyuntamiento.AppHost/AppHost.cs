@@ -209,39 +209,33 @@ goScraper.WithEnvironment("INTERNAL_GRPC_KEY", internalGrpcKey);
 
 apiService.WithEnvironment("GoScraper__GrpcUrl", goScraper.GetEndpoint("grpc"));
 
-var workerBaseline = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-baseline")
-    // Health endpoints only; each replica gets its own port.
-    .WithHttpEndpoint()
-    .WithHttpHealthCheck("/health")
-    .WithReference(db)
-    .WithReference(rabbitmq)
-    .WithReference(ollama)
-    .WithReference(qdrant)
-    .WaitFor(db)
-    .WaitFor(rabbitmq)
-    .WaitFor(ollama)
-    .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "BASELINE");
+// One Worker per ingestion pipeline (WORKER_PIPELINE_MODE). Recursive and semantic are the chunking study variants:
+// they only consume what the administrator enqueues to them (eval/README.md).
+foreach (var (name, mode) in new[]
+{
+    ("worker-baseline", "BASELINE"),
+    ("worker-hierarchical", "HIERARCHICAL"),
+    ("worker-recursive", "RECURSIVE"),
+    ("worker-semantic", "SEMANTIC"),
+})
+{
+    var worker = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>(name)
+        // Health endpoints only; each replica gets its own port.
+        .WithHttpEndpoint()
+        .WithHttpHealthCheck("/health")
+        .WithReference(db)
+        .WithReference(rabbitmq)
+        .WithReference(ollama)
+        .WithReference(qdrant)
+        .WaitFor(db)
+        .WaitFor(rabbitmq)
+        .WaitFor(ollama)
+        .WaitFor(qdrant)
+        .WithEnvironment("WORKER_PIPELINE_MODE", mode);
 
-WithAi(workerBaseline);
-WithBlobStorage(workerBaseline);
-
-var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worker>("worker-hierarchical")
-    // Health endpoints only; each replica gets its own port.
-    .WithHttpEndpoint()
-    .WithHttpHealthCheck("/health")
-    .WithReference(db)
-    .WithReference(rabbitmq)
-    .WithReference(ollama)
-    .WithReference(qdrant)
-    .WaitFor(db)
-    .WaitFor(rabbitmq)
-    .WaitFor(ollama)
-    .WaitFor(qdrant)
-    .WithEnvironment("WORKER_PIPELINE_MODE", "HIERARCHICAL");
-
-WithAi(workerHierarchical);
-WithBlobStorage(workerHierarchical);
+    WithAi(worker);
+    WithBlobStorage(worker);
+}
 
 // Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
 // answers with its own model (Evaluation:ChatModel).

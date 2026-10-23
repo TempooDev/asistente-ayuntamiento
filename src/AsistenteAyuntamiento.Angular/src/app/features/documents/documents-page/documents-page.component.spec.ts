@@ -129,6 +129,41 @@ describe('DocumentsPageComponent', () => {
     expect(hierarchical.getAttribute('title')).toBeNull();
   });
 
+  it('hides the study variants until some document is sent to them', async () => {
+    await create([
+      ...idle,
+      { pipeline: 'Recursive', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, notSent: 1 },
+      { pipeline: 'Semantic', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, notSent: 1 },
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelectorAll('[data-testid="pipeline-progress"]')).toHaveLength(2);
+    expect(element.querySelector('[data-testid="recursive-status"]')).toBeNull();
+  });
+
+  it('shows four progress bars and four status columns while the chunking study runs', async () => {
+    await create([
+      ...idle,
+      { pipeline: 'Recursive', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, notSent: 0 },
+      { pipeline: 'Semantic', total: 1, completed: 0, processing: 0, queued: 0, failed: 0, notSent: 1 },
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const bars = [...element.querySelectorAll('[data-testid="pipeline-progress"]')].map(b => b.querySelector('h2')!.textContent);
+    expect(bars).toEqual(['Baseline', 'Jerárquica', 'Recursiva', 'Semántica']);
+    const headers = [...element.querySelectorAll('th')].map(th => th.textContent!.trim());
+    expect(headers).toEqual(expect.arrayContaining(['Baseline', 'Jerárquica', 'Recursiva', 'Semántica']));
+    expect(element.querySelector('[data-testid="semantic-status"] span')!.textContent).toContain('No enviado');
+  });
+
+  it('offers the study variants as processing targets', async () => {
+    await create();
+    const options = [...(fixture.nativeElement as HTMLElement).querySelectorAll('#pipeline-mode option')].map(o => (o as HTMLOptionElement).value);
+
+    expect(options).toEqual(['BOTH', 'BASELINE', 'HIERARCHICAL', 'RECURSIVE', 'SEMANTIC', 'RECURSIVE,SEMANTIC', 'ALL']);
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('#pipeline-mode')!.value).toBe('BOTH');
+  });
+
   it('refreshes every 10 seconds while something is queued or processing, and stops when nothing is', async () => {
     await create(busy);
     expect(ingestion.queries).toHaveLength(1);

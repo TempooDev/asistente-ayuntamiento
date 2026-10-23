@@ -59,6 +59,8 @@ const ingestion: IngestionUsage = {
   pipelines: [
     { pipeline: 'Baseline', documents: 10, processingP50Ms: 4000, processingP95Ms: 12000, averageChunks: 3.2, embeddedTokens: 5000, enrichmentCalls: 0, enrichmentTokens: 0, failedDocuments: 1 },
     { pipeline: 'Hierarchical', documents: 2, processingP50Ms: 6000, processingP95Ms: 15000, averageChunks: 5, embeddedTokens: 4000, enrichmentCalls: 30, enrichmentTokens: 4000, failedDocuments: 0 },
+    { pipeline: 'Recursive', documents: 0, processingP50Ms: null, processingP95Ms: null, averageChunks: 0, embeddedTokens: 0, enrichmentCalls: 0, enrichmentTokens: 0, failedDocuments: 0 },
+    { pipeline: 'Semantic', documents: 3, processingP50Ms: 9000, processingP95Ms: 20000, averageChunks: 4, embeddedTokens: 7000, enrichmentCalls: 0, enrichmentTokens: 0, failedDocuments: 0 },
   ],
 };
 
@@ -220,7 +222,8 @@ describe('AnalyticsDashboardComponent', () => {
     expect(analytics.summaryRanges).toHaveLength(0);
     expect(analytics.ingestionRanges).toHaveLength(2);
     expect(page.textContent).not.toContain('Uso del asistente');
-    expect(page.querySelectorAll('[data-testid="ingestion-pipeline"]')).toHaveLength(2);
+    // The recursive variant ingested nothing in the period, so its column is hidden.
+    expect([...page.querySelectorAll('[data-testid="ingestion-pipeline"] h3')].map(h => h.textContent)).toEqual(['Baseline', 'Jerárquica', 'Semántica']);
     expect(page.textContent).toContain('Llamadas de enriquecimiento');
     expect(page.textContent).toContain('Jerárquica');
     expect(page.textContent).toContain('Evaluación offline');

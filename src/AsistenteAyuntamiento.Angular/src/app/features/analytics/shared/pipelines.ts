@@ -8,6 +8,13 @@ const PIPELINES: Record<string, { label: string; colorVar: string }> = {
   shadow: { label: 'Shadow', colorVar: '--chart-shadow' },
 };
 
+/** Variants that only exist for the chunking study (ingested on demand, never used by the chat). */
+const STUDY_PIPELINES = ['recursive', 'semantic'];
+
+export function isStudyPipeline(pipeline: string): boolean {
+  return STUDY_PIPELINES.includes(pipeline.toLowerCase());
+}
+
 const FALLBACK_COLORS = ['#2563eb', '#d97706', '#059669', '#9333ea', '#db2777', '#64748b'];
 
 export function pipelineLabel(pipeline: string): string {
