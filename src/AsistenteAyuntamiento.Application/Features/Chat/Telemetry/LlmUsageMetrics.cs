@@ -79,6 +79,13 @@ public sealed class LlmUsageMetrics(IConfiguration configuration, ILogger<LlmUsa
 
     public decimal? TryEstimateCost(string? provider, string model, long inputTokens, long outputTokens)
     {
+        // Calls logged before the provider was recorded were mostly the platform model's: price them with its provider.
+        if (provider is null && configuration["Ai:Chat:Provider"] is { Length: > 0 } platformProvider
+            && string.Equals(configuration["Ai:Chat:Model"], model, StringComparison.OrdinalIgnoreCase))
+        {
+            provider = platformProvider;
+        }
+
         if (string.Equals(provider, SelfHostedProvider, StringComparison.OrdinalIgnoreCase))
         {
             return 0m;

@@ -143,5 +143,31 @@ public sealed class LlmUsageMetricsTests : IDisposable
     public void Maps_configured_providers_to_genai_provider_names(string? configured, string expected) =>
         GenAiTelemetry.ProviderName(configured).Should().Be(expected);
 
+    [Fact]
+    public void Prices_models_whose_name_contains_a_colon()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Ai:Pricing:openrouter:openai/gpt-4o:free:Input"] = "2",
+            ["Ai:Pricing:openrouter:openai/gpt-4o:free:Output"] = "4",
+        }).Build();
+
+        new LlmUsageMetrics(config, _logger.Object).TryEstimateCost("openrouter", "openai/gpt-4o:free", 1_000_000, 1_000_000).Should().Be(6m);
+    }
+
+    [Fact]
+    public void Older_calls_without_provider_are_priced_with_the_platform_provider()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Ai:Chat:Provider"] = "ollama",
+            ["Ai:Chat:Model"] = "llama3.2",
+        }).Build();
+        var metrics = new LlmUsageMetrics(config, _logger.Object);
+
+        metrics.TryEstimateCost(null, "llama3.2", 100, 100).Should().Be(0m, "the platform model is self-hosted");
+        metrics.TryEstimateCost(null, "gpt-unknown", 100, 100).Should().BeNull("another model without a price is still reported");
+    }
+
     public void Dispose() => _listener.Dispose();
 }

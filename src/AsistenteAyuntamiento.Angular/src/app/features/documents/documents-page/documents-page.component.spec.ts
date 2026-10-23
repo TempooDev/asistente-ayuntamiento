@@ -7,12 +7,12 @@ import { BlobQuery, IngestionStatus, PaginatedBlobsResponse, PipelineStats } fro
 import { AUTO_REFRESH_MS, DocumentsPageComponent } from './documents-page.component';
 
 const idle: PipelineStats[] = [
-  { pipeline: 'Baseline', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, notSent: 0 },
-  { pipeline: 'Hierarchical', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, notSent: 0 },
+  { pipeline: 'Baseline', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 0 },
+  { pipeline: 'Hierarchical', total: 1, completed: 1, processing: 0, queued: 0, failed: 0, pending: 0, notSent: 0 },
 ];
 const busy: PipelineStats[] = [
-  { pipeline: 'Baseline', total: 201, completed: 150, processing: 5, queued: 46, failed: 0, notSent: 0 },
-  { pipeline: 'Hierarchical', total: 201, completed: 3, processing: 5, queued: 193, failed: 0, notSent: 0 },
+  { pipeline: 'Baseline', total: 201, completed: 150, processing: 5, queued: 46, failed: 0, pending: 0, notSent: 0 },
+  { pipeline: 'Hierarchical', total: 201, completed: 3, processing: 5, queued: 193, failed: 0, pending: 0, notSent: 0 },
 ];
 
 const page = (names: string[], pipelineStats: PipelineStats[] = idle): PaginatedBlobsResponse => ({
