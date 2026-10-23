@@ -5,21 +5,24 @@ namespace AsistenteAyuntamiento.Evaluation;
 
 /// <summary>Command-line options of the runner.</summary>
 /// <param name="Import">Run id to store in the database instead of running (<c>--import</c>).</param>
-public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output, string? Import = null)
+/// <param name="Score">After the run, score it, build the reports and import it (<c>--score</c>).</param>
+public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output,
+    string? Import = null, bool Score = false)
 {
     public static EvaluationArguments Parse(IReadOnlyList<string> args)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Count; i++)
         {
-            if (!args[i].StartsWith("--", StringComparison.Ordinal) || i + 1 >= args.Count)
+            if (!args[i].StartsWith("--", StringComparison.Ordinal))
             {
                 throw new ArgumentException($"Expected '--name value' pairs, got '{args[i]}'.");
             }
-            values[args[i][2..]] = args[++i];
+            // A switch (--score) has no value.
+            values[args[i][2..]] = i + 1 < args.Count && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : "true";
         }
 
-        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import"], StringComparer.OrdinalIgnoreCase).ToList();
+        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import", "score"], StringComparer.OrdinalIgnoreCase).ToList();
         if (unknown.Count > 0)
         {
             throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
@@ -32,7 +35,8 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.GetValueOrDefault("resume"),
             values.GetValueOrDefault("dataset"),
             values.GetValueOrDefault("output"),
-            values.GetValueOrDefault("import"));
+            values.GetValueOrDefault("import"),
+            values.TryGetValue("score", out var score) && bool.Parse(score));
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

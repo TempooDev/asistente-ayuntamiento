@@ -97,6 +97,9 @@ public sealed class EvaluationRunnerTests : IDisposable
         args.Pipelines.Should().Equal(PipelineType.Hierarchical);
         args.Limit.Should().Be(3);
         args.Seed.Should().Be(7);
+        args.Score.Should().BeFalse();
+        EvaluationArguments.Parse(["--limit", "3", "--score"]).Should().Match<EvaluationArguments>(a => a.Score && a.Limit == 3);
+        EvaluationScorer.OllamaUrl("Endpoint=http://localhost:11434").Should().Be("http://localhost:11434");
         EvaluationArguments.Parse([]).Pipelines.Should().Equal(PipelineType.Baseline, PipelineType.Hierarchical);
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--pipelines", "semantic"])).Should().Throw<ArgumentException>();
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--model", "x"])).Should().Throw<ArgumentException>();

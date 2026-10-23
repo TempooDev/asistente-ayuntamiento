@@ -15,7 +15,7 @@ using Microsoft.SemanticKernel;
 
 // Offline RAG evaluation (spec: rag-evaluation). Usage:
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- [--pipelines Baseline,Hierarchical] [--limit N]
-//       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR]
+//       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR] [--score]   (--score: then score.py, report.py and import)
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID|latest    (after score.py and report.py;
 //   also the Aspire resource "evaluation-import")
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
@@ -87,6 +87,8 @@ builder.Services.AddSingleton(sp => new EvaluationPreflight(
     sp.GetRequiredService<Kernel>().GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
 builder.Services.AddScoped<IndexingReporter>();
 builder.Services.AddSingleton<EvaluationRunner>();
+builder.Services.AddSingleton<EvaluationScorer>();
+builder.Services.AddScoped<EvaluationImporter>();
 
 // Not started: the background processors of the API and Worker have nothing to do here.
 using var host = builder.Build();
@@ -136,7 +138,23 @@ logger.LogInformation("Run {RunId}: {Questions} questions × {Pipelines} with {M
     runId, dataset.Questions.Count, string.Join(", ", info.Pipelines), chatModel, info.Seed, runDirectory);
 await host.Services.GetRequiredService<EvaluationRunner>()
     .RunAsync(dataset, new EvaluationRunSettings(runDirectory, info.Pipelines, info.Seed, info), cancellation.Token);
-logger.LogInformation("Run {RunId} finished. Score it with: cd eval/ragas && uv run python score.py ../runs/{RunId}", runId, runId);
+if (!options.Score)
+{
+    logger.LogInformation("Run {RunId} finished. Score it with: cd eval/ragas && uv run python score.py ../runs/{RunId}", runId, runId);
+    return 0;
+}
+
+var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
+if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, ollamaUrl, cancellation.Token))
+{
+    return 1;
+}
+
+await using (var scope = host.Services.CreateAsyncScope())
+{
+    var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(runDirectory, cancellation.Token);
+    logger.LogInformation("Run {RunId} scored and imported ({Pipelines} pipelines): see Métricas → Evaluación offline", imported.RunId, imported.Results.Count);
+}
 return 0;
 
 public partial class Program;

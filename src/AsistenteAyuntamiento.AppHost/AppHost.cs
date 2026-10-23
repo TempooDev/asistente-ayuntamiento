@@ -247,6 +247,9 @@ WithBlobStorage(workerHierarchical);
 // answers with its own model (Evaluation:ChatModel).
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
+    // Temporary while trying the flow end to end: 3 questions, then score (eval/ragas, needs uv) and import.
+    // Remove the arguments for the full run.
+    .WithArgs("--limit", "3", "--score")
     .WithReference(db)
     .WithReference(ollama)
     .WithReference(qdrant)
