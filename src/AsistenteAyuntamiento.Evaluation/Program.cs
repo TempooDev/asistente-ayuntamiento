@@ -159,10 +159,13 @@ if (options.Resume is not null && File.Exists(runFile))
         return 1;
     }
     // Latencies of one run must come from one machine: compared by host, since the Aspire Ollama container gets a new
-    // local port on every start.
-    if (info.OllamaEndpoint is not null && !string.Equals(EvaluationScorer.OllamaHost(info.OllamaEndpoint), EvaluationScorer.OllamaHost(answeringEndpoint), StringComparison.OrdinalIgnoreCase))
+    // local port on every start, and by the recorded hardware (it tells a local container from a native Ollama).
+    var hardware = builder.Configuration["Evaluation:Hardware"];
+    if ((info.OllamaEndpoint is not null && !string.Equals(EvaluationScorer.OllamaHost(info.OllamaEndpoint), EvaluationScorer.OllamaHost(answeringEndpoint), StringComparison.OrdinalIgnoreCase))
+        || !string.Equals(info.Hardware, hardware, StringComparison.OrdinalIgnoreCase))
     {
-        logger.LogError("Run {RunId} was answered by {Endpoint}; resume it against the same Ollama, not {CurrentEndpoint}", runId, info.OllamaEndpoint, answeringEndpoint);
+        logger.LogError("Run {RunId} was answered by {Endpoint} ({Hardware}); resume it on the same machine, not {CurrentEndpoint} ({CurrentHardware})",
+            runId, info.OllamaEndpoint, info.Hardware, answeringEndpoint, hardware);
         return 1;
     }
 }

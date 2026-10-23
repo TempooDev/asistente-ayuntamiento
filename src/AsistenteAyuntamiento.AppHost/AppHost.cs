@@ -255,8 +255,8 @@ foreach (var (name, mode) in new[]
 //   "--latency-report --from 2026-11-01 --to 2026-12-01" operational latency report (chapter 8)
 // dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
 // Split on whitespace (spaces after commas are dropped); values with spaces, such as quoted paths, are not supported.
-var evaluationArguments = Regex.Split(Regex.Replace(builder.Configuration["Evaluation:Arguments"] ?? "--score", @",\s+", ","), @"\s+")
-    .Where(a => a.Length > 0)
+var evaluationArguments = Regex.Split(Regex.Replace(builder.Configuration["Evaluation:Arguments"] is { Length: > 0 } a && !string.IsNullOrWhiteSpace(a) ? a : "--score", @",\s+", ","), @"\s+")
+    .Where(arg => arg.Length > 0)
     .ToArray();
 // The latency report only reads the database: it must not wait for Qdrant or the evaluation model.
 var latencyReportOnly = evaluationArguments.Contains("--latency-report", StringComparer.OrdinalIgnoreCase);

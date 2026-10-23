@@ -69,6 +69,9 @@ public sealed class LatencyReportDatabase : IAsyncLifetime
             RightLatencyMs = 3000,
             CreatedAt = inPeriod
         });
+        db.IngestionMetrics.Add(new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Semantic, ProcessingDurationMs = 9000, CreatedAt = inPeriod });
+        await db.SaveChangesAsync();
+        // Reprocessed: only this latest run counts.
         db.IngestionMetrics.Add(new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Semantic, ProcessingDurationMs = 4000, CreatedAt = inPeriod });
         var state = new DocumentJobState { DocumentId = "BOE-1" };
         state.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
@@ -115,7 +118,7 @@ public sealed class OperationalLatencyReportTests(LatencyReportDatabase database
         // Failures count in the share but not in the percentiles; free-text labels are quoted.
         Lines("llm-calls.csv").Should().Contain(["hierarchical,query_expansion,2,0.5000,300.0,300.0", "\"x,y\",\"a\"\"b\",1,0.0000,10.0,10.0"]);
         Lines("arena-sides.csv").Skip(1).Should().Equal("Baseline,1,1000.0,1000.0,1000.0", "Hierarchical,1,3000.0,3000.0,3000.0");
-        Lines("ingestion.csv").Skip(1).Should().Equal("Semantic,1,1,4000.0,4000.0,4000.0");
+        Lines("ingestion.csv").Skip(1).Should().Equal("Semantic,2,1,4000.0,4000.0,4000.0");
         Lines("ingestion-failures.csv").Skip(1).Should().Contain(["Baseline,1,0,0.0000", "Semantic,1,1,1.0000"]);
     }
 

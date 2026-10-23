@@ -16,8 +16,13 @@ public sealed class OperationalLatencyReport(string connectionString)
     /// <summary>Environment variable with the connection string; a read-only database role is recommended.</summary>
     public const string ConnectionVariable = "EVAL_LATENCY_DB";
 
-    /// <summary>Time zone of the platform's users: <c>--from</c>/<c>--to</c> are local dates, as the thesis periods are.</summary>
-    public static readonly TimeZoneInfo PeriodTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
+    /// <summary>
+    /// Time zone of the platform's users: <c>--from</c>/<c>--to</c> are local dates, as the thesis periods are (the
+    /// metrics page uses UTC days, so its figures for the same dates can differ by the calls of an hour or two).
+    /// The Windows name is the fallback where IANA names are not available.
+    /// </summary>
+    public static readonly TimeZoneInfo PeriodTimeZone =
+        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Madrid", out var madrid) ? madrid : TimeZoneInfo.FindSystemTimeZoneById("Romance Standard Time");
 
     // Same labels as the metrics dashboard (AiMetricsQueryService.PipelineLabel): no pipeline means a baseline chat
     // answer, and the Arena slots are merged because a slot is a random side, not a RAG pipeline.
@@ -70,13 +75,20 @@ public sealed class OperationalLatencyReport(string connectionString)
         FROM sides GROUP BY system ORDER BY system
         """;
 
+    // As on the metrics page, the latest ingestion of each document and pipeline in the period: a reprocessed document
+    // counts once ("ingestions" still counts every run).
     internal const string IngestionSql = """
-        SELECT "Pipeline" AS system, COUNT(*) AS ingestions, COUNT(DISTINCT "DocumentId") AS documents,
+        WITH metrics AS (
+            SELECT "Pipeline", "DocumentId", "ProcessingDurationMs",
+                   ROW_NUMBER() OVER (PARTITION BY "DocumentId", "Pipeline" ORDER BY "Id" DESC) AS latest,
+                   COUNT(*) OVER (PARTITION BY "DocumentId", "Pipeline") AS runs
+            FROM ingestion."IngestionMetrics"
+            WHERE "CreatedAt" >= @from AND "CreatedAt" < @to)
+        SELECT "Pipeline" AS system, SUM(runs) AS ingestions, COUNT(*) AS documents,
                ROUND(AVG("ProcessingDurationMs")::numeric, 1) AS mean_ms,
                ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "ProcessingDurationMs"))::numeric, 1) AS p50_ms,
                ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "ProcessingDurationMs"))::numeric, 1) AS p95_ms
-        FROM ingestion."IngestionMetrics"
-        WHERE "CreatedAt" >= @from AND "CreatedAt" < @to
+        FROM metrics WHERE latest = 1
         GROUP BY 1 ORDER BY 1
         """;
 
@@ -115,7 +127,8 @@ public sealed class OperationalLatencyReport(string connectionString)
             await readOnly.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        var written = new List<string>();
+        // Every query runs before any file is written, so a failure never leaves new files beside stale ones.
+        var files = new Dictionary<string, string>();
         foreach (var (file, sql) in Measures)
         {
             await using var command = new NpgsqlCommand(sql, connection);
@@ -130,8 +143,14 @@ public sealed class OperationalLatencyReport(string connectionString)
                 csv.AppendLine(string.Join(',', Enumerable.Range(0, reader.FieldCount).Select(i => Cell(reader, i))));
             }
 
+            files[file] = csv.ToString();
+        }
+
+        var written = new List<string>();
+        foreach (var (file, csv) in files)
+        {
             var path = Path.Combine(directory, file);
-            await File.WriteAllTextAsync(path, csv.ToString(), cancellationToken);
+            await File.WriteAllTextAsync(path, csv, cancellationToken);
             written.Add(path);
         }
 
