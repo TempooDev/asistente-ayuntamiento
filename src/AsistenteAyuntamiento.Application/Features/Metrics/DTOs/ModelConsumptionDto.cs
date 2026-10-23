@@ -7,4 +7,5 @@ public sealed record ModelConsumptionDto(
     int TotalCalls,
     int SucceededCalls,
     double AverageDurationMs,
-    long TotalTokens);
+    long TotalTokens,
+    decimal CostEur = 0);

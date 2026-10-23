@@ -77,6 +77,31 @@ public sealed class LlmUsageMetrics(IConfiguration configuration, ILogger<LlmUsa
         Cost.Add((double)EstimateCost(call.Provider, call.Model, call.InputTokens, call.OutputTokens), tags);
     }
 
+    public decimal? TryEstimateCost(string? provider, string model, long inputTokens, long outputTokens)
+    {
+        // Calls logged before the provider was recorded were mostly the platform model's: price them with its provider.
+        if (provider is null && configuration["Ai:Chat:Provider"] is { Length: > 0 } platformProvider
+            && string.Equals(configuration["Ai:Chat:Model"], model, StringComparison.OrdinalIgnoreCase))
+        {
+            provider = platformProvider;
+        }
+
+        if (string.Equals(provider, SelfHostedProvider, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0m;
+        }
+
+        var price = provider is null
+            ? configuration.GetSection("Ai:Pricing").GetChildren().Select(p => p.GetSection(model)).FirstOrDefault(p => p.Exists())
+            : configuration.GetSection($"Ai:Pricing:{provider.ToLowerInvariant()}:{model}");
+        if (price is null || !price.Exists())
+        {
+            return null;
+        }
+
+        return (inputTokens * (price.GetValue<decimal?>("Input") ?? 0m) + outputTokens * (price.GetValue<decimal?>("Output") ?? 0m)) / 1_000_000m;
+    }
+
     public decimal EstimateCost(string provider, string model, long inputTokens, long outputTokens)
     {
         if (string.Equals(provider, SelfHostedProvider, StringComparison.OrdinalIgnoreCase))

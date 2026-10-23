@@ -23,14 +23,18 @@ public static class AiMetricsEndpoints
         .WithSummary("Returns AI model invocation metrics and recent call history");
 
         // GET /api/ai/metrics/summary — Persisted chat usage of the tenant, aggregated in SQL
-        organization.MapGet("/metrics/summary", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
-            Results.Ok(await metricsQuery.GetSummaryAsync(cancellationToken)))
+        organization.MapGet("/metrics/summary", async (IAiMetricsQueryService metricsQuery, DateOnly? from, DateOnly? to, CancellationToken cancellationToken) =>
+            TryResolve(from, to, out var period, out var error)
+                ? Results.Ok(await metricsQuery.GetSummaryAsync(period, cancellationToken))
+                : Results.BadRequest(new { error }))
         .WithName("GetAiMetricsSummary")
         .WithSummary("Returns a lightweight AI metrics summary without recent call details");
 
         // GET /api/ai/metrics/ingestion — Platform-wide ingestion cost (enrichment and embeddings), not tenant data
-        platform.MapGet("/metrics/ingestion", async (IAiMetricsQueryService metricsQuery, CancellationToken cancellationToken) =>
-            Results.Ok(await metricsQuery.GetIngestionUsageAsync(cancellationToken)))
+        platform.MapGet("/metrics/ingestion", async (IAiMetricsQueryService metricsQuery, DateOnly? from, DateOnly? to, CancellationToken cancellationToken) =>
+            TryResolve(from, to, out var period, out var error)
+                ? Results.Ok(await metricsQuery.GetIngestionUsageAsync(period, cancellationToken))
+                : Results.BadRequest(new { error }))
         .WithName("GetIngestionUsage")
         .WithSummary("Returns the platform-wide ingestion cost: enrichment LLM calls and tokens, and embedded tokens");
 
@@ -60,5 +64,22 @@ public static class AiMetricsEndpoints
             Results.Ok(await metricsQuery.GetHistoryAsync(page, pageSize, cancellationToken)))
         .WithName("GetAiMetricsHistory")
         .WithSummary("Returns paginated historical AI metrics from the database");
+    }
+
+    /// <summary>The period of <c>from</c>/<c>to</c> (UTC dates, <c>to</c> exclusive), or the reason it is invalid.</summary>
+    private static bool TryResolve(DateOnly? from, DateOnly? to, out MetricsPeriod period, out string? error)
+    {
+        try
+        {
+            period = MetricsPeriod.Resolve(from, to, DateTime.UtcNow);
+            error = null;
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            period = null!;
+            error = ex.Message;
+            return false;
+        }
     }
 }

@@ -21,9 +21,16 @@ describe('IngestionService', () => {
     const req = http.expectOne(r => r.url === '/api/ingestion/blobs');
     expect(req.request.params.keys()).toEqual(['page', 'pageSize', 'status']);
     expect(req.request.params.get('page')).toBe('2');
-    req.flush({ items: [], totalCount: 0, stats: { total: 0, pending: 0, processing: 0, completed: 0 } });
+    req.flush({ items: [], total: 0, page: 2, pageSize: 20, stats: { total: 0, pending: 0, processing: 0, completed: 0 } });
 
-    await expect(promise).resolves.toMatchObject({ totalCount: 0 });
+    await expect(promise).resolves.toMatchObject({ total: 0 });
+  });
+
+  it('sends the pipeline the status filter applies to', () => {
+    service.getBlobs({ page: 1, pageSize: 20, status: 'Encolados', pipeline: 'HIERARCHICAL' }).subscribe();
+    const req = http.expectOne(r => r.url === '/api/ingestion/blobs');
+    expect(req.request.params.get('pipeline')).toBe('HIERARCHICAL');
+    req.flush({ items: [], total: 0, page: 1, pageSize: 20, stats: { total: 0, pending: 0, queued: 0, processing: 0, completed: 0 } });
   });
 
   it('sends the pipeline mode when enqueuing in bulk', async () => {

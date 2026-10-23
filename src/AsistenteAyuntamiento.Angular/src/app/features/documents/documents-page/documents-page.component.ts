@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { Observable, catchError, debounce, distinctUntilChanged, finalize, of, switchMap, tap, timer } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, debounce, debounceTime, distinctUntilChanged, exhaustMap, finalize, interval, merge, of, switchMap, tap, timer } from 'rxjs';
 import { DocumentStatusNotification, NotificationService } from '../../../core/realtime/notification.service';
 import { ConfirmService } from '../../../shared/ui/confirm.service';
 import { ToastService } from '../../../shared/ui/toast.service';
@@ -8,16 +8,30 @@ import { IngestionService } from '../data-access/ingestion.service';
 import { DocumentFilters, DocumentFiltersComponent } from '../document-filters/document-filters.component';
 import { DocumentStatsComponent } from '../document-stats/document-stats.component';
 import { DocumentTableComponent, documentIdOf, sourceOf } from '../document-table/document-table.component';
-import { BlobInfo, BlobQuery, BlobStats, BlobStatusFilter, IngestionStatus, PipelineMode } from '../models/documents.models';
+import { PipelineProgressComponent } from '../pipeline-progress/pipeline-progress.component';
+import {
+  BlobInfo,
+  BlobQuery,
+  BlobStats,
+  BlobStatusFilter,
+  IngestionStatus,
+  PaginatedBlobsResponse,
+  PipelineMode,
+  PipelineStats,
+} from '../models/documents.models';
 
 const FILTERS_KEY = 'docFilters';
 const SEARCH_DEBOUNCE_MS = 300;
-const DEFAULT_FILTERS: DocumentFilters = { pageSize: 20, status: 'Pendientes', search: '', dateFrom: null, dateTo: null, minSizeKb: null, maxSizeKb: null };
+/** Refresh interval of the counters and the visible page while some pipeline is still working. */
+export const AUTO_REFRESH_MS = 10_000;
+/** Wait after a status change before reloading, so a burst of notifications causes one request. */
+const REFRESH_AFTER_CHANGE_MS = 1_000;
+const DEFAULT_FILTERS: DocumentFilters = { pageSize: 20, status: 'Todos', pipeline: null, search: '', dateFrom: null, dateTo: null, minSizeKb: null, maxSizeKb: null };
 
 /** Admin page of the stored documents: filters, live ingestion state and (re)processing actions. */
 @Component({
   selector: 'app-documents-page',
-  imports: [DocumentStatsComponent, DocumentFiltersComponent, DocumentTableComponent],
+  imports: [DocumentStatsComponent, PipelineProgressComponent, DocumentFiltersComponent, DocumentTableComponent],
   templateUrl: './documents-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -34,6 +48,7 @@ export class DocumentsPageComponent {
 
   protected readonly blobs = signal<readonly BlobInfo[]>([]);
   protected readonly stats = signal<BlobStats | null>(null);
+  protected readonly pipelineStats = signal<readonly PipelineStats[]>([]);
   protected readonly filteredCount = signal(0);
   protected readonly isLoading = signal(false);
   protected readonly statusMessage = signal('');
@@ -42,6 +57,20 @@ export class DocumentsPageComponent {
 
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredCount() / this.filters().pageSize)));
   private readonly query = computed<BlobQuery & { reload: number }>(() => ({ ...this.filters(), page: this.page(), reload: this.reload() }));
+
+  /**
+   * Asks for a silent reload of the counters and the visible page. Realtime notifications and local actions only know
+   * the summary status, so the per-pipeline badges and bars are taken from the server shortly after them.
+   */
+  private readonly refreshSoon = new Subject<void>();
+
+  /** Something is queued or processing in some pipeline (the summary counters when the API sends no per-pipeline ones). */
+  protected readonly ingesting = computed(() => {
+    const pipelines = this.pipelineStats();
+    if (pipelines.length > 0) return pipelines.some(p => p.queued + p.processing > 0);
+    const s = this.stats();
+    return !!s && s.queued + s.processing > 0;
+  });
 
   constructor() {
     effect(() => saveFilters(this.filters()));
@@ -69,10 +98,27 @@ export class DocumentsPageComponent {
         takeUntilDestroyed(),
       )
       .subscribe(result => {
-        if (!result) return;
-        this.blobs.set(result.items);
-        this.stats.set(result.stats);
-        this.filteredCount.set(result.totalCount);
+        if (result) this.applyPage(result);
+      });
+
+    // Silent refresh (no spinner) of the counters and the visible page: every 10 s while something is being ingested,
+    // and once shortly after a status change or an action.
+    merge(
+      toObservable(this.ingesting).pipe(
+        distinctUntilChanged(),
+        switchMap(active => (active ? interval(AUTO_REFRESH_MS) : EMPTY)),
+      ),
+      this.refreshSoon.pipe(debounceTime(REFRESH_AFTER_CHANGE_MS)),
+    )
+      .pipe(
+        exhaustMap(() => {
+          const { reload: _, ...query } = this.query();
+          return this.ingestion.getBlobs(query).pipe(catchError(() => of(null)));
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (result) this.applyPage(result);
       });
 
     void this.notifications.connect();
@@ -134,6 +180,7 @@ export class DocumentsPageComponent {
       this.blobs.update(list => list.map(b => (this.selected().has(b.name) ? { ...b, status: IngestionStatus.Queued } : b)));
       this.stats.update(s => (s ? { ...s, pending: Math.max(0, s.pending - names.length), queued: s.queued + names.length } : s));
       this.selected.set(new Set());
+      this.refreshSoon.next();
     });
   }
 
@@ -158,6 +205,13 @@ export class DocumentsPageComponent {
     this.pipelineMode.set(value as PipelineMode);
   }
 
+  private applyPage(result: PaginatedBlobsResponse): void {
+    this.blobs.set(result.items);
+    this.stats.set(result.stats);
+    this.pipelineStats.set(result.pipelineStats ?? []);
+    this.filteredCount.set(result.total);
+  }
+
   /** Runs an action, shows the server message (or the error) and applies the local update on success. */
   private act(request: Observable<string>, onSuccess: () => void, onError?: () => void): void {
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -175,12 +229,13 @@ export class DocumentsPageComponent {
 
   private setStatus(name: string, status: IngestionStatus): void {
     this.blobs.update(list => list.map(b => (b.name === name ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b)));
+    this.refreshSoon.next();
   }
 
-  /** Live status from the ingestion workers; the counters are updated optimistically. */
   /** Applies a batch of status changes in one update of the list and the counters. */
   private applyStatuses(changes: readonly DocumentStatusNotification[]): void {
     if (changes.length === 0) return;
+    this.refreshSoon.next();
     const statusById = new Map(changes.map(c => [c.documentId, c.status as IngestionStatus]));
 
     this.blobs.update(list =>

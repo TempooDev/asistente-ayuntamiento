@@ -4,21 +4,37 @@ using AsistenteAyuntamiento.Domain.Common.Enums;
 namespace AsistenteAyuntamiento.Evaluation;
 
 /// <summary>Command-line options of the runner.</summary>
-public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output)
+/// <param name="Import">Run id to store in the database instead of running (<c>--import</c>).</param>
+/// <param name="Score">After the run, score it, build the reports and import it (<c>--score</c>).</param>
+public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output,
+    string? Import = null, bool Score = false)
 {
+    /// <summary>Options without a value.</summary>
+    private static readonly HashSet<string> Switches = new(StringComparer.OrdinalIgnoreCase) { "score" };
+
     public static EvaluationArguments Parse(IReadOnlyList<string> args)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Count; i++)
         {
-            if (!args[i].StartsWith("--", StringComparison.Ordinal) || i + 1 >= args.Count)
+            if (!args[i].StartsWith("--", StringComparison.Ordinal))
             {
                 throw new ArgumentException($"Expected '--name value' pairs, got '{args[i]}'.");
             }
-            values[args[i][2..]] = args[++i];
+            var name = args[i][2..];
+            if (Switches.Contains(name))
+            {
+                values[name] = "true";
+                continue;
+            }
+            if (i + 1 >= args.Count || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"--{name} needs a value.");
+            }
+            values[name] = args[++i];
         }
 
-        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output"], StringComparer.OrdinalIgnoreCase).ToList();
+        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import", "score"], StringComparer.OrdinalIgnoreCase).ToList();
         if (unknown.Count > 0)
         {
             throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
@@ -30,7 +46,9 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.TryGetValue("seed", out var seed) ? int.Parse(seed) : null,
             values.GetValueOrDefault("resume"),
             values.GetValueOrDefault("dataset"),
-            values.GetValueOrDefault("output"));
+            values.GetValueOrDefault("output"),
+            values.GetValueOrDefault("import"),
+            values.ContainsKey("score"));
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

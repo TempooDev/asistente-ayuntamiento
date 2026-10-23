@@ -15,7 +15,9 @@ using Microsoft.SemanticKernel;
 
 // Offline RAG evaluation (spec: rag-evaluation). Usage:
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- [--pipelines Baseline,Hierarchical] [--limit N]
-//       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR]
+//       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR] [--score]   (--score: then score.py, report.py and import)
+//   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID|latest    (after score.py and report.py;
+//   also the Aspire resource "evaluation-import")
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
 var options = EvaluationArguments.Parse(args);
 var repository = EvaluationArguments.FindRepository();
@@ -23,6 +25,40 @@ var datasetDirectory = options.Dataset ?? Path.Combine(repository, "eval", "data
 var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
 
 var builder = Host.CreateApplicationBuilder();
+
+// Outside Aspire the connection strings come from user secrets, in any environment:
+// dotnet user-secrets set "ConnectionStrings:asistente-ayuntamiento-db" "Host=localhost;..." --project src/AsistenteAyuntamiento.Evaluation
+builder.Configuration.AddUserSecrets<Program>(optional: true);
+
+if (options.Import is { } importRunId)
+{
+    // Only the database: importing needs no models, vectors or messaging.
+    builder.Services.AddSingleton<ICurrentTenantService, EvaluationTenantService>();
+    builder.AddNpgsqlDbContext<AppDbContext>("asistente-ayuntamiento-db", configureDbContextOptions: o => o.UseNpgsql(npgsql => npgsql.UseVector()));
+    builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+    builder.Services.AddScoped<EvaluationImporter>();
+    using var importHost = builder.Build();
+    var importLogger = importHost.Services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await using var scope = importHost.Services.CreateAsyncScope();
+        // "latest": the newest scored run (run ids sort by date), for the Aspire resource that has no argument to edit.
+        var importId = importRunId == "latest"
+            ? (Directory.Exists(runsDirectory) ? Directory.GetDirectories(runsDirectory) : [])
+                .Where(dir => File.Exists(Path.Combine(dir, EvaluationImporter.SummaryFile)))
+                .Select(Path.GetFileName).OfType<string>().Order(StringComparer.Ordinal).LastOrDefault()
+                ?? throw new FileNotFoundException($"No scored run in {runsDirectory}; run score.py and report.py first.")
+            : importRunId;
+        var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(Path.Combine(runsDirectory, importId));
+        importLogger.LogInformation("Imported run {RunId} with {Pipelines} pipelines", imported.RunId, imported.Results.Count);
+        return 0;
+    }
+    catch (FileNotFoundException ex)
+    {
+        importLogger.LogError("{Message}", ex.Message);
+        return 1;
+    }
+}
 
 // One generation model for every pipeline, at temperature 0, whatever the host's chat settings are.
 var chatProvider = builder.Configuration["Evaluation:ChatProvider"] ?? "ollama";
@@ -53,6 +89,8 @@ builder.Services.AddSingleton(sp => new EvaluationPreflight(
     sp.GetRequiredService<Kernel>().GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
 builder.Services.AddScoped<IndexingReporter>();
 builder.Services.AddSingleton<EvaluationRunner>();
+builder.Services.AddSingleton<EvaluationScorer>();
+builder.Services.AddScoped<EvaluationImporter>();
 
 // Not started: the background processors of the API and Worker have nothing to do here.
 using var host = builder.Build();
@@ -102,7 +140,23 @@ logger.LogInformation("Run {RunId}: {Questions} questions × {Pipelines} with {M
     runId, dataset.Questions.Count, string.Join(", ", info.Pipelines), chatModel, info.Seed, runDirectory);
 await host.Services.GetRequiredService<EvaluationRunner>()
     .RunAsync(dataset, new EvaluationRunSettings(runDirectory, info.Pipelines, info.Seed, info), cancellation.Token);
-logger.LogInformation("Run {RunId} finished. Score it with: cd eval/ragas && uv run python score.py ../runs/{RunId}", runId, runId);
+if (!options.Score)
+{
+    logger.LogInformation("Run {RunId} finished. Score it with: cd eval/ragas && uv run python score.py ../runs/{RunId}", runId, runId);
+    return 0;
+}
+
+var ollamaUrl = EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama"));
+if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, ollamaUrl, cancellation.Token))
+{
+    return 1;
+}
+
+await using (var scope = host.Services.CreateAsyncScope())
+{
+    var imported = await scope.ServiceProvider.GetRequiredService<EvaluationImporter>().ImportAsync(runDirectory, cancellation.Token);
+    logger.LogInformation("Run {RunId} scored and imported ({Pipelines} pipelines): see Métricas → Evaluación offline", imported.RunId, imported.Results.Count);
+}
 return 0;
 
 public partial class Program;

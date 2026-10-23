@@ -11,6 +11,7 @@
   "private": true,
   "packageManager": "npm@11.6.2",
   "dependencies": {
+    "@angular/cdk": "~21.2.13",
     "@angular/common": "^21.2.25",
     "@angular/compiler": "^21.2.25",
     "@angular/core": "^21.2.25",
@@ -21,8 +22,10 @@
     "@grafana/faro-web-sdk": "2.12.1",
     "@grafana/faro-web-tracing": "2.12.1",
     "@microsoft/signalr": "^10.0.11",
+    "chart.js": "~4.5.1",
     "dompurify": "^3.4.17",
     "marked": "^18.0.11",
+    "ng2-charts": "^10.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

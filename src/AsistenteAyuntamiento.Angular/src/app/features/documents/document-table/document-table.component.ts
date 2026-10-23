@@ -8,9 +8,15 @@ const STATUS_BADGES: Record<IngestionStatus, { label: string; classes: string }>
   [IngestionStatus.Processing]: { label: 'Procesando...', classes: 'bg-blue-100 text-blue-800 dark:text-blue-300 animate-pulse' },
   [IngestionStatus.Queued]: { label: 'Encolado', classes: 'bg-orange-100 text-orange-800 dark:text-orange-300 animate-pulse' },
   [IngestionStatus.Failed]: { label: 'Fallo', classes: 'bg-red-100 text-red-800 dark:text-red-300' },
+  [IngestionStatus.VectorSyncFailed]: { label: 'Fallo de vectores', classes: 'bg-red-100 text-red-800 dark:text-red-300' },
   [IngestionStatus.Pending]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300' },
   [IngestionStatus.Unknown]: { label: 'Pendiente', classes: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300' },
 };
+
+const NOT_SENT_BADGE = { label: 'No enviado', classes: 'bg-gray-100 text-gray-700' };
+
+/** Statuses whose badge shows the last error as a tooltip. */
+const FAILED_STATUSES: readonly (IngestionStatus | null | undefined)[] = [IngestionStatus.Failed, IngestionStatus.VectorSyncFailed];
 
 /** Blob path json/<SOURCE>/<id>.json → document id. */
 export function documentIdOf(blobName: string): string {
@@ -56,7 +62,8 @@ export function publicUrlOf(blobName: string): string | null {
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Nombre del archivo</th>
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Tamaño</th>
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Última modificación</th>
-            <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Estado</th>
+            <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Baseline</th>
+            <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Jerárquica</th>
             <th scope="col" class="p-sm font-label-lg whitespace-nowrap">Acciones</th>
           </tr>
         </thead>
@@ -80,9 +87,12 @@ export function publicUrlOf(blobName: string): string | null {
               </td>
               <td class="p-sm font-body-md whitespace-nowrap">{{ kb(blob.size) }} KB</td>
               <td class="p-sm font-body-md whitespace-nowrap">{{ blob.lastModified ? (blob.lastModified | date: 'short') : '-' }}</td>
-              <td class="p-sm font-body-md">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium" [class]="badge(blob.status).classes">{{ badge(blob.status).label }}</span>
-              </td>
+              @for (status of [blob.baselineStatus, blob.hierarchicalStatus]; track $index) {
+                <td class="p-sm font-body-md" [attr.data-testid]="$index === 0 ? 'baseline-status' : 'hierarchical-status'">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium" [class]="pipelineBadge(status).classes"
+                        [attr.title]="errorOf(blob, status)">{{ pipelineBadge(status).label }}</span>
+                </td>
+              }
               <td class="p-sm font-body-md">
                 <div class="flex gap-2">
                   <button type="button" class="btn btn-sm btn-outline border border-outline rounded-sm px-3 py-1"
@@ -118,4 +128,8 @@ export class DocumentTableComponent {
   protected urlOf = publicUrlOf;
   protected kb = (bytes: number) => Math.round(bytes / 1024);
   protected badge = (status: IngestionStatus) => STATUS_BADGES[status] ?? STATUS_BADGES[IngestionStatus.Pending];
+  /** Null means the pipeline never received the document. */
+  protected pipelineBadge = (status: IngestionStatus | null | undefined) => (status ? this.badge(status) : NOT_SENT_BADGE);
+  protected errorOf = (blob: BlobInfo, status: IngestionStatus | null | undefined) =>
+    blob.errorMessage && FAILED_STATUSES.includes(status) ? blob.errorMessage : null;
 }

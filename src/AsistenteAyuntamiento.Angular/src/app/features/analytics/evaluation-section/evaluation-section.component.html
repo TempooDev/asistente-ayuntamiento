@@ -1,0 +1,93 @@
+@switch (state().status) {
+  @case ('loading') {
+    <p class="text-gray-500 mb-8" role="status">Cargando evaluaciones...</p>
+  }
+  @case ('loaded') {
+    @if (runs().length === 0) {
+      <div class="bg-surface-container-lowest p-6 rounded-xl shadow-xs border border-gray-100 mb-8" data-testid="evaluation-empty">
+        <p class="text-gray-700 mb-2">Todavía no se ha importado ninguna evaluación.</p>
+        <p class="text-sm text-gray-500 mb-2">Puntúa una ejecución del evaluador y súbela a la base de datos con:</p>
+        <pre class="text-sm bg-gray-100 text-gray-800 p-3 rounded-sm overflow-x-auto"><code>dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import {{ '{' }}runId{{ '}' }}</code></pre>
+      </div>
+    } @else {
+      <div class="flex flex-wrap items-end gap-4 mb-4">
+        <label class="flex flex-col text-xs text-gray-500 font-medium">Ejecución
+          <select class="mt-1 text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-surface" [value]="selectedRunId()" #runSelect (change)="selectRun(runSelect.value)">
+            @for (r of runs(); track r.runId) {
+              <option [value]="r.runId" [selected]="r.runId === selectedRunId()">{{ r.runId }}</option>
+            }
+          </select>
+        </label>
+        @if (run(); as detail) {
+          <p class="text-sm text-gray-600">
+            {{ detail.questionCount }} preguntas · chat {{ detail.chatModel }} · embeddings {{ detail.embeddingModel }}
+            @if (detail.judgeModel) { · juez {{ detail.judgeModel }} }
+            @if (detail.ragasVersion) { · RAGAS {{ detail.ragasVersion }} }
+          </p>
+        }
+      </div>
+
+      @if (run(); as detail) {
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          @for (chart of charts(); track chart.title) {
+            <div class="bg-surface-container-lowest p-4 rounded-xl shadow-xs border border-gray-100">
+              <h3 class="text-base font-bold text-gray-700 mb-2">{{ chart.title }}</h3>
+              @if (chart.config; as config) {
+                <div class="relative h-56">
+                  <canvas baseChart [type]="config.type" [data]="config.data" [options]="config.options" [attr.aria-label]="chart.title" role="img"></canvas>
+                </div>
+              } @else {
+                <p class="text-sm text-gray-500">Sin resultados.</p>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="bg-surface-container-lowest rounded-xl shadow-xs border border-gray-100 overflow-x-auto mb-6">
+          <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead>
+              <tr>
+                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pipeline</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Alucinaciones</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Sin respuesta detectada</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Fallidas</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Sin puntuar</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Tokens medios</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Indexado p50 / p95</th>
+                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Chunks / doc</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              @for (r of detail.results; track r.pipeline) {
+                <tr>
+                  <td class="px-4 py-2 font-medium text-gray-900">{{ fmt.pipeline(r.pipeline) }}</td>
+                  <td class="px-4 py-2 text-right" data-testid="hallucination-rate">{{ fmt.ratio(r.hallucinationRate) }}</td>
+                  <td class="px-4 py-2 text-right">{{ fmt.ratio(r.noAnswerDetectedRate) }}</td>
+                  <td class="px-4 py-2 text-right">{{ fmt.number(r.failed) }}</td>
+                  <td class="px-4 py-2 text-right">{{ fmt.number(r.missing) }}</td>
+                  <td class="px-4 py-2 text-right">{{ fmt.number(r.meanTokens) }}</td>
+                  <td class="px-4 py-2 text-right whitespace-nowrap">{{ fmt.ms(r.indexingP50Ms) }} / {{ fmt.ms(r.indexingP95Ms) }}</td>
+                  <td class="px-4 py-2 text-right">{{ fmt.number(r.chunksPerDocument, 1) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="text-gray-500 mb-6" role="status">Cargando la ejecución...</p>
+      }
+
+      @if (historyChart(); as history) {
+        <div class="bg-surface-container-lowest p-4 rounded-xl shadow-xs border border-gray-100 mb-8" data-testid="evaluation-history">
+          <h3 class="text-base font-bold text-gray-700 mb-2">Histórico: faithfulness (continua) y context recall (discontinua)</h3>
+          <div class="relative h-64">
+            <canvas baseChart [type]="history.type" [data]="history.data" [options]="history.options" aria-label="Histórico de evaluaciones" role="img"></canvas>
+          </div>
+        </div>
+      }
+    }
+  }
+  @case ('error') {
+    <p class="text-gray-500 mb-8">Las evaluaciones no están disponibles ahora mismo. El resto de métricas no se ve afectado.</p>
+  }
+}

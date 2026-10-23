@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { BlobQuery, BlobStatusFilter } from '../models/documents.models';
+import { BlobQuery, BlobStatusFilter, PipelineFilter } from '../models/documents.models';
 
 export type DocumentFilters = Omit<BlobQuery, 'page'>;
 
@@ -18,6 +18,13 @@ export type DocumentFilters = Omit<BlobQuery, 'page'>;
         <select id="doc-status" #status class="px-3 py-2 border rounded-sm bg-transparent" (change)="changed.emit({ status: asStatus(status.value) })">
           @for (option of statuses; track option.value) {
             <option [value]="option.value" [selected]="filters().status === option.value">{{ option.label }}</option>
+          }
+        </select>
+
+        <label class="sr-only" for="doc-pipeline">Pipeline del estado</label>
+        <select id="doc-pipeline" #pipeline class="px-3 py-2 border rounded-sm bg-transparent" (change)="changed.emit({ pipeline: asPipeline(pipeline.value) })">
+          @for (option of pipelines; track option.value) {
+            <option [value]="option.value" [selected]="(filters().pipeline ?? '') === option.value">{{ option.label }}</option>
           }
         </select>
 
@@ -62,7 +69,17 @@ export class DocumentFiltersComponent {
     { value: 'Encolados', label: 'Solo Encolados' },
     { value: 'Pendientes', label: 'Solo Pendientes' },
   ];
+  /** The status filter applies to the summary status ("Ambos") or to one pipeline's own status. */
+  protected readonly pipelines: readonly { value: PipelineFilter | ''; label: string }[] = [
+    { value: '', label: 'Ambos pipelines' },
+    { value: 'BASELINE', label: 'Baseline' },
+    { value: 'HIERARCHICAL', label: 'Jerárquica' },
+  ];
   protected readonly pageSizes = [10, 20, 50, 100];
+
+  protected asPipeline(value: string): PipelineFilter | null {
+    return value === '' ? null : (value as PipelineFilter);
+  }
 
   protected asStatus(value: string): BlobStatusFilter {
     return value as BlobStatusFilter;

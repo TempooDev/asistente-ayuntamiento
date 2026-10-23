@@ -8,6 +8,13 @@ public class BlobItemDto
     public bool IsProcessed { get; set; }
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>Status of each pipeline; null when that pipeline never received the document.</summary>
+    public string? BaselineStatus { get; set; }
+    public string? HierarchicalStatus { get; set; }
+
+    /// <summary>Last error, prefixed with the pipeline that reported it.</summary>
+    public string? ErrorMessage { get; set; }
+
     public BlobItemDto() { }
     public BlobItemDto(string name, long? size, DateTime? lastModified, bool isProcessed, string status)
     {
