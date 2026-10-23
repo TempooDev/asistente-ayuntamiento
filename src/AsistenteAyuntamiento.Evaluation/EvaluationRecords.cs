@@ -53,7 +53,9 @@ public sealed record RunInfo(
     IReadOnlyList<PipelineType> Pipelines,
     int QuestionCount,
     string DatasetHash,
-    string CorpusHash);
+    string CorpusHash,
+    string? OllamaEndpoint = null,
+    string? Hardware = null);
 
 /// <summary><c>indexing.json</c>: ingestion cost per pipeline for the corpus documents (latest metric per document).</summary>
 public sealed record IndexingReport(IReadOnlyList<PipelineIndexing> Pipelines);

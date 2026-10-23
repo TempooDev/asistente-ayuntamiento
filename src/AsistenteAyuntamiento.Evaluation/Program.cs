@@ -18,11 +18,32 @@ using Microsoft.SemanticKernel;
 //       [--seed N] [--resume RUN_ID] [--dataset DIR] [--output DIR] [--score]   (--score: then score.py, report.py and import)
 //   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --import RUN_ID|latest    (after score.py and report.py;
 //   also the Aspire resource "evaluation-import")
+//   EVAL_LATENCY_DB=... dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --latency-report [--from 2026-11-01] [--to 2026-12-01]
 // It opens no network endpoint: it calls the pipelines in-process with the same services as the API.
 var options = EvaluationArguments.Parse(args);
 var repository = EvaluationArguments.FindRepository();
 var datasetDirectory = options.Dataset ?? Path.Combine(repository, "eval", "dataset");
 var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
+
+if (options.LatencyReport)
+{
+    // Read-only aggregates for chapter 8; never falls back to the application's credentials.
+    var connection = Environment.GetEnvironmentVariable(OperationalLatencyReport.ConnectionVariable);
+    if (string.IsNullOrWhiteSpace(connection))
+    {
+        Console.Error.WriteLine($"Set {OperationalLatencyReport.ConnectionVariable} to a read-only connection string of the database.");
+        return 1;
+    }
+
+    var to = options.To ?? DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+    var from = options.From ?? to.AddDays(-30);
+    var reportDirectory = options.Output ?? Path.Combine(repository, "eval", "latency", $"{from:yyyy-MM-dd}_{to:yyyy-MM-dd}");
+    foreach (var file in await new OperationalLatencyReport(connection).WriteAsync(from, to, reportDirectory))
+    {
+        Console.WriteLine(file);
+    }
+    return 0;
+}
 
 var builder = Host.CreateApplicationBuilder();
 
@@ -133,7 +154,9 @@ else
 {
     info = new RunInfo(runId, DateTime.UtcNow, null, EvaluationArguments.GitCommit(repository), options.Seed ?? Random.Shared.Next(),
         chatProvider, chatModel, temperature, builder.Configuration["Ai:Embeddings:Model"] ?? "qwen3-embedding:0.6b",
-        host.Services.GetRequiredService<QueryEmbeddingOptions>().Instruction, options.Pipelines, dataset.Questions.Count, dataset.DatasetHash, dataset.CorpusHash);
+        host.Services.GetRequiredService<QueryEmbeddingOptions>().Instruction, options.Pipelines, dataset.Questions.Count, dataset.DatasetHash, dataset.CorpusHash,
+        // Where the models ran: latencies are only comparable between runs on the same hardware.
+        EvaluationScorer.OllamaUrl(builder.Configuration.GetConnectionString("ollama")), builder.Configuration["Evaluation:Hardware"]);
 }
 
 logger.LogInformation("Run {RunId}: {Questions} questions × {Pipelines} with {Model} (seed {Seed}) → {Directory}",

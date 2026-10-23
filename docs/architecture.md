@@ -15,10 +15,12 @@ graph TD
     GO -->|documents_to_process_*| MQ
     MQ --> WB[Worker BASELINE]
     MQ --> WH[Worker HIERARCHICAL]
-    WB & WH -->|lee| S3
-    WB & WH -->|chunks, fragmentos| PG
-    WB & WH -->|vectores| QD
-    WB & WH -->|estado| MQ
+    MQ --> WR[Worker RECURSIVE]
+    MQ --> WS[Worker SEMANTIC]
+    WB & WH & WR & WS -->|lee| S3
+    WB & WH & WR & WS -->|chunks, fragmentos| PG
+    WB & WH & WR & WS -->|vectores| QD
+    WB & WH & WR & WS -->|estado| MQ
     MQ -->|document_notifications_exchange| API
     API -->|SignalR| SPA
 ```
@@ -30,7 +32,8 @@ graph TD
 | `AsistenteAyuntamiento.AppHost` | Orquestación Aspire: Postgres (pgvector/pg16), RabbitMQ, Qdrant, MinIO, Ollama, Angular y el scraper Go. |
 | `AsistenteAyuntamiento.Gateway` | YARP: sirve la SPA y enruta `/api` y `/hubs` a la API. |
 | `AsistenteAyuntamiento.ApiService` | Endpoints minimal API, hubs SignalR (`/hubs/chat`, `/hubs/notifications`) y gRPC. Solo traduce transporte a servicios de Application. |
-| `AsistenteAyuntamiento.Worker` | Consumidores de ingesta en modo `BASELINE` o `HIERARCHICAL` (`WORKER_PIPELINE_MODE`). |
+| `AsistenteAyuntamiento.Worker` | Consumidores de ingesta en modo `BASELINE`, `HIERARCHICAL`, `RECURSIVE` o `SEMANTIC` (`WORKER_PIPELINE_MODE`). Las variantes de estudio solo arrancan en producción con el perfil `chunking-study`. |
+| `AsistenteAyuntamiento.Evaluation` | Evaluación offline: hace las preguntas fijas a cada variante, puntúa con RAGAS (`eval/ragas`), importa los resultados y genera el informe de latencia operativa (`eval/README.md`). |
 | `AsistenteAyuntamiento.Application` | Casos de uso, puertos y orquestación de IA. Sin SDKs de infraestructura. |
 | `AsistenteAyuntamiento.Domain` | Entidades y enums. Sin paquetes. |
 | `AsistenteAyuntamiento.Infrastructure` | Implementación de los puertos (EF Core, Qdrant, S3, RabbitMQ, Semantic Kernel). |
@@ -45,10 +48,10 @@ graph TD
 | Puerto (Application) | Implementación (Infrastructure) |
 |---|---|
 | `IAppDbContext` (+ `ExecuteInTransactionAsync`) | `AppDbContext` (EF Core, Npgsql) |
-| `IVectorStore` | `QdrantVectorStore` (colecciones `document_chunks` y `child_fragments`, creadas en la primera escritura) |
+| `IVectorStore` | `QdrantVectorStore` (colecciones `document_chunks`, `document_chunks_recursive`, `document_chunks_semantic` y `child_fragments`, creadas en la primera escritura) |
 | `IBlobStorage` | `S3BlobStorage` (MinIO / Cloudflare R2) |
 | `IFullTextSearch` | `PostgresFullTextSearch` (`tsvector` de los fragmentos) |
-| `IIngestionMaintenance` | `IngestionMaintenance` (`TRUNCATE` de la ingesta baseline) |
+| `IIngestionMaintenance` | `IngestionMaintenance` (reset de la ingesta baseline: borra sus fragmentos y estados sin tocar las otras variantes) |
 | `IIngestionQueuePublisher` | `RabbitMqIngestionPublisher` (persistente + publisher confirms) |
 | `IChatModelFactory` | `ChatModelFactory` (clientes HTTP con nombre, fallback con credenciales propias) |
 | `IBackgroundWorkQueue` | `BackgroundWorkQueue` + `BackgroundWorkProcessor` (trabajo en segundo plano con tenant, cancelado al apagar) |
@@ -59,10 +62,10 @@ Registro: `AddApplicationServices()` (Application) y `AddInfrastructureServices(
 
 `AiChatService` es una fachada sobre:
 
-- `IRagPipeline`: `BaselineRagPipeline` (búsqueda densa en `document_chunks`) y `HierarchicalRagPipeline` (expansión de consulta, búsqueda híbrida RRF densa + texto completo, generación en lenguaje claro).
+- `IRagPipeline`: `FlatChunkRagPipeline`, una por variante plana (tamaño fijo, recursiva y semántica: búsqueda densa en su colección), y `HierarchicalRagPipeline` (expansión de consulta, búsqueda híbrida RRF densa + texto completo, generación en lenguaje claro). Todas exponen `RunForEvaluationAsync` para la evaluación offline.
 - `ChatStreamingService`: modelo del tenant con fallback ante cuota (429), errores tipados (`LLM_*`).
 - `IAiCallRecorder`: `AiCallLog` y métricas.
-- `WinningPipelineSelector`: la pipeline con más victorias en Arena responde (agregado en SQL, caché de 5 min).
+- `WinningPipelineSelector`: responde la variante de `Rag:ProductionPipeline` o, si no se configura, la pipeline con más victorias en Arena (agregado en SQL, caché de 5 min).
 - `ShadowTestScheduler`: una muestra de respuestas ejecuta también la otra pipeline en segundo plano y guarda la batalla.
 - `ArenaStreamingService`: ambas pipelines en paralelo, reenviadas según llegan.
 

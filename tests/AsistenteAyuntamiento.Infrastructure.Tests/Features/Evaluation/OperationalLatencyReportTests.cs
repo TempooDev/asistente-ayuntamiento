@@ -1,0 +1,107 @@
+using AsistenteAyuntamiento.Application.Common.Interfaces;
+using AsistenteAyuntamiento.Domain.Common.Enums;
+using AsistenteAyuntamiento.Domain.Features.Arena;
+using AsistenteAyuntamiento.Domain.Features.Chat;
+using AsistenteAyuntamiento.Domain.Features.Ingestion;
+using AsistenteAyuntamiento.Evaluation;
+using AsistenteAyuntamiento.Infrastructure.Data;
+using AsistenteAyuntamiento.Infrastructure.Tests.Features.Messaging;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Moq;
+using Testcontainers.PostgreSql;
+
+namespace AsistenteAyuntamiento.Infrastructure.Tests.Features.Evaluation;
+
+/// <summary>The operational latency report for chapter 8 (spec: rag-evaluation, Operational Latency Report), on PostgreSQL.</summary>
+public sealed class OperationalLatencyReportTests : IAsyncLifetime
+{
+    private PostgreSqlContainer? _postgres;
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "latency-" + Guid.NewGuid().ToString("N"));
+
+    public async Task InitializeAsync()
+    {
+        if (!DockerFactAttribute.IsDockerAvailable) return;
+        _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17").Build();
+        await _postgres.StartAsync();
+        await using var db = Context();
+        await db.Database.MigrateAsync();
+
+        var inPeriod = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
+        for (var i = 1; i <= 10; i++)
+        {
+            db.AiCallLogs.Add(new AiCallLog
+            {
+                TenantId = "org_A",
+                UserId = "u",
+                ModelId = "m",
+                Success = true,
+                DurationMs = i * 100,
+                TimeToFirstTokenMs = i * 10,
+                Pipeline = "baseline",
+                CreatedAt = inPeriod
+            });
+        }
+        db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = false, DurationMs = 99, Pipeline = "baseline", CreatedAt = inPeriod });
+        db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = true, DurationMs = 99_999, Pipeline = "evaluation", CreatedAt = inPeriod });
+        db.AiCallLogs.Add(new AiCallLog { TenantId = "org_A", UserId = "u", ModelId = "m", Success = true, DurationMs = 99_999, Pipeline = "baseline", CreatedAt = inPeriod.AddMonths(-2) });
+        db.ArenaBattles.Add(new ArenaBattle
+        {
+            TenantId = "org_A",
+            UserId = "u",
+            UserQuery = "secreto",
+            LeftSystem = PipelineType.Baseline,
+            RightSystem = PipelineType.Hierarchical,
+            LeftLatencyMs = 1000,
+            RightLatencyMs = 3000,
+            CreatedAt = inPeriod
+        });
+        db.IngestionMetrics.Add(new IngestionMetric { DocumentId = "BOE-1", Pipeline = PipelineType.Semantic, ProcessingDurationMs = 4000, CreatedAt = inPeriod });
+        var state = new DocumentJobState { DocumentId = "BOE-1" };
+        state.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
+        state.SetPipelineStatus(PipelineType.Semantic, JobStatus.Failed, "boom");
+        state.LastUpdatedAt = inPeriod;
+        db.DocumentJobStates.Add(state);
+        await db.SaveChangesAsync();
+        // SetPipelineStatus stamps LastUpdatedAt with the current time: put it back in the period.
+        await db.Database.ExecuteSqlRawAsync("UPDATE ingestion.\"DocumentJobStates\" SET \"LastUpdatedAt\" = '2026-11-10T12:00:00Z'");
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_postgres is not null) await _postgres.DisposeAsync();
+        if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+    }
+
+    private AppDbContext Context() => new(
+        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_postgres!.GetConnectionString(), o => o.UseVector()).Options,
+        Mock.Of<ICurrentTenantService>(t => t.TenantId == "org_A"));
+
+    private Task<IReadOnlyList<string>> Report() =>
+        new OperationalLatencyReport(_postgres!.GetConnectionString()).WriteAsync(new DateOnly(2026, 11, 1), new DateOnly(2026, 12, 1), _directory);
+
+    private string[] Lines(string file) => File.ReadAllLines(Path.Combine(_directory, file));
+
+    [DockerFact]
+    public async Task Writes_one_csv_per_measure_with_percentiles_per_pipeline()
+    {
+        (await Report()).Select(Path.GetFileName).Should().BeEquivalentTo(OperationalLatencyReport.Measures.Keys);
+
+        // 10 successful answers of 100..1000 ms and one failure; evaluation calls and calls outside the period are left out.
+        Lines("chat-answers.csv").Should().Equal(
+            "pipeline,answers,failed_share,mean_ms,p50_ms,p95_ms,ttft_n,ttft_p50_ms,ttft_p95_ms",
+            "baseline,11,0.0909,550.0,550.0,955.0,10,55.0,95.5");
+        Lines("arena-sides.csv").Skip(1).Should().Equal("Baseline,1,1000.0,1000.0,1000.0", "Hierarchical,1,3000.0,3000.0,3000.0");
+        Lines("ingestion.csv").Skip(1).Should().Equal("Semantic,1,1,4000.0,4000.0,4000.0");
+        Lines("ingestion-failures.csv").Skip(1).Should().Contain(["Baseline,1,0,0.0000", "Semantic,1,1,1.0000"]);
+    }
+
+    [DockerFact]
+    public async Task Never_writes_question_or_answer_text_nor_identifiers()
+    {
+        await Report();
+
+        var all = string.Concat(OperationalLatencyReport.Measures.Keys.Select(f => File.ReadAllText(Path.Combine(_directory, f))));
+        all.Should().NotContain("secreto").And.NotContain("org_A").And.NotContain("BOE-1");
+    }
+}

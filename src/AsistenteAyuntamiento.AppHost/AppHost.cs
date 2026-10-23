@@ -245,10 +245,20 @@ foreach (var (name, mode) in new[]
 
 // Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
 // answers with its own model (Evaluation:ChatModel).
+// What the ▶ of the evaluation resource does (eval/README.md). Default: the whole question set, then score (eval/ragas,
+// needs uv) and import. Other modes, for example:
+//   "--limit 3 --score"                                  quick try
+//   "--pipelines Recursive,Semantic --score"             only some variants
+//   "--import latest"                                    store the newest scored run
+//   "--latency-report --from 2026-11-01 --to 2026-12-01" operational latency report (chapter 8)
+// dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
+var evaluationArguments = (builder.Configuration["Evaluation:Arguments"] ?? "--score")
+    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
-    // The whole question set, then score (eval/ragas, needs uv) and import. Add "--limit", "3" for a quick try.
-    .WithArgs("--score")
+    .WithArgs(evaluationArguments)
+    // The latency report reads it in a read-only session (locally the same database user).
+    .WithEnvironment("EVAL_LATENCY_DB", db)
     .WithReference(db)
     .WithReference(qdrant)
     .WaitFor(db)
@@ -257,6 +267,12 @@ var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("
 // The evaluation can run its models (answers, query embeddings and the RAGAS judge) on another machine's Ollama, such
 // as a desktop GPU, while the data stays here. It needs the same models pulled there:
 // dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
+// Recorded in run.json, e.g. "RTX 4060 8 GB, Ollama, Windows":
+// dotnet user-secrets set "Evaluation:Hardware" "RTX 4060 8 GB" --project src/AsistenteAyuntamiento.AppHost
+if (builder.Configuration["Evaluation:Hardware"] is { Length: > 0 } evaluationHardware)
+{
+    evaluation.WithEnvironment("Evaluation__Hardware", evaluationHardware);
+}
 if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evaluationOllama)
 {
     evaluation.WithEnvironment("ConnectionStrings__ollama", $"Endpoint={evaluationOllama}");

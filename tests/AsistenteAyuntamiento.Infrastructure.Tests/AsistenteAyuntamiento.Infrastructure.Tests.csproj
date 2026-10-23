@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AsistenteAyuntamiento.Infrastructure\AsistenteAyuntamiento.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AsistenteAyuntamiento.Evaluation\AsistenteAyuntamiento.Evaluation.csproj" />
     <ProjectReference Include="..\..\src\AsistenteAyuntamiento.Application\AsistenteAyuntamiento.Application.csproj" />
     <ProjectReference Include="..\..\src\AsistenteAyuntamiento.Domain\AsistenteAyuntamiento.Domain.csproj" />
   </ItemGroup>

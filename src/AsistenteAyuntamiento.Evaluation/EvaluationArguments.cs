@@ -6,11 +6,12 @@ namespace AsistenteAyuntamiento.Evaluation;
 /// <summary>Command-line options of the runner.</summary>
 /// <param name="Import">Run id to store in the database instead of running (<c>--import</c>).</param>
 /// <param name="Score">After the run, score it, build the reports and import it (<c>--score</c>).</param>
+/// <param name="LatencyReport">Write the operational latency report instead of running (<c>--latency-report --from D --to D</c>).</param>
 public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output,
-    string? Import = null, bool Score = false)
+    string? Import = null, bool Score = false, bool LatencyReport = false, DateOnly? From = null, DateOnly? To = null)
 {
     /// <summary>Options without a value.</summary>
-    private static readonly HashSet<string> Switches = new(StringComparer.OrdinalIgnoreCase) { "score" };
+    private static readonly HashSet<string> Switches = new(StringComparer.OrdinalIgnoreCase) { "score", "latency-report" };
 
     public static EvaluationArguments Parse(IReadOnlyList<string> args)
     {
@@ -34,7 +35,7 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values[name] = args[++i];
         }
 
-        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import", "score"], StringComparer.OrdinalIgnoreCase).ToList();
+        var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import", "score", "latency-report", "from", "to"], StringComparer.OrdinalIgnoreCase).ToList();
         if (unknown.Count > 0)
         {
             throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
@@ -48,7 +49,10 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.GetValueOrDefault("dataset"),
             values.GetValueOrDefault("output"),
             values.GetValueOrDefault("import"),
-            values.ContainsKey("score"));
+            values.ContainsKey("score"),
+            values.ContainsKey("latency-report"),
+            values.TryGetValue("from", out var from) ? DateOnly.Parse(from, System.Globalization.CultureInfo.InvariantCulture) : null,
+            values.TryGetValue("to", out var to) ? DateOnly.Parse(to, System.Globalization.CultureInfo.InvariantCulture) : null);
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

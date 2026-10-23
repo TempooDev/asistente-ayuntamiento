@@ -17,7 +17,7 @@ Decisions already taken: the final application answers with the variant that sco
 - Every `IRagPipeline` exposes an evaluation run that returns the answer, the retrieved contexts, the context sent to the model and per-stage timings, without streaming or persisting anything.
 - A local evaluation harness: a .NET runner that asks the fixed question set to each variant over the same corpus and writes the raw results, and a Python RAGAS scorer that uses Ollama as judge. It produces per-question and per-variant tables (context precision, context recall, faithfulness, answer relevancy, hallucination rate, document hit rate and MRR), indexing cost and latency percentiles.
 - An operational latency report (chat latency, time to first token, ingestion time per document, error rate) from the data the platform already stores, for chapter 8.
-- The chat answers with a configured production variant (`Rag:ProductionPipeline`), and the Arena and the shadow test pair it with a challenger drawn from the other enabled variants.
+- The chat answers with a configured production variant (`Rag:ProductionPipeline`). Pairing it in the Arena and the shadow test with challengers among the study variants is left to the follow-up change `arena-study-variants`.
 
 ## Capabilities
 
@@ -28,8 +28,7 @@ Decisions already taken: the final application answers with the variant that sco
 - `chunking-embeddings`: asynchronous `IChunkingStrategy`, recursive and semantic strategies, flat-chunk variants sharing `DocumentChunks`.
 - `bulk-reprocessing-pipeline`: `RECURSIVE` and `SEMANTIC` worker modes, their queues, job statuses and enqueue options.
 - `qdrant-vector-store`: one collection per flat variant.
-- `query-api-semantic-kernel`: streaming routed to the configured production variant; shadow test against a challenger.
-- `question-arena`: battles between the production variant and a challenger from any enabled variant.
+- `query-api-semantic-kernel`: streaming routed to the configured production variant.
 
 The change touches several capabilities because the study needs all four variants to be ingestible, answerable and comparable; splitting it would leave intermediate states where the Arena or the job state does not know a variant that the workers already write.
 

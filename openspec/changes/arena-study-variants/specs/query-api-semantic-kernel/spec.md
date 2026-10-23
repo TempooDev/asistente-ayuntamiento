@@ -1,11 +1,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Streaming Routed to the Arena Winner
-Streamed answers SHALL come from the production variant: the pipeline named in `Rag:ProductionPipeline` when it is set to an enabled pipeline, or otherwise the enabled pipeline with more Arena wins across all tenants (`WinningPipelineSelector`, cached for 5 minutes; ties and no votes choose `Baseline`). Enabled pipelines are those listed in `Rag:ArenaPipelines` (default `Baseline,Hierarchical`) plus the production variant. For 40% of streamed answers, a challenger chosen uniformly among the other enabled pipelines SHALL also run in the background (shadow test) and the pair SHALL be stored as a pending `ArenaBattle`. An unknown or not enabled value in `Rag:ProductionPipeline` SHALL be logged as a warning at startup and ignored.
+Streamed answers SHALL come from the production variant: the pipeline named in `Rag:ProductionPipeline` when it is set to an enabled pipeline, or otherwise the enabled pipeline with more Arena wins across all tenants (`WinningPipelineSelector`, cached for 5 minutes; ties and no votes choose `Baseline`). Enabled pipelines are those listed in `Rag:ArenaPipelines` (default `Baseline,Hierarchical`) plus the production variant. For 40% of streamed answers, a challenger chosen uniformly among the other enabled pipelines SHALL also run in the background (shadow test) and the pair SHALL be stored as a pending `ArenaBattle`. An unknown or not enabled value in `Rag:ProductionPipeline` SHALL be logged as a warning at startup and ignored, falling back to the Arena winner.
 
 #### Scenario: Production variant configured
 - **WHEN** `Rag:ProductionPipeline = Semantic`
 - **THEN** streamed answers SHALL come from the semantic flat-chunk pipeline whatever the Arena votes are
+
+#### Scenario: Unknown production variant
+- **WHEN** `Rag:ProductionPipeline` names no pipeline (for example `Nope`)
+- **THEN** streamed answers SHALL come from the Arena winner among the enabled pipelines, and a warning SHALL be logged at startup
 
 #### Scenario: Hierarchical pipeline is winning
 - **WHEN** `Rag:ProductionPipeline` is not set and `Hierarchical` has more Arena wins than any other enabled pipeline
