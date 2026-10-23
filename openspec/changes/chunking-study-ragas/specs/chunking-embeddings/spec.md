@@ -27,15 +27,15 @@ The system SHALL split text through the `IChunkingStrategy` abstraction (`Applic
 ## ADDED Requirements
 
 ### Requirement: Query Embedding Instruction
-When `Ai:Embeddings:QueryInstruction` is not empty, every embedding of a user query used for retrieval (baseline and flat-variant search, hybrid retrieval, Arena) SHALL be generated from `Instruct: {QueryInstruction}\nQuery: {query}`. Texts embedded at ingestion time, including the semantic strategy's sentence windows, SHALL be embedded without the prefix. When the setting is empty or missing, queries SHALL be embedded unchanged. The local AppHost SHALL use `qwen3-embedding:0.6b` with a Spanish instruction for municipal bulletin retrieval.
+When `Ai:Embeddings:UseQueryInstruction` is `true`, every embedding of a user query used for retrieval (baseline and flat-variant search, hybrid retrieval, Arena) SHALL be generated from `Instruct: {instruction}\nQuery: {query}`, where the instruction is `PromptCatalog.EmbeddingQueryInstruction`, kept with the other prompts. Texts embedded at ingestion time, including the semantic strategy's sentence windows, SHALL be embedded without the prefix. When the setting is `false` or missing, queries SHALL be embedded unchanged. The local AppHost SHALL use `qwen3-embedding:0.6b` with the instruction on; the instruction is written in English, as the model's authors advise.
 
 #### Scenario: Instruction configured
-- **WHEN** `QueryInstruction` is set and a user asks "¿Qué plazo tengo para presentarme?"
-- **THEN** the embedded text SHALL be `Instruct: {QueryInstruction}\nQuery: ¿Qué plazo tengo para presentarme?`
+- **WHEN** `UseQueryInstruction` is `true` and a user asks "¿Qué plazo tengo para presentarme?"
+- **THEN** the embedded text SHALL be `Instruct: {instruction}\nQuery: ¿Qué plazo tengo para presentarme?`
 - **AND** the chunks of the corpus SHALL have been embedded without any prefix
 
 #### Scenario: No instruction
-- **WHEN** `QueryInstruction` is empty (for example in production with `text-embedding-004`)
+- **WHEN** `UseQueryInstruction` is off (for example in production with `text-embedding-004`)
 - **THEN** the query SHALL be embedded exactly as written
 
 ### Requirement: Recursive Chunking Strategy

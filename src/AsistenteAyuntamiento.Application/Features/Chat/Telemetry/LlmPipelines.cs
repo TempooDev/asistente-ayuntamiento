@@ -12,6 +12,9 @@ public static class LlmPipelines
     /// <summary>Document ingestion (synthetic questions for the hierarchical fragments).</summary>
     public const string Ingestion = "ingestion";
 
+    /// <summary>Offline answers of the RAGAS evaluation runner, kept apart from real users' calls.</summary>
+    public const string Evaluation = "evaluation";
+
     /// <summary>User profile work (interests extracted from the chat history).</summary>
     public const string Profile = "profile";
 }

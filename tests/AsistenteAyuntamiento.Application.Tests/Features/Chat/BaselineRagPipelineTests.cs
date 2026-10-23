@@ -3,6 +3,7 @@ using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
@@ -19,16 +20,23 @@ public class BaselineRagPipelineTests
 {
     private readonly Mock<IVectorStore> _vectorStore = new();
     private readonly Mock<IChatStreamingService> _streaming = new();
+    private readonly Mock<IUserPreferenceService> _userPreferences = new();
     private ChatHistory? _sentHistory;
     private string? _sentPipeline;
+    private string? _embeddedText;
 
-    private BaselineRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null)
+    private BaselineRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null, string? queryInstruction = null)
     {
         var embeddings = new Mock<IEmbeddingGenerator<string, Embedding<float>>>();
         embeddings.Setup(e => e.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions?>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<string>, EmbeddingGenerationOptions?, CancellationToken>((texts, _, _) => _embeddedText = texts.Single())
             .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[] { 1f, 0f })]));
         var kernelBuilder = Kernel.CreateBuilder();
         kernelBuilder.Services.AddSingleton(embeddings.Object);
+        if (queryInstruction is not null)
+        {
+            kernelBuilder.Services.AddSingleton(new QueryEmbeddingOptions(queryInstruction));
+        }
 
         _vectorStore.Setup(v => v.SearchAsync(VectorCollection.DocumentChunks, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(hits);
@@ -41,11 +49,10 @@ public class BaselineRagPipelineTests
             })
             .Returns(new[] { "ok" }.ToAsyncEnumerable());
 
-        var userPreferences = new Mock<IUserPreferenceService>();
-        userPreferences.Setup(p => p.GetPreferencesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _userPreferences.Setup(p => p.GetPreferencesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(preferences ?? new UserPreferenceDto());
 
-        return new BaselineRagPipeline(kernelBuilder.Build(), _vectorStore.Object, userPreferences.Object, _streaming.Object, NullLogger<BaselineRagPipeline>.Instance);
+        return new BaselineRagPipeline(kernelBuilder.Build(), _vectorStore.Object, _userPreferences.Object, _streaming.Object, NullLogger<BaselineRagPipeline>.Instance);
     }
 
     private static VectorSearchHit Hit(string title) => new(1, 0.9f, new Dictionary<string, object?>
@@ -137,5 +144,63 @@ public class BaselineRagPipelineTests
 
         chunks.Should().Equal("ok");
         _sentHistory!.Single(m => m.Role == AuthorRole.User).Content.Should().Be("¿Ayudas al alquiler?", "no context was injected");
+    }
+
+    [Fact]
+    public async Task Queries_carry_the_configured_instruction()
+    {
+        await CreateSut([], queryInstruction: "Retrieve bulletin passages").StreamAsync(Turn()).ToListAsync();
+
+        _embeddedText.Should().Be("Instruct: Retrieve bulletin passages\nQuery: ¿Ayudas al alquiler?");
+    }
+
+    [Fact]
+    public async Task Without_an_instruction_the_query_is_embedded_as_written()
+    {
+        await CreateSut([]).StreamAsync(Turn()).ToListAsync();
+
+        _embeddedText.Should().Be("¿Ayudas al alquiler?");
+    }
+
+    [Fact]
+    public async Task Evaluation_returns_the_answer_contexts_and_timings_without_sources()
+    {
+        var result = await CreateSut([Hit("Bono alquiler")]).RunForEvaluationAsync(new EvaluationTurn("¿Ayudas al alquiler?"));
+
+        result.Pipeline.Should().Be(Domain.Common.Enums.PipelineType.Baseline);
+        result.ErrorCode.Should().BeNull();
+        result.Answer.Should().Be("ok", "the sources block is built from the retrieval, not generated");
+        result.Contexts.Should().ContainSingle().Which.Should().Be(new RetrievedContext("BOE-A-2026-1", 0.9f, "Texto del boletín"));
+        result.GenerationContext.Should().Contain("Bono alquiler").And.Contain("Texto del boletín");
+        result.Timings.ExpansionMs.Should().Be(0);
+        result.Timings.TimeToFirstTokenMs.Should().NotBeNull();
+        result.Timings.TotalMs.Should().BeGreaterThanOrEqualTo(result.Timings.RetrievalMs + result.Timings.GenerationMs);
+        _sentPipeline.Should().Be(LlmPipelines.Evaluation);
+        _sentHistory![0].Content.Should().StartWith(PromptCatalog.StreamingSystem);
+        _vectorStore.Verify(v => v.SearchAsync(VectorCollection.DocumentChunks, It.Is<VectorSearchRequest>(r => r.Limit == 5 && r.ScoreThreshold == null), It.IsAny<CancellationToken>()));
+        _userPreferences.Verify(p => p.GetPreferencesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Evaluation_returns_model_failures_as_an_error_code()
+    {
+        var sut = CreateSut([Hit("Bono")]);
+        _streaming.Setup(s => s.StreamAsync(It.IsAny<ChatHistory>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Failing(new LlmStreamInterruptedException(LlmErrorCodes.Unavailable, new HttpRequestException("down"))));
+
+        var result = await sut.RunForEvaluationAsync(new EvaluationTurn("¿Ayudas?"));
+
+        result.ErrorCode.Should().Be(LlmErrorCodes.Unavailable);
+        result.Answer.Should().BeEmpty();
+        result.Contexts.Should().ContainSingle();
+    }
+
+    private static async IAsyncEnumerable<string> Failing(Exception exception)
+    {
+        await Task.Yield();
+        throw exception;
+#pragma warning disable CS0162 // An iterator needs a yield.
+        yield break;
+#pragma warning restore CS0162
     }
 }

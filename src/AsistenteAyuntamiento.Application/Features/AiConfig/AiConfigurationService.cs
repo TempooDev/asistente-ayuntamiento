@@ -106,7 +106,7 @@ public class AiConfigurationService(
     {
         Provider = configuration["Ai:Chat:Provider"] ?? "ollama",
         Model = configuration["Ai:Chat:Model"] ?? "llama3.2",
-        Temperature = 0.3,
+        Temperature = configuration.GetValue("Ai:Chat:Temperature", 0.3),
         HasApiKey = !string.IsNullOrEmpty(configuration["Ai:Chat:ApiKey"]),
         EndpointUrl = configuration["Ai:Chat:EndpointUrl"]
     };

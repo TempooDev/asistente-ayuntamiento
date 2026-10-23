@@ -1,0 +1,121 @@
+{
+  "pipelines": [
+    {
+      "pipeline": "Baseline",
+      "collection": "document_chunks",
+      "points": 10,
+      "documents": [
+        {
+          "document_id": "BOE-A-2026-18178",
+          "processing_ms": 1000,
+          "chunks": 1,
+          "embedded_tokens": 300,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOE-A-2026-18206",
+          "processing_ms": 2000,
+          "chunks": 3,
+          "embedded_tokens": 900,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOE-A-2026-18207",
+          "processing_ms": 3000,
+          "chunks": 4,
+          "embedded_tokens": 1200,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOJA-2026-166-2",
+          "processing_ms": 2000,
+          "chunks": 2,
+          "embedded_tokens": 600,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        }
+      ]
+    },
+    {
+      "pipeline": "Hierarchical",
+      "collection": "child_fragments",
+      "points": 30,
+      "documents": [
+        {
+          "document_id": "BOE-A-2026-18178",
+          "processing_ms": 4000,
+          "chunks": 3,
+          "embedded_tokens": 350,
+          "llm_calls": 1,
+          "llm_tokens": 500
+        },
+        {
+          "document_id": "BOE-A-2026-18206",
+          "processing_ms": 6000,
+          "chunks": 8,
+          "embedded_tokens": 950,
+          "llm_calls": 2,
+          "llm_tokens": 1500
+        },
+        {
+          "document_id": "BOE-A-2026-18207",
+          "processing_ms": 8000,
+          "chunks": 12,
+          "embedded_tokens": 1300,
+          "llm_calls": 3,
+          "llm_tokens": 2500
+        },
+        {
+          "document_id": "BOJA-2026-166-2",
+          "processing_ms": 6000,
+          "chunks": 7,
+          "embedded_tokens": 700,
+          "llm_calls": 1,
+          "llm_tokens": 700
+        }
+      ]
+    },
+    {
+      "pipeline": "Semantic",
+      "collection": "document_chunks_semantic",
+      "points": 12,
+      "documents": [
+        {
+          "document_id": "BOE-A-2026-18178",
+          "processing_ms": 1500,
+          "chunks": 1,
+          "embedded_tokens": 600,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOE-A-2026-18206",
+          "processing_ms": 2500,
+          "chunks": 4,
+          "embedded_tokens": 1800,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOE-A-2026-18207",
+          "processing_ms": 3500,
+          "chunks": 5,
+          "embedded_tokens": 2400,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        },
+        {
+          "document_id": "BOJA-2026-166-2",
+          "processing_ms": 2500,
+          "chunks": 2,
+          "embedded_tokens": 1200,
+          "llm_calls": 0,
+          "llm_tokens": 0
+        }
+      ]
+    }
+  ]
+}

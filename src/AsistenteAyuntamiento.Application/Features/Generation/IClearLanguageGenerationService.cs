@@ -12,4 +12,7 @@ public interface IClearLanguageGenerationService
     /// <param name="previousMessages">The conversation before the question, so a follow-up is answered about the same topic.</param>
     IAsyncEnumerable<StreamingChatMessageContent> GenerateStreamingResponseAsync(string userQuery, List<RetrievalResult> retrievedContext, LlmCallScope scope,
         IReadOnlyList<ChatMessageContent>? previousMessages = null, CancellationToken cancellationToken = default);
+
+    /// <summary>The legal text the answer prompt would carry for <paramref name="retrievedContext"/> (for the evaluation).</summary>
+    string BuildPromptContext(List<RetrievalResult> retrievedContext);
 }

@@ -1,0 +1,4 @@
+json/BOE/BOE-A-2026-18178.json
+json/BOE/BOE-A-2026-18206.json
+json/BOE/BOE-A-2026-18207.json
+json/BOJA/BOJA-2026-166-2.json

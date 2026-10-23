@@ -17,7 +17,7 @@ public class TenantIsolationTests
     [Fact]
     public void IgnoreQueryFilters_is_only_used_in_allow_listed_files()
     {
-        var offenders = new[] { "AsistenteAyuntamiento.Application", "AsistenteAyuntamiento.ApiService", "AsistenteAyuntamiento.Infrastructure", "AsistenteAyuntamiento.Worker" }
+        var offenders = new[] { "AsistenteAyuntamiento.Application", "AsistenteAyuntamiento.ApiService", "AsistenteAyuntamiento.Infrastructure", "AsistenteAyuntamiento.Worker", "AsistenteAyuntamiento.Evaluation" }
             .SelectMany(RepositoryFiles.SourceFiles)
             .Where(f => File.ReadAllText(f).Contains(".IgnoreQueryFilters(", StringComparison.Ordinal))
             .Select(RepositoryFiles.Relative)

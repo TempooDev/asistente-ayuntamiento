@@ -90,6 +90,21 @@ public sealed class QdrantVectorStore(
         await client.DeleteAsync(_options.NameOf(collection), BuildDocumentFilter(documentId, parentIds), cancellationToken: cancellationToken);
     }
 
+    public async Task<VectorCollectionStats?> GetStatsAsync(VectorCollection collection, CancellationToken cancellationToken = default)
+    {
+        var name = _options.NameOf(collection);
+        if (!await client.CollectionExistsAsync(name, cancellationToken))
+        {
+            return null;
+        }
+
+        var info = await client.GetCollectionInfoAsync(name, cancellationToken);
+        return new VectorCollectionStats((int)info.Config.Params.VectorsConfig.Params.Size, (long)info.PointsCount);
+    }
+
+    public async Task<long> CountDocumentPointsAsync(VectorCollection collection, string documentId, CancellationToken cancellationToken = default) =>
+        (long)await client.CountAsync(_options.NameOf(collection), MatchKeyword(VectorPayloadKeys.DocumentId, documentId), exact: true, cancellationToken: cancellationToken);
+
     public async Task<IReadOnlyList<VectorSearchHit>> SearchAsync(VectorCollection collection, VectorSearchRequest request, CancellationToken cancellationToken = default)
     {
         Filter? filter = null;

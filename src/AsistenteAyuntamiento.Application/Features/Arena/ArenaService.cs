@@ -35,6 +35,7 @@ public class ArenaService(
     private readonly IVectorStore _vectorStore = vectorStore;
 
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly QueryEmbeddingOptions? _queryEmbedding = QueryEmbeddingOptions.From(kernel);
 
     public async Task<ArenaCompareResponse> CompareAsync(ArenaCompareRequest request, string tenantId, string userId, CancellationToken cancellationToken = default)
     {
@@ -160,8 +161,7 @@ public class ArenaService(
         var sw = Stopwatch.StartNew();
         try
         {
-            var embeddings = await _embeddingService.GenerateAsync(new List<string> { query }, cancellationToken: cancellationToken);
-            var queryVector = embeddings[0].Vector.ToArray();
+            var queryVector = await _embeddingService.EmbedQueryAsync(query, _queryEmbedding, cancellationToken);
 
             var searchResult = await _vectorStore.SearchAsync(
                 VectorCollection.DocumentChunks,

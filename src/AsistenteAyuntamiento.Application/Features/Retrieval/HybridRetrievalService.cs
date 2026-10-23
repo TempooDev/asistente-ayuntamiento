@@ -17,14 +17,14 @@ public class HybridRetrievalService(
     ILogger<HybridRetrievalService> logger) : IHybridRetrievalService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingService = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
+    private readonly QueryEmbeddingOptions? _queryEmbedding = QueryEmbeddingOptions.From(kernel);
 
     public async Task<List<RetrievalResult>> RetrieveAsync(ExpandedQueryInfo queryInfo, int limit = 5, CancellationToken cancellationToken = default)
     {
         try
         {
             // 1. Generate Embeddings
-            var embeddings = await _embeddingService.GenerateAsync(new List<string> { queryInfo.SemanticQuery }, cancellationToken: cancellationToken);
-            var embeddingVector = embeddings[0].Vector.ToArray();
+            var embeddingVector = await _embeddingService.EmbedQueryAsync(queryInfo.SemanticQuery, _queryEmbedding, cancellationToken);
 
             // Fragments store the municipality as a match key: "MÁLAGA", "Malaga" or "Ayuntamiento de Málaga" all filter alike.
             var municipalityKey = MunicipalityExtractor.ToMatchKey(queryInfo.MunicipalityFilter);

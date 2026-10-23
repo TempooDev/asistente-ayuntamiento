@@ -23,7 +23,9 @@ void WithAi(IResourceBuilder<IResourceWithEnvironment> resource)
         resource.WithEnvironment("Ai__Chat__Provider", "ollama")
                 .WithEnvironment("Ai__Chat__Model", "llama3.2")
                 .WithEnvironment("Ai__Embeddings__Provider", "ollama")
-                .WithEnvironment("Ai__Embeddings__Model", "qwen3-embedding:0.6b");
+                .WithEnvironment("Ai__Embeddings__Model", "qwen3-embedding:0.6b")
+                // Qwen3-Embedding ranks better with a task instruction on the query side (PromptCatalog.EmbeddingQueryInstruction).
+                .WithEnvironment("Ai__Embeddings__UseQueryInstruction", "true");
         return;
     }
 
@@ -222,6 +224,21 @@ var workerHierarchical = builder.AddProject<Projects.AsistenteAyuntamiento_Worke
 
 WithAi(workerHierarchical);
 WithBlobStorage(workerHierarchical);
+
+// Offline RAG evaluation (eval/README.md): started by hand from the dashboard once the corpus is ingested. It
+// answers with its own model (Evaluation:ChatModel), pulled into the Ollama volume the first time.
+var evaluationModel = ollama.AddModel("qwen2.5:7b-instruct-q4_K_M");
+var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
+    .WithExplicitStart()
+    .WithReference(db)
+    .WithReference(ollama)
+    .WithReference(qdrant)
+    .WaitFor(db)
+    .WaitFor(qdrant)
+    .WaitFor(evaluationModel)
+    .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
+
+WithAi(evaluation);
 
 builder.Build().Run();
 

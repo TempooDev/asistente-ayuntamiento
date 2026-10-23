@@ -37,4 +37,29 @@ public sealed class HierarchicalRagPipeline(
             }
         }
     }
+
+    public async Task<RagEvaluationResult> RunForEvaluationAsync(EvaluationTurn evaluation, CancellationToken cancellationToken = default)
+    {
+        using var run = new EvaluationRun(Type);
+        var scope = new LlmCallScope(evaluation.TenantId, LlmPipelines.Evaluation);
+        var expandedQuery = await run.ExpandAsync(() => queryExpansionService.ExpandQueryAsync(evaluation.Question, scope, cancellationToken));
+        var retrieved = await run.RetrieveAsync(() => hybridRetrievalService.RetrieveAsync(expandedQuery, RetrievalLimit, cancellationToken));
+
+        // Retrieval is scored on the fused fragments the search ranked; faithfulness on the parents' text the model read.
+        var contexts = retrieved.Select(r => new RetrievedContext(r.ParentDocumentId, r.RrfScore, r.ChunkText)).ToList();
+        return await run.AnswerAsync(AnswerAsync(evaluation.Question, retrieved, scope, cancellationToken), contexts,
+            generationService.BuildPromptContext(retrieved), cancellationToken);
+    }
+
+    private async IAsyncEnumerable<string> AnswerAsync(string question, List<RetrievalResult> retrieved, LlmCallScope scope,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var chunk in generationService.GenerateStreamingResponseAsync(question, retrieved, scope, null, cancellationToken))
+        {
+            if (chunk.Content is not null)
+            {
+                yield return chunk.Content;
+            }
+        }
+    }
 }

@@ -17,6 +17,12 @@ public static class PromptCatalog
         6. NUNCA TE ESCUDES EN TU IDENTIDAD NI TE DISCULPES: Bajo ningún concepto uses frases derrotistas o excusas como "Como asistente municipal, no dispongo de...", "No tengo acceso en tiempo real" o "No puedo ayudarte con eso". Da siempre la mejor respuesta posible o una estimación basada en tu conocimiento general, advirtiendo de forma objetiva sobre su validez (Punto 2). No adoptes una personalidad limitante.
         """;
 
+    /// <summary>
+    /// Task instruction for query embeddings (<c>Instruct: …\nQuery: …</c>) when <c>Ai:Embeddings:UseQueryInstruction</c>
+    /// is on. In English, as the Qwen3-Embedding authors advise for multilingual retrieval.
+    /// </summary>
+    public const string EmbeddingQueryInstruction = "Given a question from a citizen or municipal staff, retrieve passages of Spanish official bulletins (BOE and BOJA) that answer it";
+
     /// <summary>Streaming without retrieved documents (small talk, follow-ups): stays conversational.</summary>
     public const string ConversationalSystem = """
         Eres el asistente virtual del ayuntamiento para consultas sobre boletines oficiales (BOE, BOJA). Responde de forma clara y concisa en español.
