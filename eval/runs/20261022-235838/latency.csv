@@ -1,0 +1,11 @@
+pipeline,stage,n,mean_ms,p50_ms,p95_ms
+Baseline,expansion,1,0.0,0.0,0.0
+Baseline,retrieval,1,153.5806,153.5806,153.5806
+Baseline,ttft,1,17855.0983,17855.0983,17855.0983
+Baseline,generation,1,23304.6047,23304.6047,23304.6047
+Baseline,total,1,23458.9098,23458.9098,23458.9098
+Hierarchical,expansion,1,7211.8412,7211.8412,7211.8412
+Hierarchical,retrieval,1,291.1341,291.1341,291.1341
+Hierarchical,ttft,1,39994.0593,39994.0593,39994.0593
+Hierarchical,generation,1,46796.5273,46796.5273,46796.5273
+Hierarchical,total,1,54300.2187,54300.2187,54300.2187

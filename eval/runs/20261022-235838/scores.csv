@@ -1,0 +1,5 @@
+question_id,pipeline,category,position,warmup,error_code,failed,context_precision,context_recall,faithfulness,answer_relevancy,hit@1,hit@3,hit@5,reciprocal_rank,not_covered,input_tokens,output_tokens
+q01,Baseline,empleo-publico,0,True,,False,0.99999999995,1.0,1.0,0.7332338547549592,1.0,1.0,1.0,1.0,,2240,102
+q01,Hierarchical,empleo-publico,0,True,,False,0.9999999999,1.0,0.5,0.715596093729419,1.0,1.0,1.0,1.0,,3119,230
+q02,Baseline,empleo-publico,1,False,,False,0.8333333332916666,1.0,0.0,0.5827881226438252,1.0,1.0,1.0,1.0,,2151,88
+q02,Hierarchical,empleo-publico,1,False,,False,0.9999999999,1.0,1.0,0.5638964997091918,1.0,1.0,1.0,1.0,,2892,189
