@@ -56,6 +56,18 @@ El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7
 
 \section{Resultados}
 \label{sec:resultados}
+
+\subsection{Primera ejecución y ajuste de los \emph{prompts}}
+\label{sec:ajuste-prompts}
+
+Antes del estudio completo se hizo una primera ejecución con las dos \emph{pipelines} que ya existían, la básica y la jerárquica, sobre las 25 preguntas. Se ejecutó en el portátil, con otros procesos compartiendo el mismo Ollama, así que sus latencias no se comparan con las del estudio. Las métricas de recuperación fueron altas en las dos (hit@1 de 0,91 y 1,00, MRR de 0,93 y 1,00), pero la tasa de alucinación salió del 44\,\% en la básica y del 48\,\% en la jerárquica, y la relevancia de la respuesta fue baja en la básica (0,38).
+
+Al revisar a mano las respuestas con fidelidad inferior a 0,8 se vio que la mayoría daban el dato correcto, pero añadían frases que no estaban en los documentos: fórmulas de cortesía al final («si tienes alguna otra pregunta\ldots{} estoy aquí para ayudarte») o consejos genéricos («es importante que revises las bases completas»). La métrica de fidelidad divide la respuesta en afirmaciones y calcula qué proporción se deduce del contexto, de modo que en una respuesta corta una sola frase de relleno basta para bajar la fidelidad a 0,5 y contarla como alucinación, aunque el contenido sea correcto. Por ejemplo, a la pregunta por el plazo de la plaza de Administrativo de Torrox, la \emph{pipeline} jerárquica respondió correctamente «veinte días hábiles» y citó el boletín provincial, pero obtuvo 0,5 por la recomendación final. La jerárquica lo hacía más a menudo porque su \emph{prompt} de lenguaje claro le pide un tono servicial y orientar al ciudadano, y sus respuestas son más largas.
+
+Esas frases no aportan información al personal municipal y, además, no se pueden comprobar en las fuentes, que es justo lo que el sistema promete. Por eso se modificaron los \emph{prompts} de generación de las dos \emph{pipelines} para que se limiten a lo que dicen los documentos, sin consejos generales ni fórmulas de cortesía (apéndice~\ref{ap:prompts}). El cambio se hizo antes del estudio de las cuatro variantes y se aplica por igual a todas, de modo que no favorece a ninguna. Los resultados que siguen se obtuvieron ya con los \emph{prompts} ajustados.
+
+\subsection{Estudio de las cuatro variantes}
+\label{sec:resultados-variantes}
 % TODO: Tablas y gráficas por estrategia y métrica de la ejecución completa de las cuatro variantes en la RTX 4060 (eval/runs). Pendiente de que termine su puntuación.
 
 \section{Discusión}
