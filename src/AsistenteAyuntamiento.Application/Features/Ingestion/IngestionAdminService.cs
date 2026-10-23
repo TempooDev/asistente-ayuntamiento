@@ -176,7 +176,8 @@ public class IngestionAdminService : IIngestionAdminService
             statuses.Count(s => s == nameof(JobStatus.Processing)),
             statuses.Count(s => s == nameof(JobStatus.Queued)),
             statuses.Count(s => s is nameof(JobStatus.Failed) or nameof(JobStatus.VectorSyncFailed)),
-            statuses.Count(s => s is null or nameof(JobStatus.Pending)));
+            statuses.Count(s => s == nameof(JobStatus.Pending)),
+            statuses.Count(s => s is null));
     }
 
     public async Task ResetDocumentStatusAsync(string documentId, CancellationToken cancellationToken = default)

@@ -61,6 +61,8 @@ export interface PipelineStats {
   processing: number;
   queued: number;
   failed: number;
+  /** Known by the pipeline but not queued (for example after a reset). */
+  pending: number;
   notSent: number;
 }
 

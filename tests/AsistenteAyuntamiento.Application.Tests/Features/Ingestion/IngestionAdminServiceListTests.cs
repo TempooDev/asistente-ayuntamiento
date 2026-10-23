@@ -50,8 +50,8 @@ public class IngestionAdminServiceListTests
         var result = await CreateSut().ListBlobsAsync(1, 20, null, null, null, null, null, null);
 
         result.PipelineStats.Should().Equal(
-            new PipelineBlobStats("Baseline", 4, Completed: 3, Processing: 0, Queued: 0, Failed: 0, NotSent: 1),
-            new PipelineBlobStats("Hierarchical", 4, Completed: 1, Processing: 0, Queued: 1, Failed: 1, NotSent: 1));
+            new PipelineBlobStats("Baseline", 4, Completed: 3, Processing: 0, Queued: 0, Failed: 0, Pending: 0, NotSent: 1),
+            new PipelineBlobStats("Hierarchical", 4, Completed: 1, Processing: 0, Queued: 1, Failed: 1, Pending: 0, NotSent: 1));
         var failed = result.Items.Single(i => i.Name.Contains("BOE-3"));
         (failed.BaselineStatus, failed.HierarchicalStatus).Should().Be(("Completed", "Failed"));
         failed.ErrorMessage.Should().Contain("boom");
