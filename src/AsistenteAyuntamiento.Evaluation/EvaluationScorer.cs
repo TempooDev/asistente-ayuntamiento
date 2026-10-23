@@ -48,4 +48,8 @@ public sealed class EvaluationScorer(ILogger<EvaluationScorer> logger)
         connectionString?.Split(';').Select(p => p.Trim()).FirstOrDefault(p => p.StartsWith("Endpoint=", StringComparison.OrdinalIgnoreCase)) is { } endpoint
             ? endpoint["Endpoint=".Length..]
             : connectionString;
+
+    /// <summary>The machine of an Ollama URL (host without port or path); the URL itself when it is not absolute.</summary>
+    public static string? OllamaHost(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
 }

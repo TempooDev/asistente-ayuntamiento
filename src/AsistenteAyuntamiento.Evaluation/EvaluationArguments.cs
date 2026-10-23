@@ -41,6 +41,21 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             throw new ArgumentException($"Unknown option(s): {string.Join(", ", unknown.Select(u => "--" + u))}.");
         }
 
+        // Options of one mode given to another are rejected rather than silently ignored: a forgotten --latency-report
+        // would otherwise start a full evaluation.
+        if (values.ContainsKey("latency-report"))
+        {
+            var conflicting = values.Keys.Intersect(["pipelines", "limit", "seed", "resume", "dataset", "import", "score"], StringComparer.OrdinalIgnoreCase).ToList();
+            if (conflicting.Count > 0)
+            {
+                throw new ArgumentException($"--latency-report cannot be combined with {string.Join(", ", conflicting.Select(c => "--" + c))}.");
+            }
+        }
+        else if (values.ContainsKey("from") || values.ContainsKey("to"))
+        {
+            throw new ArgumentException("--from and --to only apply to --latency-report.");
+        }
+
         return new EvaluationArguments(
             EvaluationVariants.Parse(values.GetValueOrDefault("pipelines")),
             values.TryGetValue("limit", out var limit) ? int.Parse(limit) : null,

@@ -27,7 +27,7 @@ var runsDirectory = options.Output ?? Path.Combine(repository, "eval", "runs");
 
 if (options.LatencyReport)
 {
-    // Read-only aggregates for chapter 8; the connection comes only from EVAL_LATENCY_DB (a read-only role, see eval/README.md).
+    // Read-only aggregates for chapter 8 (dates in Spanish local time); the connection comes only from EVAL_LATENCY_DB (a read-only role, see eval/README.md).
     var connection = Environment.GetEnvironmentVariable(OperationalLatencyReport.ConnectionVariable);
     if (string.IsNullOrWhiteSpace(connection))
     {
@@ -35,7 +35,7 @@ if (options.LatencyReport)
         return 1;
     }
 
-    var to = options.To ?? (options.From is { } start ? start.AddDays(30) : DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1));
+    var to = options.To ?? (options.From is { } start ? start.AddDays(30) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, OperationalLatencyReport.PeriodTimeZone)).AddDays(1));
     var from = options.From ?? to.AddDays(-30);
     if (from >= to)
     {
@@ -158,8 +158,9 @@ if (options.Resume is not null && File.Exists(runFile))
             runId, info.ChatModel, info.DatasetHash, chatModel, dataset.DatasetHash);
         return 1;
     }
-    // Latencies of one run must come from one machine.
-    if (info.OllamaEndpoint is not null && !string.Equals(info.OllamaEndpoint, answeringEndpoint, StringComparison.OrdinalIgnoreCase))
+    // Latencies of one run must come from one machine: compared by host, since the Aspire Ollama container gets a new
+    // local port on every start.
+    if (info.OllamaEndpoint is not null && !string.Equals(EvaluationScorer.OllamaHost(info.OllamaEndpoint), EvaluationScorer.OllamaHost(answeringEndpoint), StringComparison.OrdinalIgnoreCase))
     {
         logger.LogError("Run {RunId} was answered by {Endpoint}; resume it against the same Ollama, not {CurrentEndpoint}", runId, info.OllamaEndpoint, answeringEndpoint);
         return 1;

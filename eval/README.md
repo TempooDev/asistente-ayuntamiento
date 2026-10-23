@@ -79,7 +79,7 @@ EVAL_LATENCY_DB="Host=...;Username=lector;Password=...;Database=asistente-ayunta
   dotnet run --project src/AsistenteAyuntamiento.Evaluation -- --latency-report --from 2026-11-01 --to 2026-12-01
 ```
 
-Escribe `chat-answers.csv`, `llm-calls.csv`, `arena-sides.csv`, `ingestion.csv` e `ingestion-failures.csv` en `eval/latency/{desde}_{hasta}/` (`--to` excluido; por defecto, los últimos 30 días).
+Escribe `chat-answers.csv`, `llm-calls.csv`, `arena-sides.csv`, `ingestion.csv` e `ingestion-failures.csv` en `eval/latency/{desde}_{hasta}/` (`--to` excluido; por defecto, los últimos 30 días). Las fechas son días en hora de Madrid. Los percentiles solo cuentan llamadas correctas (los fallos aparecen en `failed_share`), y los dos lados del Arena (`arena_alfa`, `arena_beta`) se agrupan como `arena`, igual que en Métricas. `--from`/`--to` sin `--latency-report`, o `--latency-report` junto a opciones de la evaluación, se rechazan. En este modo el recurso `evaluation` de Aspire no espera a Qdrant ni al modelo.
 
 ## Decisiones de la medición
 

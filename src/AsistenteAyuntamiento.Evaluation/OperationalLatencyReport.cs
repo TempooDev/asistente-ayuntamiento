@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
 using AsistenteAyuntamiento.Domain.Common.Enums;
 using Npgsql;
 
@@ -15,11 +16,23 @@ public sealed class OperationalLatencyReport(string connectionString)
     /// <summary>Environment variable with the connection string; a read-only database role is recommended.</summary>
     public const string ConnectionVariable = "EVAL_LATENCY_DB";
 
-    // Percentiles with percentile_cont, as in the evaluation; durations in milliseconds; "to" is exclusive.
+    /// <summary>Time zone of the platform's users: <c>--from</c>/<c>--to</c> are local dates, as the thesis periods are.</summary>
+    public static readonly TimeZoneInfo PeriodTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
+
+    // Same labels as the metrics dashboard (AiMetricsQueryService.PipelineLabel): no pipeline means a baseline chat
+    // answer, and the Arena slots are merged because a slot is a random side, not a RAG pipeline.
+    private const string PipelineLabel = $"""
+        CASE WHEN COALESCE("Pipeline", '') IN ('', '{LlmPipelines.Baseline}') THEN '{LlmPipelines.Baseline}'
+             WHEN "Pipeline" IN ('{LlmPipelines.ArenaAlfa}', '{LlmPipelines.ArenaBeta}') THEN 'arena'
+             ELSE "Pipeline" END
+        """;
+
+    // Percentiles with percentile_cont over successful calls, as in the evaluation and the dashboard (a failure's
+    // duration is the time to the error); durations in milliseconds; "to" is exclusive.
     // Chat answers are what users waited for: background shadow runs and evaluation calls are left out (shadow battles
     // still appear in the Arena sides, where both latencies are real pipeline runs). LLM calls cover every step.
-    internal const string ChatAnswersSql = """
-        SELECT COALESCE(NULLIF("Pipeline", ''), 'baseline') AS pipeline,
+    internal const string ChatAnswersSql = $"""
+        SELECT {PipelineLabel} AS pipeline,
                COUNT(*) AS answers,
                ROUND(AVG(CASE WHEN "Success" THEN 0 ELSE 1 END)::numeric, 4) AS failed_share,
                ROUND(AVG("DurationMs") FILTER (WHERE "Success")::numeric, 1) AS mean_ms,
@@ -29,19 +42,19 @@ public sealed class OperationalLatencyReport(string connectionString)
                ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs") FILTER (WHERE "Success"))::numeric, 1) AS ttft_p50_ms,
                ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "TimeToFirstTokenMs") FILTER (WHERE "Success"))::numeric, 1) AS ttft_p95_ms
         FROM chat."AiCallLogs"
-        WHERE "Operation" = 'answer' AND "CreatedAt" >= @from AND "CreatedAt" < @to
-          AND COALESCE("Pipeline", '') NOT IN ('evaluation', 'shadow')
+        WHERE "Operation" = '{LlmOperations.Answer}' AND "CreatedAt" >= @from AND "CreatedAt" < @to
+          AND COALESCE("Pipeline", '') NOT IN ('{LlmPipelines.Evaluation}', '{LlmPipelines.Shadow}')
         GROUP BY 1 ORDER BY 1
         """;
 
-    internal const string LlmCallsSql = """
-        SELECT COALESCE(NULLIF("Pipeline", ''), 'baseline') AS pipeline, "Operation" AS operation,
+    internal const string LlmCallsSql = $"""
+        SELECT {PipelineLabel} AS pipeline, "Operation" AS operation,
                COUNT(*) AS calls,
                ROUND(AVG(CASE WHEN "Success" THEN 0 ELSE 1 END)::numeric, 4) AS failed_share,
-               ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "DurationMs"))::numeric, 1) AS p50_ms,
-               ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "DurationMs"))::numeric, 1) AS p95_ms
+               ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY "DurationMs") FILTER (WHERE "Success"))::numeric, 1) AS p50_ms,
+               ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY "DurationMs") FILTER (WHERE "Success"))::numeric, 1) AS p95_ms
         FROM chat."AiCallLogs"
-        WHERE "CreatedAt" >= @from AND "CreatedAt" < @to AND COALESCE("Pipeline", '') <> 'evaluation'
+        WHERE "CreatedAt" >= @from AND "CreatedAt" < @to AND COALESCE("Pipeline", '') <> '{LlmPipelines.Evaluation}'
         GROUP BY 1, 2 ORDER BY 1, 2
         """;
 
@@ -106,8 +119,8 @@ public sealed class OperationalLatencyReport(string connectionString)
         foreach (var (file, sql) in Measures)
         {
             await using var command = new NpgsqlCommand(sql, connection);
-            command.Parameters.AddWithValue("from", from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-            command.Parameters.AddWithValue("to", to.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            command.Parameters.AddWithValue("from", StartUtc(from));
+            command.Parameters.AddWithValue("to", StartUtc(to));
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
             var csv = new StringBuilder();
@@ -125,6 +138,10 @@ public sealed class OperationalLatencyReport(string connectionString)
         return written;
     }
 
+    /// <summary>Local midnight of a date in <see cref="PeriodTimeZone"/>, as the UTC instant the timestamps are stored in.</summary>
+    public static DateTime StartUtc(DateOnly date) =>
+        TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), PeriodTimeZone);
+
     /// <summary>Pipelines are stored as numbers in the Arena and ingestion tables: written by name.</summary>
     private static string Cell(NpgsqlDataReader reader, int ordinal)
     {
@@ -139,6 +156,8 @@ public sealed class OperationalLatencyReport(string connectionString)
             return ((PipelineType)Convert.ToInt32(value, CultureInfo.InvariantCulture)).ToString();
         }
 
-        return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+        // Pipeline and operation labels are free text: quoted as RFC 4180 when they could break the row.
+        var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+        return text.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : text;
     }
 }

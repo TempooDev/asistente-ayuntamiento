@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // ── Auth0 secrets ─────────────────────────────────────────────────────────────
@@ -252,17 +254,23 @@ foreach (var (name, mode) in new[]
 //   "--import latest"                                    store the newest scored run
 //   "--latency-report --from 2026-11-01 --to 2026-12-01" operational latency report (chapter 8)
 // dotnet user-secrets set "Evaluation:Arguments" "--limit 3 --score" --project src/AsistenteAyuntamiento.AppHost
-var evaluationArguments = (builder.Configuration["Evaluation:Arguments"] ?? "--score")
-    .Replace(", ", ",", StringComparison.Ordinal)
-    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+// Split on whitespace (spaces after commas are dropped); values with spaces, such as quoted paths, are not supported.
+var evaluationArguments = Regex.Split(Regex.Replace(builder.Configuration["Evaluation:Arguments"] ?? "--score", @",\s+", ","), @"\s+")
+    .Where(a => a.Length > 0)
+    .ToArray();
+// The latency report only reads the database: it must not wait for Qdrant or the evaluation model.
+var latencyReportOnly = evaluationArguments.Contains("--latency-report", StringComparer.OrdinalIgnoreCase);
 var evaluation = builder.AddProject<Projects.AsistenteAyuntamiento_Evaluation>("evaluation")
     .WithExplicitStart()
     .WithArgs(evaluationArguments)
     .WithReference(db)
     .WithReference(qdrant)
     .WaitFor(db)
-    .WaitFor(qdrant)
     .WithEnvironment("Evaluation__ChatModel", "qwen2.5:7b-instruct-q4_K_M");
+if (!latencyReportOnly)
+{
+    evaluation.WaitFor(qdrant);
+}
 // The evaluation can run its models (answers, query embeddings and the RAGAS judge) on another machine's Ollama, such
 // as a desktop GPU, while the data stays here. It needs the same models pulled there:
 // dotnet user-secrets set "Evaluation:OllamaEndpoint" "http://192.168.1.50:11434" --project src/AsistenteAyuntamiento.AppHost
@@ -285,7 +293,7 @@ if (builder.Configuration["Evaluation:OllamaEndpoint"] is { Length: > 0 } evalua
 else
 {
     evaluation.WithReference(ollama);
-    if (evaluationModel is not null)
+    if (evaluationModel is not null && !latencyReportOnly)
     {
         evaluation.WaitFor(evaluationModel);
     }

@@ -101,8 +101,12 @@ public sealed class EvaluationRunnerTests : IDisposable
         EvaluationArguments.Parse(["--latency-report", "--from", "2026-11-01", "--to", "2026-12-01"]).Should().Match<EvaluationArguments>(a =>
             a.LatencyReport && a.From == new DateOnly(2026, 11, 1) && a.To == new DateOnly(2026, 12, 1));
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--latency-report", "--from", "01/11/2026"])).Should().Throw<ArgumentException>().WithMessage("*--from*");
+        FluentActions.Invoking(() => EvaluationArguments.Parse(["--from", "2026-11-01", "--to", "2026-12-01"])).Should().Throw<ArgumentException>().WithMessage("*--latency-report*");
+        FluentActions.Invoking(() => EvaluationArguments.Parse(["--latency-report", "--import", "latest"])).Should().Throw<ArgumentException>().WithMessage("*--import*");
         EvaluationArguments.Parse(["--limit", "3", "--score"]).Should().Match<EvaluationArguments>(a => a.Score && a.Limit == 3);
         EvaluationScorer.OllamaUrl("Endpoint=http://localhost:11434").Should().Be("http://localhost:11434");
+        EvaluationScorer.OllamaHost("http://localhost:54012").Should().Be(EvaluationScorer.OllamaHost("http://localhost:61377/"), "the Aspire container's port changes on every start");
+        EvaluationScorer.OllamaHost("http://100.101.164.43:11434").Should().NotBe(EvaluationScorer.OllamaHost("http://localhost:11434"));
         EvaluationArguments.Parse([]).Pipelines.Should().Equal(PipelineType.Baseline, PipelineType.Hierarchical, PipelineType.Recursive, PipelineType.Semantic);
         EvaluationArguments.Parse(["--pipelines", "recursive,Semantic"]).Pipelines.Should().Equal(PipelineType.Recursive, PipelineType.Semantic);
         FluentActions.Invoking(() => EvaluationArguments.Parse(["--pipelines", "fixed"])).Should().Throw<ArgumentException>();
