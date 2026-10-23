@@ -60,7 +60,7 @@ public class IngestionAdminService : IIngestionAdminService
                     allBlobs = new List<BlobItemDto>();
                     var jobStates = await _dbContext.DocumentJobStates
                         .AsNoTracking()
-                        .Select(j => new { j.DocumentId, j.Status, j.BaselineStatus, j.HierarchicalStatus, j.ErrorMessage })
+                        .Select(j => new { j.DocumentId, j.Status, j.BaselineStatus, j.HierarchicalStatus, j.RecursiveStatus, j.SemanticStatus, j.ErrorMessage })
                         .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
 
                     try
@@ -75,6 +75,8 @@ public class IngestionAdminService : IIngestionAdminService
                             {
                                 BaselineStatus = state?.BaselineStatus?.ToString(),
                                 HierarchicalStatus = state?.HierarchicalStatus?.ToString(),
+                                RecursiveStatus = state?.RecursiveStatus?.ToString(),
+                                SemanticStatus = state?.SemanticStatus?.ToString(),
                                 ErrorMessage = state?.ErrorMessage,
                             });
                         }
@@ -109,6 +111,8 @@ public class IngestionAdminService : IIngestionAdminService
             {
                 "BASELINE" => b => b.BaselineStatus ?? nameof(JobStatus.Pending),
                 "HIERARCHICAL" => b => b.HierarchicalStatus ?? nameof(JobStatus.Pending),
+                "RECURSIVE" => b => b.RecursiveStatus ?? nameof(JobStatus.Pending),
+                "SEMANTIC" => b => b.SemanticStatus ?? nameof(JobStatus.Pending),
                 _ => b => b.Status,
             };
             if (status == "Procesados") filteredBlobs = filteredBlobs.Where(b => statusOf(b) == nameof(JobStatus.Completed));
@@ -162,6 +166,8 @@ public class IngestionAdminService : IIngestionAdminService
             [
                 PipelineStats(nameof(PipelineType.Baseline), allBlobs, b => b.BaselineStatus),
                 PipelineStats(nameof(PipelineType.Hierarchical), allBlobs, b => b.HierarchicalStatus),
+                PipelineStats(nameof(PipelineType.Recursive), allBlobs, b => b.RecursiveStatus),
+                PipelineStats(nameof(PipelineType.Semantic), allBlobs, b => b.SemanticStatus),
             ]
         };
     }
@@ -195,7 +201,7 @@ public class IngestionAdminService : IIngestionAdminService
 
     /// <summary>
     /// Documents left in Processing (a worker died): each stuck pipeline becomes Completed if its data exists
-    /// (baseline chunks, hierarchical parent document) and Pending otherwise. Counts are by resulting summary.
+    /// (the flat variant's chunks, the hierarchical parent document) and Pending otherwise. Counts are by resulting summary.
     /// </summary>
     public async Task<(int CompletedCount, int PendingCount)> ResetStuckProcessingDocumentsAsync(CancellationToken cancellationToken = default)
     {
@@ -208,23 +214,32 @@ public class IngestionAdminService : IIngestionAdminService
         }
 
         var ids = stuck.Select(j => j.DocumentId).ToList();
-        var withChunks = (await _dbContext.DocumentChunks.Where(c => ids.Contains(c.DocumentId)).Select(c => c.DocumentId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
+        var withChunks = (await _dbContext.DocumentChunks
+                .Where(c => ids.Contains(c.DocumentId))
+                .Select(c => new { c.DocumentId, c.ChunkingStrategy })
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Select(c => (c.DocumentId, c.ChunkingStrategy))
+            .ToHashSet();
         var withParents = (await _dbContext.ParentDocuments.Where(p => ids.Contains(p.DocumentId)).Select(p => p.DocumentId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
+
+        bool HasData(PipelineType pipeline, string documentId) => FlatChunkVariant.For(pipeline) is { } variant
+            ? withChunks.Contains((documentId, variant.ChunkingStrategy))
+            : withParents.Contains(documentId);
 
         foreach (var state in stuck)
         {
-            if (state.BaselineStatus == JobStatus.Processing)
+            foreach (var pipeline in Enum.GetValues<PipelineType>())
             {
-                state.SetPipelineStatus(PipelineType.Baseline, withChunks.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
-            }
-            if (state.HierarchicalStatus == JobStatus.Processing)
-            {
-                state.SetPipelineStatus(PipelineType.Hierarchical, withParents.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+                if (state.GetPipelineStatus(pipeline) == JobStatus.Processing)
+                {
+                    state.SetPipelineStatus(pipeline, HasData(pipeline, state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+                }
             }
             if (state.Status == JobStatus.Processing)
             {
                 // Rows from before per-pipeline statuses: decide on the baseline data, as before.
-                state.SetPipelineStatus(PipelineType.Baseline, withChunks.Contains(state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
+                state.SetPipelineStatus(PipelineType.Baseline, HasData(PipelineType.Baseline, state.DocumentId) ? JobStatus.Completed : JobStatus.Pending);
             }
         }
 
@@ -232,17 +247,9 @@ public class IngestionAdminService : IIngestionAdminService
         return (stuck.Count(s => s.Status == JobStatus.Completed), stuck.Count(s => s.Status != JobStatus.Completed));
     }
 
-    private static List<PipelineType> RequestedPipelines(IngestionPipelines pipelines)
-    {
-        var requested = new List<PipelineType>();
-        if (pipelines.HasFlag(IngestionPipelines.Baseline)) requested.Add(PipelineType.Baseline);
-        if (pipelines.HasFlag(IngestionPipelines.Hierarchical)) requested.Add(PipelineType.Hierarchical);
-        return requested;
-    }
-
     /// <summary>
-    /// Removes the baseline pipeline data (chunks, baseline job statuses) and its vector collection, which is
-    /// recreated on the next ingestion. Hierarchical data and statuses are kept. Previously this truncated <c>identity."DocumentChunks"</c>,
+    /// Removes the baseline pipeline data (fixed-strategy chunks, baseline job statuses) and its vector collection,
+    /// which is recreated on the next ingestion. The other pipelines' data and statuses are kept. Previously this truncated <c>identity."DocumentChunks"</c>,
     /// a table that does not exist (the chunks live in the <c>ingestion</c> schema), so it always failed.
     /// </summary>
     public async Task ResetIngestionAsync(CancellationToken cancellationToken = default)
@@ -305,7 +312,7 @@ public class IngestionAdminService : IIngestionAdminService
         }
 
         var docIds = documents.Select(d => d.DocumentId).Distinct().ToList();
-        var requested = RequestedPipelines(pipelines);
+        var requested = pipelines.ToPipelineTypes();
         var jobStates = await _dbContext.DocumentJobStates
             .Where(j => docIds.Contains(j.DocumentId))
             .ToDictionaryAsync(j => j.DocumentId, cancellationToken);
@@ -319,7 +326,7 @@ public class IngestionAdminService : IIngestionAdminService
                 jobStates[docId] = jobState;
             }
 
-            // Only the requested pipelines are queued; the other one keeps its own status.
+            // Only the requested pipelines are queued; the others keep their own status.
             foreach (var pipeline in requested)
             {
                 jobState.SetPipelineStatus(pipeline, JobStatus.Queued);

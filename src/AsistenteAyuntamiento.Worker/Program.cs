@@ -42,18 +42,21 @@ builder.Services.AddDataProtection();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.AddInfrastructureServices();
 
-var pipelineModeStr = builder.Configuration["WORKER_PIPELINE_MODE"] ?? "BASELINE";
-var pipelineMode = Enum.TryParse<PipelineType>(pipelineModeStr, true, out var p) ? p : PipelineType.Baseline;
-
-if (pipelineMode == PipelineType.Hierarchical)
+// One consumer per Worker: BASELINE (default, also for unknown values), HIERARCHICAL, RECURSIVE or SEMANTIC.
+switch (WorkerPipelineMode.Parse(builder.Configuration["WORKER_PIPELINE_MODE"]))
 {
-    // New Hierarchical Pipeline (Phase 2)
-    builder.AddIngestionConsumer<HierarchicalIngestionConsumer>();
-}
-else
-{
-    // Default Baseline Pipeline
-    builder.AddIngestionConsumer<BaselineIngestionConsumer>();
+    case PipelineType.Hierarchical:
+        builder.AddIngestionConsumer<HierarchicalIngestionConsumer>();
+        break;
+    case PipelineType.Recursive:
+        builder.AddIngestionConsumer<RecursiveIngestionConsumer>();
+        break;
+    case PipelineType.Semantic:
+        builder.AddIngestionConsumer<SemanticIngestionConsumer>();
+        break;
+    default:
+        builder.AddIngestionConsumer<BaselineIngestionConsumer>();
+        break;
 }
 
 builder.Services.AddSingleton<AsistenteAyuntamiento.Application.Common.Interfaces.INotificationService, AsistenteAyuntamiento.Infrastructure.Features.Notifications.RabbitMqNotificationPublisher>();

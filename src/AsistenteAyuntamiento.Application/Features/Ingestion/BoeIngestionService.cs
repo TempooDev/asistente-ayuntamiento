@@ -84,7 +84,7 @@ public class BoeIngestionService : BaseHierarchicalIngestionProcessor
             if (string.IsNullOrWhiteSpace(originalText)) continue;
 
             // Long articles are split with the configured strategy (Ai:Embeddings:ChunkMaxTokens / ChunkOverlapTokens).
-            var paragraphs = _chunking.ChunkText(originalText).Select(c => c.Text).ToList();
+            var paragraphs = (await _chunking.ChunkTextAsync(originalText, cancellationToken)).Select(c => c.Text).ToList();
 
             for (int i = 0; i < paragraphs.Count; i++)
             {

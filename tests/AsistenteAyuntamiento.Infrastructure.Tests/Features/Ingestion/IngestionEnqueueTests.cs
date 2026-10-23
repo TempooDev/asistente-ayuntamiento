@@ -136,6 +136,43 @@ public class IngestionEnqueueTests
         sources.Should().Equal("BOE", "BOJA", "BOE");
     }
 
+    [Fact]
+    public async Task Enqueuing_for_all_variants_queues_the_four_statuses()
+    {
+        var publisher = new FakePublisher(_ => Task.CompletedTask);
+
+        await using var db = NewContext();
+        await CreateSut(db, publisher).EnqueueBulkAsync([Blob("BOE-A-1")], "ALL");
+
+        publisher.Pipelines.Should().Equal(IngestionPipelines.All);
+        await using var check = NewContext();
+        var state = await check.DocumentJobStates.AsNoTracking().SingleAsync();
+        new[] { state.BaselineStatus, state.HierarchicalStatus, state.RecursiveStatus, state.SemanticStatus }
+            .Should().AllBeEquivalentTo(JobStatus.Queued);
+    }
+
+    [Fact]
+    public async Task Enqueuing_one_study_variant_leaves_the_other_statuses_alone()
+    {
+        await using (var seed = NewContext())
+        {
+            var existing = new DocumentJobState { DocumentId = "BOE-A-1" };
+            existing.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
+            seed.DocumentJobStates.Add(existing);
+            await seed.SaveChangesAsync();
+        }
+        var publisher = new FakePublisher(_ => Task.CompletedTask);
+
+        await using var db = NewContext();
+        await CreateSut(db, publisher).EnqueueBulkAsync([Blob("BOE-A-1")], "SEMANTIC");
+
+        publisher.Pipelines.Should().Equal(IngestionPipelines.Semantic);
+        await using var check = NewContext();
+        var state = await check.DocumentJobStates.AsNoTracking().SingleAsync();
+        (state.BaselineStatus, state.HierarchicalStatus, state.RecursiveStatus, state.SemanticStatus, state.Status).Should().Be(
+            ((JobStatus?)JobStatus.Completed, (JobStatus?)null, (JobStatus?)null, (JobStatus?)JobStatus.Queued, JobStatus.Queued));
+    }
+
     private sealed class FakePublisher(Func<DocumentMessage, Task> onPublish) : IIngestionQueuePublisher
     {
         public List<IngestionPipelines> Pipelines { get; } = [];

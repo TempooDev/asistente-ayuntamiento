@@ -11,6 +11,8 @@ public class BlobItemDto
     /// <summary>Status of each pipeline; null when that pipeline never received the document.</summary>
     public string? BaselineStatus { get; set; }
     public string? HierarchicalStatus { get; set; }
+    public string? RecursiveStatus { get; set; }
+    public string? SemanticStatus { get; set; }
 
     /// <summary>Last error, prefixed with the pipeline that reported it.</summary>
     public string? ErrorMessage { get; set; }

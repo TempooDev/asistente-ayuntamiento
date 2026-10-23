@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace AsistenteAyuntamiento.Application.Features.Ingestion;
 
 /// <summary>
-/// Updates one pipeline's status of a document. The baseline and hierarchical workers may update the same row at
-/// the same time: a concurrent change (row version) or a concurrent insert is retried on fresh data, so neither
-/// worker's status is lost and the summary is computed from both.
+/// Updates one pipeline's status of a document. The workers of the different pipelines may update the same row at
+/// the same time: a concurrent change (row version) or a concurrent insert is retried on fresh data, so no
+/// worker's status is lost and the summary is computed from all of them.
 /// </summary>
 public static class DocumentJobStateUpdates
 {
@@ -48,8 +48,7 @@ public static class DocumentJobStateUpdates
             changed = false;
             foreach (var pipeline in pipelines)
             {
-                var current = pipeline == PipelineType.Hierarchical ? state.HierarchicalStatus : state.BaselineStatus;
-                if (current is null)
+                if (state.GetPipelineStatus(pipeline) is null)
                 {
                     state.SetPipelineStatus(pipeline, JobStatus.Queued);
                     changed = true;

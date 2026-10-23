@@ -1,3 +1,4 @@
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using RabbitMQ.Client;
 
 namespace AsistenteAyuntamiento.Infrastructure.Messaging;
@@ -16,6 +17,10 @@ public static class RabbitMqTopology
 {
     public const string BaselineQueue = "documents_to_process_baseline";
     public const string HierarchicalQueue = "documents_to_process_hierarchical";
+
+    /// <summary>Chunking study variants; only the administrator enqueues to them (the scraper does not).</summary>
+    public const string RecursiveQueue = "documents_to_process_recursive";
+    public const string SemanticQueue = "documents_to_process_semantic";
     public const string DocumentNotificationsExchange = "document_notifications_exchange";
 
     /// <summary>Header carrying how many times a message has been retried.</summary>
@@ -25,6 +30,16 @@ public static class RabbitMqTopology
     public const int RetryDelayMs = 30_000;
 
     public const int DefaultMaxRetries = 3;
+
+    /// <summary>Work queue of each ingestion pipeline.</summary>
+    public static string QueueOf(PipelineType pipeline) => pipeline switch
+    {
+        PipelineType.Baseline => BaselineQueue,
+        PipelineType.Hierarchical => HierarchicalQueue,
+        PipelineType.Recursive => RecursiveQueue,
+        PipelineType.Semantic => SemanticQueue,
+        _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
+    };
 
     public static string RetryQueue(string queue) => $"{queue}.retry";
 

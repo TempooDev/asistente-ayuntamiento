@@ -490,6 +490,13 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
                     b.Property<int>("ChunkIndex")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ChunkingStrategy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("FixedOverlap");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
@@ -515,6 +522,8 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DocumentId", "ChunkingStrategy");
+
                     b.ToTable("DocumentChunks", "ingestion");
                 });
 
@@ -537,6 +546,12 @@ namespace AsistenteAyuntamiento.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecursiveStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SemanticStatus")
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()

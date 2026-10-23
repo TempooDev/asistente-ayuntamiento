@@ -70,7 +70,7 @@ public class HealthEndpointTests(HealthEndpointTests.WorkerFactory factory) : IC
             {
                 var consumers = services
                     .Where(d => d.ServiceType == typeof(IHostedService)
-                             && (d.ImplementationType == typeof(BaselineIngestionConsumer) || d.ImplementationType == typeof(HierarchicalIngestionConsumer)))
+                             && (typeof(FlatChunkIngestionConsumer).IsAssignableFrom(d.ImplementationType) || d.ImplementationType == typeof(HierarchicalIngestionConsumer)))
                     .ToList();
                 foreach (var descriptor in consumers)
                 {

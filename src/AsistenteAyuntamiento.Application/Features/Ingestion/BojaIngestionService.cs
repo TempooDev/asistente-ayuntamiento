@@ -73,7 +73,7 @@ public class BojaIngestionService : BaseHierarchicalIngestionProcessor
 
         // BOJA pages carry no article structure: the whole text is split with the configured strategy, which cuts
         // on line and paragraph boundaries with overlap instead of every 1000 characters mid-word.
-        return _chunking.ChunkText(rawText)
+        return (await _chunking.ChunkTextAsync(rawText, cancellationToken))
             .Select(chunk => new RawFragment
             {
                 Section = $"Sección {chunk.ChunkIndex + 1}",

@@ -27,8 +27,8 @@ public class IngestionAdminServiceListTests
         var db = new Mock<IAppDbContext>();
         db.Setup(d => d.DocumentJobStates).Returns(new List<DocumentJobState>
         {
-            State("BOE-1", JobStatus.Completed, JobStatus.Completed),
-            State("BOE-2", JobStatus.Completed, JobStatus.Queued),
+            State("BOE-1", JobStatus.Completed, JobStatus.Completed, recursive: JobStatus.Completed, semantic: JobStatus.Completed),
+            State("BOE-2", JobStatus.Completed, JobStatus.Queued, recursive: JobStatus.Completed, semantic: JobStatus.Processing),
             State("BOE-3", JobStatus.Completed, JobStatus.Failed, "Hierarchical: boom"),
         }.BuildMockDbSet().Object);
 
@@ -36,11 +36,14 @@ public class IngestionAdminServiceListTests
             Mock.Of<IVectorStore>(), Mock.Of<IIngestionMaintenance>(), Mock.Of<INotificationService>(), NullLogger<IngestionAdminService>.Instance);
     }
 
-    private static DocumentJobState State(string id, JobStatus baseline, JobStatus hierarchical, string? error = null)
+    private static DocumentJobState State(string id, JobStatus baseline, JobStatus hierarchical, string? error = null,
+        JobStatus? recursive = null, JobStatus? semantic = null)
     {
         var state = new DocumentJobState { DocumentId = id };
         state.SetPipelineStatus(PipelineType.Baseline, baseline);
         state.SetPipelineStatus(PipelineType.Hierarchical, hierarchical, error);
+        if (recursive is { } r) state.SetPipelineStatus(PipelineType.Recursive, r);
+        if (semantic is { } s) state.SetPipelineStatus(PipelineType.Semantic, s);
         return state;
     }
 
@@ -51,7 +54,11 @@ public class IngestionAdminServiceListTests
 
         result.PipelineStats.Should().Equal(
             new PipelineBlobStats("Baseline", 4, Completed: 3, Processing: 0, Queued: 0, Failed: 0, NotSent: 1),
-            new PipelineBlobStats("Hierarchical", 4, Completed: 1, Processing: 0, Queued: 1, Failed: 1, NotSent: 1));
+            new PipelineBlobStats("Hierarchical", 4, Completed: 1, Processing: 0, Queued: 1, Failed: 1, NotSent: 1),
+            new PipelineBlobStats("Recursive", 4, Completed: 2, Processing: 0, Queued: 0, Failed: 0, NotSent: 2),
+            new PipelineBlobStats("Semantic", 4, Completed: 1, Processing: 1, Queued: 0, Failed: 0, NotSent: 2));
+        var second = result.Items.Single(i => i.Name.Contains("BOE-2"));
+        (second.RecursiveStatus, second.SemanticStatus).Should().Be(("Completed", "Processing"));
         var failed = result.Items.Single(i => i.Name.Contains("BOE-3"));
         (failed.BaselineStatus, failed.HierarchicalStatus).Should().Be(("Completed", "Failed"));
         failed.ErrorMessage.Should().Contain("boom");
@@ -70,5 +77,9 @@ public class IngestionAdminServiceListTests
         baselineDone.Total.Should().Be(3);
         hierarchicalDone.Total.Should().Be(1);
         hierarchicalPending.Items.Select(i => i.Name).Should().BeEquivalentTo("json/BOE/BOE-3.json", "json/BOE/BOE-4.json");
+
+        (await sut.ListBlobsAsync(1, 20, "Procesados", null, null, null, null, null, pipeline: "RECURSIVE")).Total.Should().Be(2);
+        (await sut.ListBlobsAsync(1, 20, "Encolados", null, null, null, null, null, pipeline: "semantic")).Items
+            .Select(i => i.Name).Should().Equal("json/BOE/BOE-2.json");
     }
 }

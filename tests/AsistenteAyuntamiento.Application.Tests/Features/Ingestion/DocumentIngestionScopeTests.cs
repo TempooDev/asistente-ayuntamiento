@@ -20,7 +20,8 @@ public class DocumentIngestionScopeTests
         var blobs = new Mock<IBlobStorage>(MockBehavior.Strict);
         var db = new Mock<IAppDbContext>(MockBehavior.Strict);
         var sut = new DocumentIngestionService(blobs.Object, db.Object, Kernel.CreateBuilder().Build(), Mock.Of<IVectorStore>(),
-            NullLogger<DocumentIngestionService>.Instance, new FixedOverlapChunkingStrategy(), Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>());
+            NullLogger<DocumentIngestionService>.Instance, new FixedOverlapChunkingStrategy(), Mock.Of<INotificationService>(), Mock.Of<IIngestionMetricsService>(),
+            FlatChunkVariant.Baseline);
 
         await sut.ProcessBlobAsync($"json/{source}/{source}-1.json", source);
 

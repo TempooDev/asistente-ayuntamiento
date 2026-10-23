@@ -3,8 +3,10 @@ using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Chat;
 using AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 using AsistenteAyuntamiento.Application.Features.Chat.Telemetry;
+using AsistenteAyuntamiento.Application.Features.Ingestion;
 using AsistenteAyuntamiento.Application.Features.Retrieval;
 using AsistenteAyuntamiento.Application.Features.Users;
+using AsistenteAyuntamiento.Domain.Common.Enums;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,8 +17,11 @@ using Moq;
 
 namespace AsistenteAyuntamiento.Application.Tests.Features.Chat;
 
-/// <summary>How the baseline pipeline injects retrieved context and user preferences into the prompt.</summary>
-public class BaselineRagPipelineTests
+/// <summary>
+/// How the flat-chunk pipelines inject retrieved context and user preferences into the prompt (baseline unless a test
+/// picks another variant: they differ only in the collection they search and the telemetry label).
+/// </summary>
+public class FlatChunkRagPipelineTests
 {
     private readonly Mock<IVectorStore> _vectorStore = new();
     private readonly Mock<IChatStreamingService> _streaming = new();
@@ -25,7 +30,8 @@ public class BaselineRagPipelineTests
     private string? _sentPipeline;
     private string? _embeddedText;
 
-    private BaselineRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null, string? queryInstruction = null)
+    private FlatChunkRagPipeline CreateSut(IReadOnlyList<VectorSearchHit> hits, UserPreferenceDto? preferences = null, string? queryInstruction = null,
+        FlatChunkVariant? variant = null)
     {
         var embeddings = new Mock<IEmbeddingGenerator<string, Embedding<float>>>();
         embeddings.Setup(e => e.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions?>(), It.IsAny<CancellationToken>()))
@@ -38,7 +44,8 @@ public class BaselineRagPipelineTests
             kernelBuilder.Services.AddSingleton(new QueryEmbeddingOptions(queryInstruction));
         }
 
-        _vectorStore.Setup(v => v.SearchAsync(VectorCollection.DocumentChunks, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
+        variant ??= FlatChunkVariant.Baseline;
+        _vectorStore.Setup(v => v.SearchAsync(variant.Collection, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(hits);
 
         _streaming.Setup(s => s.StreamAsync(It.IsAny<ChatHistory>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -52,7 +59,7 @@ public class BaselineRagPipelineTests
         _userPreferences.Setup(p => p.GetPreferencesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(preferences ?? new UserPreferenceDto());
 
-        return new BaselineRagPipeline(kernelBuilder.Build(), _vectorStore.Object, _userPreferences.Object, _streaming.Object, NullLogger<BaselineRagPipeline>.Instance);
+        return new FlatChunkRagPipeline(variant, kernelBuilder.Build(), _vectorStore.Object, _userPreferences.Object, _streaming.Object, NullLogger<FlatChunkRagPipeline>.Instance);
     }
 
     private static VectorSearchHit Hit(string title) => new(1, 0.9f, new Dictionary<string, object?>
@@ -167,7 +174,7 @@ public class BaselineRagPipelineTests
     {
         var result = await CreateSut([Hit("Bono alquiler")]).RunForEvaluationAsync(new EvaluationTurn("¿Ayudas al alquiler?"));
 
-        result.Pipeline.Should().Be(Domain.Common.Enums.PipelineType.Baseline);
+        result.Pipeline.Should().Be(PipelineType.Baseline);
         result.ErrorCode.Should().BeNull();
         result.Answer.Should().Be("ok", "the sources block is built from the retrieval, not generated");
         result.Contexts.Should().ContainSingle().Which.Should().Be(new RetrievedContext("BOE-A-2026-1", 0.9f, "Texto del boletín"));
@@ -194,6 +201,38 @@ public class BaselineRagPipelineTests
         result.Answer.Should().BeEmpty();
         result.Contexts.Should().ContainSingle();
     }
+
+    [Theory]
+    [MemberData(nameof(StudyVariants))]
+    public async Task A_study_variant_searches_only_its_collection_with_the_baseline_settings(PipelineType pipeline, VectorCollection collection, string label)
+    {
+        var sut = CreateSut([Hit("Bono alquiler")], variant: FlatChunkVariant.For(pipeline));
+
+        await sut.StreamAsync(Turn()).ToListAsync();
+
+        sut.Type.Should().Be(pipeline);
+        _sentPipeline.Should().Be(label);
+        _sentHistory![0].Content.Should().StartWith(PromptCatalog.StreamingSystem, "same prompts as the baseline");
+        _vectorStore.Verify(v => v.SearchAsync(collection, It.Is<VectorSearchRequest>(r => r.Limit == 3 && r.ScoreThreshold == 0.65f), It.IsAny<CancellationToken>()));
+        _vectorStore.Verify(v => v.SearchAsync(VectorCollection.DocumentChunks, It.IsAny<VectorSearchRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_study_variant_reports_its_own_pipeline_in_the_evaluation()
+    {
+        var result = await CreateSut([Hit("Bono")], variant: FlatChunkVariant.Semantic).RunForEvaluationAsync(new EvaluationTurn("¿Ayudas?"));
+
+        result.Pipeline.Should().Be(PipelineType.Semantic);
+        result.Contexts.Should().ContainSingle();
+        _sentPipeline.Should().Be(LlmPipelines.Evaluation);
+        _vectorStore.Verify(v => v.SearchAsync(VectorCollection.SemanticChunks, It.Is<VectorSearchRequest>(r => r.Limit == 5 && r.ScoreThreshold == null), It.IsAny<CancellationToken>()));
+    }
+
+    public static TheoryData<PipelineType, VectorCollection, string> StudyVariants => new()
+    {
+        { PipelineType.Recursive, VectorCollection.RecursiveChunks, LlmPipelines.Recursive },
+        { PipelineType.Semantic, VectorCollection.SemanticChunks, LlmPipelines.Semantic },
+    };
 
     private static async IAsyncEnumerable<string> Failing(Exception exception)
     {

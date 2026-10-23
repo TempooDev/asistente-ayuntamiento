@@ -26,6 +26,8 @@ public class AdminAuthorizationTests(ApiFactory factory) : IClassFixture<ApiFact
         { "POST", "/api/ingestion/reset-stuck-processing" },
         { "POST", "/api/ingestion/enqueue-bulk" },
         { "POST", "/api/ingestion/reprocess-all" },
+        { "POST", "/api/ingestion/enqueue-bulk?pipelineMode=ALL" },
+        { "POST", "/api/ingestion/reprocess-all?pipelineMode=RECURSIVE,SEMANTIC" },
         { "GET", "/api/scraper/filters" },
         { "POST", "/api/scraper/filters" },
         { "DELETE", "/api/scraper/filters/1" },
