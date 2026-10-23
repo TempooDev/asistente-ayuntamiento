@@ -9,6 +9,9 @@ namespace AsistenteAyuntamiento.Evaluation;
 public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, int? Limit, int? Seed, string? Resume, string? Dataset, string? Output,
     string? Import = null, bool Score = false)
 {
+    /// <summary>Options without a value.</summary>
+    private static readonly HashSet<string> Switches = new(StringComparer.OrdinalIgnoreCase) { "score" };
+
     public static EvaluationArguments Parse(IReadOnlyList<string> args)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -18,8 +21,17 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             {
                 throw new ArgumentException($"Expected '--name value' pairs, got '{args[i]}'.");
             }
-            // A switch (--score) has no value.
-            values[args[i][2..]] = i + 1 < args.Count && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : "true";
+            var name = args[i][2..];
+            if (Switches.Contains(name))
+            {
+                values[name] = "true";
+                continue;
+            }
+            if (i + 1 >= args.Count || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"--{name} needs a value.");
+            }
+            values[name] = args[++i];
         }
 
         var unknown = values.Keys.Except(["pipelines", "limit", "seed", "resume", "dataset", "output", "import", "score"], StringComparer.OrdinalIgnoreCase).ToList();
@@ -36,7 +48,7 @@ public sealed record EvaluationArguments(IReadOnlyList<PipelineType> Pipelines, 
             values.GetValueOrDefault("dataset"),
             values.GetValueOrDefault("output"),
             values.GetValueOrDefault("import"),
-            values.TryGetValue("score", out var score) && bool.Parse(score));
+            values.ContainsKey("score"));
     }
 
     /// <summary>The folder with <c>AsistenteAyuntamiento.slnx</c>, from the working directory or the binaries upwards.</summary>

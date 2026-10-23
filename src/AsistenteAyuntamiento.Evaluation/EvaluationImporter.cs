@@ -90,14 +90,20 @@ public sealed class EvaluationImporter(IAppDbContext dbContext)
             })],
         };
 
-        var existing = await dbContext.EvaluationRuns.Include(r => r.Results).FirstOrDefaultAsync(r => r.RunId == run.RunId, cancellationToken);
-        if (existing is not null)
+        // One transaction: a failed insert must not leave the run deleted. The strategy may retry, so each attempt
+        // starts from a clean change tracker.
+        await dbContext.ExecuteInTransactionAsync(async ct =>
         {
-            dbContext.EvaluationRuns.Remove(existing);
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        dbContext.EvaluationRuns.Add(run);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
+            var existing = await dbContext.EvaluationRuns.Include(r => r.Results).FirstOrDefaultAsync(r => r.RunId == run.RunId, ct);
+            if (existing is not null)
+            {
+                dbContext.EvaluationRuns.Remove(existing);
+                await dbContext.SaveChangesAsync(ct);
+            }
+            dbContext.EvaluationRuns.Add(run);
+            await dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
         return run;
     }
 

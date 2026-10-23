@@ -196,7 +196,7 @@ public sealed class AiMetricsQueryService(IAppDbContext dbContext, ILlmUsageMetr
             .Select(pipeline =>
             {
                 var rows = latest.Where(m => m.Pipeline == pipeline).ToList();
-                var durations = rows.Select(m => (double)m.ProcessingDurationMs).ToList();
+                var durations = rows.Select(m => (double)m.ProcessingDurationMs).Order().ToList();
                 return new PipelineIngestionDto(
                     pipeline.ToString(),
                     rows.Count,

@@ -247,4 +247,22 @@ public class AiMetricsQueryServiceTests
         Percentiles.Of([10d], 0.95).Should().Be(10);
         Percentiles.Of(Array.Empty<double>(), 0.5).Should().BeNull();
     }
+
+    [Fact]
+    public async Task Ingestion_percentiles_do_not_depend_on_the_row_order()
+    {
+        await using (var db = Context("seed"))
+        {
+            db.IngestionMetrics.AddRange(
+                new IngestionMetric { DocumentId = "A", Pipeline = PipelineType.Baseline, ProcessingDurationMs = 36_054 },
+                new IngestionMetric { DocumentId = "B", Pipeline = PipelineType.Baseline, ProcessingDurationMs = 690 },
+                new IngestionMetric { DocumentId = "C", Pipeline = PipelineType.Baseline, ProcessingDurationMs = 14_719 });
+            await db.SaveChangesAsync();
+        }
+        await using var tenant = Context("org_A");
+
+        var baseline = (await Sut(tenant).GetIngestionUsageAsync(Period)).Pipelines.Single(p => p.Pipeline == "Baseline");
+
+        baseline.ProcessingP50Ms.Should().Be(14_719);
+    }
 }

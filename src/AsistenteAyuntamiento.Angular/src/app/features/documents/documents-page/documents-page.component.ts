@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { EMPTY, Observable, catchError, debounce, distinctUntilChanged, exhaustMap, finalize, interval, of, switchMap, tap, timer } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, debounce, debounceTime, distinctUntilChanged, exhaustMap, finalize, interval, merge, of, switchMap, tap, timer } from 'rxjs';
 import { DocumentStatusNotification, NotificationService } from '../../../core/realtime/notification.service';
 import { ConfirmService } from '../../../shared/ui/confirm.service';
 import { ToastService } from '../../../shared/ui/toast.service';
@@ -25,6 +25,8 @@ const FILTERS_KEY = 'docFilters';
 const SEARCH_DEBOUNCE_MS = 300;
 /** Refresh interval of the counters and the visible page while some pipeline is still working. */
 export const AUTO_REFRESH_MS = 10_000;
+/** Wait after a status change before reloading, so a burst of notifications causes one request. */
+const REFRESH_AFTER_CHANGE_MS = 1_000;
 const DEFAULT_FILTERS: DocumentFilters = { pageSize: 20, status: 'Todos', pipeline: null, search: '', dateFrom: null, dateTo: null, minSizeKb: null, maxSizeKb: null };
 
 /** Admin page of the stored documents: filters, live ingestion state and (re)processing actions. */
@@ -76,6 +78,12 @@ export class DocumentsPageComponent {
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredCount() / this.filters().pageSize)));
   private readonly query = computed<BlobQuery & { reload: number }>(() => ({ ...this.filters(), page: this.page(), reload: this.reload() }));
 
+  /**
+   * Asks for a silent reload of the counters and the visible page. Realtime notifications and local actions only know
+   * the summary status, so the per-pipeline badges and bars are taken from the server shortly after them.
+   */
+  private readonly refreshSoon = new Subject<void>();
+
   /** Something is queued or processing in some pipeline (the summary counters when the API sends no per-pipeline ones). */
   protected readonly ingesting = computed(() => {
     const pipelines = this.pipelineStats();
@@ -113,11 +121,16 @@ export class DocumentsPageComponent {
         if (result) this.applyPage(result);
       });
 
-    // Silent refresh (no spinner) of the counters and the visible page; stops when nothing is left to ingest.
-    toObservable(this.ingesting)
-      .pipe(
+    // Silent refresh (no spinner) of the counters and the visible page: every 10 s while something is being ingested,
+    // and once shortly after a status change or an action.
+    merge(
+      toObservable(this.ingesting).pipe(
         distinctUntilChanged(),
         switchMap(active => (active ? interval(AUTO_REFRESH_MS) : EMPTY)),
+      ),
+      this.refreshSoon.pipe(debounceTime(REFRESH_AFTER_CHANGE_MS)),
+    )
+      .pipe(
         exhaustMap(() => {
           const { reload: _, ...query } = this.query();
           return this.ingestion.getBlobs(query).pipe(catchError(() => of(null)));
@@ -187,6 +200,7 @@ export class DocumentsPageComponent {
       this.blobs.update(list => list.map(b => (this.selected().has(b.name) ? { ...b, status: IngestionStatus.Queued } : b)));
       this.stats.update(s => (s ? { ...s, pending: Math.max(0, s.pending - names.length), queued: s.queued + names.length } : s));
       this.selected.set(new Set());
+      this.refreshSoon.next();
     });
   }
 
@@ -235,11 +249,13 @@ export class DocumentsPageComponent {
 
   private setStatus(name: string, status: IngestionStatus): void {
     this.blobs.update(list => list.map(b => (b.name === name ? { ...b, status, isProcessed: status === IngestionStatus.Completed } : b)));
+    this.refreshSoon.next();
   }
 
   /** Applies a batch of status changes in one update of the list and the counters. */
   private applyStatuses(changes: readonly DocumentStatusNotification[]): void {
     if (changes.length === 0) return;
+    this.refreshSoon.next();
     const statusById = new Map(changes.map(c => [c.documentId, c.status as IngestionStatus]));
 
     this.blobs.update(list =>
