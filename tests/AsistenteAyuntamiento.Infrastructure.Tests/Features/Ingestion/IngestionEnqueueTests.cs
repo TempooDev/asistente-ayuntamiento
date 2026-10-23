@@ -170,7 +170,8 @@ public class IngestionEnqueueTests
         await using var check = NewContext();
         var state = await check.DocumentJobStates.AsNoTracking().SingleAsync();
         (state.BaselineStatus, state.HierarchicalStatus, state.RecursiveStatus, state.SemanticStatus, state.Status).Should().Be(
-            ((JobStatus?)JobStatus.Completed, (JobStatus?)null, (JobStatus?)null, (JobStatus?)JobStatus.Queued, JobStatus.Queued));
+            ((JobStatus?)JobStatus.Completed, (JobStatus?)null, (JobStatus?)null, (JobStatus?)JobStatus.Queued, JobStatus.Completed),
+            "a study queue does not change the production summary");
     }
 
     private sealed class FakePublisher(Func<DocumentMessage, Task> onPublish) : IIngestionQueuePublisher

@@ -59,4 +59,30 @@ public sealed class ChunkingStudyMigrationTests : IAsyncLifetime
         var state = await check.DocumentJobStates.AsNoTracking().SingleAsync();
         (state.RecursiveStatus, state.SemanticStatus, state.BaselineStatus).Should().Be(((JobStatus?)null, (JobStatus?)null, (JobStatus?)JobStatus.Completed));
     }
+
+    [DockerFact]
+    public async Task Rolling_back_deletes_the_study_variants_data_before_dropping_its_columns()
+    {
+        await using (var db = NewContext())
+        {
+            await db.Database.MigrateAsync();
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO ingestion."DocumentChunks" ("DocumentId", "Source", "Title", "Department", "Content", "ChunkIndex", "PublicationDate", "ChunkingStrategy")
+                VALUES ('BOE-A-1', 'BOE', 't', 'd', 'fijo', 0, now(), 'FixedOverlap'),
+                       ('BOE-A-1', 'BOE', 't', 'd', 'recursivo', 0, now(), 'Recursive'),
+                       ('BOE-A-1', 'BOE', 't', 'd', 'semantico', 0, now(), 'Semantic');
+                INSERT INTO ingestion."DocumentJobStates" ("DocumentId", "Status", "BaselineStatus", "SemanticStatus", "ErrorMessage", "CreatedAt", "LastUpdatedAt")
+                VALUES ('BOE-A-1', 'Completed', 'Completed', 'Failed', '[Semantic] ollama down', now(), now()),
+                       ('BOE-A-2', 'Pending', NULL, 'Queued', NULL, now(), now());
+                """);
+
+            await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
+        }
+
+        await using var check = NewContext();
+        var contents = await check.Database.SqlQueryRaw<string>("""SELECT "Content" AS "Value" FROM ingestion."DocumentChunks" """).ToListAsync();
+        contents.Should().Equal(["fijo"], "only the baseline chunks are left for the previous schema");
+        var states = await check.Database.SqlQueryRaw<string>("""SELECT "DocumentId" || ':' || coalesce("ErrorMessage", '') AS "Value" FROM ingestion."DocumentJobStates" """).ToListAsync();
+        states.Should().Equal(["BOE-A-1:"], "a row with only study statuses describes deleted data, and the study error goes with it");
+    }
 }

@@ -71,6 +71,12 @@ public sealed class IngestionMaintenanceTests : IAsyncLifetime
                 {
                     s.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
                     s.SetPipelineStatus(PipelineType.Semantic, JobStatus.Processing);
+                }),
+                State("hierarchical-and-recursive", s =>
+                {
+                    s.SetPipelineStatus(PipelineType.Baseline, JobStatus.Completed);
+                    s.SetPipelineStatus(PipelineType.Hierarchical, JobStatus.Completed);
+                    s.SetPipelineStatus(PipelineType.Recursive, JobStatus.Failed, "ollama down");
                 }));
             await seed.SaveChangesAsync();
         }
@@ -83,7 +89,7 @@ public sealed class IngestionMaintenanceTests : IAsyncLifetime
         await using var check = newContext();
         (await check.DocumentChunks.Select(c => c.ChunkingStrategy).ToListAsync()).Should().Equal(["Recursive"], "only the baseline's chunks are deleted");
         var states = await check.DocumentJobStates.AsNoTracking().ToDictionaryAsync(j => j.DocumentId);
-        states.Keys.Should().BeEquivalentTo(["both", "hierarchical-failed", "hierarchical-only", "baseline-and-semantic"], "a row with only a baseline status describes deleted data");
+        states.Keys.Should().BeEquivalentTo(["both", "hierarchical-failed", "hierarchical-only", "baseline-and-semantic", "hierarchical-and-recursive"], "a row with only a baseline status describes deleted data");
         states.Values.Should().OnlyContain(s => s.BaselineStatus == null);
 
         (states["both"].Status, states["both"].HierarchicalStatus, states["both"].ErrorMessage)
@@ -92,7 +98,9 @@ public sealed class IngestionMaintenanceTests : IAsyncLifetime
             .Should().Be((JobStatus.Failed, "[Hierarchical] llm down"));
         states["hierarchical-only"].Status.Should().Be(JobStatus.Queued);
         (states["baseline-and-semantic"].Status, states["baseline-and-semantic"].SemanticStatus)
-            .Should().Be((JobStatus.Processing, (JobStatus?)JobStatus.Processing), "the summary is recomputed from the remaining pipelines");
+            .Should().Be((JobStatus.Pending, (JobStatus?)JobStatus.Processing), "a study status is kept but never shows in the summary");
+        (states["hierarchical-and-recursive"].Status, states["hierarchical-and-recursive"].RecursiveStatus, states["hierarchical-and-recursive"].ErrorMessage)
+            .Should().Be((JobStatus.Completed, (JobStatus?)JobStatus.Failed, "[Recursive] ollama down"));
     }
 
     private static DocumentJobState State(string documentId, Action<DocumentJobState> apply)

@@ -34,7 +34,9 @@ public abstract class FlatChunkIngestionConsumer(
             throw new NonRetryableMessageException("Message without blob_path.");
         }
 
-        // The baseline is usually first to receive a scraped document: it records the hierarchical side as queued.
+        // Every pipeline the message was published to that has no status yet is recorded as queued. For a scraped
+        // document the baseline is usually first, so this marks the hierarchical side; a study variant's messages come
+        // from an admin enqueue that already set the statuses, so for it this is normally a no-op.
         await IngestionJobStates.MarkRequestedAsync(services, message, cancellationToken);
         await services.GetRequiredKeyedService<IDocumentIngestionService>(variant.Pipeline)
             .ProcessBlobAsync(message.BlobPath, message.Source, cancellationToken);

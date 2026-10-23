@@ -45,14 +45,22 @@ public sealed record SemanticChunkingOptions
 /// Semantic chunking: each sentence is embedded together with its neighbours, and a chunk ends where the cosine
 /// distance between consecutive windows is above a percentile of the document's distances (a topic change). Chunks
 /// under <c>MinTokens</c> are merged with the next one and chunks over <c>ChunkMaxTokens</c> are split with the
-/// recursive strategy (without overlap: semantic chunks do not share text). Windows are documents, so they are
-/// embedded without the query instruction. A failed embedding call is thrown, never replaced by another strategy.
+/// recursive strategy (without overlap: semantic chunks do not share text). A "sentence" over <c>ChunkMaxTokens</c>
+/// (a table or a list without full stops) is first split the same way, and each window is capped at
+/// <see cref="WindowMaxTokens"/> by taking fewer neighbours, so no embedding call exceeds the model's context. Windows
+/// are documents, so they are embedded without the query instruction. A failed embedding call is thrown, never replaced by another strategy.
 /// </summary>
 public sealed class SemanticChunkingStrategy(
     IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
     SemanticChunkingOptions options) : IChunkingStrategy
 {
     internal const int EmbeddingBatchSize = 100;
+
+    /// <summary>Most chunks of <c>ChunkMaxTokens</c> one sentence window can hold.</summary>
+    internal const int WindowMaxChunks = 4;
+
+    /// <summary>Token budget of one sentence window (its sentence always fits: sentences are capped at <c>ChunkMaxTokens</c>).</summary>
+    internal int WindowMaxTokens => options.ChunkMaxTokens * WindowMaxChunks;
 
     private readonly RecursiveChunkingStrategy _oversizeSplitter = new(options.ChunkMaxTokens, overlapTokens: 0);
 
@@ -65,13 +73,13 @@ public sealed class SemanticChunkingStrategy(
             return [];
         }
 
-        var sentences = SpanishSentenceSplitter.Split(text);
+        var sentences = CapSentences(SpanishSentenceSplitter.Split(text));
         if (sentences.Count <= 1 || ChunkTokenCounter.Count(text) <= options.MinTokens)
         {
             return Build([string.Join(" ", sentences)], embeddedTokens: null);
         }
 
-        var windows = Windows(sentences, options.BufferSize);
+        var windows = Windows(sentences, options.BufferSize, WindowMaxTokens);
         var vectors = await EmbedAsync(windows, cancellationToken);
 
         var distances = new double[sentences.Count - 1];
@@ -95,14 +103,49 @@ public sealed class SemanticChunkingStrategy(
         return Build(chunks, windows.Sum(ChunkTokenCounter.Count));
     }
 
-    /// <summary>Sentence <c>i</c> with <paramref name="buffer"/> sentences on each side.</summary>
-    internal static List<string> Windows(IReadOnlyList<string> sentences, int buffer) =>
+    /// <summary>Splits every sentence over <c>ChunkMaxTokens</c> with the recursive strategy, without overlap.</summary>
+    private List<string> CapSentences(IReadOnlyList<string> sentences) =>
+        sentences
+            .SelectMany(sentence => ChunkTokenCounter.Count(sentence) > options.ChunkMaxTokens
+                ? _oversizeSplitter.Chunk(sentence).Select(c => c.Text)
+                : [sentence])
+            .Where(sentence => !string.IsNullOrWhiteSpace(sentence))
+            .ToList();
+
+    /// <summary>
+    /// Sentence <c>i</c> with up to <paramref name="buffer"/> sentences on each side, adding neighbours (one on each
+    /// side at a time, nearest first) only while the window stays within <paramref name="maxTokens"/>.
+    /// </summary>
+    internal static List<string> Windows(IReadOnlyList<string> sentences, int buffer, int maxTokens = int.MaxValue) =>
         Enumerable.Range(0, sentences.Count)
             .Select(i =>
             {
-                var from = Math.Max(0, i - buffer);
-                var to = Math.Min(sentences.Count - 1, i + buffer);
+                int from = i, to = i;
+                var tokens = ChunkTokenCounter.Count(sentences[i]);
+                for (var step = 1; step <= buffer; step++)
+                {
+                    var grew = false;
+                    if (i - step >= 0 && from == i - step + 1 && Fits(sentences[i - step]))
+                    {
+                        from = i - step;
+                        grew = true;
+                    }
+                    if (i + step < sentences.Count && to == i + step - 1 && Fits(sentences[i + step]))
+                    {
+                        to = i + step;
+                        grew = true;
+                    }
+                    if (!grew) break;
+                }
                 return string.Join(" ", sentences.Skip(from).Take(to - from + 1));
+
+                bool Fits(string neighbour)
+                {
+                    var next = tokens + ChunkTokenCounter.Count(neighbour);
+                    if (next > maxTokens) return false;
+                    tokens = next;
+                    return true;
+                }
             })
             .ToList();
 

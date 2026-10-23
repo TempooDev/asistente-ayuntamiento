@@ -80,6 +80,35 @@ public class SemanticChunkingStrategyTests
     }
 
     [Fact]
+    public async Task A_long_table_without_full_stops_never_sends_an_oversized_window_to_the_embedding_model()
+    {
+        // A table flattened to text: thousands of tokens and no sentence end, so the splitter sees one "sentence".
+        var table = string.Join("\n", Enumerable.Range(1, 400).Select(i => $"| Partida {i} | Tasa de residuos | {i * 10},00 euros |"));
+        ChunkTokenCounter.Count(table).Should().BeGreaterThan(40 * 4 * 10);
+        var embeddings = new TopicEmbeddings();
+        var sut = new SemanticChunkingStrategy(embeddings, new SemanticChunkingOptions(bufferSize: 3, minTokens: 5, chunkMaxTokens: 40));
+
+        var chunks = await sut.ChunkTextAsync(table);
+
+        embeddings.Inputs.Should().HaveCountGreaterThan(1, "the oversized sentence is split before embedding");
+        embeddings.Inputs.Should().OnlyContain(window => ChunkTokenCounter.Count(window) <= 40 * SemanticChunkingStrategy.WindowMaxChunks);
+        chunks.Should().OnlyContain(c => ChunkTokenCounter.Count(c.Text) <= 40);
+    }
+
+    [Fact]
+    public void A_window_takes_fewer_neighbours_when_they_would_exceed_the_budget()
+    {
+        string[] sentences = [new string('a', 40), new string('b', 40), new string('c', 400), new string('d', 40)];
+
+        // Within 30 tokens, "b" (10 tokens) takes "a" (10) but not "c" (100); "c" keeps only itself.
+        var windows = SemanticChunkingStrategy.Windows(sentences, buffer: 1, maxTokens: 30);
+
+        windows[1].Should().Be(sentences[0] + " " + sentences[1]);
+        windows[2].Should().Be(sentences[2]);
+        SemanticChunkingStrategy.Windows(sentences, buffer: 1)[1].Should().Be(string.Join(" ", sentences.Take(3)), "no budget means the full buffer");
+    }
+
+    [Fact]
     public async Task A_chunk_under_the_minimum_is_merged_with_the_next()
     {
         // The breakpoint leaves one tax sentence alone; it is too small to be a chunk of its own.

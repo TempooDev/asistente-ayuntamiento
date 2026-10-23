@@ -1,3 +1,5 @@
+import { isStudyPipeline } from '../../analytics/shared/pipelines';
+
 export enum IngestionStatus {
   Pending = 'Pending',
   Queued = 'Queued',
@@ -33,7 +35,7 @@ export type PipelineMode = 'BOTH' | 'BASELINE' | 'HIERARCHICAL' | 'RECURSIVE' | 
 /** Pipeline the status filter applies to; omitted means the summary status. */
 export type PipelineFilter = 'BASELINE' | 'HIERARCHICAL' | 'RECURSIVE' | 'SEMANTIC';
 
-/** The four RAG variants; recursive and semantic only exist for the chunking study. */
+/** The four RAG variants; recursive and semantic only exist for the chunking study (see `isStudyPipeline`). */
 export const DOCUMENT_PIPELINES: readonly {
   key: 'baseline' | 'hierarchical' | 'recursive' | 'semantic';
   filter: PipelineFilter;
@@ -41,10 +43,10 @@ export const DOCUMENT_PIPELINES: readonly {
   study: boolean;
   statusOf: (blob: BlobInfo) => IngestionStatus | null | undefined;
 }[] = [
-  { key: 'baseline', filter: 'BASELINE', label: 'Baseline', study: false, statusOf: b => b.baselineStatus },
-  { key: 'hierarchical', filter: 'HIERARCHICAL', label: 'Jerárquica', study: false, statusOf: b => b.hierarchicalStatus },
-  { key: 'recursive', filter: 'RECURSIVE', label: 'Recursiva', study: true, statusOf: b => b.recursiveStatus },
-  { key: 'semantic', filter: 'SEMANTIC', label: 'Semántica', study: true, statusOf: b => b.semanticStatus },
+  { key: 'baseline', filter: 'BASELINE', label: 'Baseline', study: isStudyPipeline('baseline'), statusOf: b => b.baselineStatus },
+  { key: 'hierarchical', filter: 'HIERARCHICAL', label: 'Jerárquica', study: isStudyPipeline('hierarchical'), statusOf: b => b.hierarchicalStatus },
+  { key: 'recursive', filter: 'RECURSIVE', label: 'Recursiva', study: isStudyPipeline('recursive'), statusOf: b => b.recursiveStatus },
+  { key: 'semantic', filter: 'SEMANTIC', label: 'Semántica', study: isStudyPipeline('semantic'), statusOf: b => b.semanticStatus },
 ];
 
 /** Status filter of the document list (values the API accepts). */
