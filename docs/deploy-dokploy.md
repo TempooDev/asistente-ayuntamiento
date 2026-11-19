@@ -33,7 +33,7 @@ Como tus imágenes Docker se subirán al registro privado de GitHub (GHCR), Dokp
 3. Ponle un nombre, por ejemplo: `ayuntamiento-prod`.
 4. En el campo donde se pega el archivo `docker-compose.yml`, pega el código que encontrarás más abajo.
 5. **MUY IMPORTANTE**: En los selectores de arriba, asegúrate de marcar tu registro `GitHub Container Registry` para que Dokploy sepa usar esas credenciales al tirar de `ghcr.io`.
-6. Haz clic en **Deploy**. Dokploy descargará las imágenes y levantará toda la arquitectura (MinIO, RabbitMQ, Web, API, Worker, Gateway, y el Scraper).
+6. Haz clic en **Deploy**. Dokploy descargará las imágenes y levantará toda la arquitectura (Qdrant, RabbitMQ, API, workers, pasarela con la web y scraper). Los documentos se guardan en Cloudflare R2: en producción no hay almacenamiento S3 local.
 
 ### Workers del estudio de chunking (perfil `chunking-study`)
 
@@ -86,7 +86,7 @@ Asegúrate de reemplazar las siguientes palabras clave antes de desplegar:
 >
 > Además, las APIs de administración exigen los roles `admin-plataforma` (ingesta, scraper) o `admin-organizacion` (IA y métricas del tenant) en Auth0, y los usuarios deben pertenecer a una Organization: sin `org_id` reciben 403.
 >
-> El ejemplo de esta página es anterior y todavía usa valores por defecto (`CLAVE_QDRANT`, `SECRETO_RABBIT`). Toma como referencia el `docker-compose.yml` del repositorio.
+> El ejemplo de esta página es anterior: todavía usa MinIO (cuyas imágenes ya no se pueden descargar de Docker Hub; en local se usa RustFS y en producción R2) y valores por defecto (`CLAVE_QDRANT`, `SECRETO_RABBIT`). Toma como referencia el `docker-compose.yml` del repositorio.
 
 ### Despliegue de la nueva topología de RabbitMQ (fase 3 de `audit-remediation-2026-10`)
 

@@ -54,7 +54,7 @@ Antes de buscar, la pregunta se reformula en terminología administrativa y se s
 
 \subsection{Generación en lenguaje claro}
 
-La respuesta se genera con el modelo de la plataforma a partir del texto completo de los documentos padre recuperados (\texttt{\{0\}}). La regla~6 y la última línea de \texttt{StreamingSystem} se añadieron tras la primera ejecución del estudio de fragmentación (sección~\ref{sec:ajuste-prompts}).
+La respuesta se genera con el modelo de la plataforma a partir del texto completo de los documentos padre recuperados (\texttt{\{0\}}). La regla~6 y la última línea de \texttt{StreamingSystem} se añadieron durante la puesta a punto del estudio de fragmentación, al comprobar que las respuestas incluían fórmulas de cortesía y consejos generales que no se pueden comprobar en los documentos y que bajaban la fidelidad medida por RAGAS (sección~\ref{sec:metricas}).
 
 \lstinputlisting[caption={\texttt{ClearLanguageGeneration}}]{apendices/prompts/ClearLanguageGeneration.txt}
 

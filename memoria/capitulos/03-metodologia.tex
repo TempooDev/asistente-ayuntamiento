@@ -29,7 +29,7 @@ Entre finales de agosto y septiembre de 2026 se publicó una primera versión a 
 
 El desarrollo guiado por especificaciones (\emph{Spec-Driven Development}, SDD) parte de una idea sencilla: antes de escribir código se acuerda por escrito qué debe hacer el sistema, y ese texto se mantiene como la referencia contra la que se implementa y se revisa. Cuando parte del código lo escriben o lo proponen agentes de IA, la especificación cumple además una segunda función: es el contexto que reciben los agentes y el criterio con el que se comprueba su trabajo \cite{ramos2026}.
 
-En este proyecto el SDD se ha concretado con OpenSpec \cite{openspec}, una herramienta de código abierto que organiza las especificaciones en ficheros Markdown dentro del propio repositorio y define un ciclo de trabajo para cambiarlas. % VERIFICAR: descripción general de OpenSpec tomada de su repositorio público (ver \cite{openspec}).
+En este proyecto el SDD se ha concretado con OpenSpec \cite{openspec}, una herramienta de código abierto que organiza las especificaciones en ficheros Markdown dentro del propio repositorio y define un ciclo de trabajo para cambiarlas.
 
 \subsection{Estructura de OpenSpec en el repositorio}
 
@@ -94,8 +94,7 @@ Las especificaciones solo son útiles si describen lo que el código hace de ver
 \section{Gestión del código y calidad}
 \label{sec:calidad}
 
-% TODO: completar con la estrategia de ramas y los tiempos de la CI si se quiere más detalle.
-Cada cambio se desarrolla en una rama propia y entra en la rama principal mediante una \emph{pull request}. La integración continua (\texttt{.github/workflows/ci.yml}) es obligatoria antes de fusionar y comprueba la higiene del repositorio (por ejemplo, que no se suban ficheros de más de 5~MB), el formato, el estilo, la compilación y las pruebas de .NET, las pruebas y la compilación de producción de Angular, el código Go (\texttt{go vet}, \texttt{gofmt} y pruebas con el detector de condiciones de carrera) y que los ficheros generados a partir de los \texttt{.proto} estén al día. El despliegue en producción (\texttt{deploy.yml}) solo se lanza cuando la integración continua pasa en la rama principal.
+Cada cambio se desarrolla en una rama propia y entra en la rama principal mediante una \emph{pull request}. Es un flujo basado en la rama principal (\emph{trunk-based}), sin ramas de desarrollo ni de versión: las ramas son cortas y su prefijo indica el tipo de cambio (\texttt{feature/}, \texttt{fix/}, \texttt{chore/}, \texttt{docs/} o \texttt{memoria/}, entre otros), y la rama principal es siempre la versión desplegada. La integración continua (\texttt{.github/workflows/ci.yml}) es obligatoria antes de fusionar y comprueba la higiene del repositorio (por ejemplo, que no se suban ficheros de más de 5~MB), el formato, el estilo, la compilación y las pruebas de .NET, las pruebas y la compilación de producción de Angular, el código Go (\texttt{go vet}, \texttt{gofmt} y pruebas con el detector de condiciones de carrera) y que los ficheros generados a partir de los \texttt{.proto} estén al día. Los trabajos se ejecutan en paralelo, de modo que una ejecución completa tarda unos dos minutos (entre 1,7 y 2,7 minutos en las últimas ejecuciones correctas). El despliegue en producción (\texttt{deploy.yml}) solo se lanza cuando la integración continua pasa en la rama principal.
 
 El código que proponen los agentes de IA pasa por los mismos filtros que el escrito a mano: la especificación de OpenSpec, la integración continua, y la revisión y prueba manual del autor descritas en la sección~\ref{sec:sdd-validacion}.
 
@@ -229,8 +228,7 @@ El trabajo lo ha desarrollado un único alumno, con la supervisión del tutor y 
 
 \subsection{Recursos hardware}
 
-El desarrollo se ha hecho en un ordenador portátil MacBook Pro con procesador Apple Silicon, que ejecuta en local todos los servicios del sistema, incluidos los modelos de lenguaje y de \emph{embeddings} a través de Ollama. Para la evaluación del estudio de fragmentación se usó además un equipo de sobremesa con una GPU NVIDIA GeForce RTX 4060 de 8\,GB, que ejecuta Ollama y al que el portátil accede por una VPN (Tailscale); responde unas diez veces más rápido que el portátil (sección~\ref{sec:entorno-local}). La aplicación en producción se ejecuta en un servidor propio gestionado con Dokploy.
-% VERIFICAR (Antonio): concretar el modelo del portátil (procesador y memoria) y las características y el proveedor del servidor de producción.
+El desarrollo se ha hecho en un ordenador portátil MacBook Pro con procesador Apple M2 y 16\,GB de memoria unificada, que ejecuta en local todos los servicios del sistema, incluidos los modelos de lenguaje y de \emph{embeddings} a través de Ollama. El estudio de fragmentación se ejecutó entero en un equipo de sobremesa con un procesador Intel Core i7-14700KF, 32\,GB de RAM y una GPU NVIDIA GeForce RTX 5070 Ti de 16\,GB, que ejecuta en local los modelos con Ollama y todos los servicios del sistema, de modo que todas las mediciones proceden del mismo hardware y software (sección~\ref{sec:entorno-local}). La aplicación en producción se ejecuta en dos servidores virtuales privados (VPS) propios, contratados en OVH y en Contabo y gestionados con Dokploy: uno con 4 vCPU y 8\,GB de RAM y otro con 6 vCPU y 12\,GB de RAM. El autor ya los tenía contratados para otros proyectos personales, de modo que no suponen un coste añadido para este trabajo. La aplicación se publica en el dominio \texttt{asistente.antoniobermudez.dev}.
 
 \subsection{Recursos software}
 
@@ -238,7 +236,7 @@ Todas las herramientas de desarrollo empleadas son gratuitas o de código abiert
 
 \begin{itemize}
   \item \textbf{Entorno de desarrollo.} Visual Studio Code como editor, con las herramientas de línea de comandos de .NET, Go y Angular, y Aspire para orquestar el sistema en local (sección~\ref{sec:eleccion-plataforma}).
-  \item \textbf{Contenedores.} Podman como motor de contenedores compatible con OCI y Docker, para ejecutar en local PostgreSQL, Qdrant, RabbitMQ, MinIO y Ollama.
+  \item \textbf{Contenedores.} Podman como motor de contenedores compatible con OCI y Docker, para ejecutar en local PostgreSQL, Qdrant, RabbitMQ, RustFS y Ollama.
   \item \textbf{Modelos locales.} Ollama, para ejecutar en local los modelos abiertos de chat y de \emph{embeddings} sin coste por uso.
   \item \textbf{Control de versiones e integración continua.} Git y GitHub, con GitHub Actions para la compilación, las pruebas y la publicación de las imágenes de contenedor en GitHub Container Registry, y Dokploy para el despliegue.
   \item \textbf{Especificación y apoyo al desarrollo.} OpenSpec para el desarrollo guiado por especificaciones (sección~\ref{sec:sdd}) y los asistentes de IA descritos en la sección~\ref{sec:ia-desarrollo}.
@@ -256,4 +254,6 @@ En producción, el sistema usa varios servicios externos:
 \end{itemize}
 
 El coste de inferencia fue un factor de diseño desde el principio: los modelos frontera resultan caros cuando una misma consulta encadena varias llamadas, como ocurre en la \emph{pipeline} jerárquica. Por eso el desarrollo se hace con modelos locales, que no tienen coste por uso, y el sistema registra los \emph{tokens} y el coste estimado de cada respuesta según el modelo empleado (sección~\ref{sec:proveedor-ia}). El estudio de \emph{chunking} también se ejecuta en local por este motivo.
-% VERIFICAR (Antonio): si se quiere dar el coste total del proyecto (servidor, proveedores de modelos, dominio), añadir las cifras reales con su periodo. Comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito.
+
+La única ingesta hecha con proveedores en la nube da una idea de ese coste. Generar los \emph{embeddings} y procesar los boletines con las \emph{pipelines} básica y jerárquica para la primera versión en producción, en los dos primeros días de septiembre de 2026, costó 4,67~USD en OpenRouter y 25,21~USD en Google AI, unos 30~USD en total. Esa cifra cubría solo dos de las cuatro variantes del estudio, y la semántica necesita por sí sola unas tres veces más \emph{tokens} de \emph{embeddings} que la básica (capítulo~\ref{cap:estudio-chunking}). Repetir la ingesta con todas las variantes, y mantenerla después con el uso diario de varios ayuntamientos, no cabía en el presupuesto del trabajo, así que se canceló la apertura de la plataforma a usuarios reales y la evaluación pasó a hacerse con modelos locales.
+% VERIFICAR (Antonio): si se quiere dar el coste total del proyecto, añadir el dominio y comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito (los VPS ya existían y no se imputan).

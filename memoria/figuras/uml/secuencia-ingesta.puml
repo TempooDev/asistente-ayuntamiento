@@ -8,7 +8,7 @@ participant "Planificador\n(scraper Go)" as Sched
 participant "Orquestador\n(scraper Go)" as Go
 participant "API .NET\n(gRPC)" as Api
 participant "BOE / BOJA" as Src
-database "S3\n(MinIO / R2)" as S3
+database "S3\n(RustFS / R2)" as S3
 queue "RabbitMQ" as MQ
 participant "Worker\n(BASELINE o HIERARCHICAL)" as W
 participant "Modelos de IA" as LLM

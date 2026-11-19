@@ -30,7 +30,7 @@ Aspire descarga y arranca automáticamente los siguientes contenedores Docker en
 | **PostgreSQL** | `pgvector/pgvector:pg16` | Base de datos principal y búsqueda de texto completo |
 | **Qdrant** | `qdrant/qdrant` | Base de datos vectorial (colecciones `document_chunks`, `child_fragments` y, para el estudio de chunking, `document_chunks_recursive` y `document_chunks_semantic`) |
 | **RabbitMQ** | `rabbitmq:3-management` | Broker de mensajes (pipeline de ingesta) |
-| **MinIO** | `minio/minio` | Almacenamiento S3 local de los documentos del scraper (la API crea el bucket privado al arrancar) |
+| **RustFS** | `rustfs/rustfs` | Almacenamiento S3 local (sustituye a MinIO, cuyas imágenes ya no se publican en Docker Hub) de los documentos del scraper (la API crea el bucket privado al arrancar) |
 | **Ollama** | `ollama/ollama` | Modelos de IA locales — embeddings (`qwen3-embedding:0.6b`) y LLM de fallback (`llama3.2`) |
 
 > [!TIP]
@@ -64,7 +64,7 @@ Credenciales a configurar (ver sección de secrets más abajo):
 
 #### Cloudflare R2 — Blob Storage (solo producción)
 
-En **desarrollo**, Aspire arranca MinIO y genera sus credenciales. R2 solo se necesita en producción (o si quieres probar contra él).
+En **desarrollo**, Aspire arranca RustFS y genera sus credenciales. R2 solo se necesita en producción (o si quieres probar contra él).
 
 Para producción, crear un bucket en [Cloudflare R2](https://developers.cloudflare.com/r2/) y configurar:
 
@@ -125,7 +125,7 @@ dotnet user-secrets set "Parameters:ai-embeddings-provider" "ollama"           -
 dotnet user-secrets set "Parameters:ai-embeddings-model"    "qwen3-embedding:0.6b" --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Parameters:ai-embeddings-api-key"  ""                 --project src/AsistenteAyuntamiento.AppHost
 
-# ── Cloudflare R2 (opcional en dev — sin esto se usa MinIO) ─────────────────────
+# ── Cloudflare R2 (opcional en dev — sin esto se usa RustFS) ─────────────────────
 dotnet user-secrets set "Blob:Endpoint"        "https://<accountId>.r2.cloudflarestorage.com" --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Blob:AccessKeyId"     "tu-r2-access-key"  --project src/AsistenteAyuntamiento.AppHost
 dotnet user-secrets set "Blob:SecretAccessKey" "tu-r2-secret-key"  --project src/AsistenteAyuntamiento.AppHost
@@ -134,7 +134,7 @@ dotnet user-secrets set "Blob:BucketName"      "nombre-del-bucket" --project src
 
 > [!NOTE]
 > El formato `Parameters:<nombre>` es el estándar de Aspire para parámetros declarados con `builder.AddParameter("nombre")` en el AppHost.
-> Las credenciales de MinIO (`minio-root-*`) y la clave interna de gRPC (`internal-grpc-key`) las genera Aspire la primera vez y las guarda en los user-secrets; no hay que configurarlas.
+> Las credenciales de RustFS (parámetros `minio-root-*`, que conservan el nombre) y la clave interna de gRPC (`internal-grpc-key`) las genera Aspire la primera vez y las guarda en los user-secrets; no hay que configurarlas.
 
 > [!CAUTION]
 > **Nunca** añadas secrets en `appsettings.json` ni en archivos que se suban al repositorio. `dotnet user-secrets` los guarda en `~/.microsoft/usersecrets/<id>/secrets.json`, fuera del árbol del proyecto.

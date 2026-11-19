@@ -1,8 +1,11 @@
 % Resumen (150--300 palabras) y palabras clave (3--5), en castellano.
-% TODO: problema, solución, estudio de chunking y resultado principal.
 \renewcommand{\abstractname}{Resumen}
 \begin{abstract}
-% TODO: redactar el resumen.
+El personal de los ayuntamientos revisa a mano cada día el Boletín Oficial del Estado (BOE) y el de la Junta de Andalucía (BOJA) para localizar las convocatorias, ayudas, plazos y normas que afectan a su municipio, una tarea lenta y propensa a omisiones. Este trabajo presenta una plataforma que permite consultar esos boletines en lenguaje natural, con respuestas basadas únicamente en los documentos y con la cita de cada fuente.
+
+El sistema aplica generación aumentada por recuperación (RAG). Un servicio en Go descarga y filtra cada día los boletines; un \emph{backend} en .NET con Semantic Kernel los fragmenta, los indexa en PostgreSQL y Qdrant y genera las respuestas; y una interfaz en Angular las muestra en tiempo real. La plataforma admite varios ayuntamientos con sus datos aislados, incluye una Arena para comparar a ciegas dos versiones del asistente y registra el uso, la latencia y el coste de cada llamada a los modelos. Se orquesta con .NET Aspire y se despliega con Docker Compose, integración continua y observabilidad con OpenTelemetry.
+
+Como parte del trabajo se comparan cuatro estrategias de fragmentación (tamaño fijo, recursiva, semántica y jerárquica padre-hijo) con modelos locales, sobre colecciones de 17, 200 y 5.994 documentos y con una batería de preguntas por tamaño de documento y dificultad, evaluadas con RAGAS y con métricas de recuperación que no dependen de un juez. La estrategia jerárquica obtiene la mejor recuperación en todos los escenarios, con mayor ventaja en los documentos largos y en los casi idénticos. El estudio muestra además que evaluar solo sobre el corpus de las preguntas sobrestima la calidad: el acierto en primera posición pasa de 1,00 con 17 documentos a entre 0,55 y 0,73 con la colección completa.
 
 \medskip
 \noindent\textbf{Palabras clave:} RAG, LLM, boletines oficiales, administración local, \emph{chunking}

@@ -112,7 +112,6 @@ RF29 & Mostrar el consumo de IA de la organización, el coste de ingesta de la p
 \section{Requisitos no funcionales}
 \label{sec:rnf}
 
-% TODO: añadir los requisitos de latencia con cifras cuando estén medidas (capítulo de pruebas).
 Los requisitos no funcionales proceden también de las especificaciones, principalmente de las que se reescribieron tras la auditoría de código de octubre de 2026 (sección~\ref{sec:sdd}).
 
 {\sloppy
@@ -128,6 +127,7 @@ Los requisitos no funcionales proceden también de las especificaciones, princip
   \item[RNF9. Observabilidad y privacidad.] Todos los servicios exportan errores, trazas, métricas y registros con OpenTelemetry, con trazas de extremo a extremo; las métricas de uso, coste y latencia de los modelos nunca incluyen el texto de las preguntas ni de las respuestas (\texttt{observability-grafana}).
   \item[RNF10. Mantenibilidad.] El código sigue una arquitectura limpia cuyas reglas de dependencia verifican pruebas automáticas, y la integración continua cubre todos los lenguajes del proyecto (\texttt{clean-architecture-boundaries}, \texttt{build-quality-gates}).
   \item[RNF11. Accesibilidad y uso en el móvil.] En el móvil, el menú lateral es un diálogo modal accesible: mueve el foco a su primer control, lo mantiene dentro mientras está abierto, expone su estado a los lectores de pantalla y se cierra con la tecla Escape, al navegar o al pulsar fuera (\texttt{mobile-navigation}).
+  \item[RNF12. Tiempo de respuesta.] La respuesta del chat se transmite según se genera, de modo que el usuario ve el primer texto sin esperar a la respuesta completa. Con los modelos locales del entorno de evaluación, el primer texto debe llegar en menos de un segundo y la respuesta completa en menos de tres segundos en mediana, también con la \emph{pipeline} jerárquica. La búsqueda no debe degradarse de forma apreciable al crecer la colección de boletines. Las mediciones están en la sección~\ref{sec:rendimiento}.
 \end{description}
 \par}
 

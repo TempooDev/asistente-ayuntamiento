@@ -98,14 +98,15 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \endhead
 \texttt{admin-metrics-dashboard} & Página de métricas: consumo de IA de la organización, coste de ingesta y resultados de la Arena, según el rol. \\
 \texttt{api-authorization} & Autorización en el servidor por rol, clave compartida en gRPC, errores sin detalles internos y arranque bloqueado sin secretos. \\
-\texttt{chat-history} & Historial de conversaciones por usuario y ayuntamiento. \\
-\texttt{blob-storage} & Almacenamiento compatible con S3 de los documentos (MinIO en desarrollo y Cloudflare R2 en producción). \\
+\texttt{blob-storage} & Almacenamiento compatible con S3 de los documentos (RustFS en desarrollo y Cloudflare R2 en producción). \\
 \texttt{build-quality-gates} & Integración continua para todos los lenguajes, versiones centralizadas y despliegue solo tras la CI. \\
 \texttt{bulk-reprocessing-pipeline} & Reprocesado masivo con un \emph{worker} por pipeline (\emph{baseline} y jerárquica). \\
+\texttt{chat-history} & Historial de conversaciones por usuario y ayuntamiento. \\
 \texttt{chat-ui-connection} & Conexión del chat al \emph{hub}: reconexión, varias conversaciones en paralelo e indicador de espera. \\
 \texttt{chunking-embeddings} & Fragmentación, generación de \emph{embeddings} y almacenamiento de la pipeline \emph{baseline}. \\
 \texttt{clean-architecture-boundaries} & Reglas de la arquitectura limpia y pruebas que las verifican. \\
 \texttt{contexto-personalizado} & Temas de interés y localidades del usuario para adaptar las respuestas. \\
+\texttt{evaluation-results} & Resultados puntuados de la evaluación offline guardados en la base de datos y mostrados en la página de métricas. \\
 \texttt{go-scraper} & Servicio en Go que descarga, filtra, almacena y encola los documentos del BOE y del BOJA. \\
 \texttt{hierarchical-retrieval} & Pipeline jerárquica: padres e hijos, enriquecimiento, expansión de consulta, búsqueda híbrida RRF y lenguaje claro. \\
 \texttt{ingestion-administration} & Operaciones administrativas de ingesta detrás del servicio \texttt{IIngestionAdminService}. \\
@@ -120,6 +121,7 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \texttt{qdrant-vector-store} & Qdrant como base de datos vectorial detrás del puerto \texttt{IVectorStore}. \\
 \texttt{query-api-semantic-kernel} & Respuesta a preguntas con RAG sobre Semantic Kernel, con modelo por ayuntamiento y respaldo. \\
 \texttt{question-arena} & Comparación a ciegas de las dos pipelines y registro de votos. \\
+\texttt{rag-evaluation} & Evaluación offline y reproducible de las variantes RAG: corpus y preguntas fijos, RAGAS con un juez local, métricas de recuperación sin juez, latencia y coste de indexación. \\
 \texttt{realtime-notifications} & Notificaciones de ingesta y del \emph{scraper} por SignalR, solo a quien puede verlas. \\
 \texttt{scraper-dynamic-filtering} & Reglas de filtrado del \emph{scraper} en la base de datos y descargas bajo demanda por gRPC. \\
 \texttt{session-timeout} & Cierre de sesión por inactividad. \\
@@ -130,5 +132,10 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \end{longtable}
 }
 
-% TODO: regenerar esta tabla a partir de openspec/specs antes de la entrega final.
-% TODO: incluir una especificación completa como ejemplo (por ejemplo, question-arena).
+La tabla recoge las 32 capacidades de \texttt{openspec/specs} a 19 de noviembre de 2026. Si se añaden capacidades nuevas antes de la entrega, conviene volver a revisarla.
+
+\section{Ejemplo de especificación}
+
+Como ejemplo del formato, el listado~\ref{lst:spec-session-timeout} reproduce completa la especificación de la capacidad \texttt{session-timeout}, una de las más breves. Cada requisito usa el verbo \emph{SHALL} y se acompaña de escenarios con la estructura \emph{WHEN}/\emph{THEN}, que sirven a la vez de criterio de aceptación y de guía para las pruebas (sección~\ref{sec:sdd}). Las especificaciones se escriben en inglés, igual que el código.
+
+\lstinputlisting[caption={Especificación de la capacidad \texttt{session-timeout} (\texttt{openspec/specs/session-timeout/spec.md})}, label={lst:spec-session-timeout}, numbers=none, basicstyle=\ttfamily\scriptsize]{../openspec/specs/session-timeout/spec.md}

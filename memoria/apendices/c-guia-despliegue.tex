@@ -1,3 +1,73 @@
 \umaappendix{Guía de despliegue}
 \label{ap:despliegue}
-% TODO: Para el equipo de TI, a partir de docs/setup.md y docs/deploy-dokploy.md.
+
+Esta guía está pensada para el equipo de TI que ponga en marcha el sistema. Resume el entorno de desarrollo local y el despliegue en producción con Dokploy. Las instrucciones detalladas y actualizadas están en el repositorio, en \path{docs/setup.md} y \path{docs/deploy-dokploy.md}, y la referencia de la configuración de producción es el propio \path{docker-compose.yml}.
+
+\section{Servicios externos}
+
+Antes de desplegar hacen falta tres servicios externos:
+
+\begin{itemize}
+  \item \textbf{Auth0}, para la identidad. Se crea una aplicación de tipo \emph{Single Page Application} para el \emph{frontend} y una API, cuyo identificador es la audiencia de los \emph{tokens}. Se activan las organizaciones (cada ayuntamiento es una organización) y una acción que añade al \emph{token} los roles de administración: \texttt{admin-plataforma} para la base de conocimiento compartida y \texttt{admin-organizacion} para la configuración de cada ayuntamiento. Las URL de la aplicación se añaden a las de retorno, cierre de sesión y orígenes permitidos.
+  \item \textbf{Cloudflare R2}, compatible con S3, para guardar los boletines descargados. Se crea un \emph{bucket} y un \emph{token} de API con permisos de lectura y escritura.
+  \item \textbf{Un proveedor de modelos}, para el chat y los \emph{embeddings} de la plataforma: un proveedor en la nube con su clave, o un servidor Ollama accesible por una red privada. El modelo de \emph{embeddings} debe ser el mismo con el que se indexaron los boletines.
+\end{itemize}
+
+\section{Entorno de desarrollo}
+
+En local, todo el sistema se arranca con .NET Aspire (sección~\ref{sec:impl-despliegue}):
+
+\begin{enumerate}
+  \item Instalar el SDK de .NET~10, Node.js, Go, Docker (o Podman) y, para los modelos, Ollama. Para la evaluación offline hace falta además \texttt{uv}.
+  \item Guardar las credenciales de Auth0 en los \emph{user-secrets} del proyecto \texttt{AppHost}. Las de R2 son opcionales en desarrollo: sin ellas se usa un almacenamiento S3 local en un contenedor.
+  \item Ejecutar \texttt{dotnet run} sobre el proyecto \texttt{AppHost}. Aspire levanta los contenedores de PostgreSQL, Qdrant y RabbitMQ, la API, los cuatro \emph{workers}, el \emph{scraper}, el \emph{frontend} y la pasarela, y muestra en su panel el estado, los registros y las trazas de cada uno.
+\end{enumerate}
+
+Por defecto, en local se usan modelos de Ollama: \texttt{llama3.2} para el chat y \texttt{qwen3-embedding:0.6b} para los \emph{embeddings}. Las migraciones de la base de datos se aplican al arrancar la API.
+
+\section{Producción con Dokploy}
+
+\paragraph{Imágenes.} Cada cambio que pasa la integración continua en la rama principal lanza el flujo \texttt{deploy.yml}. Este compila solo las imágenes que han cambiado (API, \emph{worker}, pasarela con la interfaz Angular y \emph{scraper}), las publica en el registro de contenedores de GitHub y avisa a Dokploy mediante un \emph{webhook} para que despliegue. Todas las imágenes de un despliegue llevan la etiqueta \texttt{sha-<commit>}, de modo que se puede volver a cualquier versión anterior.
+
+\paragraph{Puesta en marcha.} Los pasos, una sola vez, son:
+
+\begin{enumerate}
+  \item Generar en GitHub un \emph{token} personal con el permiso \texttt{read:packages} y registrar con él el registro \texttt{ghcr.io} en Dokploy.
+  \item Crear en Dokploy una aplicación de tipo \emph{Compose} con el \texttt{docker-compose.yml} del repositorio, asociada a ese registro.
+  \item Definir las variables de entorno en la pestaña \emph{Environment} de la aplicación (tabla~\ref{tab:variables-despliegue}). El fichero exige las obligatorias, y el despliegue falla si falta alguna.
+  \item Configurar en GitHub los secretos del flujo de despliegue (la URL del \emph{webhook} de Dokploy) y desplegar.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Variables de entorno principales del despliegue}
+\label{tab:variables-despliegue}
+\begin{tabular}{@{}p{0.42\textwidth} p{0.52\textwidth}@{}}
+\toprule
+\textbf{Variable} & \textbf{Uso} \\
+\midrule
+\texttt{GITHUB\_USER}, \texttt{IMAGE\_TAG} & Origen de las imágenes y versión que se despliega (\texttt{latest} por defecto). \\
+\texttt{POSTGRES\_HOST}, \texttt{\_DB}, \texttt{\_USER}, \texttt{\_PASS} & Base de datos PostgreSQL (la de Dokploy). \\
+\texttt{QDRANT\_API\_KEY} (obligatoria) & Clave del almacén vectorial. \\
+\texttt{RABBITMQ\_PASS} (obligatoria) & Contraseña del \emph{broker} de mensajería. \\
+\texttt{INTERNAL\_GRPC\_KEY} (obligatoria) & Clave compartida entre el \emph{scraper} y la API. \\
+\texttt{CLOUDFLARE\_R2\_*} & Punto de acceso, credenciales y \emph{bucket} de R2. \\
+\texttt{AUTH0\_DOMAIN}, \texttt{\_CLIENT\_ID}, \texttt{\_CLIENT\_SECRET}, \texttt{\_AUDIENCE} & Identidad. \\
+\texttt{AI\_CHAT\_*}, \texttt{AI\_EMBEDDINGS\_*}, \texttt{GEMINI\_API\_KEY} & Modelos de la plataforma y sus precios para las métricas de coste. \\
+\texttt{OTEL\_EXPORTER\_OTLP\_*}, \texttt{FARO\_*} & Envío de telemetría al colector (opcional). \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Servicios.} El fichero levanta Qdrant, RabbitMQ, la API, los \emph{workers} de las \emph{pipelines} básica y jerárquica, el \emph{scraper} y la pasarela, que publica la interfaz y la API en un único puerto. PostgreSQL es la instancia que gestiona Dokploy. Los \emph{workers} de las variantes recursiva y semántica solo se usan para el estudio de fragmentación y no arrancan salvo que se active el perfil de Compose \texttt{chunking-study} (\texttt{COMPOSE\_PROFILES=chunking-study}). La \emph{pipeline} que responde en el chat se puede fijar con \texttt{Rag:ProductionPipeline}; si no se fija, responde la que más gana en la Arena.
+
+\paragraph{Vuelta atrás.} Para volver a una versión anterior se pone \texttt{IMAGE\_TAG=sha-<commit>} en Dokploy y se vuelve a desplegar. Mientras esa variable apunte a una versión fija, los despliegues automáticos siguen levantando esa versión, así que hay que devolverla a \texttt{latest} cuando el arreglo llegue a la rama principal. Una versión anterior no deshace las migraciones de la base de datos que hubiera aplicado una posterior, así que antes de volver atrás hay que comprobar que el esquema sigue siendo compatible.
+
+\section{Comprobación y operación}
+
+\begin{itemize}
+  \item Cada servicio expone \texttt{/health}, que usan las comprobaciones de salud del \emph{Compose}.
+  \item Tras el primer despliegue, un administrador de la plataforma revisa las reglas de filtrado del \emph{scraper} y lanza una descarga de prueba. En \emph{Documentos} comprueba que los documentos se ingieren en las dos \emph{pipelines}.
+  \item La consola de RabbitMQ muestra las colas de reintento (\texttt{.retry}) y de mensajes fallidos (\texttt{.dlq}) de cada \emph{pipeline}. Los documentos que agotan los reintentos se pueden volver a encolar desde \emph{Documentos}.
+  \item Si se configura el colector de OpenTelemetry, los paneles de Grafana muestran los errores, las trazas de extremo a extremo y el uso y coste de los modelos (sección~\ref{sec:impl-observabilidad}).
+\end{itemize}

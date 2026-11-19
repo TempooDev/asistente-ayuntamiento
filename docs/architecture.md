@@ -11,7 +11,7 @@ graph TD
     API -->|LLM por tenant| LLM[Ollama / OpenAI / OpenRouter / Gemini]
     API -->|encola| MQ[RabbitMQ]
     API <-->|gRPC + x-internal-key| GO[Scraper Go]
-    GO -->|JSON + originales| S3[(S3: MinIO / R2)]
+    GO -->|JSON + originales| S3[(S3: RustFS / R2)]
     GO -->|documents_to_process_*| MQ
     MQ --> WB[Worker BASELINE]
     MQ --> WH[Worker HIERARCHICAL]
@@ -29,7 +29,7 @@ graph TD
 
 | Proyecto | Responsabilidad |
 |---|---|
-| `AsistenteAyuntamiento.AppHost` | Orquestación Aspire: Postgres (pgvector/pg16), RabbitMQ, Qdrant, MinIO, Ollama, Angular y el scraper Go. |
+| `AsistenteAyuntamiento.AppHost` | Orquestación Aspire: Postgres (pgvector/pg16), RabbitMQ, Qdrant, RustFS, Ollama, Angular y el scraper Go. |
 | `AsistenteAyuntamiento.Gateway` | YARP: sirve la SPA y enruta `/api` y `/hubs` a la API. |
 | `AsistenteAyuntamiento.ApiService` | Endpoints minimal API, hubs SignalR (`/hubs/chat`, `/hubs/notifications`) y gRPC. Solo traduce transporte a servicios de Application. |
 | `AsistenteAyuntamiento.Worker` | Consumidores de ingesta en modo `BASELINE`, `HIERARCHICAL`, `RECURSIVE` o `SEMANTIC` (`WORKER_PIPELINE_MODE`). Las variantes de estudio solo arrancan en producción con el perfil `chunking-study`. |
@@ -49,7 +49,7 @@ graph TD
 |---|---|
 | `IAppDbContext` (+ `ExecuteInTransactionAsync`) | `AppDbContext` (EF Core, Npgsql) |
 | `IVectorStore` | `QdrantVectorStore` (colecciones `document_chunks`, `document_chunks_recursive`, `document_chunks_semantic` y `child_fragments`, creadas en la primera escritura) |
-| `IBlobStorage` | `S3BlobStorage` (MinIO / Cloudflare R2) |
+| `IBlobStorage` | `S3BlobStorage` (RustFS / Cloudflare R2) |
 | `IFullTextSearch` | `PostgresFullTextSearch` (`tsvector` de los fragmentos) |
 | `IIngestionMaintenance` | `IngestionMaintenance` (reset de la ingesta baseline: borra sus fragmentos y estados sin tocar las otras variantes) |
 | `IIngestionQueuePublisher` | `RabbitMqIngestionPublisher` (persistente + publisher confirms) |

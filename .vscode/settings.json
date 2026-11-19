@@ -17,8 +17,10 @@
         "-file-line-error",
         "%DOC%"
       ],
+      // One PATH for macOS and Windows: Windows splits on ';' (MiKTeX, Strawberry Perl for latexmk, System32) and
+      // ignores the rest; macOS splits on ':' and keeps the entries from /Library/TeX/texbin on.
       "env": {
-        "PATH": "/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        "PATH": "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64;C:\\Strawberry\\perl\\bin;C:\\Strawberry\\c\\bin;C:\\Windows\\System32;:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
       }
     }
   ],
