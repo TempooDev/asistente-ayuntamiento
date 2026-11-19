@@ -10,7 +10,7 @@ Antes de desplegar hacen falta tres servicios externos:
 \begin{itemize}
   \item \textbf{Auth0}, para la identidad. Se crea una aplicación de tipo \emph{Single Page Application} para el \emph{frontend} y una API, cuyo identificador es la audiencia de los \emph{tokens}. Se activan las organizaciones (cada ayuntamiento es una organización) y una acción que añade al \emph{token} los roles de administración: \texttt{admin-plataforma} para la base de conocimiento compartida y \texttt{admin-organizacion} para la configuración de cada ayuntamiento. Las URL de la aplicación se añaden a las de retorno, cierre de sesión y orígenes permitidos.
   \item \textbf{Cloudflare R2}, compatible con S3, para guardar los boletines descargados. Se crea un \emph{bucket} y un \emph{token} de API con permisos de lectura y escritura.
-  \item \textbf{Un proveedor de modelos}, para el chat y los \emph{embeddings} de la plataforma: un proveedor en la nube con su clave, o un servidor Ollama accesible por una red privada. El modelo de \emph{embeddings} debe ser el mismo con el que se indexaron los boletines.
+  \item \textbf{Un proveedor de modelos}, para el chat y los \emph{embeddings} de la plataforma: un proveedor en la nube con su clave, o un servidor Ollama accesible por una red privada. El despliegue actual usa OpenRouter con Qwen3-Embedding-8B para los \emph{embeddings}. El modelo de \emph{embeddings} debe ser el mismo con el que se indexaron los boletines.
 \end{itemize}
 
 \section{Entorno de desarrollo}
@@ -18,12 +18,12 @@ Antes de desplegar hacen falta tres servicios externos:
 En local, todo el sistema se arranca con .NET Aspire (sección~\ref{sec:impl-despliegue}):
 
 \begin{enumerate}
-  \item Instalar el SDK de .NET~10, Node.js, Go, Docker (o Podman) y, para los modelos, Ollama. Para la evaluación offline hace falta además \texttt{uv}.
+  \item Instalar el SDK de .NET~10, Node.js, Go, Docker (o Podman) y, para los modelos, Ollama. Para la evaluación automática del estudio de fragmentación hace falta además \texttt{uv}.
   \item Guardar las credenciales de Auth0 en los \emph{user-secrets} del proyecto \texttt{AppHost}. Las de R2 son opcionales en desarrollo: sin ellas se usa un almacenamiento S3 local en un contenedor.
   \item Ejecutar \texttt{dotnet run} sobre el proyecto \texttt{AppHost}. Aspire levanta los contenedores de PostgreSQL, Qdrant y RabbitMQ, la API, los cuatro \emph{workers}, el \emph{scraper}, el \emph{frontend} y la pasarela, y muestra en su panel el estado, los registros y las trazas de cada uno.
 \end{enumerate}
 
-Por defecto, en local se usan modelos de Ollama: \texttt{llama3.2} para el chat y \texttt{qwen3-embedding:0.6b} para los \emph{embeddings}. Las migraciones de la base de datos se aplican al arrancar la API.
+Por defecto, en local se usan modelos de Ollama: \texttt{llama3.2} para el chat y \texttt{qwen3-\allowbreak embedding:0.6b} para los \emph{embeddings}. Las migraciones de la base de datos se aplican al arrancar la API.
 
 \section{Producción con Dokploy}
 
@@ -59,7 +59,7 @@ Por defecto, en local se usan modelos de Ollama: \texttt{llama3.2} para el chat 
 \end{tabular}
 \end{table}
 
-\paragraph{Servicios.} El fichero levanta Qdrant, RabbitMQ, la API, los \emph{workers} de las \emph{pipelines} básica y jerárquica, el \emph{scraper} y la pasarela, que publica la interfaz y la API en un único puerto. PostgreSQL es la instancia que gestiona Dokploy. Los \emph{workers} de las variantes recursiva y semántica solo se usan para el estudio de fragmentación y no arrancan salvo que se active el perfil de Compose \texttt{chunking-study} (\texttt{COMPOSE\_PROFILES=chunking-study}). La \emph{pipeline} que responde en el chat se puede fijar con \texttt{Rag:ProductionPipeline}; si no se fija, responde la que más gana en la Arena.
+\paragraph{Servicios.} El fichero levanta Qdrant, RabbitMQ, la API, los \emph{workers} de las \emph{pipelines} básica y jerárquica, el \emph{scraper} y la pasarela, que publica la interfaz y la API en un único puerto. PostgreSQL es la instancia que gestiona Dokploy. Los \emph{workers} de las variantes recursiva y semántica solo se usan para el estudio de fragmentación y no arrancan salvo que se active el perfil de Compose \texttt{chunking-study} (\texttt{COMPOSE\_PROFILES=chunking-study}). La \emph{pipeline} que responde en el chat se puede fijar con \texttt{Rag:ProductionPipeline} (variable \texttt{Rag\_\_ProductionPipeline}); si no se fija, responde la que más gana en la Arena y, sin votos, la básica. En producción se fija a \texttt{Hierarchical}.
 
 \paragraph{Vuelta atrás.} Para volver a una versión anterior se pone \texttt{IMAGE\_TAG=sha-<commit>} en Dokploy y se vuelve a desplegar. Mientras esa variable apunte a una versión fija, los despliegues automáticos siguen levantando esa versión, así que hay que devolverla a \texttt{latest} cuando el arreglo llegue a la rama principal. Una versión anterior no deshace las migraciones de la base de datos que hubiera aplicado una posterior, así que antes de volver atrás hay que comprobar que el esquema sigue siendo compatible.
 

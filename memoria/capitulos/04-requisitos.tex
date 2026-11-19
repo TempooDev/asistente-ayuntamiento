@@ -22,7 +22,7 @@ Los documentos de los boletines y sus vectores son globales, de modo que todos l
 \section{Requisitos funcionales}
 \label{sec:rf}
 
-Los requisitos funcionales se han extraído de las especificaciones de OpenSpec (\texttt{openspec/specs}), que describen el comportamiento del sistema tal como está implementado. Cada requisito indica la capacidad de la que procede, de modo que puede consultarse allí con sus escenarios de aceptación. Se agrupan en cinco áreas, recogidas en las tablas~\ref{tab:rf-ingesta} a~\ref{tab:rf-admin}.
+Los requisitos funcionales se han extraído de las especificaciones de OpenSpec (\texttt{openspec/specs}), que describen el comportamiento del sistema tal como está implementado. Cada requisito indica la capacidad de la que procede, donde puede consultarse con sus escenarios de aceptación. Se agrupan en cinco áreas, recogidas en las tablas~\ref{tab:rf-ingesta} a~\ref{tab:rf-admin}.
 
 \begin{table}[htbp]
 \centering\small
@@ -37,8 +37,8 @@ RF2 & Lanzar descargas bajo demanda para un rango de fechas (31 días como máxi
 RF3 & Descartar los documentos que no cumplen las reglas de filtrado, que se guardan en la base de datos y se editan desde la interfaz. Si las reglas no se pueden obtener, no se descarga nada. & \texttt{scraper-dynamic-filtering} \\
 RF4 & Guardar el original y el texto estructurado de cada documento en el almacenamiento S3 antes de encolarlo para su procesamiento. & \texttt{go-scraper} \\
 RF5 & Fragmentar cada documento, generar los \emph{embeddings} de sus fragmentos y guardarlos en PostgreSQL y Qdrant. & \texttt{chunking-embeddings} \\
-RF6 & Procesar cada documento con dos pipelines: la \emph{baseline} (fragmentos de tamaño fijo con solapamiento) y la jerárquica (documentos padre e hijos enriquecidos con contexto). & \texttt{hierarchical-retrieval} \\
-RF7 & Reprocesar en bloque los documentos almacenados por una o por las dos pipelines, sin duplicar fragmentos ni dejar vectores huérfanos. & \texttt{bulk-reprocessing-pipeline} \\
+RF6 & Procesar cada documento con dos pipelines: la básica (fragmentos de tamaño fijo con solapamiento) y la jerárquica (documentos padre e hijos enriquecidos con contexto). & \texttt{hierarchical-retrieval} \\
+RF7 & Reprocesar en bloque los documentos almacenados por una o varias pipelines, sin duplicar fragmentos ni dejar vectores huérfanos. & \texttt{bulk-reprocessing-pipeline} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -55,8 +55,8 @@ RF9 & Mostrar la respuesta a medida que se genera. & \texttt{signalr-integration
 RF10 & Citar en cada respuesta los documentos usados, con su título, boletín, referencia y enlace público. & \texttt{hierarchical-retrieval} \\
 RF11 & Reformular la pregunta en terminología administrativa y combinar búsqueda semántica y léxica (fusión RRF) en la pipeline jerárquica. & \texttt{hierarchical-retrieval} \\
 RF12 & Responder en lenguaje claro y advertir cuando los documentos no contienen la respuesta. & \texttt{hierarchical-retrieval} \\
-RF13 & Adaptar las respuestas a los temas de interés y localidades del usuario. & \texttt{contexto-personalizado} \\
-RF14 & Sugerir temas y localidades a partir de las conversaciones recientes del usuario. & \texttt{procesamiento-historico} \\
+RF13 & Adaptar las respuestas a los temas y zonas de interés del usuario. & \texttt{contexto-personalizado} \\
+RF14 & Sugerir temas y zonas de interés a partir de las conversaciones recientes del usuario. & \texttt{procesamiento-historico} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -87,7 +87,7 @@ RF20 & Ofrecer en el móvil la misma navegación que en el escritorio. & \texttt
 \midrule
 RF21 & Ejecutar las dos pipelines a la vez sobre la misma pregunta y mostrar las respuestas de forma anónima (\emph{Alfa} y \emph{Beta}), en orden aleatorio. & \texttt{question-arena} \\
 RF22 & Registrar el voto del usuario y revelar después qué pipeline generó cada respuesta en la página de la Arena. & \texttt{question-arena} \\
-RF23 & Usar la pipeline con más victorias para responder en el chat normal. & \texttt{query-api-semantic-kernel} \\
+RF23 & Responder en el chat con la pipeline fijada por configuración o, si no hay ninguna, con la que tenga más victorias en la Arena. & \texttt{query-api-semantic-kernel} \\
 RF24 & Calcular la tasa de victorias de cada pipeline a partir de los votos. & \texttt{ingestion-telemetry} \\
 \bottomrule
 \end{tabularx}
@@ -100,7 +100,7 @@ RF24 & Calcular la tasa de victorias de cada pipeline a partir de los votos. & \
 \toprule
 \textbf{Id.} & \textbf{Requisito} & \textbf{Capacidad} \\
 \midrule
-RF25 & Elegir el proveedor y el modelo de IA con el que cada ayuntamiento genera las respuestas del chat (Ollama, OpenAI, OpenRouter o Google) y guardar su clave de API. Los \emph{embeddings} los genera siempre la plataforma (sección~\ref{sec:clave-propia}). & \texttt{user-api-keys-vault} \\
+RF25 & Elegir el proveedor y el modelo de IA con el que cada ayuntamiento genera las respuestas de la pipeline básica (Ollama, OpenAI, OpenRouter o Google) y guardar su clave de API. Los \emph{embeddings} los genera siempre la plataforma (sección~\ref{sec:clave-propia}). & \texttt{user-api-keys-vault} \\
 RF26 & Gestionar las reglas de filtrado y lanzar descargas desde la interfaz. & \texttt{scraper-dynamic-filtering} \\
 RF27 & Listar e inspeccionar los documentos almacenados, procesar uno concreto y mantener el estado de los trabajos. & \texttt{ingestion-administration} \\
 RF28 & Notificar en tiempo real el progreso de la ingesta y del \emph{scraper} a los administradores. & \texttt{realtime-notifications} \\
@@ -109,25 +109,25 @@ RF29 & Mostrar el consumo de IA de la organización, el coste de ingesta de la p
 \end{tabularx}
 \end{table}
 
+\FloatBarrier
 \section{Requisitos no funcionales}
 \label{sec:rnf}
 
-Los requisitos no funcionales proceden también de las especificaciones, principalmente de las que se reescribieron tras la auditoría de código de octubre de 2026 (sección~\ref{sec:sdd}).
+Los requisitos no funcionales proceden también de las especificaciones, principalmente de las que se reescribieron tras la auditoría de código de octubre de 2026 (sección~\ref{sec:impl-auditoria}).
 
 {\sloppy
 \begin{description}
-  \item[RNF1. Veracidad.] Las respuestas se basan solo en los documentos recuperados y los citan. Las instrucciones del modelo le piden que, si los documentos no responden a la pregunta, lo diga en lugar de responder con su propio conocimiento (\texttt{hierarchical-retrieval}, \texttt{query-api-semantic-kernel}).
-  \item[RNF2. Aislamiento entre ayuntamientos.] Las conversaciones, votos, preferencias y configuración de IA de cada ayuntamiento quedan aisladas mediante filtros globales de consulta. Toda petición, llamada al \emph{hub} y tarea en segundo plano lleva su ayuntamiento, y fuera del entorno de desarrollo se rechazan las peticiones sin él (\texttt{multi-tenant-user-profiles}).
+  \item[RNF1. Veracidad.] Las respuestas se basan solo en los documentos recuperados y los citan. Las instrucciones del modelo le piden que, si los documentos no responden a la pregunta, lo diga en lugar de responder con su propio conocimiento (\texttt{hierarchical-retrieval}, \texttt{query-api-semantic-kernel}).  \item[RNF2. Aislamiento entre ayuntamientos.] Las conversaciones, votos, preferencias y configuración de IA de cada ayuntamiento quedan aisladas mediante filtros globales de consulta. Toda petición, llamada al \emph{hub} y tarea en segundo plano lleva su ayuntamiento, y fuera del entorno de desarrollo se rechazan las peticiones sin él (\texttt{multi-tenant-user-profiles}).
   \item[RNF3. Autorización en el servidor.] Cada operación administrativa exige el rol adecuado en la API, no solo en la interfaz; los servicios internos gRPC exigen una clave compartida; y los clientes nunca reciben detalles internos de los errores (\texttt{api-authorization}).
   \item[RNF4. Protección de credenciales.] Las claves de API de cada ayuntamiento se guardan cifradas, nunca se devuelven al cliente y solo se envían a su propio proveedor. Se valida siempre el certificado TLS (\texttt{user-api-keys-vault}, \texttt{llm-provider-security}).
-  \item[RNF5. Tolerancia a fallos de los proveedores de IA.] Cuando el proveedor del ayuntamiento agota su cuota (HTTP 429) antes de generar texto, la pipeline \emph{baseline} responde con un modelo de respaldo de la plataforma, con sus propias credenciales, y lo avisa al usuario. El resto de errores del modelo se devuelven como mensajes tipados, sin detalles del proveedor (\texttt{query-api-semantic-kernel}).
+  \item[RNF5. Tolerancia a fallos de los proveedores de IA.] Cuando el proveedor del ayuntamiento agota su cuota (HTTP 429) antes de generar texto, la pipeline básica responde con un modelo de respaldo de la plataforma, con sus propias credenciales, y avisa de ello al usuario. La jerárquica, que es la que responde en producción, usa siempre el modelo de la plataforma. El resto de errores del modelo se devuelven como mensajes tipados, sin detalles del proveedor (\texttt{query-api-semantic-kernel}).
   \item[RNF6. Fiabilidad de la ingesta.] Los mensajes de ingesta son persistentes y confirmados por el \emph{broker}; los fallos se reintentan un número limitado de veces (tres por defecto) y después pasan a una cola de mensajes fallidos. Los consumidores sobreviven a las caídas del \emph{broker} (\texttt{messaging-reliability}).
-  \item[RNF7. Consistencia de datos.] PostgreSQL es la fuente de verdad y se confirma antes de escribir los vectores; la reingesta es idempotente y no deja vectores huérfanos (\texttt{ingestion-consistency}).
+  \item[RNF7. Consistencia de datos.] PostgreSQL es la fuente de referencia: su transacción se confirma antes de escribir los vectores; la reingesta es idempotente y no deja vectores huérfanos (\texttt{ingestion-consistency}).
   \item[RNF8. Acceso respetuoso a las fuentes.] El \emph{scraper} limita la frecuencia de peticiones a cada boletín (2 por segundo al BOE y 1 por segundo al BOJA), reintenta hasta tres veces con espera exponencial ante errores de red, 429 y 5xx, y se detiene de forma ordenada (\texttt{go-scraper}).
   \item[RNF9. Observabilidad y privacidad.] Todos los servicios exportan errores, trazas, métricas y registros con OpenTelemetry, con trazas de extremo a extremo; las métricas de uso, coste y latencia de los modelos nunca incluyen el texto de las preguntas ni de las respuestas (\texttt{observability-grafana}).
   \item[RNF10. Mantenibilidad.] El código sigue una arquitectura limpia cuyas reglas de dependencia verifican pruebas automáticas, y la integración continua cubre todos los lenguajes del proyecto (\texttt{clean-architecture-boundaries}, \texttt{build-quality-gates}).
   \item[RNF11. Accesibilidad y uso en el móvil.] En el móvil, el menú lateral es un diálogo modal accesible: mueve el foco a su primer control, lo mantiene dentro mientras está abierto, expone su estado a los lectores de pantalla y se cierra con la tecla Escape, al navegar o al pulsar fuera (\texttt{mobile-navigation}).
-  \item[RNF12. Tiempo de respuesta.] La respuesta del chat se transmite según se genera, de modo que el usuario ve el primer texto sin esperar a la respuesta completa. Con los modelos locales del entorno de evaluación, el primer texto debe llegar en menos de un segundo y la respuesta completa en menos de tres segundos en mediana, también con la \emph{pipeline} jerárquica. La búsqueda no debe degradarse de forma apreciable al crecer la colección de boletines. Las mediciones están en la sección~\ref{sec:rendimiento}.
+  \item[RNF12. Tiempo de respuesta.] La respuesta del chat se transmite según se genera, de modo que el usuario ve el primer texto sin esperar a la respuesta completa. Con los modelos locales del entorno de evaluación, el primer texto debe llegar en menos de un segundo y la respuesta completa en menos de tres segundos en mediana, también con la \emph{pipeline} jerárquica, contando desde que la pregunta llega a la \emph{pipeline}. La búsqueda no debe degradarse de forma apreciable al crecer la colección de boletines. Las mediciones están en la sección~\ref{sec:rendimiento}.
 \end{description}
 \par}
 
@@ -243,6 +243,8 @@ A continuación se detallan los cuatro casos de uso que mejor representan el sis
 \subsection{CU1. Descargar los boletines del día anterior}
 \label{sec:cu1}
 
+Es el único caso de uso sin intervención humana. La tabla~\ref{tab:cu1} lo detalla.
+
 \begin{table}[htbp]
 \centering\small
 \caption{Caso de uso CU1: descargar los boletines del día anterior}
@@ -251,7 +253,7 @@ A continuación se detallan los cuatro casos de uso que mejor representan el sis
 \toprule
 \cucampo{Actor}{Sistema programado (planificador del \emph{scraper}).}
 \cucampo{Objetivo}{Incorporar a la base de conocimiento los documentos del BOE y del BOJA publicados el día anterior, sin intervención humana.}
-\cucampo{Precondiciones}{Hay reglas de filtrado activas para los boletines programados y ningún otro trabajo de descarga en curso.}
+\cucampo{Precondiciones}{No hay ningún otro trabajo de descarga en curso. Si no hay reglas de filtrado definidas, se conservan todos los documentos de las secciones elegidas.}
 \cucampo{Flujo principal}{%
 \begin{cupasos}
   \item A la hora configurada, el planificador lanza un trabajo para el día anterior.
@@ -263,7 +265,7 @@ A continuación se detallan los cuatro casos de uso que mejor representan el sis
 \end{cupasos}}
 \cucampo{Flujos alternativos}{%
 \begin{cualternativos}
-  \item[2a.] Las reglas no se pueden obtener: el trabajo termina como fallido y no se descarga ningún documento.
+  \item[2a.] Las reglas no se pueden obtener (por ejemplo, porque la API no responde): el trabajo termina como fallido y no se descarga ningún documento.
   \item[3a.] Ese día no hay boletín: el trabajo termina sin documentos y sin error.
   \item[3b.] Un sumario no se puede leer: se registra el error y se continúa con el día siguiente.
   \item[4a.] El almacenamiento falla: el documento no se encola y se contabiliza como error.
@@ -278,7 +280,7 @@ A continuación se detallan los cuatro casos de uso que mejor representan el sis
 \subsection{CU2. Consultar los boletines}
 \label{sec:cu2}
 
-Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del capítulo de diseño muestra su secuencia de mensajes entre componentes.
+Es el caso de uso principal del sistema (tabla~\ref{tab:cu2}). La figura~\ref{fig:secuencia-chat} del capítulo de diseño muestra su secuencia de mensajes entre componentes.
 
 \begin{table}[htbp]
 \centering\small
@@ -293,17 +295,17 @@ Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del 
 \begin{cupasos}
   \item El usuario escribe la pregunta y la envía.
   \item El sistema guarda la pregunta en la conversación.
-  \item El sistema elige la pipeline con más victorias en la Arena.
+  \item El sistema elige la pipeline fijada por configuración o, si no hay ninguna, la que tiene más victorias en la Arena.
   \item La pipeline recupera los fragmentos más relevantes de los boletines.
-  \item El modelo de lenguaje genera la respuesta a partir de esos fragmentos y, en la pipeline \emph{baseline}, de los temas de interés y las localidades del usuario.
+  \item El modelo de lenguaje genera la respuesta a partir de esos fragmentos y, en la pipeline básica, de los temas y zonas de interés del usuario.
   \item El sistema muestra la respuesta a medida que se genera, con las referencias y los enlaces de los documentos citados.
   \item El sistema guarda la respuesta completa en la conversación.
 \end{cupasos}}
 \cucampo{Flujos alternativos}{%
 \begin{cualternativos}
   \item[1a.] La conexión con el servidor se ha perdido: el sistema la recupera antes de enviar; si no lo consigue, avisa al usuario y no envía la pregunta.
-  \item[4a.] No se recupera ningún fragmento: la pipeline jerárquica responde con un mensaje fijo que indica que no ha encontrado normativa relevante; la \emph{baseline} responde como en una conversación general, sin citar documentos, lo que cubre por ejemplo los saludos.
-  \item[5a.] El proveedor de IA del ayuntamiento ha agotado su cuota antes de generar texto: la pipeline \emph{baseline} responde con el modelo de respaldo de la plataforma y lo indica.
+  \item[4a.] No se recupera ningún fragmento: la pipeline jerárquica responde con un mensaje fijo que indica que no ha encontrado normativa relevante; la básica responde como en una conversación general, sin citar documentos, lo que cubre por ejemplo los saludos.
+  \item[5a.] El proveedor de IA del ayuntamiento ha agotado su cuota antes de generar texto: la pipeline básica responde con el modelo de respaldo de la plataforma y lo indica.
   \item[5b.] El modelo falla: el usuario recibe un mensaje de error comprensible, sin detalles del proveedor; si ya se había mostrado parte de la respuesta, se conserva con el aviso.
   \item[6a.] El usuario cancela la respuesta: se guarda el texto recibido hasta ese momento.
 \end{cualternativos}}
@@ -316,6 +318,8 @@ Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del 
 \subsection{CU6. Configurar el modelo de IA}
 \label{sec:cu6}
 
+Es el caso de uso característico del administrador de organización, que decide con qué modelo y con qué clave se generan las respuestas de la pipeline básica en su ayuntamiento (tabla~\ref{tab:cu6}).
+
 \begin{table}[htbp]
 \centering\small
 \caption{Caso de uso CU6: configurar el modelo de IA}
@@ -323,7 +327,7 @@ Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del 
 \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} X@{}}
 \toprule
 \cucampo{Actor}{Administrador de organización.}
-\cucampo{Objetivo}{Elegir el proveedor y el modelo con el que se generan las respuestas del chat de su ayuntamiento y, si hace falta, la clave de API con la que se pagan.}
+\cucampo{Objetivo}{Elegir el proveedor y el modelo con el que se generan las respuestas de la pipeline básica en su ayuntamiento y, si hace falta, la clave de API con la que se pagan.}
 \cucampo{Precondiciones}{El usuario ha iniciado sesión con el rol \texttt{admin-organizacion}.}
 \cucampo{Flujo principal}{%
 \begin{cupasos}
@@ -336,10 +340,10 @@ Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del 
 \cucampo{Flujos alternativos}{%
 \begin{cualternativos}
   \item[3a.] El administrador no escribe una clave nueva: se conserva la que estaba guardada.
-  \item[3b.] Elige un proveedor que necesita clave y no hay ninguna: las respuestas del chat fallan con un mensaje que indica que el modelo no está configurado.
+  \item[3b.] Elige un proveedor que necesita clave y no hay ninguna: las respuestas de la pipeline básica fallan con un mensaje que indica que el modelo no está configurado.
   \item[*a.] El usuario no tiene el rol de administrador de organización: la página no está disponible y la API rechaza la petición.
 \end{cualternativos}}
-\cucampo{Postcondiciones}{Las respuestas de la pipeline \emph{baseline} de ese ayuntamiento se generan con el modelo elegido. La clave nunca se devuelve al cliente y solo se envía a su proveedor. Los \emph{embeddings} y la pipeline jerárquica siguen usando los modelos de la plataforma (sección~\ref{sec:clave-propia}).}
+\cucampo{Postcondiciones}{Las respuestas de la pipeline básica de ese ayuntamiento se generan con el modelo elegido. Como en producción responde la jerárquica, hoy ese modelo solo interviene en el lado básico del modo Arena (sección~\ref{sec:pipelines}). La clave nunca se devuelve al cliente y solo se envía a su proveedor. Los \emph{embeddings} y la pipeline jerárquica siguen usando los modelos de la plataforma (sección~\ref{sec:clave-propia}).}
 \textbf{Requisitos} & RF25; RNF2, RNF3, RNF4. \\
 \bottomrule
 \end{tabularx}
@@ -347,6 +351,8 @@ Es el caso de uso principal del sistema. La figura~\ref{fig:secuencia-chat} del 
 
 \subsection{CU11. Lanzar una descarga bajo demanda}
 \label{sec:cu11}
+
+El administrador de plataforma usa este caso de uso para completar la base de conocimiento fuera de la descarga diaria (tabla~\ref{tab:cu11}).
 
 \begin{table}[htbp]
 \centering\small

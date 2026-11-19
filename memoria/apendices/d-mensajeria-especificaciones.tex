@@ -18,6 +18,8 @@ Este contrato regula la comunicación por RabbitMQ entre el \emph{scraper} en Go
 \midrule
 \texttt{documents\_to\_process\_baseline} & \emph{Scraper} Go y API (reprocesado) & \emph{Worker} en modo \texttt{BASELINE} \\
 \texttt{documents\_to\_process\_hierarchical} & \emph{Scraper} Go y API (reprocesado) & \emph{Worker} en modo \texttt{HIERARCHICAL} \\
+\texttt{documents\_to\_process\_recursive} & API (encolado desde el panel de documentos) & \emph{Worker} en modo \texttt{RECURSIVE} \\
+\texttt{documents\_to\_process\_semantic} & API (encolado desde el panel de documentos) & \emph{Worker} en modo \texttt{SEMANTIC} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -25,7 +27,7 @@ Este contrato regula la comunicación por RabbitMQ entre el \emph{scraper} en Go
 Cada cola de trabajo \texttt{Q} tiene dos colas auxiliares, y las tres son duraderas:
 
 \begin{description}
-  \item[\texttt{Q}.] Trabajo pendiente. Un \texttt{nack} sin reencolar envía el mensaje a \texttt{Q.dlq}, porque la cola declara como destino de los mensajes muertos el \emph{exchange} por defecto con la clave de enrutamiento \texttt{Q.dlq}.
+  \item[\texttt{Q}.] Trabajo pendiente. Un \texttt{nack} sin reencolar envía el mensaje a \texttt{Q.dlq}, porque la cola declara como destino de los mensajes rechazados (\emph{dead-lettering}) el \emph{exchange} por defecto con la clave de enrutamiento \texttt{Q.dlq}.
   \item[\texttt{Q.retry}.] Espera antes de reintentar. Sus mensajes caducan a los 30 segundos (\texttt{x-message-ttl = 30000}, entero de 32 bits) y vuelven a \texttt{Q}.
   \item[\texttt{Q.dlq}.] Mensajes que agotaron los reintentos o no se pudieron leer. Se inspeccionan a mano.
 \end{description}
@@ -100,13 +102,13 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \texttt{api-authorization} & Autorización en el servidor por rol, clave compartida en gRPC, errores sin detalles internos y arranque bloqueado sin secretos. \\
 \texttt{blob-storage} & Almacenamiento compatible con S3 de los documentos (RustFS en desarrollo y Cloudflare R2 en producción). \\
 \texttt{build-quality-gates} & Integración continua para todos los lenguajes, versiones centralizadas y despliegue solo tras la CI. \\
-\texttt{bulk-reprocessing-pipeline} & Reprocesado masivo con un \emph{worker} por pipeline (\emph{baseline} y jerárquica). \\
+\texttt{bulk-reprocessing-pipeline} & Reprocesado en bloque con un \emph{worker} por pipeline. \\
 \texttt{chat-history} & Historial de conversaciones por usuario y ayuntamiento. \\
 \texttt{chat-ui-connection} & Conexión del chat al \emph{hub}: reconexión, varias conversaciones en paralelo e indicador de espera. \\
-\texttt{chunking-embeddings} & Fragmentación, generación de \emph{embeddings} y almacenamiento de la pipeline \emph{baseline}. \\
+\texttt{chunking-embeddings} & Fragmentación, generación de \emph{embeddings} y almacenamiento de las pipelines planas. \\
 \texttt{clean-architecture-boundaries} & Reglas de la arquitectura limpia y pruebas que las verifican. \\
-\texttt{contexto-personalizado} & Temas de interés y localidades del usuario para adaptar las respuestas. \\
-\texttt{evaluation-results} & Resultados puntuados de la evaluación offline guardados en la base de datos y mostrados en la página de métricas. \\
+\texttt{contexto-personalizado} & Temas y zonas de interés del usuario para adaptar las respuestas. \\
+\texttt{evaluation-results} & Resultados puntuados de la evaluación automática guardados en la base de datos y mostrados en la página de métricas. \\
 \texttt{go-scraper} & Servicio en Go que descarga, filtra, almacena y encola los documentos del BOE y del BOJA. \\
 \texttt{hierarchical-retrieval} & Pipeline jerárquica: padres e hijos, enriquecimiento, expansión de consulta, búsqueda híbrida RRF y lenguaje claro. \\
 \texttt{ingestion-administration} & Operaciones administrativas de ingesta detrás del servicio \texttt{IIngestionAdminService}. \\
@@ -121,7 +123,7 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \texttt{qdrant-vector-store} & Qdrant como base de datos vectorial detrás del puerto \texttt{IVectorStore}. \\
 \texttt{query-api-semantic-kernel} & Respuesta a preguntas con RAG sobre Semantic Kernel, con modelo por ayuntamiento y respaldo. \\
 \texttt{question-arena} & Comparación a ciegas de las dos pipelines y registro de votos. \\
-\texttt{rag-evaluation} & Evaluación offline y reproducible de las variantes RAG: corpus y preguntas fijos, RAGAS con un juez local, métricas de recuperación sin juez, latencia y coste de indexación. \\
+\texttt{rag-evaluation} & Evaluación automática y reproducible de las variantes RAG: corpus y preguntas fijos, RAGAS con un juez local, métricas de recuperación sin juez, latencia y coste de indexación. \\
 \texttt{realtime-notifications} & Notificaciones de ingesta y del \emph{scraper} por SignalR, solo a quien puede verlas. \\
 \texttt{scraper-dynamic-filtering} & Reglas de filtrado del \emph{scraper} en la base de datos y descargas bajo demanda por gRPC. \\
 \texttt{session-timeout} & Cierre de sesión por inactividad. \\
@@ -132,7 +134,8 @@ La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{
 \end{longtable}
 }
 
-La tabla recoge las 32 capacidades de \texttt{openspec/specs} a 19 de noviembre de 2026. Si se añaden capacidades nuevas antes de la entrega, conviene volver a revisarla.
+La tabla recoge las capacidades de \texttt{openspec/specs} a 19 de noviembre de 2026.
+% NOTA (Antonio): si se añaden capacidades nuevas antes de la entrega, revisar la tabla.
 
 \section{Ejemplo de especificación}
 

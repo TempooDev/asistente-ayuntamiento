@@ -1,25 +1,35 @@
 % ======================================================================
-% Capítulo: Estudio comparativo de estrategias de \emph{chunking}
+% Capítulo: Estudio comparativo de fragmentación
 % Fase 4 del anteproyecto. Mediciones en TEMPO1 (RTX 5070 Ti): ejecuciones E1--E4, detalle en el apéndice~\ref{ap:chunking}.
+% Cifras recalculadas el 19/11/2026 a partir de eval/runs/*/scores.csv: precisión y recall de contexto sobre las preguntas con respuesta.
 % ======================================================================
-\chapter{Estudio comparativo de estrategias de \emph{chunking}}
+\chapter{Estudio comparativo de fragmentación}
 \label{cap:estudio-chunking}
 
-Este capítulo compara cuatro formas de fragmentar los boletines y mide su efecto en la recuperación, en la calidad de las respuestas, en la latencia y en el coste de indexación. Todas las variantes se evalúan con los mismos modelos, las mismas preguntas y el mismo equipo. Para ver cómo cambian los resultados cuando crece la colección, el estudio se repite sobre tres tamaños de colección: el corpus del estudio, el corpus con documentos de distracción y la colección completa de boletines descargados. Además, se usa una batería de preguntas que separa los documentos por tamaño y por dificultad.
-
-\section{Estrategias comparadas}
-\label{sec:estrategias}
-
-Las cuatro variantes son \emph{pipelines} RAG completas del sistema (sección~\ref{sec:pipelines}). Tres de ellas comparten la ingesta y la generación de la \emph{pipeline} básica y solo cambian la estrategia de fragmentación. La cuarta es la \emph{pipeline} jerárquica.
+Este capítulo compara cuatro variantes de RAG que difieren en la forma de fragmentar los boletines y mide su efecto en la recuperación, en la calidad de las respuestas, en la latencia y en el coste de indexación. Responde a dos preguntas distintas:
 
 \begin{itemize}
-  \item \textbf{Tamaño fijo con solapamiento} (\emph{Baseline}). Divide el texto en fragmentos de hasta 400 tokens con 50 de solapamiento, agrupando líneas en párrafos con el \texttt{TextChunker} de Semantic Kernel. Es la estrategia de referencia.
-  \item \textbf{División recursiva} (\emph{Recursive}). Corta primero por párrafos y, si no basta, por saltos de línea, por finales de frase, por espacios y, en último caso, por caracteres. Las piezas que caben se conservan enteras y se unen hasta el mismo límite de 400 tokens, con hasta 50 tokens de solapamiento formado por piezas completas.
-  \item \textbf{Fragmentación semántica} (\emph{Semantic}). Divide el texto en frases con un separador adaptado al español jurídico, calcula el \emph{embedding} de cada frase junto con sus vecinas y abre un fragmento nuevo donde la distancia coseno entre ventanas consecutivas supera el percentil 95 del documento. Los fragmentos de menos de 100 tokens se unen al siguiente y los de más de 400 se dividen con la estrategia recursiva.
-  \item \textbf{Jerárquica padre-hijo} (\emph{Hierarchical}). Guarda cada artículo o disposición como documento padre y lo divide en fragmentos hijo enriquecidos con preguntas sintéticas generadas por un LLM. Al responder, reformula la consulta, combina la búsqueda semántica y la léxica con fusión RRF y entrega al modelo el texto de los padres (sección~\ref{sec:impl-rag}).
+  \item \textbf{P1.} Entre tres estrategias de fragmentación planas (tamaño fijo, recursiva y semántica), que comparten todo lo demás, ¿cuánto influye la fragmentación?
+  \item \textbf{P2.} ¿Cómo se compara con ellas la \emph{pipeline} jerárquica completa, que además de fragmentar de otra forma enriquece los fragmentos, reformula la consulta, combina dos búsquedas y entrega documentos enteros al modelo?
 \end{itemize}
 
-Cada variante tiene su colección en Qdrant, su cola de ingesta y su estado por documento, de modo que las cuatro se ingieren y se consultan por separado sobre los mismos documentos.
+La comparación P1 aísla la fragmentación; la P2 mide una \emph{pipeline}, no una estrategia de fragmentación. Todas las variantes se evalúan con los mismos modelos, las mismas preguntas y el mismo equipo. Para ver cómo cambian los resultados al crecer la colección, el estudio se repite sobre tres tamaños: el corpus del estudio, el corpus con distractores y la colección completa de documentos descargados. Además, se usa una batería de preguntas que separa los documentos por tamaño y por dificultad.
+
+\section{Variantes comparadas}
+\label{sec:estrategias}
+
+Las cuatro variantes son \emph{pipelines} RAG completas del sistema (sección~\ref{sec:pipelines}). Tres de ellas comparten la ingesta, la búsqueda, el \emph{prompt} y la generación de la \emph{pipeline} básica y solo cambian la estrategia de fragmentación. La cuarta es la \emph{pipeline} jerárquica.
+
+\begin{itemize}
+  \item \textbf{Tamaño fijo con solapamiento} (\texttt{Baseline}). Divide el texto en fragmentos de hasta 400 tokens con 50 de solapamiento con el \texttt{TextChunker} de Semantic Kernel, que agrupa antes las líneas en párrafos. Por eso los cortes caen en finales de línea, y no es un corte estricto por número de tokens. Es la estrategia de referencia.
+  \item \textbf{División recursiva} (\texttt{Recursive}). Corta primero por párrafos y, si no basta, por saltos de línea, por finales de frase, por espacios y, en último caso, por caracteres. Las piezas que caben se conservan enteras y se unen hasta el mismo límite de 400 tokens, con hasta 50 tokens de solapamiento formado por piezas completas.
+  \item \textbf{Fragmentación semántica} (\texttt{Semantic}). Divide el texto en frases con un separador adaptado al español jurídico, calcula el \emph{embedding} de cada frase junto con sus vecinas y abre un fragmento nuevo donde la distancia coseno entre ventanas consecutivas supera el percentil 95 del documento. Los fragmentos de menos de 100 tokens se unen al siguiente y los de más de 400 se dividen con la estrategia recursiva.
+  \item \textbf{Jerárquica padre-hijo} (\texttt{Hierarchical}). Cada documento del boletín es un documento padre. En el BOE, los hijos son sus artículos, sacados del XML, y los largos se subdividen con la estrategia de tamaño fijo; en el BOJA, que no tiene esa estructura, los hijos salen directamente de la estrategia de tamaño fijo. Los hijos se enriquecen con una ruta y dos preguntas sintéticas generadas por un LLM.
+\end{itemize}
+
+La jerárquica difiere de las planas en seis factores a la vez: (1) la unidad de fragmentación en el BOE (el artículo), (2) el enriquecimiento de los fragmentos, (3) la reformulación de la consulta, (4) la búsqueda híbrida con fusión RRF, (5) el contexto que recibe el modelo y (6) el \emph{prompt} de generación (\texttt{ClearLanguageGeneration} en lugar de \texttt{StreamingSystem} y \texttt{StreamingUserTemplate}, apéndice~\ref{ap:prompts}). En el contexto, las planas entregan cinco fragmentos de unos 400 tokens; la jerárquica entrega los documentos padre completos, en orden de relevancia, hasta 24.000 caracteres (unos 6.500 tokens), y si un padre no cabe en lo que queda, solo sus fragmentos hijo recuperados, recortados al presupuesto. Sus resultados no se pueden atribuir a ninguno de estos factores por separado sin un estudio de ablación, que este trabajo no incluye (sección~\ref{sec:validez}).
+
+Cada variante tiene su colección en Qdrant, su cola de ingesta y su estado por documento, y las cuatro se ingieren y se consultan por separado sobre los mismos documentos.
 
 \section{Diseño experimental}
 \label{sec:diseno-experimental}
@@ -27,27 +37,33 @@ Cada variante tiene su colección en Qdrant, su cola de ingesta y su estado por 
 \paragraph{Colecciones.} Se evalúan tres colecciones de tamaño creciente, que cada variante ingiere por completo:
 
 \begin{itemize}
-  \item \textbf{C1, corpus del estudio}: 17 documentos del BOE y del BOJA que responden a las preguntas. En las colecciones de tamaño fijo y jerárquica había además otros cinco boletines del BOJA del mismo día que uno de los del corpus, descargados al recuperar ese documento.
-  \item \textbf{C2, corpus con distractores}: los 17 documentos más 183 boletines de los mismos días y temas, que no responden a ninguna pregunta (200 en total). Se eligen de forma determinista: los BOE con número más cercano al del corpus y los BOJA del mismo boletín. La lista está versionada en \texttt{eval/dataset/distractors.txt}.
-  \item \textbf{C3, colección completa}: todos los boletines descargados entre el 1 de junio y el 5 de septiembre de 2026, es decir, 5.656 documentos del BOE y 338 del BOJA (5.994 en total). Es el tamaño que tendría la base de un ayuntamiento tras tres meses de uso.
+  \item \textbf{C1, corpus del estudio}: 17 documentos del BOE y del BOJA que responden a las preguntas. En las colecciones de tamaño fijo y jerárquica había además otros cinco documentos del BOJA del mismo boletín que uno de los del corpus, descargados al recuperar ese documento.
+  \item \textbf{C2, corpus con distractores}: los 17 documentos más otros 183 de los mismos días, que no responden a ninguna pregunta (200 en total). Se eligen de forma determinista por cercanía de número y no por tema: los documentos del BOE con número más cercano al de los del corpus y los del BOJA del mismo boletín. La lista está versionada en \texttt{eval/dataset/distractors.txt}.
+  \item \textbf{C3, colección completa}: todos los documentos descargados entre el 1 de junio y el 5 de septiembre de 2026, es decir, 5.656 del BOE y 338 del BOJA (5.994 en total). Equivale a unos tres meses de boletines filtrados. Uno de los del BOJA es una orden de 2013 descargada en ese periodo. Las colecciones de tamaño fijo y jerárquica, que también alimentan la ingesta diaria, tenían además 52 documentos del BOE del 14 de noviembre procesados minutos antes de E3 (6.046 en total); ninguna pregunta se refiere a ellos, pero actúan como distractores que las variantes recursiva y semántica no tienen.
 \end{itemize}
 
 \paragraph{Preguntas.} Se usan dos conjuntos, ambos versionados en el repositorio y comprobados por un validador que revisa su formato y que todos los documentos citados estén en la colección:
 
 \begin{itemize}
-  \item \textbf{Conjunto principal} (\texttt{eval/dataset}): 25 preguntas formuladas como las haría el personal municipal, cada una con su respuesta de referencia copiada del documento y la lista de documentos que la responden. Hay 10 de empleo público, 6 de ayudas y subvenciones, 4 de normativa, 2 de tributos y catastro, y 3 sin respuesta en el corpus.
+  \item \textbf{Conjunto principal} (\texttt{eval/dataset}): 25 preguntas del tipo que plantearía el personal municipal, cada una con su respuesta de referencia copiada del documento y la lista de documentos que la responden. Hay diez de empleo público, seis de ayudas y subvenciones, cuatro de normativa, dos de tributos y catastro, y tres sin respuesta en el corpus.
   \item \textbf{Batería variada} (\texttt{eval/dataset-sizes}): 37 preguntas sobre 30 documentos, agrupadas en seis categorías.
     \begin{itemize}
       \item Ocho preguntas sobre documentos \emph{pequeños} (hasta 2\,KB de texto), ocho sobre \emph{medianos} (de 15 a 25\,KB) y ocho sobre \emph{grandes} (de 85 a 180\,KB). En la mayoría de los grandes la respuesta está a propósito en mitad del texto (una tabla, un artículo o un anexo), no en el título.
-      \item Seis preguntas con \emph{distractores}, sobre documentos que tienen gemelos casi idénticos en la colección. Hay, por ejemplo, 35 convenios del programa Aula Mentor con la misma plantilla y varias convocatorias del mismo ayuntamiento publicadas el mismo día.
-      \item Tres preguntas \emph{mixtas}, que necesitan combinar documentos de tamaños distintos.
+      \item Seis preguntas con \emph{distractores}, sobre documentos que tienen gemelos casi idénticos en la colección. Hay, por ejemplo, 35 convenios del programa Aula Mentor con la misma plantilla y varias convocatorias del mismo ayuntamiento publicadas el mismo día. La mayoría se distinguen por el nombre del municipio o de la entidad, algo que favorece a la búsqueda léxica.
+      \item Tres preguntas \emph{mixtas}, que necesitan combinar documentos de tamaños distintos. Son demasiado pocas para sacar conclusiones de esta categoría.
       \item Cuatro preguntas \emph{sin respuesta}, formuladas cerca de documentos reales: por ejemplo, plazas de bombero en un ayuntamiento que solo ha convocado policía local.
     \end{itemize}
 \end{itemize}
 
-\paragraph{Ejecuciones.} Se hacen cuatro ejecuciones, todas en el mismo equipo y con el mismo software:
+Las preguntas candidatas de los dos conjuntos las generó un LLM a partir de los propios documentos, con la respuesta de referencia copiada del texto; el autor las revisó, corrigió las que no se ajustaban al texto y eligió las que pasaron a cada conjunto. Las candidatas y el borrador revisado están en \texttt{preguntas-candidatas.md}, junto a cada conjunto. Ninguna ha sido revisada por personal municipal.
+% VERIFICAR (Antonio): indicar qué LLM generó las preguntas candidatas.
 
-\begin{center}\small
+\paragraph{Ejecuciones.} Se hacen cuatro ejecuciones, todas en el mismo equipo y con el mismo software (tabla~\ref{tab:ejecuciones}).
+
+\begin{table}[htbp]
+\centering\small
+\caption{Ejecuciones del estudio}
+\label{tab:ejecuciones}
 \begin{tabular}{@{}l l l r@{}}
 \toprule
 \textbf{Ejecución} & \textbf{Colección} & \textbf{Preguntas} & \textbf{Respuestas} \\
@@ -58,32 +74,53 @@ E3 & C3 (5.994 documentos) & Principal (25) & 100 \\
 E4 & C3 (5.994 documentos) & Batería variada (37) & 148 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 
-\paragraph{Condiciones comunes.} Todas las variantes usan el mismo modelo de \emph{embeddings} (\texttt{qwen3-embedding:0.6b}, con la instrucción de tarea en las consultas y sin ella en los documentos) y el mismo modelo de generación (\texttt{qwen2.5:7b-instruct} cuantizado a 4 bits, a temperatura 0). Todas recuperan cinco unidades por pregunta, sin umbral de similitud. Los \emph{prompts} de generación piden limitarse a lo que dicen los documentos, sin fórmulas de cortesía ni consejos generales (apéndice~\ref{ap:prompts}).
+\paragraph{Condiciones comunes y diferencias.} Todas las variantes usan el mismo modelo de \emph{embeddings} (\texttt{qwen3-embedding:0.6b}, con la instrucción de tarea en las consultas y sin ella en los documentos) y el mismo modelo de chat (\texttt{qwen2.5:7b-instruct} \cite{qwen25}, cuantizado a 4 bits, a temperatura 0). Todas recuperan cinco unidades por pregunta, sin umbral de similitud, a diferencia de la configuración de la \emph{pipeline} básica en producción (tres fragmentos con umbral 0,65; tabla~\ref{tab:pipelines}), así que el comportamiento de producción no se evalúa tal cual. La unidad no es la misma: en las planas es un fragmento, y en la jerárquica, un fragmento hijo que da paso a su documento padre (completo o, si no cabe, en extractos). Los \emph{prompts} de generación piden limitarse a lo que dicen los documentos, sin fórmulas de cortesía ni consejos generales, pero no son el mismo en las planas y en la jerárquica (apéndice~\ref{ap:prompts}). El modelo de \emph{embeddings} del estudio no es el de producción (Qwen3-Embedding-8B, sección~\ref{sec:llm-embeddings}); los resultados podrían cambiar con él.
 
 \paragraph{Procedimiento.} Un programa de evaluación en .NET construye los mismos servicios que la API y llama a cada \emph{pipeline} en el propio proceso, sin pasar por el chat. Antes de empezar comprueba que cada colección existe, tiene la dimensión del modelo de \emph{embeddings} y contiene todos los documentos de las preguntas. En cada pregunta el orden de las variantes se baraja con una semilla registrada, y la primera pregunta de cada variante se descarta como calentamiento en las latencias. De cada respuesta se guardan los contextos recuperados, el texto entregado al modelo, los tokens y el tiempo de cada etapa. Después, un programa en Python puntúa la ejecución con RAGAS y la ejecución se importa en la base de datos, desde donde la página de métricas la muestra. Ninguna ejecución se lanza mientras quede ingesta pendiente, para que la evaluación no comparta la GPU.
 
 \section{Entorno de evaluación}
 \label{sec:entorno-local}
 
-Todas las mediciones se hicieron en un mismo equipo de sobremesa: procesador Intel Core i7-14700KF, 32\,GB de RAM y GPU NVIDIA GeForce RTX 5070 Ti con 16\,GB de VRAM, sobre Windows 11. Los modelos se ejecutan con Ollama de forma nativa (CUDA), con un contexto de 16.384 tokens. La base de datos, Qdrant y RabbitMQ se ejecutan en contenedores en el mismo equipo, orquestados con .NET Aspire. Al usar modelos abiertos en local, cada ejecución, de cientos de llamadas al LLM, no tiene coste por uso, y todas las latencias del capítulo corresponden a este hardware.
+Todas las mediciones se hicieron en un mismo equipo de sobremesa: procesador Intel Core i7-14700KF, 32\,GB de RAM y GPU NVIDIA GeForce RTX 5070 Ti con 16\,GB de VRAM, sobre Windows 11. Los modelos se ejecutan con Ollama de forma nativa (CUDA), con un contexto de 16.384 tokens para la generación. La base de datos, Qdrant y RabbitMQ se ejecutan en contenedores en el mismo equipo, orquestados con .NET Aspire. Al usar modelos abiertos en local, cada ejecución, de cientos de llamadas al LLM, no tiene coste por uso, y todas las latencias del capítulo corresponden a este hardware.
 
-El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7b-instruct}, a temperatura 0, con la versión 0.3.9 de RAGAS. Cada ejecución tarda unos 3 minutos en responder las preguntas y entre 15 y 20 en puntuarlas.
+El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7b-instruct}, a temperatura 0, con la versión 0.3.9 de RAGAS, sus instrucciones originales en inglés (no se han adaptado al español) y un contexto de 8.192 tokens. La relevancia de la respuesta usa como \emph{embeddings} \texttt{qwen3-embedding:0.6b}. Cada ejecución tarda unos tres minutos en responder las preguntas y entre 15 y 20 en puntuarlas.
 
 \section{Métricas}
 \label{sec:metricas}
 
+Las métricas de recuperación se calculan sin LLM, comparando identificadores de documento:
+
 \begin{itemize}
-  \item \textbf{Precisión de contexto} (\emph{context precision}): proporción de los fragmentos recuperados que son útiles para la respuesta de referencia, ponderada por su posición.
-  \item \textbf{Recall de contexto} (\emph{context recall}): proporción de las afirmaciones de la respuesta de referencia que se pueden atribuir a los fragmentos recuperados.
-  \item \textbf{Fidelidad} (\emph{faithfulness}): proporción de las afirmaciones de la respuesta que se deducen del texto entregado al modelo. En la variante jerárquica ese texto son los documentos padre.
-  \item \textbf{Relevancia de la respuesta} (\emph{answer relevancy}): similitud entre la pregunta y las preguntas que el juez reconstruye a partir de la respuesta.
-  \item \textbf{Tasa de alucinación}: proporción de respuestas con una fidelidad inferior a 0,8.
-  \item \textbf{Acierto en la recuperación} (hit@1) y \textbf{rango recíproco medio} (MRR): si alguno de los documentos de referencia aparece en primera posición y en qué posición aparece el primero. Se calculan comparando identificadores, sin LLM, y no dependen del juez.
-  \item \textbf{Latencia}: mediana (p50) y percentil 95 del primer token y del total de la respuesta, y en la jerárquica también de la reformulación de la consulta.
-  \item \textbf{Coste de indexación}: tiempo de ingesta por documento, fragmentos por documento, tokens enviados al modelo de \emph{embeddings} y llamadas al LLM.
+  \item \textbf{Acierto en primera posición} (hit@1) y en las cinco primeras (hit@5): 1 si alguno de los documentos de referencia aparece en esa posición o antes y 0 si no.
+  \item \textbf{Rango recíproco medio} (MRR@5): la media de $1/r$, donde $r$ es la posición del primer documento de referencia entre las cinco unidades recuperadas (0 si no aparece) \cite{voorhees1999trec}.
 \end{itemize}
+
+Las posiciones son las de las unidades recuperadas, sin agrupar por documento: en las planas, dos fragmentos del mismo documento ocupan dos posiciones. Estas métricas dicen si se recuperó el documento correcto, no si se recuperó el pasaje que contiene la respuesta.
+
+Las métricas de RAGAS las calcula el juez \cite{es2023ragas}:
+
+\begin{itemize}
+  \item \textbf{Precisión de contexto} (\texttt{LLMContextPrecisionWithReference}): media de la precisión en cada posición en la que el juez considera útil la unidad para llegar a la respuesta de referencia, una forma de precisión media ponderada por la posición.
+  \item \textbf{Recall de contexto} (\texttt{LLMContextRecall}): proporción de las afirmaciones de la respuesta de referencia que el juez atribuye a las unidades recuperadas.
+  \item \textbf{Fidelidad} (\texttt{Faithfulness}): proporción de las afirmaciones de la respuesta que se deducen del texto entregado al modelo. En la variante jerárquica ese texto son los documentos padre o sus extractos.
+  \item \textbf{Relevancia de la respuesta} (\texttt{ResponseRelevancy}): similitud coseno entre la pregunta y la que el juez reconstruye a partir de la respuesta. Una respuesta que se limita a decir que no tiene la información obtiene una relevancia de 0.
+  \item \textbf{Tasa de baja fidelidad}: proporción de respuestas con una fidelidad inferior a 0,8. No mide alucinaciones: cuenta como baja fidelidad una respuesta correcta con una sola frase sin respaldo. El umbral de 0,8 es una elección del autor, y la sección~\ref{sec:resultados-bateria} muestra cuánto depende de él.
+\end{itemize}
+
+Con $Q$ el conjunto de preguntas con respuesta y $r_q$ la posición del primer documento de referencia de la pregunta $q$ entre las cinco unidades recuperadas:
+\begin{equation}
+  \mathrm{hit@}k = \frac{1}{|Q|}\sum_{q \in Q} \mathbb{1}[r_q \leq k], \qquad
+  \mathrm{MRR@5} = \frac{1}{|Q|}\sum_{q \in Q} \frac{\mathbb{1}[r_q \leq 5]}{r_q}
+  \label{eq:hit-mrr}
+\end{equation}
+
+Las métricas de recuperación y la precisión y el recall de contexto se calculan solo sobre las preguntas con respuesta (22 en el conjunto principal y 33 en la batería variada). La fidelidad, la relevancia y la tasa de baja fidelidad se calculan sobre todas las respuestas que el juez pudo puntuar. El juez no puntuó algunas respuestas, siempre de la variante jerárquica: una en E1, E2 y E3, y tres en E4. Las tablas indican el denominador cuando no es el total.
+
+\paragraph{Abstención.} En las preguntas sin respuesta (tres en E3 y cuatro en E4) se comprobó si el sistema reconoce que los documentos no contienen la información. El programa de puntuación lo intenta con una lista fija de frases (\texttt{score.py}), pero esa lista no reconoce formulaciones como «el documento no contiene información», y su resultado no es fiable. El autor leyó esas respuestas, con el criterio de que la respuesta diga explícitamente que los documentos no recogen el dato pedido: las cuatro variantes lo reconocen en todas ellas. La jerárquica suele añadir información relacionada, por ejemplo qué plazas sí convoca el ayuntamiento por el que se pregunta (n01), y por eso su relevancia en esas preguntas no es 0. El caso contrario, la abstención indebida, se ha contado en las preguntas con respuesta con un patrón más amplio que el de \texttt{score.py} (una negación seguida, en la misma frase, de «información», «dato» o «referencia») aplicado a los primeros 400 caracteres de cada respuesta, y revisando a mano cuatro de las detectadas, que resultaron ser abstenciones. El método no detecta las negativas parciales, las situadas al final de la respuesta ni otras formulaciones, por lo que las cifras son una cota inferior. Algunas respuestas con relevancia 0 y sin marca de abstención en el apéndice~\ref{ap:chunking} son probablemente abstenciones no detectadas; si lo fueran, la abstención de las planas en E4 rondaría la mitad de las preguntas con respuesta. Los resultados por pregunta están en el apéndice~\ref{ap:chunking}. Ninguna de las dos comprobaciones tiene un segundo anotador.
+
+\paragraph{Latencia y coste de indexación.} La latencia se da como mediana (p50) y percentil 95 del primer token, de la reformulación de la consulta (en la jerárquica) y del total de la respuesta. El coste de indexación se mide como tiempo de ingesta por documento, fragmentos por documento, tokens enviados al modelo de \emph{embeddings} y llamadas al LLM.
 
 \section{Resultados}
 \label{sec:resultados}
@@ -91,37 +128,39 @@ El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7
 \subsection{Efecto del tamaño de la colección}
 \label{sec:resultados-coleccion}
 
-La tabla~\ref{tab:resultados-coleccion} recoge las métricas principales de las tres primeras ejecuciones, que usan las mismas 25 preguntas sobre colecciones cada vez mayores. Las métricas de recuperación se calculan sobre las 22 preguntas con respuesta en el corpus. Los resultados por pregunta de la colección completa están en el apéndice~\ref{ap:chunking}.
+La tabla~\ref{tab:resultados-coleccion} recoge las métricas principales de las tres primeras ejecuciones, que usan las mismas 25 preguntas sobre colecciones cada vez mayores. Los resultados por pregunta de la colección completa están en el apéndice~\ref{ap:chunking}.
 
 \begin{table}[htbp]
 \centering\small
-\setlength{\tabcolsep}{4pt}
-\caption{Calidad por variante y tamaño de la colección (25 preguntas)}
+\setlength{\tabcolsep}{3.5pt}
+\caption[Calidad por variante y tamaño de la colección (conjunto principal)]{Calidad por variante y tamaño de la colección (conjunto principal). Precisión, recall, hit@1 y MRR sobre las 22 preguntas con respuesta; fidelidad, relevancia y baja fidelidad sobre las 25 respuestas, salvo la jerárquica (24 puntuadas).}
 \label{tab:resultados-coleccion}
 \begin{tabular}{@{}l l rrrr rr r@{}}
 \toprule
-& \textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Alucinación} \\
+& \textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Baja fidelidad} \\
 \midrule
 E1: 17 doc.
- & Tamaño fijo & 0,50 & 0,69 & 0,84 & 0,46 & 1,00 & 1,00 & 28\,\% \\
- & Recursiva   & 0,51 & 0,76 & 0,85 & 0,51 & 1,00 & 1,00 & 24\,\% \\
- & Semántica   & 0,39 & 0,79 & 0,81 & 0,50 & 1,00 & 1,00 & 32\,\% \\
- & Jerárquica  & 0,75 & 0,88 & 0,81 & 0,63 & 1,00 & 1,00 & 33\,\% \\
+ & Tamaño fijo & 0,57 & 0,76 & 0,84 & 0,46 & 1,00 & 1,00 & 7/25 \\
+ & Recursiva   & 0,59 & 0,80 & 0,85 & 0,51 & 1,00 & 1,00 & 6/25 \\
+ & Semántica   & 0,44 & 0,83 & 0,81 & 0,50 & 1,00 & 1,00 & 8/25 \\
+ & Jerárquica  & 0,85 & 0,93 & 0,81 & 0,63 & 1,00 & 1,00 & 8/24 \\
 \midrule
 E2: 200 doc.
- & Tamaño fijo & 0,46 & 0,67 & 0,81 & 0,42 & 0,91 & 0,94 & 40\,\% \\
- & Recursiva   & 0,51 & 0,74 & 0,81 & 0,50 & 0,95 & 0,97 & 44\,\% \\
- & Semántica   & 0,33 & 0,85 & 0,77 & 0,45 & 0,95 & 0,97 & 44\,\% \\
- & Jerárquica  & 0,71 & 0,90 & 0,77 & 0,62 & 0,95 & 0,98 & 46\,\% \\
+ & Tamaño fijo & 0,52 & 0,76 & 0,81 & 0,42 & 0,91 & 0,94 & 10/25 \\
+ & Recursiva   & 0,57 & 0,80 & 0,81 & 0,50 & 0,95 & 0,97 & 11/25 \\
+ & Semántica   & 0,37 & 0,86 & 0,77 & 0,45 & 0,95 & 0,97 & 11/25 \\
+ & Jerárquica  & 0,81 & 0,91 & 0,77 & 0,62 & 0,95 & 0,98 & 11/24 \\
 \midrule
 E3: 5.994 doc.
- & Tamaño fijo & 0,43 & 0,61 & 0,85 & 0,39 & 0,73 & 0,75 & 36\,\% \\
- & Recursiva   & 0,46 & 0,66 & 0,79 & 0,38 & 0,68 & 0,77 & 36\,\% \\
- & Semántica   & 0,34 & 0,57 & 0,69 & 0,34 & 0,55 & 0,63 & 48\,\% \\
- & Jerárquica  & 0,68 & 0,77 & 0,76 & 0,59 & 0,73 & 0,79 & 46\,\% \\
+ & Tamaño fijo & 0,49 & 0,70 & 0,85 & 0,39 & 0,73 & 0,75 & 9/25 \\
+ & Recursiva   & 0,52 & 0,68 & 0,79 & 0,38 & 0,68 & 0,77 & 9/25 \\
+ & Semántica   & 0,39 & 0,61 & 0,69 & 0,34 & 0,55 & 0,63 & 12/25 \\
+ & Jerárquica  & 0,77 & 0,80 & 0,76 & 0,59 & 0,73 & 0,79 & 11/24 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+En hit@1, las cuatro variantes empatan en E1 (22 de 22), tres empatan en E2 (21 de 22) y, en E3, la jerárquica y la de tamaño fijo empatan con 16 de 22, por delante de la recursiva (15) y de la semántica (12). En hit@5, que mide si el documento correcto está entre las cinco unidades que se entregan al modelo, E3 queda así: tamaño fijo 0,82 (18 de 22), recursiva 0,91 (20), semántica 0,77 (17) y jerárquica 0,86 (19). Con esta métrica, la mejor del conjunto principal es una variante plana. La jerárquica tiene la mayor precisión y el mayor recall de contexto en las tres colecciones, pero esas dos métricas dependen del juez y, como se explica en la sección~\ref{sec:discusion}, favorecen por construcción a una variante que entrega documentos completos.
 
 \subsection{Resultados por tipo de pregunta}
 \label{sec:resultados-bateria}
@@ -130,7 +169,7 @@ La tabla~\ref{tab:resultados-bateria} desglosa la ejecución E4 por categoría d
 
 \begin{table}[htbp]
 \centering\small
-\caption{Precisión de contexto y hit@1 por categoría de pregunta (E4, colección completa)}
+\caption[Precisión de contexto y hit@1 por categoría de pregunta (E4)]{Precisión de contexto y hit@1 por categoría de pregunta (E4, colección completa). El total se calcula sobre las 33 preguntas con respuesta (32 en la precisión de la jerárquica, por una muestra sin puntuar).}
 \label{tab:resultados-bateria}
 \begin{tabular}{@{}l r rrrr rrrr@{}}
 \toprule
@@ -144,35 +183,109 @@ Grandes (85--180\,KB)     & 8 & 0,09 & 0,40 & 0,24 & 0,56 & 0,62 & 0,50 & 0,62 &
 Con distractores          & 6 & 0,41 & 0,30 & 0,40 & 0,64 & 0,50 & 0,50 & 0,50 & 1,00 \\
 Mixtas                    & 3 & 0,00 & 0,00 & 0,00 & 0,12 & 0,33 & 0,33 & 0,33 & 0,33 \\
 \midrule
-Total (hit@1 sobre 33) & 37 & 0,32 & 0,35 & 0,35 & 0,63 & 0,58 & 0,52 & 0,58 & 0,76 \\
+Total con respuesta & 33 & 0,36 & 0,39 & 0,39 & 0,65 & 0,58 & 0,52 & 0,58 & 0,76 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-En la batería completa, la jerárquica obtiene además la mejor relevancia (0,58, frente a 0,30 del resto) y la menor tasa de alucinación (26\,\%, frente a 30--41\,\%).
+La jerárquica acierta en primera posición 25 de las 33 preguntas, frente a 19 de la de tamaño fijo y de la semántica y 17 de la recursiva, y en hit@5 llega a 0,91 frente a 0,67--0,73. La diferencia en hit@1 se concentra en los documentos pequeños (5 de 8 frente a 3 de 8) y en los que tienen gemelos casi idénticos, donde acierta las seis preguntas frente a tres del resto. En los grandes la diferencia en hit@1 es de una pregunta (6 de 8 frente a 5 de 8); la ventaja clara está en la precisión de contexto (0,56 frente a 0,09). Cuatro de esos documentos son del BOE, donde los hijos de la jerárquica son artículos, y cuatro del BOJA, donde son fragmentos de tamaño fijo como los de la básica. En los del BOE, la precisión de la jerárquica es de 0,88, frente a 0,00 en la de tamaño fijo y 0,63 en la recursiva; en los del BOJA, de 0,25 frente a 0,18 y 0,17. Es compatible con que el artículo como unidad ayude, pero no lo demuestra. La precisión depende del juez y favorece a unidades mayores, y un artículo enriquecido es mayor que un fragmento de 400 tokens. Las métricas sin juez no muestran el efecto: en hit@1 la jerárquica acierta 4 de 4 en el BOE (frente a 2--3 de las planas) y 2 de 4 en el BOJA, igual que las demás, y en el BOJA tiene el menor recall de contexto. Además, los dos grupos difieren también en el tipo de documento y en el ruido del texto del BOJA (sección~\ref{sec:validez}), así que la comparación no aísla la unidad. Con cuatro preguntas por grupo no se puede atribuir la diferencia a la unidad de fragmentación.
+
+En el conjunto de la batería, la jerárquica obtiene además la mayor relevancia de la respuesta (0,63 sobre las preguntas con respuesta, frente a 0,33--0,34 de las planas; tabla~\ref{tab:sin-abstenciones}). Cerca de la mitad de esa ventaja desaparece al excluir las respuestas que se abstienen (tabla~\ref{tab:sin-abstenciones}): las planas declaran no tener la información en 13 o 14 de las 33 preguntas con respuesta, y la jerárquica en 4 (en E3, 4 o 5 de 22 frente a 1). Muchas de esas respuestas coinciden con fallos de recuperación, pero no todas: la de tamaño fijo declara no tener la información en seis preguntas en las que el documento correcto estaba entre sus cinco fragmentos, y en cinco de ellas (m07, m08, l02, l06 y l08) en primera posición. En m07 lo hace con una precisión de contexto de 1,00: según el juez, todo lo recuperado era útil, y aun así respondió que no tenía la información. Las tres planas lo hacen en m07 y m08, así que se trata de un defecto de la \emph{pipeline} básica y no solo de un sesgo de la evaluación. La plantilla de las planas, que pide ignorar el contexto si no coincide exactamente con el tema (apéndice~\ref{ap:prompts}), es la causa más probable; no se ha comprobado repitiendo las ejecuciones sin esa cláusula. La jerárquica, cuyo \emph{prompt} no tiene esa cláusula, también se abstiene en tres documentos grandes que había recuperado (l02, l07 y l08); ahí la causa probable es que los extractos entregados no contenían el dato.
+
+Como una respuesta que se abstiene tiene relevancia 0 y suele obtener una fidelidad alta, las medias de la tabla~\ref{tab:resultados-coleccion} mezclan dos cosas distintas. La tabla~\ref{tab:sin-abstenciones} las separa: calcula la relevancia solo sobre las preguntas con respuesta y, aparte, la relevancia y la fidelidad de las respuestas que no se abstienen.
+
+\begin{table}[htbp]
+\centering\small
+\caption[Relevancia y fidelidad con y sin abstenciones]{Relevancia sobre las preguntas con respuesta, y relevancia y fidelidad de las respuestas que no se abstienen (entre paréntesis, cuántas son), en E3 (22 preguntas con respuesta) y E4 (33).}
+\label{tab:sin-abstenciones}
+\begin{tabular}{@{}l rrr rrr@{}}
+\toprule
+& \multicolumn{3}{c}{\textbf{E3}} & \multicolumn{3}{c}{\textbf{E4}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+\textbf{Variante} & \textbf{Relev.} & \textbf{Relev. sin abst.} & \textbf{Fidel. sin abst.} & \textbf{Relev.} & \textbf{Relev. sin abst.} & \textbf{Fidel. sin abst.} \\
+\midrule
+Tamaño fijo & 0,44 & 0,57 (17) & 0,83 & 0,34 & 0,59 (19) & 0,83 \\
+Recursiva   & 0,44 & 0,57 (17) & 0,80 & 0,33 & 0,55 (20) & 0,80 \\
+Semántica   & 0,39 & 0,47 (18) & 0,58 & 0,34 & 0,59 (19) & 0,79 \\
+Jerárquica  & 0,64 & 0,67 (21) & 0,77 & 0,63 & 0,72 (29) & 0,80 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sin las abstenciones, la ventaja de la jerárquica en relevancia frente a la mejor plana baja a la mitad (en E4, de 0,29 a 0,13 frente a la de tamaño fijo y de 0,30 a 0,17 frente a la recursiva). Su fidelidad sigue sin ser mejor: en E3 es menor que en la de tamaño fijo y la recursiva, y en E4 es igual a la del resto. La fidelidad de las planas apenas cambia al excluir las abstenciones, así que la conclusión de que la fidelidad no difiere es robusta a ellas. En la fidelidad sin abstenciones de la jerárquica, los denominadores son 20 en E3 y 26 en E4, por las respuestas sin puntuar.
+
+La tasa de baja fidelidad de la jerárquica en la batería es la menor con el umbral elegido (9 de 34 respuestas puntuadas, un 26\,\%, frente a 11--15 de 37 en las planas), pero esa ventaja no es robusta. Tres de sus respuestas tienen una fidelidad de exactamente 0,80: con un umbral de «0,8 o menos» la tasa sube a 12 de 34 (35\,\%), igual que la de tamaño fijo (13 de 37) y peor que la semántica (11 de 37, 30\,\%). Si las tres respuestas sin puntuar fueran de baja fidelidad, la tasa sería 12 de 37 (32\,\%), también peor que la semántica. Con un umbral de 0,9, la jerárquica es la peor (19 de 34).
+
+\subsection{Significación estadística}
+\label{sec:resultados-significacion}
+
+Con 22 o 33 preguntas, una sola pregunta mueve hit@1 entre 0,03 y 0,05, y la mayoría de las diferencias anteriores son de una o dos preguntas. Para hit@1, que es binaria, se ha aplicado la prueba exacta de McNemar a cada pareja de variantes, que solo tiene en cuenta las preguntas en que una acierta y la otra no \cite{mcnemar1947}:
+
+\begin{itemize}
+  \item En E3, la jerárquica y la de tamaño fijo empatan, pero no en las mismas preguntas: la jerárquica acierta q01, q06 y q07, y la de tamaño fijo, q12, q13 y q15 (3 frente a 3, $p = 1{,}00$). El resultado sugiere que las dos variantes se complementan, más que una supere a la otra. Entre las planas, la mayor diferencia (tamaño fijo frente a semántica, 6 frente a 2) tampoco es significativa ($p = 0{,}29$).
+  \item En E4, la jerárquica gana 8 preguntas y pierde 2 frente a la de tamaño fijo y frente a la semántica ($p = 0{,}11$ en ambos casos), y gana 10 y pierde 2 frente a la recursiva ($p = 0{,}039$). Esta última no resiste la corrección de Bonferroni por tres comparaciones ($\alpha = 0{,}017$).
+\end{itemize}
+
+Para las métricas continuas se ha usado una prueba de permutación pareada por pregunta y un intervalo de confianza al 95\,\% por \emph{bootstrap} pareado (20.000 remuestreos), siguiendo la recomendación de Smucker et al.\ \cite{smucker2007}. La tabla~\ref{tab:significacion} recoge las diferencias entre la jerárquica y cada plana.
+
+\begin{table}[!t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\caption[Diferencias entre la jerárquica y cada variante plana]{Diferencia media por pregunta entre la jerárquica y cada variante plana, con su intervalo de confianza al 95\,\% (\emph{bootstrap} pareado) y el valor $p$ de la prueba de permutación pareada. Hit@1 y recall sobre las preguntas con respuesta; fidelidad sobre las respuestas puntuadas. En hit@1, la permutación equivale a la prueba de signos; en el texto se dan los valores de McNemar.}
+\label{tab:significacion}
+\begin{tabular}{@{}l l r c r@{}}
+\toprule
+\textbf{Métrica} & \textbf{Jerárquica frente a} & \textbf{Diferencia} & \textbf{IC 95\,\%} & \textbf{$p$} \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{E3, conjunto principal ($n = 22$)}} \\
+hit@1 & Tamaño fijo & $0{,}00$ & $[-0{,}23;\ 0{,}23]$ & 1,00 \\
+      & Recursiva   & $+0{,}05$ & $[-0{,}18;\ 0{,}27]$ & 1,00 \\
+      & Semántica   & $+0{,}18$ & $[-0{,}05;\ 0{,}41]$ & 0,28 \\
+Recall de contexto & Tamaño fijo & $+0{,}11$ & $[-0{,}08;\ 0{,}29]$ & 0,31 \\
+      & Recursiva   & $+0{,}12$ & $[-0{,}08;\ 0{,}34]$ & 0,34 \\
+      & Semántica   & $+0{,}20$ & $[-0{,}03;\ 0{,}42]$ & 0,13 \\
+Fidelidad & Tamaño fijo & $-0{,}09$ & $[-0{,}21;\ 0{,}04]$ & 0,19 \\
+      & Recursiva   & $-0{,}03$ & $[-0{,}18;\ 0{,}12]$ & 0,73 \\
+      & Semántica   & $+0{,}05$ & $[-0{,}10;\ 0{,}20]$ & 0,50 \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{E4, batería variada ($n = 33$)}} \\
+hit@1 & Tamaño fijo & $+0{,}18$ & $[0{,}00;\ 0{,}36]$ & 0,11 \\
+      & Recursiva   & $+0{,}24$ & $[0{,}06;\ 0{,}42]$ & 0,039 \\
+      & Semántica   & $+0{,}18$ & $[0{,}00;\ 0{,}36]$ & 0,11 \\
+Recall de contexto & Tamaño fijo & $+0{,}23$ & $[0{,}06;\ 0{,}39]$ & 0,013 \\
+      & Recursiva   & $+0{,}19$ & $[0{,}03;\ 0{,}35]$ & 0,036 \\
+      & Semántica   & $+0{,}20$ & $[0{,}03;\ 0{,}37]$ & 0,041 \\
+Fidelidad & Tamaño fijo & $-0{,}02$ & $[-0{,}10;\ 0{,}07]$ & 0,70 \\
+      & Recursiva   & $+0{,}01$ & $[-0{,}08;\ 0{,}12]$ & 0,78 \\
+      & Semántica   & $-0{,}01$ & $[-0{,}11;\ 0{,}09]$ & 0,80 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En hit@1 ninguna diferencia es significativa tras corregir por comparaciones múltiples. En recall de contexto, la ventaja de la jerárquica en E4 frente a la de tamaño fijo ($p = 0{,}013$) resiste la corrección de Bonferroni para las tres parejas de esa métrica, pero no para las nueve pruebas de E4 ($\alpha \approx 0{,}0056$). Esa métrica depende además del juez y favorece por construcción a una unidad de contexto mayor (sección~\ref{sec:discusion}). En E3 no hay ninguna diferencia significativa. La fidelidad no difiere en ninguna ejecución, y la diferencia sigue sin aparecer al excluir las abstenciones (tabla~\ref{tab:sin-abstenciones}). Cada ejecución es además una sola pasada: con temperatura 0, Ollama en GPU no es del todo determinista y el juez añade su propia variación, que no se ha medido.
 
 \subsection{Latencia}
 \label{sec:resultados-latencia}
 
 \begin{table}[htbp]
 \centering\small
-\caption{Latencia por variante en la RTX 5070 Ti, en segundos (sin la pregunta de calentamiento)}
+\caption[Latencia por variante en la RTX 5070 Ti]{Latencia por variante en la RTX 5070 Ti, en segundos (sin la pregunta de calentamiento). El primer token se mide desde que empieza la generación; en la jerárquica hay que sumarle la reformulación y la recuperación.}
 \label{tab:resultados-latencia}
-\begin{tabular}{@{}l r rr rr rr@{}}
+\begin{tabular}{@{}l rr rr rr rr@{}}
 \toprule
-& \textbf{Reformulación} & \multicolumn{2}{c}{\textbf{Primer token}} & \multicolumn{2}{c}{\textbf{Total E1}} & \multicolumn{2}{c}{\textbf{Total E3}} \\
-\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
-\textbf{Variante} & p50 & p50 & p95 & p50 & p95 & p50 & p95 \\
+& \multicolumn{2}{c}{\textbf{Reformulación (p50)}} & \multicolumn{2}{c}{\textbf{Primer token (p50)}} & \multicolumn{2}{c}{\textbf{Total E1}} & \multicolumn{2}{c}{\textbf{Total E3}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+\textbf{Variante} & E1 & E3 & E1 & E3 & p50 & p95 & p50 & p95 \\
 \midrule
-Tamaño fijo & ---  & 0,35 & 0,46 & 1,1 & 1,7 & 1,0 & 1,9 \\
-Recursiva   & ---  & 0,36 & 0,47 & 1,2 & 1,7 & 1,1 & 2,0 \\
-Semántica   & ---  & 0,34 & 0,45 & 1,1 & 1,8 & 1,0 & 2,5 \\
-Jerárquica  & 0,54 & 0,41 & 0,56 & 2,6 & 5,3 & 2,5 & 5,9 \\
+Tamaño fijo & --- & --- & 0,35 & 0,34 & 1,1 & 1,7 & 1,0 & 1,9 \\
+Recursiva   & --- & --- & 0,36 & 0,36 & 1,2 & 1,7 & 1,1 & 2,0 \\
+Semántica   & --- & --- & 0,34 & 0,34 & 1,1 & 1,8 & 1,0 & 2,5 \\
+Jerárquica  & 0,54 & 0,51 & 0,41 & 0,47 & 2,6 & 5,3 & 2,5 & 5,9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-El tamaño de la colección apenas cambia la latencia: buscar entre 5.994 documentos en lugar de 17 añade unos milisegundos a la recuperación, y el tiempo lo marca la generación.
+El tamaño de la colección apenas cambia la latencia: buscar entre 5.994 documentos en lugar de 17 añade unos milisegundos a la recuperación, y el tiempo lo marca la generación (tabla~\ref{tab:resultados-latencia}). Contado desde que la pregunta llega a la \emph{pipeline}, el primer texto de las planas aparece en unos 0,4\,s. En la jerárquica, sumando las medianas de E3 (0,51\,s de reformulación, 0,05\,s de recuperación y 0,47\,s hasta el primer token), aparece hacia 1,0\,s (1,03\,s sumando medianas). La suma de medianas solo aproxima la mediana del tiempo total hasta el primer texto, que no se ha medido directamente. Las mediciones se tomaron dentro del propio proceso, sin SignalR ni red, y en una GPU de escritorio, no en los servidores de producción.
 
 \subsection{Coste de indexación}
 \label{sec:resultados-indexacion}
@@ -195,31 +308,39 @@ Jerárquica  & 18,8\,s & 72\,s & 15,9 & 126.862 & 270 \\
 \end{tabular}
 \end{table}
 
-Las cuatro variantes se ingirieron a la vez y compartían el mismo Ollama, así que los tiempos sirven como orden de magnitud y no como medida aislada. En la colección completa, la jerárquica fue con diferencia la más lenta de ingerir: terminó varias horas después que las variantes planas. Durante esa ingesta se reinició Ollama para ajustar su paralelismo y su consumo de memoria, por lo que no se da un tiempo total.
+Las cuatro variantes se ingirieron a la vez y compartían el mismo Ollama, así que los tiempos de la tabla~\ref{tab:resultados-indexacion} sirven como orden de magnitud y no como medida aislada. Los tokens se estiman a razón de cuatro caracteres por token, no con el tokenizador del modelo. En la colección completa, la jerárquica fue con diferencia la más lenta de ingerir: terminó varias horas después que las variantes planas. Durante esa ingesta se reinició Ollama para ajustar su paralelismo y su consumo de memoria, por lo que no se da un tiempo total.
 
 \section{Discusión}
 \label{sec:discusion}
 
-\paragraph{La colección pequeña oculta las diferencias de recuperación.} Con solo los 17 documentos del corpus, las cuatro variantes encuentran siempre el documento correcto (hit@1 = 1,00): no hay con qué confundirlo. Al pasar a 200 documentos el acierto apenas baja (0,91--0,95), pero con la colección completa cae a 0,55--0,73. Una evaluación hecha solo sobre el corpus sobrestimaría mucho la calidad del sistema en uso real, que es justamente el escenario de un ayuntamiento con meses de boletines acumulados.
+\paragraph{La colección pequeña oculta las diferencias de recuperación.} Con solo los 17 documentos del corpus, las cuatro variantes encuentran siempre el documento correcto (hit@1 = 1,00): no hay con qué confundirlo. Al pasar a 200 documentos el acierto apenas baja (0,91--0,95), pero con la colección completa cae a 0,55--0,73. Una evaluación hecha solo sobre el corpus sobrestimaría mucho la calidad del sistema en uso real, que es justamente el escenario de un ayuntamiento con meses de boletines acumulados. Que la eficacia de la recuperación dependa del tamaño de la colección es un efecto conocido en recuperación de información \cite{hawking2003}; este estudio lo confirma en el dominio de los boletines oficiales.
 
-\paragraph{La jerárquica es la mejor en recuperación en todos los escenarios.} Mantiene la mejor precisión de contexto (0,75, 0,71 y 0,68) y la mejor relevancia de la respuesta (0,63, 0,62 y 0,59) en las tres colecciones, y es la que menos pierde al crecer la colección. Su ventaja se concentra donde la recuperación es difícil. En los documentos grandes recupera el fragmento útil con una precisión de 0,56, frente a 0,09 de la de tamaño fijo, porque entrega el artículo completo en lugar de un trozo de 400 tokens que puede quedarse fuera de la tabla o del anexo con la respuesta. Ante documentos casi idénticos acierta el correcto en las seis preguntas (hit@1 = 1,00, frente a 0,50 del resto), gracias a la búsqueda léxica, que distingue el nombre del municipio o de la mancomunidad que los \emph{embeddings} confunden.
+\paragraph{P1: entre las variantes planas no hay una ganadora clara.} La recursiva supera a la de tamaño fijo en la colección pequeña (recall de 0,80 frente a 0,76), en los documentos grandes (precisión de 0,40 frente a 0,09) y en hit@5 en la colección completa (20 frente a 18 de 22), pero en hit@1 queda una pregunta por detrás (15 frente a 16). Es lógico que se parezcan tanto: el \texttt{TextChunker} ya corta en finales de línea, así que la estrategia de tamaño fijo se comporta casi como una división recursiva. La semántica es la que más se degrada al crecer la colección (hit@1 de 12 sobre 22 y fidelidad de 0,69 en E3) y necesita tres veces más tokens de \emph{embeddings} para indexar, así que no compensa su coste, aunque su peor acierto tampoco es estadísticamente significativo.
 
-\paragraph{Entre las variantes planas no hay una ganadora clara.} La recursiva mejora a la de tamaño fijo en la colección pequeña (recall de 0,76 frente a 0,69) y en los documentos grandes (precisión de 0,40 frente a 0,09), pero en la colección completa ambas quedan muy cerca. La semántica es la que más se degrada al crecer la colección (hit@1 de 0,55 y fidelidad de 0,69 en E3) y necesita tres veces más tokens de \emph{embeddings} para indexar, así que no compensa su coste.
+\paragraph{P2: ventaja de la jerárquica solo en la batería variada.} Tiene la mayor precisión y el mayor recall de contexto en las tres colecciones y el mejor hit@1 y hit@5 en la batería variada (25 y 30 de 33). Pero en el conjunto principal empata en hit@1 con la de tamaño fijo, acertando preguntas distintas, queda por detrás de la recursiva en hit@5 (19 frente a 20 de 22), y ninguna de sus ventajas en hit@1 es significativa. La única diferencia significativa, el recall de contexto en E4, es la más sospechosa: la precisión y el recall de contexto los calcula un juez que pregunta si cada unidad es útil o contiene una afirmación, y un documento padre completo la contiene con mucha más facilidad que un fragmento de 400 tokens. Esas dos métricas favorecen a la jerárquica por construcción.
 
-\paragraph{Calidad de las respuestas.} La fidelidad está entre 0,69 y 0,85 en todas las variantes y ejecuciones, sin un orden estable entre ellas: la variante con mejor fidelidad cambia de una ejecución a otra. La tasa de alucinación tiende a subir al añadir documentos (del 24--33\,\% en E1 al 36--48\,\% en E3), probablemente porque el modelo recibe más a menudo fragmentos parecidos de otros documentos y mezcla datos; no se ha comprobado pregunta a pregunta. En la batería variada la jerárquica tiene la menor tasa (26\,\%). Las preguntas mixtas fallan en todas las variantes: con cinco unidades recuperadas, una pregunta que necesita dos documentos distintos rara vez obtiene los dos.
+Sus mayores ganancias en acierto están en los documentos con gemelos casi idénticos (6 de 6 frente a 3 de 6) y en los pequeños (5 de 8 frente a 3 de 8). En los pequeños, un fragmento de las planas suele contener el documento entero, así que la unidad es prácticamente la misma para todas: la diferencia apunta a la búsqueda híbrida y a las preguntas sintéticas más que a la forma de fragmentar. Es la mejor ablación natural del estudio. En los documentos casi idénticos, el acierto apunta a la búsqueda léxica. Los documentos grandes (85--180\,KB) superan con mucho el presupuesto de 24.000 caracteres, así que para ellos la jerárquica no entrega el documento completo, sino los fragmentos hijo recuperados: artículos enriquecidos, encontrados con la búsqueda híbrida. Así ocurrió en las ocho preguntas de esa categoría, según el texto que se entregó al modelo en E4 (entre 10.000 y 17.500 caracteres, con extractos en todos los casos). Su precisión de 0,56 frente a 0,09 de la de tamaño fijo viene, por tanto, de entregar fragmentos hijo en lugar del documento completo (la unidad de fragmentación, con su enriquecimiento y la búsqueda que los encuentra), no del contexto padre; en hit@1 la diferencia en esa categoría es de una sola pregunta. Ante documentos casi idénticos acierta las seis preguntas (frente a tres del resto), probablemente gracias a la búsqueda léxica, que distingue el nombre del municipio o de la mancomunidad que los \emph{embeddings} confunden. Cerca de la mitad de su ventaja en relevancia desaparece, además, al excluir las abstenciones indebidas de las planas (tabla~\ref{tab:sin-abstenciones}). Sin un estudio de ablación no se puede separar el peso de cada factor.
+\paragraph{Calidad de las respuestas.} La fidelidad está entre 0,69 y 0,85 en todas las variantes y ejecuciones. En el conjunto principal, la jerárquica tiene la peor o casi la peor tasa de baja fidelidad (8 de 24, 11 de 24 y 11 de 24 en E1, E2 y E3) y, en E3, una fidelidad de 0,76 frente a 0,85 de la de tamaño fijo. En la batería variada tiene la menor tasa con el umbral elegido, pero esa ventaja desaparece con un umbral inclusivo o contando las respuestas sin puntuar (sección~\ref{sec:resultados-bateria}). Ninguna diferencia de fidelidad es significativa (tabla~\ref{tab:significacion}). Hay, por tanto, un compromiso entre recuperar más contexto y ceñirse a él: un documento padre largo da al modelo más material del que tomar frases que el juez no encuentra respaldadas. La tasa de baja fidelidad tiende a subir al añadir documentos (de 6--8 de 25 en E1 a 9--12 de 25 en E3), probablemente porque el modelo recibe más a menudo fragmentos parecidos de otros documentos y mezcla datos; no se ha comprobado pregunta a pregunta. Las preguntas mixtas fallan en todas las variantes: con cinco unidades recuperadas, una pregunta que necesita dos documentos distintos rara vez obtiene los dos.
 
-\paragraph{Coste.} Las tres variantes planas responden en algo más de un segundo, y la jerárquica en unos 2,5, porque reformula la consulta y genera respuestas más largas. En indexación, la recursiva cuesta lo mismo que la de tamaño fijo, la semántica triplica los tokens de \emph{embeddings} y la jerárquica añade una llamada al LLM por fragmento para las preguntas sintéticas, lo que la hace la más lenta de ingerir con diferencia.
+\paragraph{Coste.} Las tres variantes planas responden en torno a un segundo en mediana, y la jerárquica en unos 2,5\,s, con un percentil 95 de 5,3 a 5,9\,s, porque reformula la consulta y genera respuestas más largas. En indexación, la recursiva cuesta lo mismo que la de tamaño fijo, la semántica triplica los tokens de \emph{embeddings} y la jerárquica añade una llamada al LLM por fragmento para las preguntas sintéticas, lo que la hace la más lenta de ingerir con diferencia.
 
-\paragraph{Conclusión.} La \emph{pipeline} jerárquica ofrece la mejor recuperación y las respuestas más relevantes en todos los tamaños de colección, y su ventaja crece justo en los casos más difíciles: documentos largos y documentos casi idénticos. Su coste es el doble de latencia, todavía por debajo de los tres segundos, y una ingesta varias veces más lenta, que se hace en segundo plano. Entre las variantes planas, la recursiva es la mejor relación calidad--coste, aunque con la colección completa su ventaja sobre la de tamaño fijo es pequeña. Para producción se recomienda la jerárquica, y la Arena (sección~\ref{sec:impl-arena}) permite contrastar esta conclusión con la preferencia de los usuarios.
+\paragraph{Conclusión.} La comparación de las variantes planas (P1) no muestra diferencias claras: la estrategia de fragmentación, por sí sola, pesa poco con este corpus y este tamaño de fragmento, y la semántica no compensa su coste. La \emph{pipeline} jerárquica (P2) obtiene el mejor acierto en la batería variada, sobre todo en documentos pequeños y casi idénticos, y la mejor precisión de contexto en los largos. Sin embargo, empata con la de tamaño fijo en el conjunto principal, su fidelidad no es mejor y su ventaja en hit@1 no es significativa con estas muestras. Cerca de la mitad de su ventaja en relevancia desaparece al excluir las abstenciones de las planas, que se niegan a responder sin motivo en muchas preguntas: un defecto de la \emph{pipeline} básica que habría que corregir antes de repetir la comparación (sección~\ref{sec:futuras}). Tarda el doble en mediana y su ingesta es varias veces más lenta, aunque se hace en segundo plano. La decisión de fijarla en producción (sección~\ref{sec:pipelines}) se apoya en esos indicios, no en una superioridad demostrada, y debería confirmarse con un estudio de ablación, con más preguntas y con la preferencia de los usuarios. Como la jerárquica y la de tamaño fijo aciertan preguntas distintas, combinar las dos recuperaciones es otra opción que merece probarse.
 
 \section{Amenazas a la validez}
 \label{sec:validez}
 
 \begin{itemize}
-  \item \textbf{Tamaño del conjunto de preguntas.} 25 y 37 preguntas permiten ver diferencias grandes, como la de la jerárquica en documentos grandes o con distractores, pero no distinguir con seguridad diferencias pequeñas entre las variantes planas. Cada ejecución es una sola pasada, con una semilla distinta para el orden de las variantes.
-  \item \textbf{Modelo local como juez.} Un juez de 7.000 millones de parámetros es ruidoso, y además es el mismo modelo que genera las respuestas; los modelos tienden a favorecer sus propias respuestas \cite{zheng2023judge}. Por eso se dan junto a RAGAS las métricas de recuperación, que no dependen del juez. La tasa de alucinación cuenta como alucinada una respuesta correcta con una sola frase sin respaldo, así que sobreestima los errores reales.
-  \item \textbf{Preguntas abiertas.} Las preguntas mixtas y algunas del conjunto principal admiten más documentos de la colección completa como respuesta válida que los listados como referencia, lo que penaliza el recall de todas las variantes por igual.
-  \item \textbf{La variante jerárquica difiere en más que la fragmentación.} Además de fragmentar distinto, enriquece los fragmentos, reformula la consulta, combina búsqueda léxica y semántica y entrega documentos completos al modelo. Sus resultados miden la \emph{pipeline} completa, no solo su fragmentación.
-  \item \textbf{Calidad del corpus.} Los textos del BOJA conservan restos de la página web de origen (código HTML y del portal), que añaden ruido a todas las variantes por igual.
+  \item \textbf{La variante jerárquica difiere en más que la fragmentación.} Cambia seis factores a la vez (sección~\ref{sec:estrategias}). Sus resultados miden la \emph{pipeline} completa, no su forma de fragmentar.
+  \item \textbf{Unidades de recuperación distintas.} Las planas entregan cinco fragmentos de unos 400 tokens, y la jerárquica, documentos padre o sus extractos, hasta unos 6.500 tokens. La precisión y el recall de contexto no son comparables entre esas unidades, y las métricas de recuperación sin juez miden el documento, no el pasaje: por ejemplo, en E3 la de tamaño fijo acierta el documento en q12 y q15 con un recall de contexto de 0, porque recupera la parte equivocada.
+  \item \textbf{Tamaño de la muestra y una sola pasada.} Con 22 y 33 preguntas con respuesta no se pueden distinguir diferencias de unas pocas preguntas (sección~\ref{sec:resultados-significacion}). Cada ejecución es una sola pasada y la categoría de preguntas mixtas tiene solo tres.
+  \item \textbf{Juez local y autoevaluación.} Un juez de 7.000 millones de parámetros es ruidoso, es el mismo modelo que genera las respuestas y los modelos tienden a favorecer sus propias respuestas \cite{zheng2023judge,panickssery2024self}. Sus instrucciones están en inglés y no se ha validado con anotación humana. Por eso se dan junto a RAGAS las métricas de recuperación, que no dependen del juez.
+  \item \textbf{Preguntas y ajuste de los \emph{prompts}.} Las preguntas las generó un LLM leyendo los documentos, así que tienden a reutilizar sus palabras y su forma de nombrar las cosas. Ese solapamiento léxico puede favorecer a la búsqueda léxica de la jerárquica y no refleja necesariamente cómo pregunta el personal municipal, que no las ha revisado. La regla de los \emph{prompts} que evita fórmulas de cortesía se añadió en octubre de 2026, al observar la fidelidad en ejecuciones previas con el conjunto principal (apéndice~\ref{ap:prompts}), y el umbral de baja fidelidad se fijó después de ver los datos. E1--E3 usan, por tanto, el mismo conjunto con el que se ajustaron los \emph{prompts}. La batería variada (E4) se creó después del ajuste y es la única que actúa como conjunto de prueba no visto. Las preguntas con distractores giran en torno a nombres de municipios, lo que favorece la búsqueda léxica.
+  \item \textbf{Preguntas abiertas.} Las preguntas mixtas y algunas del conjunto principal admiten más documentos de la colección completa como respuesta válida que los listados como referencia, lo que penaliza a todas las variantes, aunque no necesariamente por igual.
+  \item \textbf{Un solo tamaño de fragmento.} Solo se ha probado un tamaño (400 tokens con 50 de solapamiento) y un umbral para la semántica (percentil 95); la granularidad de la unidad indexada puede influir tanto como la estrategia \cite{chen2024densex}. Los tokens se estiman a razón de cuatro caracteres por token.
+  \item \textbf{Colecciones no idénticas en C1.} Las colecciones de tamaño fijo y jerárquica tenían cinco documentos más que las otras dos.
+  \item \textbf{Modelo de \emph{embeddings} distinto del de producción.} El estudio usa \texttt{qwen3-embedding:0.6b} y producción, Qwen3-Embedding-8B.
+  \item \textbf{Calidad del corpus.} Los textos del BOJA conservan restos de la página web de origen (código HTML y del portal), que añaden ruido a todas las variantes, aunque probablemente más a la jerárquica, cuyos hijos del BOJA y sus preguntas sintéticas se generan a partir de ese texto.
+  \item \textbf{\emph{Prompts} distintos y abstención de las planas.} La plantilla que usaron las planas en el estudio les pedía ignorar el contexto si no coincidía exactamente con el tema (después se corrigió; apéndice~\ref{ap:prompts}), y las planas se abstienen en muchas más preguntas con respuesta que la jerárquica. Las métricas de generación de la comparación P2 quedan sesgadas por esa diferencia (tabla~\ref{tab:sin-abstenciones}), y no se ha medido la exactitud de las respuestas frente a la referencia.
+  \item \textbf{Juez con contexto limitado.} Las respuestas sin puntuar, todas de la jerárquica, se deben probablemente al contexto de 8.192 tokens del juez, más corto que el de algunas respuestas; no se ha repuntuado con un contexto mayor. Por eso sus medias se calculan sobre otro denominador.
   \item \textbf{Dependencia del hardware.} Las latencias se midieron en una RTX 5070 Ti sin otra carga; en otro equipo, o con proveedores en la nube, los valores absolutos serán distintos, aunque la proporción entre variantes debería mantenerse.
 \end{itemize}

@@ -1,8 +1,0 @@
-FECHA ACTUAL: {2}
-
-CONTEXTO RECUPERADO DE LOS BOLETINES:
-{0}
-
-INSTRUCCIÓN CRÍTICA: Responde a la pregunta priorizando el contexto proporcionado. Si usas tu conocimiento interno, adviértelo claramente siguiendo tus instrucciones.
-
-Pregunta del ciudadano: {1}

@@ -1,9 +1,12 @@
-\umaappendix{Resultados completos del estudio de \emph{chunking}}
+\umaappendix{Resultados completos del estudio de fragmentación}
 \label{ap:chunking}
 
-Este apéndice recoge los resultados por pregunta de las ejecuciones que resume el capítulo~\ref{cap:estudio-chunking}, todas en el mismo equipo (RTX 5070 Ti). Los ficheros completos de cada ejecución (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en \texttt{eval/runs}:
+Este apéndice recoge los resultados por pregunta de las ejecuciones que resume el capítulo~\ref{cap:estudio-chunking}, todas en el mismo equipo (RTX 5070 Ti). Los ficheros completos de cada ejecución (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en los directorios de \texttt{eval/runs} que recoge la tabla~\ref{tab:ap-ejecuciones}.
 
-\begin{center}\small
+\begin{table}[htbp]
+\centering\small
+\caption{Directorios de las ejecuciones del estudio}
+\label{tab:ap-ejecuciones}
 \begin{tabular}{@{}l l l l@{}}
 \toprule
 \textbf{Ejecución} & \textbf{Directorio} & \textbf{Colección} & \textbf{Preguntas} \\
@@ -14,9 +17,9 @@ E3 & \texttt{20261115-004843} & 5.994 documentos & \texttt{eval/dataset} (25) \\
 E4 & \texttt{20261115-010523} & 5.994 documentos & \texttt{eval/dataset-sizes} (37) \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 
-En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el acierto en primera posición (hit@1). Un guion indica que el juez no pudo puntuar la muestra o, en H, que la pregunta no tiene respuesta en la colección. En las preguntas sin respuesta el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información.
+En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el acierto en primera posición (hit@1). Un guion indica que el juez no pudo puntuar la muestra o, en H, que la pregunta no tiene respuesta en la colección. En las preguntas sin respuesta, el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información; no tiene una interpretación útil y no entra en las medias del capítulo~\ref{cap:estudio-chunking}, que se calculan solo sobre las preguntas con respuesta.
 
 \section{Colección completa, conjunto principal (E3)}
 
@@ -121,3 +124,106 @@ n04 & sin resp. & 0,75 & 1,00 & --- & 1,00 & 0,50 & --- & 1,00 & 0,00 & --- & 0,
 \bottomrule
 \end{longtable}
 \end{footnotesize}
+
+\section{Precisión, hit@5, relevancia y abstención por pregunta}
+\label{sec:ap-detalle}
+
+Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención indebida (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
+
+\begin{scriptsize}
+\setlength{\tabcolsep}{2.2pt}\renewcommand{\arraystretch}{0.92}
+\begin{longtable}{@{}l rrrc rrrc rrrc rrrc@{}}
+\caption[Precisión, hit@5, relevancia y abstención por pregunta (E3)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención indebida (A) por pregunta en la colección completa (E3)}\label{tab:ap-e3-detalle}\\
+\toprule
+& \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
+\textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
+\midrule
+\endhead
+q01 & 0,70 & 0 & 0,00 & sí & 0,80 & 1 & 0,75 &  & 0,80 & 0 & 0,00 & sí & 1,00 & 1 & 0,71 &  \\
+q02 & 0,33 & 1 & 0,61 &  & 1,00 & 1 & 0,56 &  & 1,00 & 1 & 0,48 &  & 0,00 & 0 & 0,00 & sí \\
+q03 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 1 & 0,86 &  & 0,00 & 0 & 0,00 &  \\
+q04 & 1,00 & 1 & 0,57 &  & 1,00 & 1 & 0,57 &  & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,60 &  \\
+q05 & 1,00 & 1 & 0,60 &  & 1,00 & 1 & 0,83 &  & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,82 &  \\
+q06 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,66 &  \\
+q07 & 0,00 & 1 & 0,77 &  & 0,00 & 1 & 0,65 &  & 0,20 & 1 & 0,76 &  & 1,00 & 1 & 0,81 &  \\
+q08 & 1,00 & 1 & 0,69 &  & 1,00 & 1 & 0,54 &  & 1,00 & 1 & 0,54 &  & 1,00 & 1 & 0,87 &  \\
+q09 & 0,89 & 1 & 0,66 &  & 1,00 & 1 & 0,88 &  & 1,00 & 1 & 0,88 &  & 1,00 & 1 & 0,88 &  \\
+q10 & 1,00 & 1 & 0,80 &  & 1,00 & 1 & 0,75 &  & 1,00 & 1 & 0,75 &  & 1,00 & 1 & 0,66 &  \\
+q11 & 0,00 & 1 & 0,00 &  & 0,20 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 &  & 0,20 & 1 & 0,61 &  \\
+q12 & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 &  & 0,59 & 1 & 0,80 &  \\
+q13 & 0,20 & 1 & 0,59 &  & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 &  & 0,59 & 1 & 0,55 &  \\
+q14 & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 &  & 0,00 & 1 & 0,51 &  & 0,58 & 1 & 0,68 &  \\
+q15 & 0,00 & 1 & 0,00 &  & 0,00 & 1 & 0,49 &  & 0,00 & 1 & 0,61 &  & 0,00 & 1 & 0,72 &  \\
+q16 & 0,50 & 1 & 0,79 &  & 1,00 & 1 & 0,68 &  & 1,00 & 1 & 0,68 &  & 1,00 & 1 & 0,63 &  \\
+q17 & 1,00 & 1 & 0,56 &  & 1,00 & 1 & 0,56 &  & 1,00 & 1 & 0,56 &  & 1,00 & 1 & 0,57 &  \\
+q18 & 0,50 & 1 & 0,44 &  & 0,50 & 1 & 0,44 &  & 0,00 & 1 & 0,00 &  & 1,00 & 1 & 0,70 &  \\
+q19 & 0,75 & 1 & 0,59 &  & 1,00 & 1 & 0,64 &  & 0,00 & 1 & 0,00 &  & 1,00 & 1 & 0,69 &  \\
+q20 & 0,76 & 1 & 0,54 &  & 1,00 & 1 & 0,59 &  & 0,32 & 1 & 0,61 &  & 1,00 & 1 & 0,68 &  \\
+q21 & 0,20 & 1 & 0,82 &  & 0,00 & 1 & 0,69 &  & 0,20 & 1 & 0,64 &  & 1,00 & 1 & 0,73 &  \\
+q22 & 1,00 & 0 & 0,63 &  & 0,00 & 1 & 0,00 &  & 1,00 & 0 & 0,61 &  & 1,00 & 0 & 0,61 &  \\
+q23 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- \\
+q24 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- \\
+q25 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,86 & --- \\
+\bottomrule
+\end{longtable}
+\end{scriptsize}
+
+\begin{scriptsize}
+\setlength{\tabcolsep}{2.2pt}\renewcommand{\arraystretch}{0.92}
+\begin{longtable}{@{}l rrrc rrrc rrrc rrrc@{}}
+\caption[Precisión, hit@5, relevancia y abstención por pregunta (E4)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención indebida (A) por pregunta en la batería variada (E4)}\label{tab:ap-e4-detalle}\\
+\toprule
+& \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
+\textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
+\midrule
+\endhead
+s01 & 0,00 & 0 & 0,70 &  & 0,00 & 0 & 0,72 &  & 0,00 & 0 & 0,00 & sí & 0,50 & 1 & 0,60 &  \\
+s02 & 0,81 & 0 & 0,00 & sí & 0,70 & 0 & 0,00 & sí & 0,70 & 0 & 0,00 & sí & 1,00 & 1 & 0,80 &  \\
+s03 & 0,00 & 0 & 0,55 &  & 0,50 & 1 & 0,58 &  & 0,00 & 1 & 0,68 &  & 1,00 & 1 & 0,56 &  \\
+s04 & 1,00 & 1 & 0,79 &  & 1,00 & 1 & 0,79 &  & 0,00 & 1 & 0,79 &  & 0,87 & 1 & 0,80 &  \\
+s05 & 1,00 & 1 & 0,61 &  & 1,00 & 1 & 0,65 &  & 1,00 & 1 & 0,62 &  & 1,00 & 1 & 0,77 &  \\
+s06 & 0,20 & 1 & 0,65 &  & 0,33 & 1 & 0,70 &  & 0,50 & 1 & 0,73 &  & 1,00 & 1 & 0,73 &  \\
+s07 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,50 & 1 & 0,65 &  \\
+s08 & 1,00 & 1 & 0,82 &  & 1,00 & 1 & 0,74 &  & 1,00 & 1 & 0,67 &  & 1,00 & 1 & 0,74 &  \\
+m01 & 0,50 & 1 & 0,72 &  & 0,00 & 1 & 0,73 &  & 0,33 & 1 & 0,72 &  & 0,00 & 1 & 0,70 &  \\
+m02 & 0,50 & 1 & 0,71 &  & 1,00 & 1 & 0,88 &  & 1,00 & 1 & 0,71 &  & 1,00 & 1 & 0,88 &  \\
+m03 & 0,83 & 1 & 0,85 &  & 0,00 & 0 & 0,00 & sí & 0,58 & 1 & 0,88 &  & 1,00 & 1 & 0,64 &  \\
+m04 & 1,00 & 1 & 0,73 &  & 1,00 & 1 & 0,71 &  & 1,00 & 1 & 0,74 &  & 0,92 & 1 & 0,74 &  \\
+m05 & 0,33 & 1 & 0,60 &  & 0,00 & 1 & 0,00 &  & 0,50 & 1 & 0,60 &  & 1,00 & 1 & 0,81 &  \\
+m06 & 0,50 & 1 & 0,48 &  & 0,50 & 1 & 0,62 &  & 1,00 & 1 & 0,62 &  & 0,50 & 1 & 0,63 &  \\
+m07 & 1,00 & 1 & 0,00 & sí & 1,00 & 1 & 0,00 & sí & 0,81 & 1 & 0,00 & sí & 1,00 & 1 & 0,76 &  \\
+m08 & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,89 &  \\
+l01 & 0,00 & 1 & 0,00 &  & 0,50 & 1 & 0,83 &  & 0,50 & 1 & 0,83 &  & 0,50 & 1 & 0,79 &  \\
+l02 & 0,00 & 1 & 0,00 & sí & 1,00 & 1 & 0,00 &  & 0,00 & 1 & 0,00 &  & 1,00 & 1 & 0,00 & sí \\
+l03 & 0,00 & 1 & 0,00 &  & 1,00 & 1 & 0,63 &  & 0,50 & 1 & 0,48 &  & 1,00 & 1 & 0,74 &  \\
+l04 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,85 &  \\
+l05 & 0,70 & 1 & 0,00 & sí & 0,68 & 1 & 0,00 & sí & 0,95 & 1 & 0,00 & sí & 1,00 & 0 & 0,00 &  \\
+l06 & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,57 &  \\
+l07 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 1 & 0,00 &  & 0,00 & 1 & 0,00 & sí \\
+l08 & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí & 0,00 & 1 & 0,00 & sí \\
+d01 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 &  & 0,00 & 0 & 0,00 & sí & 0,00 & 1 & 0,75 &  \\
+d02 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,86 &  \\
+d03 & 0,76 & 1 & 0,76 &  & 0,81 & 1 & 0,76 &  & 0,83 & 1 & 0,76 &  & 0,83 & 1 & 0,74 &  \\
+d04 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 1,00 & 1 & 0,86 &  \\
+d05 & 1,00 & 1 & 0,00 &  & 0,00 & 1 & 0,00 &  & 1,00 & 1 & 0,00 &  & 0,00 & 1 & 0,92 &  \\
+d06 & 0,70 & 1 & 0,88 &  & 1,00 & 1 & 0,82 &  & 0,58 & 1 & 0,80 &  & 1,00 & 1 & 0,78 &  \\
+x01 & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí & 0,00 & 0 & 0,00 & sí \\
+x02 & 0,00 & 1 & 0,77 &  & 0,00 & 1 & 0,79 &  & 0,00 & 1 & 0,00 & sí & 0,25 & 1 & 0,76 &  \\
+x03 & 0,00 & 0 & 0,63 &  & 0,00 & 0 & 0,00 &  & 0,00 & 0 & 0,53 &  & --- & 0 & 0,58 &  \\
+n01 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 1,00 & --- & 0,53 & --- \\
+n02 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,50 & --- & 0,00 & --- \\
+n03 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- \\
+n04 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,20 & --- & 0,00 & --- \\
+\bottomrule
+\end{longtable}
+\end{scriptsize}

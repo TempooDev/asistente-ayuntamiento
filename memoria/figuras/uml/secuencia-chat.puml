@@ -17,20 +17,20 @@ participant "Proveedor LLM" as LLM
 
 U -> SPA : escribe la pregunta
 SPA -> Hub : StreamMessage(sessionId, mensaje)\n[token de Auth0]
-Hub -> Sess : GetSessionByIdAsync(sesión, usuario, tenant)
-Sess -> PG : buscar sesión (filtro por tenant)
+Hub -> Sess : GetSessionByIdAsync(sesión, usuario, ayuntamiento)
+Sess -> PG : buscar sesión (filtro por ayuntamiento)
 Hub -> Sess : EnqueueUserMessage
 note right of Sess : se guarda en segundo plano;\nla respuesta no espera a la BD
-Hub -> Chat : GetStreamingCompletionAsync(historial, tenant, usuario)
+Hub -> Chat : GetStreamingCompletionAsync(historial, ayuntamiento, usuario)
 Chat -> Win : GetWinnerAsync()
 Win -> PG : tasa de victorias (ArenaBattles,\ncacheada 5 minutos)
 Chat -> Pipe : StreamAsync(turno)
 
-alt Pipeline baseline
+alt Pipeline básica
   Pipe -> LLM : embedding de la pregunta (modelo de la plataforma)
   Pipe -> Q : búsqueda densa en document_chunks
   Pipe -> Pipe : prompt de PromptCatalog\n+ fragmentos + preferencias
-  Pipe -> LLM : generación con el modelo del tenant
+  Pipe -> LLM : generación con el modelo del ayuntamiento
 else Pipeline jerárquica
   Pipe -> LLM : expansión de la consulta
   par búsqueda híbrida
@@ -43,11 +43,11 @@ else Pipeline jerárquica
   Pipe -> LLM : generación en lenguaje claro\n(modelo de la plataforma)
 end
 
-loop por cada fragmento de texto
+loop por cada parte de la respuesta
   LLM --> Pipe : tokens
-  Pipe --> Chat : fragmento
-  Chat --> Hub : fragmento
-  Hub --> SPA : fragmento (streaming)
+  Pipe --> Chat : parte
+  Chat --> Hub : parte
+  Hub --> SPA : parte (streaming)
 end
 Pipe --> Hub : fuentes citadas\n(la jerárquica las incluye en el texto)
 Hub -> Sess : EnqueueAssistantMessage
