@@ -110,6 +110,7 @@
 \newcommand{\tfgCotutor}{Sandro José Hurtado Requena}  % TODO: añadir "Dr." si procede
 \newcommand{\tfgDept}{Departamento de Lenguajes y Ciencias de la Computación}  % TODO: confirmar departamento
 \newcommand{\tfgCityDate}{Málaga, diciembre de 2026}  % TODO: fecha de entrega
+\hypersetup{pdftitle={\tfgTitleES},pdfauthor={\tfgAuthor}}
 
 %======================================================================
 \begin{document}
@@ -188,7 +189,8 @@
 
 %────────────────────── Back cover and bibliography ────────────────────
 \backmatter
-\printbibliography[title={Bibliografía}]
+{\small\setlength\bibitemsep{0pt}
+\printbibliography[title={Bibliografía}]}
 \cleardoublepage
 \MakeUMABackCover
 
