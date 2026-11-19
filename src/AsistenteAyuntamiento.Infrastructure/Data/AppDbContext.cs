@@ -6,12 +6,13 @@ using AsistenteAyuntamiento.Domain.Features.Evaluation;
 using AsistenteAyuntamiento.Domain.Features.Ingestion;
 using AsistenteAyuntamiento.Domain.Features.Scraper;
 using AsistenteAyuntamiento.Domain.Features.Users;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using NpgsqlTypes;
 
 namespace AsistenteAyuntamiento.Infrastructure.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : DbContext(options), AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService tenantService) : DbContext(options), AsistenteAyuntamiento.Application.Common.Interfaces.IAppDbContext, IDataProtectionKeyContext
 {
     private readonly AsistenteAyuntamiento.Application.Common.Interfaces.ICurrentTenantService _tenantService = tenantService;
 
@@ -33,6 +34,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, AsistenteAyunt
     public DbSet<IngestionMetric> IngestionMetrics { get; set; }
     public DbSet<EvaluationRun> EvaluationRuns { get; set; }
     public DbSet<EvaluationPipelineResult> EvaluationPipelineResults { get; set; }
+
+    /// <summary>Data Protection key ring (<c>identity."DataProtectionKeys"</c>), shared by every host and kept across deployments.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 
     /// <summary>Full-text column of <c>ingestion."ChildFragments"</c> (shadow property, maintained by a trigger).</summary>
     public const string ChildFragmentTsvColumn = "TsvContent";

@@ -66,12 +66,12 @@ public class QueryExpansionService(
     }
 
     /// <summary>
-    /// Used when the model fails: every word is required lexically; semantically, the user's previous questions go
+    /// Used when the model fails: every word is required lexically (websearch_to_tsquery ANDs plain words); semantically, the user's previous questions go
     /// with the raw question (as the baseline searches), so a follow-up keeps its topic.
     /// </summary>
     internal static ExpandedQueryInfo Fallback(string userQuery, IReadOnlyList<ChatMessageContent>? previousMessages = null) => new()
     {
-        LexicalQuery = string.Join(" & ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+        LexicalQuery = string.Join(" ", userQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
         SemanticQuery = string.Join("\n", (previousMessages ?? [])
             .Where(m => m.Role == AuthorRole.User)
             .TakeLast(2)

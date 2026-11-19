@@ -49,8 +49,6 @@ builder.Services.AddSingleton<ICurrentTenantService, CurrentTenantService>();
 
 builder.Services.AddHostedService<ChatPersistenceWorker>();
 
-builder.Services.AddDataProtection();
-
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
     configureDbContextOptions: options => options

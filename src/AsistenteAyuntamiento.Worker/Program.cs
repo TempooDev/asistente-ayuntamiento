@@ -34,11 +34,9 @@ builder.AddNpgsqlDbContext<AppDbContext>(
 // Configure RabbitMQ
 builder.AddRabbitMQClient("messaging");
 
-// AddApplicationServices also registers the chat services (AiConfigurationService needs Data Protection). The
-// Worker never resolves them, but Development validates every registration when the app is built.
-builder.Services.AddDataProtection();
-
-// Application services, then their ports (S3, Qdrant, Semantic Kernel, RabbitMQ)
+// Application services, then their ports (S3, Qdrant, Semantic Kernel, RabbitMQ). AddInfrastructureServices also
+// registers Data Protection, which the chat services need (the Worker never resolves them, but Development validates
+// every registration when the app is built).
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.AddInfrastructureServices();
 

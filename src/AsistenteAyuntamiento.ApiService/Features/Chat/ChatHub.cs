@@ -38,51 +38,6 @@ public class ChatHub(
     private string CurrentTenantId => _tenantService.TenantId
         ?? throw new HubException(HubErrors.Message(HubErrors.Unauthorized));
 
-    public async Task SendMessage(Guid sessionId, string message)
-    {
-        var userId = CurrentUserId;
-        if (string.IsNullOrEmpty(userId))
-        {
-            await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.Unauthorized));
-            return;
-        }
-
-        try
-        {
-            var tenantId = CurrentTenantId;
-            _logger.LogInformation("Message from {User} in tenant {Tenant} for session {SessionId}", userId, tenantId, sessionId);
-
-            // 1. Fetch specific session
-            var session = await _sessionService.GetSessionByIdAsync(sessionId, userId, tenantId, Context.ConnectionAborted);
-            if (session == null)
-            {
-                await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.NotFound));
-                return;
-            }
-            _sessionService.EnqueueUserMessage(session, message);
-
-            // 2. Build history for the model
-            var recentMessages = _sessionService.GetCompactedHistory(session);
-            var history = BuildChatHistory(recentMessages);
-
-            // 3. Call AI (metrics and tracing are handled inside AiChatService)
-            var result = await _aiChatService.GetCompletionAsync(history, tenantId, userId, Context.ConnectionAborted);
-
-            var finalContent = result.Content;
-
-            // 4. Persist assistant response
-            _sessionService.EnqueueAssistantMessage(session, finalContent);
-
-            // 5. Send to client
-            await Clients.Caller.SendAsync("ReceiveMessage", finalContent);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in SendMessage for {User}", userId);
-            await Clients.Caller.SendAsync("ReceiveMessage", HubErrors.Message(HubErrors.Internal));
-        }
-    }
-
     public async IAsyncEnumerable<string> StreamMessage(
         string sessionIdStr,
         string message,

@@ -5,18 +5,6 @@ namespace AsistenteAyuntamiento.Application.Common.Prompts;
 /// <summary>Every system and user prompt template sent to the language models.</summary>
 public static class PromptCatalog
 {
-    public const string ChatSystem = """
-        Eres un asistente virtual experto en administración pública (BOE, BOJA). Tu objetivo es traducir el lenguaje administrativo a información clara, accesible y directa para la ciudadanía.
-        
-        Instrucciones de respuesta:
-        1. PRIORIDAD DOCUMENTAL (RAG): Tu prioridad absoluta es basar la respuesta en el contexto recuperado de los boletines. Estructura la información de forma clara usando viñetas, negritas y párrafos cortos.
-        2. USO DE CONOCIMIENTO INTERNO: Si el contexto recuperado no contiene la respuesta, puedes utilizar tu conocimiento interno, pero con una condición ESTRICTA: debes advertir explícitamente al principio de tu respuesta que estás usando información general no extraída de los boletines recientes, e indicar que podría haber actualizaciones posteriores. 
-        3. CLARIDAD Y TONO: Sé directo. Omite saludos largos o introducciones genéricas. Traduce la jerga legal a términos que cualquier ciudadano entienda.
-        4. AVISO LEGAL: Incluye un breve descargo recordando que la información es orientativa y no sustituye la consulta oficial a la administración.
-        5. FUENTES: Si usaste el contexto, finaliza SIEMPRE con "### Fuentes consultadas" listando las URLs. Si respondiste solo con conocimiento interno, pon "### Fuentes consultadas: Conocimiento general del asistente (Sujeto a verificación)".
-        6. NUNCA TE ESCUDES EN TU IDENTIDAD NI TE DISCULPES: Bajo ningún concepto uses frases derrotistas o excusas como "Como asistente municipal, no dispongo de...", "No tengo acceso en tiempo real" o "No puedo ayudarte con eso". Da siempre la mejor respuesta posible o una estimación basada en tu conocimiento general, advirtiendo de forma objetiva sobre su validez (Punto 2). No adoptes una personalidad limitante.
-        """;
-
     /// <summary>
     /// Task instruction for query embeddings (<c>Instruct: …\nQuery: …</c>) when <c>Ai:Embeddings:UseQueryInstruction</c>
     /// is on. In English, as the Qwen3-Embedding authors advise for multilingual retrieval.
@@ -27,18 +15,6 @@ public static class PromptCatalog
     public const string ConversationalSystem = """
         Eres el asistente virtual del ayuntamiento para consultas sobre boletines oficiales (BOE, BOJA). Responde de forma clara y concisa en español.
         No se han encontrado documentos de los boletines para este mensaje. Si te piden datos concretos de una norma (cifras, fechas, plazos, nombres, cláusulas) que no estén en la conversación, di que no los has encontrado en los boletines disponibles; no los respondas de memoria.
-        """;
-
-    /// <summary>{0} retrieved context, {1} citizen question, {2} current date (dd/MM/yyyy).</summary>
-    public const string ChatUserTemplate = """
-        FECHA ACTUAL: {2}
-        
-        CONTEXTO RECUPERADO DE LOS BOLETINES:
-        {0}
-        
-        INSTRUCCIÓN CRÍTICA: Responde a la pregunta priorizando el contexto proporcionado. Si usas tu conocimiento interno, adviértelo claramente siguiendo tus instrucciones.
-        
-        Pregunta del ciudadano: {1}
         """;
 
     public const string HistoryAnalyzerSystem = """
@@ -60,9 +36,9 @@ public static class PromptCatalog
         Limítate a lo que dicen los documentos y la conversación: no añadas consejos ni recomendaciones generales que no aparezcan en ellos, ni fórmulas de cortesía u ofrecimientos al final (por ejemplo, "si tienes más preguntas…" o "estoy aquí para ayudarte").
         """;
 
-    /// <summary>{0} retrieved context, {1} user question. Tells the model to ignore off-topic context.</summary>
+    /// <summary>{0} retrieved context, {1} user question. Off-topic documents are skipped one by one, never the whole context.</summary>
     public const string StreamingUserTemplate =
-        "CONTEXTO RECUPERADO DE LOS BOLETINES:\n{0}\n\nINSTRUCCIÓN CRÍTICA: Evalúa detenidamente si este contexto está relacionado con el TEMA de la conversación actual. Si el contexto habla de un tema que no tiene nada que ver (por ejemplo, la búsqueda recuperó un documento sobre policía pero el usuario está preguntando por una subvención a municipios), IGNORA EL CONTEXTO POR COMPLETO y responde basándote exclusivamente en el historial de la conversación. Solo usa el contexto si coincide exactamente con el tema del usuario. Si ni el contexto ni el historial contienen el dato, dilo; no lo inventes.\n\nPregunta: {1}";
+        "CONTEXTO RECUPERADO DE LOS BOLETINES:\n{0}\n\nINSTRUCCIÓN: Responde a la pregunta con la información de estos documentos. Si alguno de ellos trata un tema distinto al de la pregunta, no lo uses, pero aprovecha los demás. Si ni los documentos ni la conversación contienen el dato que se pide, dilo; no lo inventes.\n\nPregunta: {1}";
 
     /// <summary>Arena baseline side: {0} query, {1} retrieved documents.</summary>
     public const string ArenaBaselineTemplate = """
@@ -72,9 +48,6 @@ public static class PromptCatalog
         Documentos:
         {1}
         """;
-
-    /// <summary>Closing line of the user-context block when RAG documents may also be provided.</summary>
-    public const string UserContextGuidanceWithDocuments = "Usa este contexto para priorizar o enfocar tus respuestas, pero no ignores los documentos RAG si se te proveen.";
 
     /// <summary>Closing line of the user-context block.</summary>
     public const string UserContextGuidance = "Usa este contexto para priorizar o enfocar tus respuestas.";
@@ -116,7 +89,7 @@ Fragmento:
     public const string QueryExpansion = @"
 Eres un asistente legal experto para ciudadanos. Tu tarea es analizar la consulta del usuario y expandirla para un sistema de búsqueda.
 Genera un objeto JSON con los siguientes campos:
-- ""query_lexica"": Palabras clave formales para búsqueda por texto completo (tsquery), usa el formato de PostgreSQL tsquery (ej: ""subvencion & vivienda & joven"").
+- ""query_lexica"": Entre dos y cuatro palabras clave formales para búsqueda por texto completo, separadas por espacios y sin operadores ni comillas (ej: ""subvencion vivienda joven""). Deben aparecer todas en el documento buscado, así que elige solo las imprescindibles.
 - ""query_semantica"": Una frase formal y completa que traduzca la intención del ciudadano a terminología legal para búsqueda vectorial.
 - ""filtro_municipio"": Si la consulta menciona un municipio o ayuntamiento específico, ponlo aquí. Si no, null.
 

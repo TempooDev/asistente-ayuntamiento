@@ -17,6 +17,7 @@ using AsistenteAyuntamiento.Infrastructure.Data.Search;
 using AsistenteAyuntamiento.Infrastructure.Messaging;
 using AsistenteAyuntamiento.Infrastructure.Storage;
 using AsistenteAyuntamiento.Infrastructure.VectorStore;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,9 +29,18 @@ namespace AsistenteAyuntamiento.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>Application name shared by every host, so they all read the same Data Protection key ring.</summary>
+    public const string DataProtectionApplicationName = "AsistenteAyuntamiento";
+
     public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+
+        // Tenant API keys are encrypted with Data Protection: the key ring lives in PostgreSQL so it survives
+        // redeployments and every host (API, workers, evaluation) shares it under the same application name.
+        builder.Services.AddDataProtection()
+            .SetApplicationName(DataProtectionApplicationName)
+            .PersistKeysToDbContext<AppDbContext>();
         builder.Services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
         builder.Services.AddScoped<IIngestionMaintenance, IngestionMaintenance>();
 
