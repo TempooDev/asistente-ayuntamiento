@@ -9,7 +9,7 @@ Los marcadores \texttt{\{0\}}, \texttt{\{1\}} y \texttt{\{2\}} se sustituyen en 
 
 \section{Pipeline básica}
 
-La pipeline básica, y con ella las variantes recursiva y semántica, genera las respuestas con el modelo configurado por cada ayuntamiento. Elige el \emph{prompt} de sistema según si la búsqueda ha encontrado documentos.
+La pipeline básica, y con ella las variantes recursiva y semántica, genera las respuestas con el modelo configurado por cada ayuntamiento. Elige el \emph{prompt} de sistema según la búsqueda haya encontrado documentos o no.
 
 \subsection{Respuesta en \emph{streaming} con documentos}
 
@@ -21,7 +21,7 @@ El último mensaje del usuario se sustituye por la siguiente plantilla, donde \t
 
 \lstinputlisting[caption={\texttt{StreamingUserTemplate}}]{apendices/prompts/StreamingUserTemplate.txt}
 
-La plantilla pide descartar solo los documentos que no tratan el tema de la pregunta y aprovechar los demás. La versión usada en las ejecuciones del estudio de fragmentación (capítulo~\ref{cap:estudio-chunking}) era distinta: pedía ignorar todo el contexto si no coincidía exactamente con el tema y responder a partir del historial. Se cambió tras el estudio, por sospecharse que causaba las abstenciones de las planas; al repetir las ejecuciones con la versión actual, las abstenciones no bajaron (sección~\ref{sec:comprobaciones}). La lista de fuentes se añade siempre que se han recuperado documentos, se usen o no (sección~\ref{sec:impl-rag}).
+La plantilla pide descartar solo los documentos que no tratan el tema de la pregunta y aprovechar los demás. La versión usada en las ejecuciones del estudio de fragmentación (capítulo~\ref{cap:estudio-chunking}) era distinta: pedía ignorar todo el contexto si no coincidía exactamente con el tema y responder a partir del historial. Se cambió tras el estudio, porque se sospechaba que causaba las abstenciones de las planas, pero al repetir las ejecuciones con la versión actual las abstenciones apenas cambiaron (sección~\ref{sec:comprobaciones}). La lista de fuentes se añade siempre que se han recuperado documentos, se usen o no (sección~\ref{sec:impl-rag}).
 
 \subsection{Respuesta en \emph{streaming} sin documentos}
 
