@@ -1,75 +1,123 @@
 \umaappendix{Resultados completos del estudio de \emph{chunking}}
 \label{ap:chunking}
 
-Este apéndice recoge los resultados por pregunta de la ejecución \texttt{20261023-112730} (cuatro variantes, \emph{prompts} ajustados, RTX 4060) que resume el capítulo~\ref{cap:estudio-chunking}. Los ficheros completos de las ejecuciones (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en \texttt{eval/runs}.
+Este apéndice recoge los resultados por pregunta de las ejecuciones que resume el capítulo~\ref{cap:estudio-chunking}, todas en el mismo equipo (RTX 5070 Ti). Los ficheros completos de cada ejecución (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en \texttt{eval/runs}:
 
-\section{Fidelidad y recall de contexto por pregunta}
-
-La tabla~\ref{tab:ap-por-pregunta} da, para cada pregunta, la fidelidad (F) y el recall de contexto (CR) de cada variante. Un guion indica que el juez no pudo puntuar la muestra. En las tres preguntas sin respuesta en el corpus (q23 a q25) el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información.
-
-\begin{small}
-\begin{longtable}{@{}l l rr rr rr rr@{}}
-\caption{Fidelidad (F) y recall de contexto (CR) por pregunta y variante}\label{tab:ap-por-pregunta}\\
+\begin{center}\small
+\begin{tabular}{@{}l l l l@{}}
 \toprule
-& & \multicolumn{2}{c}{Tamaño fijo} & \multicolumn{2}{c}{Recursiva} & \multicolumn{2}{c}{Semántica} & \multicolumn{2}{c}{Jerárquica} \\
-\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
-\textbf{Id.} & \textbf{Categoría} & F & CR & F & CR & F & CR & F & CR \\
+\textbf{Ejecución} & \textbf{Directorio} & \textbf{Colección} & \textbf{Preguntas} \\
+\midrule
+E1 & \texttt{20261114-133119} & 17 documentos & \texttt{eval/dataset} (25) \\
+E2 & \texttt{20261114-142259} & 200 documentos & \texttt{eval/dataset} (25) \\
+E3 & \texttt{20261115-004843} & 5.994 documentos & \texttt{eval/dataset} (25) \\
+E4 & \texttt{20261115-010523} & 5.994 documentos & \texttt{eval/dataset-sizes} (37) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el acierto en primera posición (hit@1). Un guion indica que el juez no pudo puntuar la muestra o, en H, que la pregunta no tiene respuesta en la colección. En las preguntas sin respuesta el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información.
+
+\section{Colección completa, conjunto principal (E3)}
+
+\begin{footnotesize}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}l l rrr rrr rrr rrr@{}}
+\caption{Fidelidad (F), recall de contexto (CR) y hit@1 (H) por pregunta en la colección completa (E3)}\label{tab:ap-e3}\\
+\toprule
+& & \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(lr){12-14}
+\textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Id.} & \textbf{Categoría} & F & CR & F & CR & F & CR & F & CR \\
+\textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
 \midrule
 \endhead
-
-q01 & empleo-publico & 1,00 & 1,00 & 0,80 & 1,00 & 1,00 & 1,00 & 0,25 & 1,00 \\
-q02 & empleo-publico & 1,00 & 1,00 & 0,00 & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 \\
-q03 & empleo-publico & 0,43 & 1,00 & 0,75 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 \\
-q04 & empleo-publico & 0,75 & 1,00 & 0,75 & 1,00 & 1,00 & 1,00 & 0,83 & 1,00 \\
-q05 & empleo-publico & 0,50 & 1,00 & 0,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 \\
-q06 & empleo-publico & 0,33 & 0,00 & 1,00 & 1,00 & 1,00 & 0,00 & 0,83 & 1,00 \\
-q07 & empleo-publico & 1,00 & 1,00 & 0,67 & 1,00 & 0,67 & 1,00 & 0,78 & 1,00 \\
-q08 & empleo-publico & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 0,88 & 1,00 \\
-q09 & empleo-publico & 1,00 & 1,00 & 1,00 & 0,00 & 0,50 & 1,00 & 0,50 & 1,00 \\
-q10 & empleo-publico & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,80 & 1,00 \\
-q11 & ayudas & 0,75 & 0,50 & 1,00 & 0,50 & 0,86 & 0,50 & 1,00 & 0,50 \\
-q12 & ayudas & 1,00 & 0,00 & 1,00 & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 \\
-q13 & ayudas & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 0,00 & 1,00 & 1,00 \\
-q14 & ayudas & 0,71 & 0,00 & 1,00 & 1,00 & 1,00 & 1,00 & --- & 1,00 \\
-q15 & ayudas & 1,00 & 0,00 & 0,75 & 0,50 & 1,00 & 0,00 & 1,00 & 0,00 \\
-q16 & ayudas & 0,00 & 1,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
-q17 & normativa & 0,67 & 1,00 & 0,67 & 1,00 & 0,67 & 0,00 & 1,00 & 1,00 \\
-q18 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 0,67 & 1,00 \\
-q19 & normativa & 0,25 & 0,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,80 & 1,00 \\
-q20 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 1,00 \\
-q21 & tributos & 1,00 & 1,00 & 0,50 & 1,00 & 0,67 & 1,00 & 0,67 & 1,00 \\
-q22 & tributos & 1,00 & 0,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,67 & 1,00 \\
-q23 & sin-respuesta & 1,00 & 0,00 & 1,00 & 1,00 & 0,67 & 1,00 & 0,50 & 1,00 \\
-q24 & sin-respuesta & 0,33 & 0,00 & 0,71 & 0,00 & 1,00 & 0,00 & 0,43 & 1,00 \\
-q25 & sin-respuesta & 0,67 & 0,00 & 1,00 & 0,50 & 1,00 & 0,50 & 0,40 & 0,50 \\
+q01 & empleo & 0,67 & 0,33 & 0,00 & 1,00 & 1,00 & 0,00 & 0,75 & 0,33 & 0,00 & 0,50 & 1,00 & 1,00 \\
+q02 & empleo & 0,75 & 1,00 & 0,00 & 0,33 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,60 & 0,00 & 0,00 \\
+q03 & empleo & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 0,50 & 0,00 & 1,00 & 0,50 & 0,00 & 0,00 \\
+q04 & empleo & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+q05 & empleo & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+q06 & empleo & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+q07 & empleo & 0,75 & 1,00 & 0,00 & 0,33 & 1,00 & 0,00 & 0,33 & 1,00 & 0,00 & 0,91 & 1,00 & 1,00 \\
+q08 & empleo & 0,50 & 1,00 & 1,00 & 0,75 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,86 & 0,50 & 1,00 \\
+q09 & empleo & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,57 & 1,00 & 1,00 \\
+q10 & empleo & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+q11 & ayudas & 0,75 & 0,00 & 1,00 & 0,60 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 \\
+q12 & ayudas & 1,00 & 0,00 & 1,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 0,00 \\
+q13 & ayudas & 1,00 & 1,00 & 1,00 & 1,00 & 0,00 & 1,00 & 0,25 & 1,00 & 0,00 & 0,50 & 1,00 & 0,00 \\
+q14 & ayudas & 1,00 & 0,00 & 1,00 & 1,00 & 0,00 & 0,00 & 0,33 & 0,00 & 0,00 & --- & 0,67 & 1,00 \\
+q15 & ayudas & 1,00 & 0,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 0,00 & 0,33 & 0,00 & 0,00 \\
+q16 & ayudas & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 \\
+q17 & normativa & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,33 & 1,00 & 1,00 & 0,75 & 1,00 & 1,00 \\
+q18 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+q19 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,67 & 1,00 & 1,00 \\
+q20 & normativa & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+q21 & tributos & 0,67 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,25 & 1,00 & 1,00 \\
+q22 & tributos & 1,00 & 1,00 & 0,00 & 0,75 & 0,00 & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,00 \\
+q23 & sin resp. & 1,00 & 0,00 & --- & 0,00 & 0,00 & --- & 1,00 & 1,00 & --- & 0,40 & 1,00 & --- \\
+q24 & sin resp. & 1,00 & 0,00 & --- & 1,00 & 1,00 & --- & 1,00 & 0,00 & --- & 0,80 & 0,00 & --- \\
+q25 & sin resp. & 0,50 & 0,00 & --- & 0,50 & 0,50 & --- & 1,00 & 0,00 & --- & 1,00 & 0,50 & --- \\
 \bottomrule
 \end{longtable}
-\end{small}
+\end{footnotesize}
 
-\section{Comparación con los \emph{prompts} anteriores}
+\section{Batería variada (E4)}
 
-La tabla~\ref{tab:ap-prompts} compara la ejecución con los \emph{prompts} anteriores (\texttt{20261023-110829}) y la ejecución con los \emph{prompts} ajustados (\texttt{20261023-112730}), con las mismas preguntas, el mismo corpus y el mismo hardware. La recuperación es idéntica en las dos, así que las diferencias en precisión y recall de contexto se deben solo al juez y dan una idea de su ruido.
+Las preguntas están agrupadas por categoría: \texttt{s} pequeños, \texttt{m} medianos, \texttt{l} grandes, \texttt{d} con distractores, \texttt{x} mixtas y \texttt{n} sin respuesta. El enunciado, la respuesta de referencia y los documentos de cada una están en \texttt{eval/dataset-sizes/questions.jsonl}, y las medias por categoría y variante en \texttt{eval/runs/20261115-010523/by\_category.csv}.
 
-\begin{table}[htbp]
-\centering\small
-\caption{Medias por variante antes y después del ajuste de los \emph{prompts}}
-\label{tab:ap-prompts}
-\begin{tabular}{@{}l rr rr rr rr@{}}
+\begin{footnotesize}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}l l rrr rrr rrr rrr@{}}
+\caption{Fidelidad (F), recall de contexto (CR) y hit@1 (H) por pregunta en la batería variada (E4)}\label{tab:ap-e4}\\
 \toprule
-& \multicolumn{2}{c}{Precisión ctx.} & \multicolumn{2}{c}{Recall ctx.} & \multicolumn{2}{c}{Fidelidad} & \multicolumn{2}{c}{Alucinación} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
-\textbf{Variante} & antes & después & antes & después & antes & después & antes & después \\
+& & \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(lr){12-14}
+\textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
 \midrule
-
-Tamaño fijo & 0,44 & 0,44 & 0,62 & 0,62 & 0,74 & 0,78 & 56\,\% & 44\,\% \\
-Recursiva & 0,53 & 0,52 & 0,81 & 0,79 & 0,85 & 0,82 & 28\,\% & 36\,\% \\
-Semántica & 0,46 & 0,42 & 0,79 & 0,75 & 0,82 & 0,83 & 36\,\% & 36\,\% \\
-Jerárquica & 0,77 & 0,77 & 0,88 & 0,92 & 0,68 & 0,76 & 48\,\% & 46\,\% \\
+\endfirsthead
+\toprule
+\textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
+\midrule
+\endhead
+s01 & pequeño & 1,00 & 0,50 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,50 & 0,00 \\
+s02 & pequeño & 1,00 & 0,50 & 0,00 & 1,00 & 0,50 & 0,00 & 1,00 & 0,50 & 0,00 & 1,00 & 0,50 & 1,00 \\
+s03 & pequeño & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 0,00 & 0,00 & 0,50 & 0,00 & 0,80 & 1,00 & 1,00 \\
+s04 & pequeño & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,20 & 0,33 & 0,00 \\
+s05 & pequeño & 1,00 & 0,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 & 0,80 & 0,50 & 1,00 \\
+s06 & pequeño & 1,00 & 0,50 & 0,00 & 0,00 & 0,00 & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+s07 & pequeño & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 0,78 & 0,00 & 0,00 & 1,00 & 1,00 & 0,00 \\
+s08 & pequeño & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,86 & 1,00 & 1,00 \\
+m01 & mediano & 1,00 & 0,67 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 & 0,67 & 1,00 \\
+m02 & mediano & 0,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+m03 & mediano & 0,67 & 1,00 & 1,00 & 0,88 & 0,00 & 0,00 & 1,00 & 0,50 & 1,00 & 0,83 & 0,80 & 1,00 \\
+m04 & mediano & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 1,00 & 1,00 \\
+m05 & mediano & 1,00 & 0,50 & 0,00 & 0,80 & 0,50 & 0,00 & 0,50 & 0,00 & 0,00 & --- & 1,00 & 1,00 \\
+m06 & mediano & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & --- & 1,00 & 0,00 \\
+m07 & mediano & 1,00 & 0,50 & 1,00 & 1,00 & 1,00 & 1,00 & 0,60 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+m08 & mediano & 1,00 & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 & 1,00 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 \\
+l01 & grande & 0,50 & 0,00 & 1,00 & 0,75 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,50 & 0,67 & 1,00 \\
+l02 & grande & 0,50 & 0,50 & 1,00 & 0,60 & 0,50 & 1,00 & 0,62 & 0,00 & 1,00 & 1,00 & 1,00 & 1,00 \\
+l03 & grande & 0,80 & 0,50 & 1,00 & 1,00 & 1,00 & 0,00 & 0,33 & 0,50 & 1,00 & 0,50 & 0,50 & 1,00 \\
+l04 & grande & 0,71 & 0,00 & 0,00 & 0,50 & 0,00 & 0,00 & 0,86 & 0,00 & 0,00 & 0,80 & 1,00 & 1,00 \\
+l05 & grande & 1,00 & 0,50 & 0,00 & 0,67 & 0,50 & 0,00 & 0,88 & 1,00 & 0,00 & 0,50 & 1,00 & 0,00 \\
+l06 & grande & 0,25 & 1,00 & 1,00 & 0,33 & 1,00 & 1,00 & 0,33 & 1,00 & 1,00 & 0,36 & 0,00 & 1,00 \\
+l07 & grande & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 \\
+l08 & grande & 1,00 & 0,00 & 1,00 & 0,33 & 0,00 & 1,00 & 0,25 & 0,00 & 1,00 & 1,00 & 0,00 & 1,00 \\
+d01 & distractor & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 0,88 & 1,00 & 1,00 \\
+d02 & distractor & 0,67 & 0,00 & 0,00 & 0,33 & 0,50 & 0,00 & 1,00 & 0,00 & 0,00 & 0,50 & 1,00 & 1,00 \\
+d03 & distractor & 0,50 & 1,00 & 1,00 & 0,50 & 0,67 & 1,00 & 0,50 & 1,00 & 1,00 & 0,40 & 0,67 & 1,00 \\
+d04 & distractor & 1,00 & 0,50 & 0,00 & 0,67 & 0,50 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 1,00 & 1,00 \\
+d05 & distractor & 0,83 & 0,50 & 1,00 & 0,75 & 0,50 & 1,00 & 0,83 & 0,50 & 1,00 & 1,00 & 0,50 & 1,00 \\
+d06 & distractor & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 1,00 & 0,67 & 1,00 & 1,00 & 0,89 & 1,00 & 1,00 \\
+x01 & mixto & 0,75 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & 0,83 & 0,00 & 0,00 \\
+x02 & mixto & 1,00 & 0,50 & 1,00 & 0,50 & 0,50 & 1,00 & 0,86 & 0,50 & 1,00 & 0,93 & 0,50 & 1,00 \\
+x03 & mixto & 1,00 & 0,00 & 0,00 & 0,56 & 0,00 & 0,00 & 1,00 & 0,00 & 0,00 & --- & 0,00 & 0,00 \\
+n01 & sin resp. & 0,75 & 1,00 & --- & 0,75 & 1,00 & --- & 1,00 & 1,00 & --- & 0,86 & 0,50 & --- \\
+n02 & sin resp. & 1,00 & 0,00 & --- & 1,00 & 0,00 & --- & 1,00 & 0,00 & --- & 0,86 & 0,50 & --- \\
+n03 & sin resp. & 1,00 & 0,00 & --- & 1,00 & 0,00 & --- & 1,00 & 0,00 & --- & 0,67 & 0,00 & --- \\
+n04 & sin resp. & 0,75 & 1,00 & --- & 1,00 & 0,50 & --- & 1,00 & 0,00 & --- & 0,60 & 0,50 & --- \\
 \bottomrule
-\end{tabular}
-\end{table}
-
+\end{longtable}
+\end{footnotesize}

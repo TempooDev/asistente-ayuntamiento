@@ -173,6 +173,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production,deployment.environment=production
       - PORT=${SCRAPER_PORT:-8080}
       - GRPC_PORT=${SCRAPER_GRPC_PORT:-50051}
+      # Bulletins of the daily scrape (the scraper's own default is BOE only).
+      - SCRAPE_SCHEDULED_PROVIDERS=${SCRAPE_SCHEDULED_PROVIDERS:-BOE,BOJA}
       - ConnectionStrings__messaging=amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
       - Blob__Endpoint=${CLOUDFLARE_R2_ENDPOINT}
       - Blob__AccessKeyId=${CLOUDFLARE_R2_ACCESS_KEY_ID}

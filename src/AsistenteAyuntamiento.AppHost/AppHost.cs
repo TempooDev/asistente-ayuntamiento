@@ -53,7 +53,7 @@ IResourceBuilder<ParameterResource> AiParameter(string name, bool secret)
 
 // ── Cloudflare R2 secrets (Optional) ────────────────────────────────────────
 // To use R2, set these in user-secrets or appsettings.json instead of parameters.
-// If missing, the local MinIO container below is used.
+// If missing, the local RustFS container below is used.
 var blobEndpoint = builder.Configuration["Blob:Endpoint"];
 var blobAccessKeyId = builder.Configuration["Blob:AccessKeyId"];
 var blobSecretAccessKey = builder.Configuration["Blob:SecretAccessKey"];
@@ -65,22 +65,22 @@ var minioPassword = builder.AddParameter("minio-root-password", new GeneratePara
 // Shared secret the Go scraper sends to the API's internal gRPC FilterConfigService.
 var internalGrpcKey = builder.AddParameter("internal-grpc-key", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
 
-// Configure MinIO container
-// Persistent MinIO Object Storage
-var minio = builder.AddContainer("minio", "minio/minio")
-    .WithArgs("server", "/data", "--console-address", ":9001")
-    .WithVolume("minio-data", "/data")
+// Local S3-compatible object storage: RustFS (the minio/minio image is no longer pulled from Docker Hub).
+// The minio-* parameters keep their names so existing user-secrets still apply.
+var minio = builder.AddContainer("rustfs", "rustfs/rustfs")
+    .WithVolume("rustfs-data", "/data")
     .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "api")
     .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console")
-    .WithEnvironment("MINIO_ROOT_USER", minioUser)
-    .WithEnvironment("MINIO_ROOT_PASSWORD", minioPassword);
+    .WithEnvironment("RUSTFS_ACCESS_KEY", minioUser)
+    .WithEnvironment("RUSTFS_SECRET_KEY", minioPassword)
+    .WithEnvironment("RUSTFS_CONSOLE_ENABLE", "true");
 
 var minioEndpoint = minio.GetEndpoint("api");
 
 // No init container: the ApiService creates the bucket on startup (IBlobStorage.EnsureContainerAsync), and the
 // scraper, the only writer, waits for the ApiService.
 
-// Blob credentials: R2 values from configuration when set, otherwise the local MinIO ones.
+// Blob credentials: R2 values from configuration when set, otherwise the local RustFS ones.
 void WithBlobStorage(IResourceBuilder<IResourceWithEnvironment> resource)
 {
     resource.WithEnvironment("Blob__BucketName", blobBucketName);
@@ -167,7 +167,7 @@ WithAi(apiService);
 WithBlobStorage(apiService);
 if (string.IsNullOrEmpty(blobEndpoint))
 {
-    // The ApiService creates the local bucket on startup, so MinIO must be up first.
+    // The ApiService creates the local bucket on startup, so RustFS must be up first.
     apiService.WaitFor(minio);
 }
 apiService.WithEnvironment("Internal__GrpcApiKey", internalGrpcKey);

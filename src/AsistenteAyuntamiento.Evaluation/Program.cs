@@ -188,7 +188,7 @@ if (!options.Score)
     return 0;
 }
 
-if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, ollamaUrl, cancellation.Token))
+if (!await host.Services.GetRequiredService<EvaluationScorer>().ScoreAsync(repository, runDirectory, datasetDirectory, ollamaUrl, cancellation.Token))
 {
     return 1;
 }

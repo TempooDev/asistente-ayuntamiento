@@ -29,7 +29,7 @@ El sistema se divide en tres partes que solo se comunican a través de interface
     \node[ext]   (llm) at (-5.6, -5.1) {Proveedores de IA\\Ollama, OpenAI,\\OpenRouter, Google};
     \node[svc]   (mq)  at (0.9, -5.1)  {RabbitMQ};
     \node[svc]   (wk)  at (0.9, -6.8)  {\emph{Workers} .NET\\baseline y jerárquico};
-    \node[store] (s3)  at (4.6, -6.8)  {S3\\(MinIO o R2)};
+    \node[store] (s3)  at (4.6, -6.8)  {S3\\(RustFS o R2)};
     \node[store] (pg)  at (-5.6, -8.6) {PostgreSQL};
     \node[store] (qd)  at (-1.7, -8.6) {Qdrant};
 
@@ -59,13 +59,13 @@ El sistema se divide en tres partes que solo se comunican a través de interface
   \item[API.] El servicio \texttt{ApiService} expone los \emph{endpoints} REST de administración, los \emph{hubs} de SignalR del chat y de notificaciones, y un servicio gRPC con el que el \emph{scraper} consulta sus reglas de filtrado. A la vez es cliente del servicio gRPC del \emph{scraper}, para lanzar descargas desde la interfaz. Ejecuta las dos pipelines RAG y es el único componente que habla con el modelo del chat.
   \item[Workers de ingesta.] Dos instancias del mismo proyecto \texttt{Worker}, una por pipeline, que se distinguen solo por la variable \texttt{WORKER\_PIPELINE\_MODE} (\texttt{BASELINE} o \texttt{HIERARCHICAL}). Cada una consume su cola, fragmenta los documentos y escribe los fragmentos en PostgreSQL y sus vectores en Qdrant. No tienen entrada pública: solo exponen sus comprobaciones de salud.
   \item[Scraper.] El servicio en Go descarga cada día los boletines del BOE y del BOJA, guarda cada documento en el almacenamiento de objetos y publica un mensaje por documento en RabbitMQ (sección~\ref{sec:impl-go}).
-  \item[Almacenes.] PostgreSQL es la fuente de verdad y Qdrant guarda los vectores (sección~\ref{sec:modelo-datos}). El almacenamiento de objetos, compatible con S3, guarda los documentos originales y su texto extraído: en local es MinIO y en producción Cloudflare R2.
+  \item[Almacenes.] PostgreSQL es la fuente de verdad y Qdrant guarda los vectores (sección~\ref{sec:modelo-datos}). El almacenamiento de objetos, compatible con S3, guarda los documentos originales y su texto extraído: en local es RustFS y en producción Cloudflare R2.
   \item[Mensajería.] RabbitMQ lleva los documentos del \emph{scraper} a los \emph{workers} y los avisos de estado de los \emph{workers} a la API (sección~\ref{sec:ingesta-diseno}).
 \end{description}
 
-\paragraph{Estilos de comunicación.} Cada relación usa el estilo que mejor se ajusta a su naturaleza. Lo que el usuario espera ver al momento (el chat y los avisos) va por HTTPS y WebSocket. Las llamadas internas entre la API y el \emph{scraper} son pocas, necesitan respuesta y cruzan dos lenguajes, por lo que usan gRPC con un contrato compartido en ficheros \texttt{.proto}. La ingesta, que es lenta, puede fallar y no tiene a nadie esperando, es asíncrona a través de RabbitMQ. Los mensajes no llevan el documento, sino la ruta del fichero en S3 (\texttt{blob\_path}), y cada \emph{worker} lo descarga cuando lo procesa. Así los mensajes son pequeños y el documento original se conserva aunque haya que reprocesarlo. % VERIFICAR: si se quiere dar nombre al patrón, es el «claim check» de Enterprise Integration Patterns (Hohpe y Woolf, 2003); añadir la referencia o no nombrarlo.
+\paragraph{Estilos de comunicación.} Cada relación usa el estilo que mejor se ajusta a su naturaleza. Lo que el usuario espera ver al momento (el chat y los avisos) va por HTTPS y WebSocket. Las llamadas internas entre la API y el \emph{scraper} son pocas, necesitan respuesta y cruzan dos lenguajes, por lo que usan gRPC con un contrato compartido en ficheros \texttt{.proto}. La ingesta, que es lenta, puede fallar y no tiene a nadie esperando, es asíncrona a través de RabbitMQ. Los mensajes no llevan el documento, sino la ruta del fichero en S3 (\texttt{blob\_path}), y cada \emph{worker} lo descarga cuando lo procesa. Así los mensajes son pequeños y el documento original se conserva aunque haya que reprocesarlo.
 
-\paragraph{Orquestación con Aspire.} En desarrollo, el proyecto \texttt{AppHost} de Aspire \cite{aspire} declara todos estos recursos y sus dependencias en código: los contenedores de PostgreSQL (con la imagen de pgvector), RabbitMQ, Qdrant, MinIO y Ollama, los proyectos .NET, la SPA y el \emph{scraper} en Go. Cada servicio recibe por variables de entorno las cadenas de conexión de los recursos que referencia, y espera a que estén sanos antes de arrancar (por ejemplo, los \emph{workers} esperan a PostgreSQL, RabbitMQ, Ollama y Qdrant). Los dos \emph{workers} se declaran como dos recursos a partir del mismo proyecto, con distinto modo de pipeline. Una función común inyecta la configuración de IA en la API y en los \emph{workers}: en local apunta a Ollama con \texttt{llama3.2} y \texttt{nomic-embed-text}, y con \texttt{Ai:UseCloud} o al publicar toma el proveedor, el modelo y la clave de parámetros de Aspire guardados como secretos. Otra hace lo mismo con el almacenamiento de objetos, que usa R2 si está configurado y MinIO si no. En producción, los mismos servicios se despliegan con Docker Compose y las mismas variables de entorno (sección~\ref{sec:impl-despliegue}).
+\paragraph{Orquestación con Aspire.} En desarrollo, el proyecto \texttt{AppHost} de Aspire \cite{aspire} declara todos estos recursos y sus dependencias en código: los contenedores de PostgreSQL (con la imagen de pgvector), RabbitMQ, Qdrant, RustFS y Ollama, los proyectos .NET, la SPA y el \emph{scraper} en Go. Cada servicio recibe por variables de entorno las cadenas de conexión de los recursos que referencia, y espera a que estén sanos antes de arrancar (por ejemplo, los \emph{workers} esperan a PostgreSQL, RabbitMQ, Ollama y Qdrant). Los cuatro \emph{workers}, uno por pipeline, se declaran como recursos distintos a partir del mismo proyecto, con distinto modo de pipeline. Una función común inyecta la configuración de IA en la API y en los \emph{workers}: en local apunta a Ollama con \texttt{llama3.2} y \texttt{qwen3-embedding:0.6b}, y con \texttt{Ai:UseCloud} o al publicar toma el proveedor, el modelo y la clave de parámetros de Aspire guardados como secretos. Otra hace lo mismo con el almacenamiento de objetos, que usa R2 si está configurado y, si no, un contenedor local de RustFS, compatible con S3. Al principio se usaba MinIO, pero se sustituyó por RustFS cuando sus imágenes dejaron de poder descargarse de Docker Hub; como los dos hablan el protocolo S3, el cambio no afectó al código. En producción, los mismos servicios se despliegan con Docker Compose y las mismas variables de entorno (sección~\ref{sec:impl-despliegue}).
 
 \paragraph{Configuración compartida.} Todos los servicios .NET llaman a \texttt{AddServiceDefaults()}, del proyecto \texttt{ServiceDefaults}, que añade en un solo sitio el descubrimiento de servicios, una política de resiliencia por defecto para los clientes HTTP, las comprobaciones de salud y la exportación de trazas, métricas y registros con OpenTelemetry (sección~\ref{sec:impl-observabilidad}).
 
@@ -139,8 +139,56 @@ La regla de dependencias entre capas tiene además una prueba propia que comprue
 
 \section{Diagramas UML}
 \label{sec:uml}
-% TODO: diagrama de clases de los módulos clave (pipelines RAG e ingesta).
-Los diagramas de esta sección se han escrito en PlantUML; sus fuentes están en \path{memoria/figuras/uml/} junto a los PDF generados, de modo que pueden actualizarse cuando cambie el sistema.
+Los diagramas de secuencia y de datos de esta sección se han escrito en PlantUML; sus fuentes están en \path{memoria/figuras/uml/} junto a los PDF generados, de modo que pueden actualizarse cuando cambie el sistema. El diagrama de clases está dibujado directamente en la memoria.
+
+La figura~\ref{fig:clases} muestra las clases principales de las \emph{pipelines} RAG y de la ingesta, todas en la capa de aplicación. En la parte de consulta, \texttt{AiChatService} elige la \emph{pipeline} con \texttt{Winning\-Pipeline\-Selector} y trabaja solo con la interfaz \texttt{IRagPipeline}. Las tres variantes planas son instancias de \texttt{FlatChunkRagPipeline}, cada una con su \texttt{FlatChunkVariant}, y la jerárquica tiene su propia clase. En la ingesta, las variantes planas comparten \texttt{Document\-Ingestion\-Service} con una estrategia de \texttt{IChunkingStrategy} distinta, y la jerárquica usa un procesador por boletín que hereda el orden de los pasos de \texttt{Base\-Hierarchical\-Ingestion\-Processor}.
+
+\begin{figure}[htbp]
+\centering
+\footnotesize
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    cls/.style={draw, rectangle, align=center, inner sep=4pt, minimum height=2.2em, font=\ttfamily\footnotesize},
+    itf/.style={cls, dashed},
+    impl/.style={-{Triangle[open]}, dashed},
+    inh/.style={-{Triangle[open]}},
+    use/.style={-{Stealth}},
+    node distance=6mm and 4mm]
+  % Consulta
+  \node[cls] (chat) at (0,0) {AiChatService};
+  \node[cls] (sel) at (5.2,0) {WinningPipelineSelector};
+  \node[itf] (rag) at (0,-1.8) {«interfaz»\\IRagPipeline};
+  \node[cls] (flat) at (-2.6,-3.6) {FlatChunkRagPipeline};
+  \node[cls] (hier) at (2.6,-3.6) {HierarchicalRagPipeline};
+  \node[cls] (var) at (-2.6,-5.4) {FlatChunkVariant\\{\normalfont\scriptsize Baseline, Recursive, Semantic}};
+  % Ingesta
+  \node[cls] (ing) at (-2.6,-7.6) {DocumentIngestionService};
+  \node[itf] (chk) at (-2.6,-9.6) {«interfaz»\\IChunkingStrategy};
+  \node[cls] (fixed) at (-6.6,-11.6) {FixedOverlap\\ChunkingStrategy};
+  \node[cls] (rec) at (-3.3,-11.6) {Recursive\\ChunkingStrategy};
+  \node[cls] (sem) at (0,-11.6) {Semantic\\ChunkingStrategy};
+  \node[itf] (hip) at (5.3,-7.6) {«interfaz»\\IHierarchicalIngestionProcessor};
+  \node[cls] (base) at (5.3,-9.6) {BaseHierarchical\\IngestionProcessor\\{\normalfont\scriptsize (abstracta)}};
+  \node[cls] (boe) at (3.7,-11.6) {BoeIngestion\\Service};
+  \node[cls] (boja) at (6.9,-11.6) {BojaIngestion\\Service};
+
+  \draw[use] (chat) -- (sel);
+  \draw[use] (chat) -- node[right, font=\scriptsize] {1..*} (rag);
+  \draw[impl] (flat) -- (rag);
+  \draw[impl] (hier) -- (rag);
+  \draw[use] (flat) -- (var);
+  \draw[use] (ing) -- (var);
+  \draw[use] (ing) -- (chk);
+  \draw[impl] (fixed) -- (chk);
+  \draw[impl] (rec) -- (chk);
+  \draw[impl] (sem) -- (chk);
+  \draw[impl] (base) -- (hip);
+  \draw[inh] (boe) -- (base);
+  \draw[inh] (boja) -- (base);
+\end{tikzpicture}}
+\caption{Clases principales de las \emph{pipelines} RAG y de la ingesta}
+\label{fig:clases}
+\end{figure}
 
 \subsection{Pregunta en el chat}
 
@@ -190,7 +238,7 @@ Las tablas de PostgreSQL se agrupan en esquemas por contexto funcional:
 
 Las tablas que pertenecen a un ayuntamiento llevan su identificador (\texttt{TenantId}), y Entity Framework Core aplica un filtro global de consulta que limita cada consulta al ayuntamiento de la petición. Los documentos de los boletines no lo llevan, porque son comunes a todos.
 
-Qdrant tiene una colección por pipeline: \texttt{document\_chunks} para la \emph{baseline} y \texttt{child\_fragments} para la jerárquica. Cada nueva estrategia de fragmentación que se incorpore al estudio del capítulo~\ref{cap:estudio-chunking} añadirá sus propias entidades y su colección siguiendo el mismo patrón.
+Qdrant tiene una colección por pipeline: \texttt{document\_chunks} para la \emph{baseline}, \texttt{document\_chunks\_\allowbreak recursive} y \texttt{document\_chunks\_\allowbreak semantic} para las variantes recursiva y semántica del estudio del capítulo~\ref{cap:estudio-chunking}, y \texttt{child\_fragments} para la jerárquica. Las tres variantes planas guardan sus fragmentos en la misma tabla \texttt{DocumentChunks}, que registra en la columna \texttt{ChunkingStrategy} la estrategia que produjo cada uno.
 
 \begin{figure}[htbp]
   \centering
@@ -204,10 +252,10 @@ Qdrant tiene una colección por pipeline: \texttt{document\_chunks} para la \emp
 
 \paragraph{De pgvector a Qdrant.} La primera versión guardaba los vectores en columnas de pgvector, junto a los fragmentos. Cuando la pipeline jerárquica pasó a un modelo de \emph{embeddings} de 4.096 dimensiones \cite{zhang2025qwen3emb}, el límite de 2.000 dimensiones de los índices de pgvector \cite{pgvector} obligó a una solución asimétrica, recogida en el ADR~0001: la tabla de la pipeline \emph{baseline}, con vectores de 768 dimensiones, conservaba su índice HNSW, y la de la jerárquica se quedaba sin índice, con búsqueda exacta por recorrido secuencial. Esa solución empeoraría la latencia de la pipeline jerárquica a medida que creciera el corpus, así que los vectores se trasladaron a Qdrant detrás del puerto \texttt{IVectorStore} (capacidad \texttt{qdrant-vector-store}). PostgreSQL ya no guarda columnas de \emph{embeddings} para estas entidades.
 
-\paragraph{Colecciones.} Hay una colección de Qdrant por pipeline, \texttt{document\_chunks} y \texttt{child\_fragments}, con distancia coseno (ecuación~\ref{eq:coseno}) y el índice HNSW que Qdrant crea por defecto \cite{qdrant,malkov2020}. % VERIFICAR: confirmar en la documentación de Qdrant que HNSW es el índice por defecto de las colecciones y, si se quieren dar, sus parámetros por defecto (m y ef_construct); el código no los cambia.
+\paragraph{Colecciones.} Hay una colección de Qdrant por pipeline (\texttt{document\_chunks}, \texttt{document\_chunks\_\allowbreak recursive}, \texttt{document\_chunks\_\allowbreak semantic} y \texttt{child\_fragments}), con distancia coseno (ecuación~\ref{eq:coseno}) y el índice HNSW que Qdrant crea por defecto, con sus parámetros por defecto ($m=16$ y \texttt{ef\_construct}~$=100$), que el código no cambia \cite{qdrant,malkov2020}.
 No hace falta crearlas a mano: antes de la primera escritura, el adaptador comprueba que la colección existe y, si no, la crea con la dimensión del modelo de \emph{embeddings} configurado. Si ya existe con otra dimensión, la escritura falla con un error que nombra la colección y las dos dimensiones, y el documento queda en estado \texttt{VectorSyncFailed}. Así, cambiar de modelo de \emph{embeddings} sin reindexar es un error visible, no una búsqueda que devuelve resultados sin sentido. Para reindexar, el administrador vacía la colección y se vuelve a crear con la nueva dimensión en la siguiente ingesta.
 
-La dimensión, por tanto, no está fijada en el código: la determina el modelo de cada despliegue. Con \texttt{nomic-embed-text}, el modelo por defecto, los vectores tienen 768 dimensiones \cite{nussbaum2024}, y con Qwen3-Embedding-8B, hasta 4.096 \cite{zhang2025qwen3emb}. % VERIFICAR: la dimensión de salida de nomic-embed-text (768) en su ficha de Ollama o en el artículo.
+La dimensión, por tanto, no está fijada en el código: la determina el modelo de cada despliegue. Con \texttt{qwen3-embedding:0.6b}, el modelo por defecto en local y el del estudio de fragmentación, los vectores tienen 1.024 dimensiones, y con Qwen3-Embedding-8B, hasta 4.096 \cite{zhang2025qwen3emb}; con \texttt{nomic-embed-text}, el primero que se usó, tenían 768 \cite{nussbaum2024}.
 Como se explicó en la sección~\ref{sec:clave-propia}, un mismo despliegue usa un único modelo de \emph{embeddings} para las dos colecciones y para las preguntas.
 
 \paragraph{Puntos y \emph{payload}.} El identificador de cada punto es el de su fila en PostgreSQL, y su \emph{payload} lleva lo que la búsqueda necesita sin volver a la base de datos relacional: el identificador del documento, el boletín, el municipio y el texto, además del título, el departamento y la fecha en la colección \emph{baseline}, que los usa para citar las fuentes, y del documento padre en la jerárquica. El municipio se guarda normalizado (sin tildes ni mayúsculas ni fórmulas como «Ayuntamiento de»), para que la pregunta y el fragmento coincidan aunque lo escriban de forma distinta. Al filtrar por municipio, la búsqueda acepta los puntos cuyo municipio contiene el buscado y también los que no tienen ninguno, porque una norma autonómica o estatal también afecta a ese municipio aunque no lo nombre.
@@ -220,7 +268,7 @@ Como se explicó en la sección~\ref{sec:clave-propia}, un mismo despliegue usa 
 El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asíncrona a través de RabbitMQ. El contrato completo (colas, argumentos, formato de los mensajes y cabeceras) se recoge en el apéndice~\ref{ap:especificaciones}; aquí se resumen sus decisiones de diseño.
 
 \begin{itemize}
-  \item \textbf{Una cola por pipeline.} Cada documento se publica en \texttt{documents\_to\_process\_baseline} y en \texttt{documents\_to\_process\_hierarchical}, y cada pipeline la consume un \emph{worker} distinto construido a partir de la misma imagen. Así las dos pipelines procesan los mismos documentos y sus métricas son comparables.
+  \item \textbf{Una cola por pipeline.} Cada documento nuevo se publica en \texttt{documents\_to\_\allowbreak process\_baseline} y en \texttt{documents\_to\_\allowbreak process\_hierarchical}, y cada pipeline la consume un \emph{worker} distinto construido a partir de la misma imagen. Así las dos pipelines procesan los mismos documentos y sus métricas son comparables. Las variantes recursiva y semántica tienen también su cola y su \emph{worker}, pero solo procesan lo que el administrador encola para ellas desde el panel de documentos, porque existen para el estudio del capítulo~\ref{cap:estudio-chunking}.
   \item \textbf{Ningún mensaje se pierde.} Los mensajes son persistentes y se publican con confirmación del \emph{broker}. El consumidor solo confirma un mensaje cuando lo ha procesado.
   \item \textbf{Reintentos acotados.} Cada cola de trabajo tiene una cola de reintento, donde el mensaje espera 30 segundos antes de volver, y una cola de mensajes fallidos (DLQ). Un mensaje se reintenta hasta tres veces; después, o si no se puede leer, pasa a la DLQ y el documento queda como fallido.
   \item \textbf{Idempotencia.} Procesar dos veces el mismo documento reemplaza su versión anterior en PostgreSQL y en Qdrant, por lo que reintentar o reprocesar es seguro.
@@ -231,7 +279,7 @@ El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asín
 \section{Pipelines RAG}
 \label{sec:pipelines}
 
-Las dos pipelines comparten una interfaz mínima, \texttt{IRagPipeline}, con su tipo (\texttt{Baseline} o \texttt{Hierarchical}) y un único método que recibe el turno de la conversación (la pregunta, el historial, el usuario y su ayuntamiento) y devuelve la respuesta como un flujo asíncrono de fragmentos de texto. El resto del sistema (el \emph{hub} del chat, la Arena, el \emph{shadow testing}) trabaja solo con esa interfaz, de modo que una pipeline nueva se añade registrando otra implementación. Cada pipeline tiene dos mitades que deben ser coherentes: la de ingesta, que ejecuta su \emph{worker}, y la de consulta, que ejecuta la API. La tabla~\ref{tab:pipelines} las compara etapa por etapa; las técnicas en que se basan se explicaron en la sección~\ref{sec:rag}.
+Todas las pipelines comparten una interfaz mínima, \texttt{IRagPipeline}, con su tipo (\texttt{Baseline}, \texttt{Hierarchical}, \texttt{Recursive} o \texttt{Semantic}) y un único método que recibe el turno de la conversación (la pregunta, el historial, el usuario y su ayuntamiento) y devuelve la respuesta como un flujo asíncrono de fragmentos de texto. El resto del sistema (el \emph{hub} del chat, la Arena, el \emph{shadow testing}) trabaja solo con esa interfaz, de modo que una pipeline nueva se añade registrando otra implementación. Cada pipeline tiene dos mitades que deben ser coherentes: la de ingesta, que ejecuta su \emph{worker}, y la de consulta, que ejecuta la API. La tabla~\ref{tab:pipelines} compara etapa por etapa la básica y la jerárquica; las variantes recursiva y semántica son iguales que la básica salvo en la fragmentación; las técnicas en que se basan se explicaron en la sección~\ref{sec:rag}.
 
 \begin{table}[htbp]
   \centering
@@ -256,16 +304,14 @@ Algunas decisiones de diseño de la tabla merecen explicación:
 
 \begin{itemize}
   \item \textbf{Degradación en lugar de error.} Si la búsqueda de la pipeline \emph{baseline} falla, responde sin contexto en lugar de devolver un error. En la jerárquica, si falla la búsqueda densa se usa solo la léxica, y si falla la expansión de la consulta se busca con la pregunta tal cual (todas sus palabras como consulta léxica y las últimas preguntas como consulta semántica). Cuando no se recupera ningún documento, el \emph{prompt} de la \emph{baseline} cambia a uno conversacional, que no finge citar nada.
-  \item \textbf{Presupuesto de contexto.} Los documentos padre tienen de media unos 14.000 caracteres y algunos llegan a 100.000. Enviar cinco completos desbordaría la ventana de contexto de los modelos pequeños (Ollama, en ese caso, descarta el \emph{prompt} de sistema sin avisar) y costaría decenas de miles de \emph{tokens} por respuesta en los proveedores de pago. El límite de 24.000 caracteres, unos 6.500 \emph{tokens}, es configurable (\texttt{Ai:Hierarchical:MaxContextChars}), y el documento mejor clasificado siempre aporta algo.
-  % VERIFICAR (Antonio): las cifras de 14.000 y 100.000 caracteres por documento padre proceden de un comentario del código (ClearLanguageGenerationService); confirmarlas con una consulta sobre ParentDocument antes de dejarlas en la memoria, o citarlas en el capítulo de pruebas.
+  \item \textbf{Presupuesto de contexto.} En la colección completa del estudio de fragmentación (6.046 documentos padre), la mediana es de unos 6.000 caracteres, la media de unos 23.000 y el 5\,\% más largo supera los 78.000; el mayor pasa de 1,8 millones, y 1.707 documentos (el 28\,\%) superan por sí solos el límite de 24.000 caracteres. Enviar cinco completos desbordaría la ventana de contexto de los modelos pequeños (Ollama, en ese caso, descarta el \emph{prompt} de sistema sin avisar) y costaría decenas de miles de \emph{tokens} por respuesta en los proveedores de pago. El límite de 24.000 caracteres, unos 6.500 \emph{tokens}, es configurable (\texttt{Ai:Hierarchical:MaxContextChars}), y el documento mejor clasificado siempre aporta algo.
   \item \textbf{Citas.} Las dos pipelines incluyen en el contexto de cada documento su título, su boletín y su enlace público, y terminan la respuesta con las fuentes consultadas, solo de los documentos que de verdad se enviaron al modelo (RNF1).
   \item \textbf{Modelos distintos para cada tarea.} La expansión de consultas y el enriquecimiento usan el modelo de ingesta (\texttt{Ai:Ingestion:*}), pensado para ser rápido y barato, porque se ejecutan muchas veces y su salida no la lee el usuario. La respuesta final usa el modelo de chat.
 \end{itemize}
 
-\paragraph{Qué pipeline responde.} \texttt{AiChatService} es una fachada sobre las pipelines. Para cada pregunta del chat consulta a \texttt{WinningPipelineSelector} cuál tiene más victorias en la Arena (con empate o sin votos, la \emph{baseline}) y le pasa el turno. El recuento se hace en SQL sobre todas las batallas, de todos los ayuntamientos, porque la pipeline ganadora es una decisión de la plataforma, y se guarda en caché cinco minutos para no repetirlo en cada respuesta. Además, el 40\,\% de las respuestas se ejecutan también con la otra pipeline en segundo plano (\emph{shadow testing}) y se guardan como una batalla de la Arena, de modo que hay comparaciones aunque los usuarios no voten. En el modo Arena, \texttt{ArenaStreamingService} ejecuta las dos en paralelo y reenvía cada fragmento según llega, identificado por su lado. La implementación de la Arena se describe en la sección~\ref{sec:impl-arena}.
+\paragraph{Qué pipeline responde.} \texttt{AiChatService} es una fachada sobre las pipelines. Para cada pregunta del chat consulta a \texttt{WinningPipelineSelector} qué pipeline responde y le pasa el turno. Si la configuración fija una (\texttt{Rag:ProductionPipeline}, que admite cualquiera de las cuatro variantes), responde esa; si no, responde la que tiene más victorias en la Arena entre la \emph{baseline} y la jerárquica (con empate o sin votos, la \emph{baseline}). El recuento se hace en SQL sobre todas las batallas, de todos los ayuntamientos, porque la pipeline ganadora es una decisión de la plataforma, y se guarda en caché cinco minutos para no repetirlo en cada respuesta. Además, el 40\,\% de las respuestas se ejecutan también con la otra pipeline en segundo plano (\emph{shadow testing}) y se guardan como una batalla de la Arena, de modo que hay comparaciones aunque los usuarios no voten. En el modo Arena, \texttt{ArenaStreamingService} ejecuta las dos en paralelo y reenvía cada fragmento según llega, identificado por su lado. La implementación de la Arena se describe en la sección~\ref{sec:impl-arena}.
 
-\paragraph{Extensión a nuevas estrategias.} La fragmentación está detrás de la interfaz \texttt{IChunkingStrategy}, que hoy tiene una sola implementación, la de tamaño fijo con solapamiento. Las variantes previstas para el estudio del capítulo~\ref{cap:estudio-chunking} (división recursiva y fragmentación semántica) se añadirán como nuevas implementaciones, cada una con su modo de \emph{worker}, su cola, sus entidades y su colección de Qdrant, siguiendo el patrón de las dos pipelines actuales.
-% TODO: completar cuando se implementen las estrategias recursiva y semántica: nombres de colas, colecciones y entidades, y si comparten la mitad de consulta de la baseline o tienen pipeline propia.
+\paragraph{Extensión a nuevas estrategias.} La fragmentación está detrás de la interfaz \texttt{IChunkingStrategy}, con tres implementaciones: tamaño fijo con solapamiento, división recursiva y fragmentación semántica. Cada variante plana se describe con un registro \texttt{FlatChunkVariant} que reúne su tipo de pipeline, su estrategia, su colección de Qdrant y su etiqueta de telemetría, y comparte con la \emph{baseline} el código de ingesta y el de respuesta, que se registran una vez por variante. Cada una tiene su modo de \emph{worker} (\texttt{RECURSIVE} y \texttt{SEMANTIC}), su cola (\texttt{documents\_to\_\allowbreak process\_recursive} y \texttt{\_semantic}) y su columna de estado en \texttt{DocumentJobState}. Añadir otra estrategia plana exige una nueva implementación de \texttt{IChunkingStrategy}, un valor más en el tipo de pipeline y en las colecciones, su columna de estado y su \emph{worker} en el AppHost; el código de ingesta y de respuesta no cambia.
 
 \section{Abstracción del proveedor de IA y control de coste}
 \label{sec:proveedor-ia}
@@ -291,11 +337,11 @@ Semantic Kernel \cite{semantickernel} es la única vía por la que el código ha
 El sistema está pensado para que, una vez terminado este trabajo, cada ayuntamiento o institución pueda usar su propia clave de API (por ejemplo, de OpenRouter o de cualquier otro proveedor compatible) para conversar con el modelo que prefiera, sin que el coste de esas conversaciones recaiga en la plataforma. Para que esto sea posible sin romper la búsqueda, el trabajo con modelos se divide en dos partes con responsables distintos (tabla~\ref{tab:clave-propia}):
 
 \begin{description}
-  \item[Lo que gestiona la plataforma.] La ingesta completa de los boletines: la fragmentación, el enriquecimiento de la pipeline jerárquica y la generación de los \emph{embeddings} que se guardan en Qdrant. El modelo de \emph{embeddings} se configura una sola vez para toda la plataforma (\texttt{Ai:Embeddings:*}). Por defecto es \texttt{nomic-embed-text}, un modelo abierto que se ejecuta en Ollama, y la misma configuración admite proveedores externos como Google, OpenAI u OpenRouter.
+  \item[Lo que gestiona la plataforma.] La ingesta completa de los boletines: la fragmentación, el enriquecimiento de la pipeline jerárquica y la generación de los \emph{embeddings} que se guardan en Qdrant. El modelo de \emph{embeddings} se configura una sola vez para toda la plataforma (\texttt{Ai:Embeddings:*}). En local es \texttt{qwen3-embedding:0.6b}, un modelo abierto que se ejecuta en Ollama, y la misma configuración admite proveedores externos como Google, OpenAI u OpenRouter.
   \item[Lo que aporta el ayuntamiento.] El modelo de lenguaje que redacta la respuesta del chat a partir de los fragmentos recuperados. El administrador de la organización elige el proveedor, el modelo y la temperatura, y guarda su clave de API, que se almacena cifrada y nunca se devuelve al cliente (RNF4).
 \end{description}
 
-Esta división responde a una restricción de la búsqueda semántica: la pregunta del usuario y los fragmentos solo se pueden comparar si sus vectores proceden del mismo modelo de \emph{embeddings}, porque cada modelo representa el texto en su propio espacio vectorial. % VERIFICAR: buscar una referencia que respalde que los vectores de modelos distintos no son comparables (por ejemplo, la documentación de Qdrant o un trabajo sobre embeddings).
+Esta división responde a una restricción de la búsqueda semántica: la pregunta del usuario y los fragmentos solo se pueden comparar si sus vectores proceden del mismo modelo de \emph{embeddings}, porque cada modelo representa el texto en su propio espacio vectorial. Traducir vectores de un modelo al espacio de otro es posible, pero exige entrenar un traductor específico y la correspondencia es solo aproximada \cite{jha2025vec2vec}.
 Como todos los ayuntamientos consultan las mismas colecciones de Qdrant, el \emph{embedding} de la pregunta se genera siempre con el modelo de la plataforma, el mismo con el que se indexaron los boletines, y nunca con el proveedor del ayuntamiento. Si cada entidad pudiera elegir su modelo de \emph{embeddings}, habría que reindexar todos los boletines una vez por modelo. La clave del ayuntamiento, por tanto, solo interviene en el último paso: procesar el resultado del RAG y generar la respuesta en el chat.
 
 El alcance del modelo del ayuntamiento está acotado a la pipeline \emph{baseline}. En el modo Arena del chat, el lado \emph{baseline} usa también el modelo del ayuntamiento. La pipeline jerárquica, la comparación de la página de la Arena y el análisis del historial usan siempre el modelo de la plataforma, para que las comparaciones entre pipelines no dependan de lo que haya configurado cada entidad (\texttt{user-api-keys-vault}). Si el ayuntamiento no tiene configuración propia, o su clave no se puede usar, se emplean juntos el proveedor, el modelo y la clave de la plataforma, y la clave de la plataforma nunca se envía a un proveedor elegido por el ayuntamiento. En sentido contrario, si el proveedor del ayuntamiento agota su cuota, responde el modelo de respaldo con credenciales de la plataforma, y la clave del ayuntamiento tampoco sale de su proveedor (\texttt{llm-provider-security}).
@@ -320,7 +366,7 @@ El alcance del modelo del ayuntamiento está acotado a la pipeline \emph{baselin
   \end{tabular}
 \end{table}
 
-El mecanismo ya forma parte del sistema, pero hoy no se utiliza con claves de los ayuntamientos ni con proveedores comerciales de \emph{embeddings}, debido a su coste. Los \emph{embeddings} se generan con \texttt{nomic-embed-text} en Ollama, y la idea es mantener en la plataforma una base de datos con todos los \emph{embeddings} y todo el proceso interno de su creación, mientras cada ayuntamiento usa su propia clave para conversar con los modelos (sección~\ref{sec:futuras}).
+El mecanismo ya forma parte del sistema, pero hoy no se utiliza con claves de los ayuntamientos ni con proveedores comerciales de \emph{embeddings}, debido a su coste. Los \emph{embeddings} se generan con \texttt{qwen3-embedding:0.6b} en Ollama, y la idea es mantener en la plataforma una base de datos con todos los \emph{embeddings} y todo el proceso interno de su creación, mientras cada ayuntamiento usa su propia clave para conversar con los modelos (sección~\ref{sec:futuras}).
 
 \section{Tiempo real y seguridad}
 \label{sec:seguridad}
@@ -339,6 +385,6 @@ El mecanismo ya forma parte del sistema, pero hoy no se utiliza con claves de lo
 \end{itemize}
 
 \paragraph{Claves de API.} Las claves de los proveedores que guarda cada ayuntamiento se cifran con Data Protection de ASP.NET Core \cite{dataprotection} antes de escribirlas en \texttt{AiConfiguration}, con un propósito propio para que esas claves no se puedan descifrar con otro protector de la aplicación. La API nunca las devuelve: el cliente solo sabe si hay una clave guardada y puede sustituirla (RNF4). La clave se descifra únicamente al construir el cliente del modelo de ese ayuntamiento, y solo se envía a su proveedor (sección~\ref{sec:clave-propia}).
-% VERIFICAR (Antonio): ni ApiService/Program.cs ni docker-compose.yml configuran dónde persiste Data Protection sus claves (PersistKeysTo... o un volumen para su carpeta por defecto). Si en producción el anillo de claves vive dentro del contenedor, al recrearlo las claves de API guardadas dejarían de poder descifrarse. Confirmarlo antes de afirmar en la memoria que las claves sobreviven a un despliegue.
+% VERIFICAR (Antonio): CONFIRMADO en el código (19/11/2026): ApiService, Worker y Evaluation llaman a AddDataProtection() sin PersistKeysTo... ni nombre de aplicación, y docker-compose.yml no monta ningún volumen para el anillo de claves. En producción las claves viven dentro del contenedor y se pierden al recrearlo, de modo que las claves de API guardadas dejarían de poder descifrarse tras un despliegue. Arreglarlo (por ejemplo PersistKeysToDbContext o un volumen) antes de activar la clave propia en producción, o mencionarlo como limitación.
 
 \paragraph{Servicios internos.} El canal gRPC entre la API y el \emph{scraper} se autentica en los dos sentidos con una clave compartida en la cabecera \texttt{x-internal-key}, que Aspire genera y guarda en los secretos de usuario. Qdrant exige su propia clave en producción (sección~\ref{sec:indexacion}). Por último, los errores llegan al cliente como respuestas \emph{Problem Details} con códigos estables, sin trazas ni mensajes internos de las excepciones (RNF3).

@@ -10,12 +10,16 @@ namespace AsistenteAyuntamiento.Evaluation;
 public sealed class EvaluationScorer(ILogger<EvaluationScorer> logger)
 {
     /// <returns>False when a step failed (its output is in the log); the run's files are kept either way.</returns>
-    public async Task<bool> ScoreAsync(string repository, string runDirectory, string? ollamaUrl, CancellationToken cancellationToken)
+    /// <param name="datasetDirectory">The dataset the run used (<c>--dataset</c>); score.py reads its questions.</param>
+    public async Task<bool> ScoreAsync(string repository, string runDirectory, string datasetDirectory, string? ollamaUrl, CancellationToken cancellationToken)
     {
         var ragas = Path.Combine(repository, "eval", "ragas");
         foreach (var script in new[] { "score.py", "report.py" })
         {
-            var start = new ProcessStartInfo("uv", ["run", "python", script, runDirectory])
+            string[] arguments = script == "score.py"
+                ? ["run", "python", script, runDirectory, "--dataset", Path.GetFullPath(datasetDirectory)]
+                : ["run", "python", script, runDirectory];
+            var start = new ProcessStartInfo("uv", arguments)
             {
                 WorkingDirectory = ragas,
                 RedirectStandardOutput = true,

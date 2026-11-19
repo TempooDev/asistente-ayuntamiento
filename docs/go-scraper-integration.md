@@ -100,7 +100,7 @@ Aspire runs the module with `AddGoApp("go-scraper", "../go-scraper", "./cmd/scra
 
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
-| `Blob__Endpoint`, `Blob__AccessKeyId`, `Blob__SecretAccessKey` | yes | | S3-compatible bucket (MinIO, Cloudflare R2). |
+| `Blob__Endpoint`, `Blob__AccessKeyId`, `Blob__SecretAccessKey` | yes | | S3-compatible bucket (RustFS, Cloudflare R2). |
 | `Blob__BucketName` | no | `boletines` | Bucket name. |
 | `ConnectionStrings__messaging` | no | | RabbitMQ; without it documents are stored but not queued. |
 | `DOTNET_API_GRPC_URL` | no | `http://localhost:5001` | .NET API gRPC endpoint for the filter rules (`https://` uses TLS). |
