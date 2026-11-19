@@ -1,0 +1,23 @@
+{
+  "run_id": "20261119-185051",
+  "started_at": "2026-11-19T18:50:51.9307317Z",
+  "finished_at": "2026-11-19T18:54:02.5748659Z",
+  "git_commit": "5e39f8b424ee1b64984e74afe039a6ea6f738e74",
+  "seed": 1272631851,
+  "chat_provider": "ollama",
+  "chat_model": "qwen2.5:7b-instruct-q4_K_M",
+  "temperature": 0,
+  "embedding_model": "qwen3-embedding:0.6b",
+  "query_instruction": "Given a question from a citizen or municipal staff, retrieve passages of Spanish official bulletins (BOE and BOJA) that answer it",
+  "pipelines": [
+    "Baseline",
+    "Hierarchical",
+    "Recursive",
+    "Semantic"
+  ],
+  "question_count": 25,
+  "dataset_hash": "sha256:65c0eff74577f28769b695609853a70c24187777c51df9b08e9cb6e6d77e685c",
+  "corpus_hash": "sha256:4876dd5a0e53cffb4515837a99706d8e1b3f0eb4fc99c274e4e8b174466b17df",
+  "ollama_endpoint": "http://localhost:11434",
+  "hardware": "RTX 5070 Ti 16 GB, Ollama, Windows"
+}

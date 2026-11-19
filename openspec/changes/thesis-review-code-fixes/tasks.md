@@ -9,5 +9,5 @@
 ## 2. Verification
 
 - [x] 2.1 Unit, API, worker, architecture and infrastructure tests pass
-- [ ] 2.2 Rerun the E3/E4 flat variants with the new template to measure the change in abstentions
+- [x] 2.2 Rerun E3/E4 with the new template (runs 20261119-185051 and 20261119-185754): abstentions did not drop; the retrieved chunks lacked the facts
 - [ ] 2.3 After the first deploy, enter again once the tenant keys saved before it (they were encrypted with the old, unpersisted key ring)

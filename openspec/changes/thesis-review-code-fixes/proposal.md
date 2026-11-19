@@ -1,7 +1,7 @@
 ## Why
 
 The technical review of the thesis (November 2026) found five small defects in the chat code:
-- The flat pipelines' user template told the model to ignore the context when it was off topic. This is the likely cause of the unjustified abstentions the chunking study measured.
+- The flat pipelines' user template told the model to ignore the context when it was off topic. It was suspected of causing the abstentions the chunking study measured; rerunning E3/E4 showed it was not (the retrieved chunks lacked the facts), but the clause was still wrong.
 - `ChatSystem` and the hub's `SendMessage` were dead code: the client only streams.
 - BOJA citations pointed to the BOJA home page instead of the cited document.
 - The query expansion prompt asked for `tsquery` syntax (`a & b`), but the search uses `websearch_to_tsquery`, which does not treat `&` as an operator.
