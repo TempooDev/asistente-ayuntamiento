@@ -44,7 +44,7 @@ Este trabajo ha construido una plataforma que permite al personal de los ayuntam
 \begin{itemize}
   \item \textbf{La evaluación tiene que parecerse al uso real.} Las cuatro variantes parecían perfectas sobre 17 documentos y solo se separaron al buscar entre miles. Los casos que más las diferencian son los documentos pequeños y los casi idénticos (series con la misma plantilla, habituales en los boletines: convocatorias de un mismo ayuntamiento o convenios tipo) y, en la calidad del contexto, los documentos largos.
   \item \textbf{Las métricas con juez se interpretan con cuidado.} Una sola frase de cortesía bastaba para que RAGAS bajara la fidelidad de una respuesta correcta, un juez local de 7.000 millones de parámetros introduce ruido y las respuestas que no puede puntuar cambian el denominador. Hay que acompañarlas siempre de métricas que no dependan de un modelo, como el acierto en la recuperación, y comprobar si las diferencias son significativas antes de sacar conclusiones.
-  \item \textbf{Hay que leer las respuestas, no solo las métricas.} Las medias escondían que la \emph{pipeline} básica se negaba a responder en muchas preguntas con el documento correcto delante. Solo al revisar las respuestas por pregunta apareció el defecto.
+  \item \textbf{Hay que leer las respuestas y el contexto, no solo las métricas.} Las medias escondían que las planas declaraban no tener la información en muchas preguntas con el documento correcto recuperado. La primera explicación, que la causa era su \emph{prompt}, resultó falsa al repetir las ejecuciones; solo al leer el contexto que recibía el modelo apareció la verdadera: los fragmentos no contenían el dato. Esa lectura mostró además que el juez da recall de contexto completo a contextos sin el dato.
   \item \textbf{Para comparar estrategias hay que cambiar una cosa cada vez.} La \emph{pipeline} jerárquica cambia varios componentes a la vez, y sus resultados no dicen cuál de ellos aporta la mejora. Un estudio de ablación lo habría aclarado.
   \item \textbf{La fiabilidad de la ingesta se diseña desde el principio.} Mensajes persistentes, reintentos limitados, cola de mensajes fallidos y escritura idempotente permitieron ingerir 5.994 documentos en cuatro variantes sin perder ninguno, a pesar de varios reinicios del servidor de modelos.
   \item \textbf{Ejecutar modelos en local tiene costes ocultos.} El paralelismo del servidor de modelos, la memoria del equipo y la telemetría acumulada durante horas de ingesta condicionaron más el tiempo de las pruebas que la propia GPU.
@@ -55,15 +55,16 @@ Este trabajo ha construido una plataforma que permite al personal de los ayuntam
 \section{Líneas futuras}
 \label{sec:futuras}
 
-\paragraph{Validación con usuarios reales.} Llevar a cabo la validación preparada en la Arena con personal de varios ayuntamientos, durante el tiempo suficiente para reunir votos representativos, y contrastar sus preferencias con los resultados de la evaluación automática. Antes habría que ajustar la Arena como se indica en la sección~\ref{sec:validacion-usuarios}. Requiere financiar el coste de API o disponer de un servidor con GPU para los modelos locales (sección~\ref{sec:validacion-usuarios}).
+\paragraph{Validación con usuarios reales.} Llevar a cabo la validación preparada en la Arena con personal de varios ayuntamientos, durante el tiempo suficiente para reunir votos representativos, y contrastar sus preferencias con los resultados de la evaluación automática. Antes habría que ajustar la Arena como se indica en la sección~\ref{sec:validacion-usuarios}. Requiere financiar el coste de API o disponer de un servidor con GPU para los modelos locales (sección~\ref{sec:validacion-usuarios}). Un primer paso asequible sería una validación pequeña, con unas pocas personas y los modelos locales del equipo del capítulo~\ref{cap:estudio-chunking}.
 
 \paragraph{Ampliación de la evaluación.} El estudio del capítulo~\ref{cap:estudio-chunking} admite varias mejoras que no exigen cambiar el sistema:
 \begin{itemize}
+  \item comparar todas las variantes con el mismo presupuesto de contexto, empezando por la básica con más fragmentos o ampliada al documento padre, para separar el efecto de la cantidad de texto entregado del de la unidad y la búsqueda;
   \item un estudio de ablación que añada a la \emph{pipeline} básica, de uno en uno, los componentes de la jerárquica (fragmentación por artículos, enriquecimiento, reformulación, búsqueda híbrida y contexto padre), para saber cuál aporta la mejora;
-  \item comparar todas las variantes con el mismo presupuesto de contexto y añadir una métrica sin juez a nivel de pasaje, por ejemplo si el texto recuperado contiene la respuesta de referencia;
+  \item convertir en métrica la comprobación manual de la sección~\ref{sec:comprobaciones}: si el contexto entregado contiene el dato de la respuesta de referencia, sin juez y a nivel de pasaje;
   \item repetir las ejecuciones y la puntuación varias veces para estimar su variación, y ampliar el conjunto de preguntas, con un conjunto de ajuste separado del de prueba;
   \item usar un juez distinto del generador, con instrucciones en español, y validarlo con una anotación humana de unas decenas de respuestas;
-  \item anotar a mano la abstención de todas las respuestas y comprobar, en cada una, si el contexto recuperado contenía el dato;
+  \item anotar a mano la abstención de todas las respuestas, no solo de las que detecta el patrón, con un segundo anotador;
   \item añadir una métrica de exactitud de la respuesta frente a la referencia y probar varios tamaños de fragmento;
   \item repetir el estudio con el modelo de \emph{embeddings} de producción.
 \end{itemize}

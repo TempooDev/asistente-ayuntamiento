@@ -13,9 +13,14 @@ Este apéndice recoge los resultados por pregunta de las ejecuciones que resume 
 \midrule
 E1 & \texttt{20261114-133119} & 17 documentos & \texttt{eval/dataset} (25) \\
 E2 & \texttt{20261114-142259} & 200 documentos & \texttt{eval/dataset} (25) \\
-E3 & \texttt{20261115-004843} & 5.994 documentos & \texttt{eval/dataset} (25) \\
-E4 & \texttt{20261115-010523} & 5.994 documentos & \texttt{eval/dataset-sizes} (37) \\
+E3 & \texttt{20261115-004843} & 5.994 documentos$^{a}$ & \texttt{eval/dataset} (25) \\
+E4 & \texttt{20261115-010523} & 5.994 documentos$^{a}$ & \texttt{eval/dataset-sizes} (37) \\
+\midrule
+E3 repetida & \texttt{20261119-185051} & 5.994 documentos$^{a}$ & \texttt{eval/dataset} (25) \\
+E4 repetida & \texttt{20261119-185754} & 5.994 documentos$^{a}$ & \texttt{eval/dataset-sizes} (37) \\
+E1--E4, juez 16k & \texttt{<directorio original>-j16k} & --- & --- \\
 \bottomrule
+\multicolumn{4}{@{}l}{\footnotesize $^{a}$ 6.046 en las colecciones de tamaño fijo y jerárquica (sección~\ref{sec:diseno-experimental}).}
 \end{tabular}
 \end{table}
 
@@ -128,12 +133,12 @@ n04 & sin resp. & 0,75 & 1,00 & --- & 1,00 & 0,50 & --- & 1,00 & 0,00 & --- & 0,
 \section{Precisión, hit@5, relevancia y abstención por pregunta}
 \label{sec:ap-detalle}
 
-Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención indebida (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
+Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención en preguntas con respuesta (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
 
 \begin{scriptsize}
 \setlength{\tabcolsep}{2.2pt}\renewcommand{\arraystretch}{0.92}
 \begin{longtable}{@{}l rrrc rrrc rrrc rrrc@{}}
-\caption[Precisión, hit@5, relevancia y abstención por pregunta (E3)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención indebida (A) por pregunta en la colección completa (E3)}\label{tab:ap-e3-detalle}\\
+\caption[Precisión, hit@5, relevancia y abstención por pregunta (E3)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención (A) por pregunta en la colección completa (E3)}\label{tab:ap-e3-detalle}\\
 \toprule
 & \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
 \cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
@@ -176,7 +181,7 @@ q25 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --
 \begin{scriptsize}
 \setlength{\tabcolsep}{2.2pt}\renewcommand{\arraystretch}{0.92}
 \begin{longtable}{@{}l rrrc rrrc rrrc rrrc@{}}
-\caption[Precisión, hit@5, relevancia y abstención por pregunta (E4)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención indebida (A) por pregunta en la batería variada (E4)}\label{tab:ap-e4-detalle}\\
+\caption[Precisión, hit@5, relevancia y abstención por pregunta (E4)]{Precisión de contexto (CP), hit@5 (H5), relevancia (R) y abstención (A) por pregunta en la batería variada (E4)}\label{tab:ap-e4-detalle}\\
 \toprule
 & \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
 \cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
@@ -224,6 +229,108 @@ n01 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --
 n02 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,50 & --- & 0,00 & --- \\
 n03 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- \\
 n04 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,20 & --- & 0,00 & --- \\
+\bottomrule
+\end{longtable}
+\end{scriptsize}
+\section{Ejecuciones repetidas con la plantilla corregida}
+\label{sec:ap-repeticion}
+
+Las tablas siguientes recogen, por pregunta, las ejecuciones E3 y E4 repetidas con la plantilla corregida de las planas y el \emph{prompt} de expansión actual de la jerárquica (sección~\ref{sec:comprobaciones}), puntuadas con el juez de 16.384 tokens. F es la fidelidad, H el hit@1 y A la abstención en una pregunta con respuesta en la colección, detectada con el mismo patrón que en las tablas anteriores y revisada después leyendo el contexto entregado al modelo. Un asterisco indica que el contexto contenía parte del dato pedido; en el resto de abstenciones, el contexto no contenía el dato del documento correcto. En d03, la jerárquica responde el plazo aunque el patrón la marcaba como abstención, y no se cuenta.
+
+\begin{scriptsize}
+\setlength{\tabcolsep}{2.6pt}\renewcommand{\arraystretch}{0.92}
+\begin{longtable}{@{}l rrc rrc rrc rrc@{}}
+\caption[Ejecución repetida de E3, por pregunta]{Fidelidad (F), hit@1 (H) y abstención (A) por pregunta en la repetición de E3 (\texttt{20261119-185051})}\label{tab:ap-e3-rep} \\
+\toprule
+& \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+\textbf{Id.} & F & H & A & F & H & A & F & H & A & F & H & A \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Id.} & F & H & A & F & H & A & F & H & A & F & H & A \\
+\midrule
+\endhead
+q01 & 1,00 & 0 & sí & 1,00 & 0 &  & 1,00 & 0 & sí & 0,25 & 1 & \\
+q02 & 1,00 & 0 &  & 0,00 & 1 &  & 0,00 & 1 &  & 1,00 & 1 & \\
+q03 & 1,00 & 0 & sí & 1,00 & 0 & sí & 0,75 & 1 &  & 0,75 & 0 & sí \\
+q04 & 1,00 & 1 &  & 0,75 & 1 &  & 0,33 & 0 & sí & 0,83 & 1 & \\
+q05 & 0,50 & 1 &  & 1,00 & 1 &  & 1,00 & 0 & sí & 0,00 & 1 & \\
+q06 & 1,00 & 0 & sí & 1,00 & 0 & sí & 1,00 & 0 & sí & 0,50 & 1 & \\
+q07 & 1,00 & 0 &  & 0,67 & 0 &  & 1,00 & 0 &  & 0,91 & 1 & \\
+q08 & 0,50 & 1 &  & 0,75 & 1 &  & 0,50 & 1 &  & 1,00 & 1 & \\
+q09 & 0,50 & 1 &  & 0,50 & 1 &  & 0,50 & 1 &  & 0,20 & 1 & \\
+q10 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+q11 & 0,75 & 1 &  & 1,00 & 1 & sí & 0,33 & 1 &  & 1,00 & 1 & \\
+q12 & 1,00 & 1 & sí & 1,00 & 0 & sí & 1,00 & 0 &  & 1,00 & 0 & \\
+q13 & 1,00 & 1 &  & 1,00 & 1 & sí & 0,00 & 0 &  & 1,00 & 1 & \\
+q14 & 0,75 & 1 &  & 0,75 & 0 &  & 0,67 & 0 &  & 1,00 & 0 & \\
+q15 & 0,33 & 1 &  & 1,00 & 1 &  & 1,00 & 0 &  & 0,80 & 0 & \\
+q16 & 0,00 & 1 &  & 0,00 & 1 &  & 0,00 & 1 &  & 0,60 & 1 & \\
+q17 & 0,67 & 1 &  & 0,33 & 1 &  & 0,33 & 1 &  & 0,75 & 1 & \\
+q18 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 0,50 & 1 & \\
+q19 & 0,50 & 1 &  & 1,00 & 1 &  & 0,33 & 1 &  & 1,00 & 1 & \\
+q20 & 1,00 & 1 &  & 1,00 & 1 &  & 0,50 & 1 &  & 0,71 & 1 & \\
+q21 & 0,67 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+q22 & 1,00 & 0 &  & 1,00 & 0 &  & 1,00 & 0 &  & 1,00 & 0 & \\
+q23 & 0,33 & --- & --- & 1,00 & --- & --- & 0,50 & --- & --- & 0,40 & --- & --- \\
+q24 & 0,60 & --- & --- & 1,00 & --- & --- & 0,75 & --- & --- & 1,00 & --- & --- \\
+q25 & 1,00 & --- & --- & 1,00 & --- & --- & 1,00 & --- & --- & 1,00 & --- & --- \\
+\bottomrule
+\end{longtable}
+\end{scriptsize}
+
+\begin{scriptsize}
+\setlength{\tabcolsep}{2.6pt}\renewcommand{\arraystretch}{0.92}
+\begin{longtable}{@{}l rrc rrc rrc rrc@{}}
+\caption[Ejecución repetida de E4, por pregunta]{Fidelidad (F), hit@1 (H) y abstención (A) por pregunta en la repetición de E4 (\texttt{20261119-185754})}\label{tab:ap-e4-rep} \\
+\toprule
+& \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+\textbf{Id.} & F & H & A & F & H & A & F & H & A & F & H & A \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Id.} & F & H & A & F & H & A & F & H & A & F & H & A \\
+\midrule
+\endhead
+s01 & 0,75 & 0 &  & 0,75 & 0 &  & 1,00 & 0 & sí & 1,00 & 1 & \\
+s02 & 0,67 & 0 & sí & 1,00 & 0 & sí & 1,00 & 0 & sí & 1,00 & 1 & \\
+s03 & 1,00 & 0 &  & 0,50 & 0 &  & 0,50 & 0 &  & 0,80 & 1 & \\
+s04 & 0,50 & 1 &  & 1,00 & 1 &  & 0,50 & 1 &  & 0,80 & 0 & \\
+s05 & 1,00 & 1 &  & 1,00 & 1 &  & 0,67 & 1 &  & 0,80 & 1 & \\
+s06 & 1,00 & 0 &  & 1,00 & 0 &  & 0,75 & 0 &  & 0,91 & 1 & \\
+s07 & 1,00 & 0 & sí & 1,00 & 0 & sí & 1,00 & 0 & sí & 0,60 & 0 & \\
+s08 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+m01 & 1,00 & 1 &  & 0,67 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+m02 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+m03 & 0,67 & 1 &  & 1,00 & 0 & sí & 1,00 & 1 &  & 0,83 & 1 & \\
+m04 & 1,00 & 1 &  & 0,80 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+m05 & 1,00 & 0 &  & 0,50 & 0 & sí & 1,00 & 0 &  & 0,62 & 1 & \\
+m06 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+m07 & 0,67 & 1 & sí & --- & 1 & sí & --- & 1 & sí & 1,00 & 1 & \\
+m08 & 1,00 & 1 & sí & 0,50 & 1 &  & 1,00 & 1 & sí & 1,00 & 1 & \\
+l01 & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+l02 & 1,00 & 1 & sí & 0,60 & 1 &  & 0,67 & 1 &  & 0,50 & 1 & \\
+l03 & 0,75 & 1 &  & 1,00 & 0 &  & 0,50 & 1 &  & 0,50 & 1 & \\
+l04 & 0,33 & 0 & sí & 0,40 & 0 & sí & 0,33 & 0 & sí & 1,00 & 1 & \\
+l05 & 0,75 & 0 & sí* & 1,00 & 0 & sí* & 1,00 & 0 &  & 0,83 & 0 & \\
+l06 & 1,00 & 1 & sí & 0,33 & 1 & sí & 0,20 & 1 & sí & 0,67 & 1 & \\
+l07 & 0,33 & 0 & sí & 0,60 & 0 & sí & 1,00 & 0 & sí & 0,75 & 0 & sí \\
+l08 & 0,80 & 1 & sí & 0,50 & 1 & sí & 0,33 & 1 & sí & 0,40 & 1 & sí \\
+d01 & 1,00 & 0 & sí & 1,00 & 0 & sí & 0,50 & 0 &  & 1,00 & 1 & \\
+d02 & 0,00 & 0 & sí & 0,00 & 0 & sí & 1,00 & 0 & sí & 0,80 & 0 & \\
+d03 & 1,00 & 1 &  & 0,50 & 1 &  & 0,50 & 1 &  & 1,00 & 0 & \\
+d04 & 0,33 & 0 & sí & 0,33 & 0 & sí & 0,33 & 0 & sí & 1,00 & 0 & sí \\
+d05 & 0,25 & 1 &  & 0,83 & 1 &  & 0,60 & 1 &  & 0,71 & 1 & \\
+d06 & 1,00 & 1 &  & 0,50 & 1 &  & 1,00 & 1 &  & 1,00 & 1 & \\
+x01 & 1,00 & 0 & sí & 0,50 & 0 & sí & 0,75 & 0 & sí & 1,00 & 0 & sí \\
+x02 & 1,00 & 1 &  & 0,25 & 1 &  & 0,75 & 1 &  & 0,56 & 1 & \\
+x03 & 1,00 & 0 &  & 0,25 & 0 & sí & 0,50 & 0 &  & 0,70 & 0 & \\
+n01 & 0,00 & --- & --- & 0,00 & --- & --- & 1,00 & --- & --- & 0,88 & --- & --- \\
+n02 & 1,00 & --- & --- & 0,00 & --- & --- & 1,00 & --- & --- & 1,00 & --- & --- \\
+n03 & 0,50 & --- & --- & 1,00 & --- & --- & 0,00 & --- & --- & 0,50 & --- & --- \\
+n04 & 0,33 & --- & --- & 0,67 & --- & --- & 0,33 & --- & --- & 0,75 & --- & --- \\
 \bottomrule
 \end{longtable}
 \end{scriptsize}
