@@ -39,27 +39,15 @@ Los votos no se ven en el chat, pero se suman en las métricas y, si la platafor
 
 \section{Perfil}
 
-En \emph{Perfil} se consultan y se editan, con \emph{Editar perfil}, el nombre, el departamento, el cargo y el teléfono. El correo electrónico no se puede cambiar desde la aplicación, y la contraseña se restablece con \emph{Restablecer contraseña}. El apartado \emph{Contexto y preferencias} guarda los temas y zonas de interés del usuario, que una de las versiones del asistente tiene en cuenta al responder; \emph{Analizar mi historial} los propone a partir de las conversaciones anteriores (figura~\ref{fig:manual-perfil}). Hoy no influyen en las respuestas del chat, porque la versión que responde por defecto no los usa.
+En \emph{Perfil} se consultan y se editan, con \emph{Editar perfil}, el nombre, el departamento, el cargo y el teléfono. El correo electrónico no se puede cambiar desde la aplicación, y la contraseña se restablece con \emph{Restablecer contraseña}. El apartado \emph{Contexto y preferencias} guarda los temas y zonas de interés del usuario, que una de las versiones del asistente tiene en cuenta al responder; \emph{Analizar mi historial} los propone a partir de las conversaciones anteriores. Hoy no influyen en las respuestas del chat, porque la versión que responde por defecto no los usa.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{manual/perfil}
-\caption{Ajustes de perfil}
-\label{fig:manual-perfil}
-\end{figure}
 
 \section{Administración del ayuntamiento}
 
 Los usuarios con el rol de administrador de la organización ven además estas secciones:
 
-\paragraph{Configuración de IA.} En \emph{Configuración}, pestaña \emph{Configuración de IA}, se eligen el proveedor y el modelo de una de las versiones del asistente, con su dirección y su clave de API si el proveedor la necesita, y la temperatura, entre respuestas más literales o más creativas (figura~\ref{fig:manual-config}). Hoy esa versión solo responde en el modo Arena, así que esta configuración no cambia las respuestas normales del chat. La clave se guarda cifrada y no se vuelve a mostrar. \emph{Restaurar} descarta los cambios sin guardar y vuelve a la configuración guardada.
+\paragraph{Configuración de IA.} En \emph{Configuración}, pestaña \emph{Configuración de IA}, se eligen el proveedor y el modelo de una de las versiones del asistente, con su dirección y su clave de API si el proveedor la necesita, y la temperatura, entre respuestas más literales o más creativas. Hoy esa versión solo responde en el modo Arena, así que esta configuración no cambia las respuestas normales del chat. La clave se guarda cifrada y no se vuelve a mostrar. \emph{Restaurar} descarta los cambios sin guardar y vuelve a la configuración guardada.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{manual/configuracion-ia}
-\caption{Configuración del modelo de IA del ayuntamiento}
-\label{fig:manual-config}
-\end{figure}
 
 \paragraph{Página de la Arena.} Esta página, rotulada \emph{Arena (A/B)} en el menú, permite escribir una consulta y pulsar \emph{Comparar respuestas} para ver las dos versiones del asistente sin pasar por una conversación, por ejemplo para preparar una sesión de evaluación con el personal.
 
@@ -78,20 +66,8 @@ Los administradores de la plataforma gestionan la base de conocimiento común a 
 \label{fig:manual-documentos}
 \end{figure}
 
-\paragraph{Filtros del \emph{scraper}.} En \emph{Configuración}, pestaña \emph{Filtros del Scraper} (rótulo de la interfaz), se eligen las secciones del BOJA que se descargan y se añaden reglas de filtrado por boletín: por departamento, sección, palabra clave u otros criterios (figura~\ref{fig:manual-filtros}). Si no hay ninguna regla definida, se procesan todos los documentos de las secciones elegidas; si el \emph{scraper} no puede leer las reglas, no descarga nada. Al final de la pestaña, \emph{Extracción manual} permite lanzar la descarga de un periodo concreto.
+\paragraph{Filtros del \emph{scraper}.} En \emph{Configuración}, pestaña \emph{Filtros del Scraper} (rótulo de la interfaz), se eligen las secciones del BOJA que se descargan y se añaden reglas de filtrado por boletín: por departamento, sección, palabra clave u otros criterios. Si no hay ninguna regla definida, se procesan todos los documentos de las secciones elegidas; si el \emph{scraper} no puede leer las reglas, no descarga nada. Al final de la pestaña, \emph{Extracción manual} permite lanzar la descarga de un periodo concreto.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.8\textwidth]{manual/configuracion-filtros}
-\caption{Filtros del \emph{scraper}}
-\label{fig:manual-filtros}
-\end{figure}
 
-\paragraph{Métricas de la plataforma.} El panel de analíticas añade para este rol el coste de la ingesta por \emph{pipeline} (documentos, tiempo por documento, fragmentos, \emph{tokens} de \emph{embeddings} y llamadas de enriquecimiento) y la sección \emph{Evaluación offline}, con los resultados de cada ejecución de la evaluación automática del estudio de fragmentación y su evolución (figura~\ref{fig:manual-evaluacion}).
+\paragraph{Métricas de la plataforma.} El panel de analíticas añade para este rol el coste de la ingesta por \emph{pipeline} (documentos, tiempo por documento, fragmentos, \emph{tokens} de \emph{embeddings} y llamadas de enriquecimiento) y la sección \emph{Evaluación offline}, con los resultados de cada ejecución de la evaluación automática del estudio de fragmentación y su evolución.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.8\textwidth]{manual/metricas-evaluacion}
-\caption{Evaluación automática (\emph{Evaluación offline}) en el panel de analíticas}
-\label{fig:manual-evaluacion}
-\end{figure}
