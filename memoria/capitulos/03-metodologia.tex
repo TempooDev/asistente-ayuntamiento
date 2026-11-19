@@ -35,7 +35,7 @@ Cada uno de estos \emph{sprints} siguió el ciclo de OpenSpec que se describe a 
 \section{Desarrollo guiado por especificaciones}
 \label{sec:sdd}
 
-El desarrollo guiado por especificaciones (\emph{Spec-Driven Development}, SDD) parte de una idea sencilla: antes de escribir código se acuerda por escrito qué debe hacer el sistema, y ese texto se mantiene como la referencia contra la que se implementa y se revisa. Cuando parte del código lo escriben o lo proponen agentes de IA, la especificación cumple además una segunda función: es el contexto que reciben los agentes y el criterio con el que se comprueba su trabajo, que es el planteamiento de OpenSpec \cite{openspec} y de propuestas recientes aún no revisadas por pares \cite{ramos2026}.
+El desarrollo guiado por especificaciones (\emph{Spec-Driven Development}, SDD) parte de una idea sencilla: antes de escribir código se acuerda por escrito qué debe hacer el sistema, y ese texto se mantiene como la referencia contra la que se implementa y se revisa. Cuando parte del código lo escriben o lo proponen agentes de IA, la especificación cumple además una segunda función: es el contexto que reciben los agentes y el criterio con el que se comprueba su trabajo. Es el planteamiento de OpenSpec \cite{openspec} y de algunas propuestas recientes, aún no revisadas por pares \cite{ramos2026}.
 % VERIFICAR (Antonio): ramos2026 es un preprint de ResearchGate; conviene apoyar la definición de SDD en una fuente más sólida (artículo revisado o documentación de referencia).
 
 En este proyecto el SDD se ha concretado con OpenSpec \cite{openspec}, una herramienta de código abierto que organiza las especificaciones en ficheros Markdown dentro del propio repositorio y define un ciclo de trabajo para cambiarlas.
@@ -218,7 +218,7 @@ Los principales hitos fueron los siguientes:
   \item \textbf{Agosto de 2026.} Ingesta vectorial de los documentos y filtrado dinámico del \emph{scraper}. Se desarrolló la interfaz en Angular y se preparó el despliegue en producción con Docker Compose para poder enseñar el MVP a las entidades públicas.
   \item \textbf{Septiembre de 2026.} Apertura informal de la primera versión durante dos días. Se añadieron la \emph{pipeline} jerárquica, la Arena y el contexto personalizado del usuario, se mejoró el \emph{scraper} y se incorporó el proyecto de pruebas automatizadas.
   \item \textbf{Octubre de 2026.} Reorganización de la capa de aplicación, migración de los vectores a Qdrant, auditoría del código, observabilidad con Grafana y mejoras de la experiencia en el móvil. Implementación de las variantes recursiva y semántica y del programa de evaluación del estudio de fragmentación. Firma del anteproyecto (2 de octubre) y comienzo de la redacción de la memoria.
-  \item \textbf{Noviembre de 2026.} Todas las ejecuciones del estudio de fragmentación, en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}). Se descartó la validación con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}).
+  \item \textbf{Noviembre de 2026.} Ejecución de todo el estudio de fragmentación en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}). Se descartó la validación con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}).
   \item \textbf{Diciembre de 2026.} Cierre de la memoria y de la documentación.
 \end{itemize}
 

@@ -39,6 +39,8 @@ En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el aci
 \midrule
 \endfirsthead
 \toprule
+& & \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(lr){12-14}
 \textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
 \midrule
 \endhead
@@ -86,6 +88,8 @@ Las preguntas están agrupadas por categoría: \texttt{s} pequeños, \texttt{m} 
 \midrule
 \endfirsthead
 \toprule
+& & \multicolumn{3}{c}{Tamaño fijo} & \multicolumn{3}{c}{Recursiva} & \multicolumn{3}{c}{Semántica} & \multicolumn{3}{c}{Jerárquica} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(lr){12-14}
 \textbf{Id.} & \textbf{Categoría} & F & CR & H & F & CR & H & F & CR & H & F & CR & H \\
 \midrule
 \endhead
@@ -133,7 +137,7 @@ n04 & sin resp. & 0,75 & 1,00 & --- & 1,00 & 0,50 & --- & 1,00 & 0,00 & --- & 0,
 \section{Precisión, hit@5, relevancia y abstención por pregunta}
 \label{sec:ap-detalle}
 
-Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención en preguntas con respuesta (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior: de las 22 respuestas con relevancia 0 que el patrón no marca, 15 son también abstenciones, totales o parciales (sección~\ref{sec:comprobaciones}). Un asterisco indica que el contexto contenía parte del dato pedido. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
+Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención en preguntas con respuesta (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior: de las 22 respuestas con relevancia 0 que el patrón no marca, 15 son también abstenciones, totales o parciales (sección~\ref{sec:comprobaciones}). Todas las marcadas se revisaron después leyendo el contexto entregado (sección~\ref{sec:comprobaciones}); un asterisco indica que el contexto contenía parte del dato pedido. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
 
 \begin{scriptsize}
 \setlength{\tabcolsep}{2.2pt}\renewcommand{\arraystretch}{0.92}
@@ -146,6 +150,8 @@ Las tablas siguientes completan las anteriores con la precisión de contexto (CP
 \midrule
 \endfirsthead
 \toprule
+& \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
 \textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
 \midrule
 \endhead
@@ -189,6 +195,8 @@ q25 & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --- & 0,00 & --
 \midrule
 \endfirsthead
 \toprule
+& \multicolumn{4}{c}{Tamaño fijo} & \multicolumn{4}{c}{Recursiva} & \multicolumn{4}{c}{Semántica} & \multicolumn{4}{c}{Jerárquica} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
 \textbf{Id.} & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A & CP & H5 & R & A \\
 \midrule
 \endhead
@@ -248,6 +256,8 @@ Las tablas siguientes recogen, por pregunta, las ejecuciones E3 y E4 repetidas c
 \midrule
 \endfirsthead
 \toprule
+& \multicolumn{5}{c}{Tamaño fijo} & \multicolumn{5}{c}{Recursiva} & \multicolumn{5}{c}{Semántica} & \multicolumn{5}{c}{Jerárquica} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-11}\cmidrule(lr){12-16}\cmidrule(lr){17-21}
 \textbf{Id.} & F & CR & H & H5 & A & F & CR & H & H5 & A & F & CR & H & H5 & A & F & CR & H & H5 & A \\
 \midrule
 \endhead
@@ -291,6 +301,8 @@ q25 & 1,00 & 0,00 & --- & --- & --- & 1,00 & 1,00 & --- & --- & --- & 1,00 & 0,0
 \midrule
 \endfirsthead
 \toprule
+& \multicolumn{5}{c}{Tamaño fijo} & \multicolumn{5}{c}{Recursiva} & \multicolumn{5}{c}{Semántica} & \multicolumn{5}{c}{Jerárquica} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-11}\cmidrule(lr){12-16}\cmidrule(lr){17-21}
 \textbf{Id.} & F & CR & H & H5 & A & F & CR & H & H5 & A & F & CR & H & H5 & A & F & CR & H & H5 & A \\
 \midrule
 \endhead
