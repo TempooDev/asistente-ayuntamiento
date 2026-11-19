@@ -13,7 +13,7 @@ Este capítulo compara cuatro variantes de RAG que difieren en la forma de fragm
   \item \textbf{P2.} ¿Cómo se compara con ellas la \emph{pipeline} jerárquica completa, que además de fragmentar de otra forma enriquece los fragmentos, reformula la consulta, combina dos búsquedas y entrega documentos enteros al modelo?
 \end{itemize}
 
-La comparación P1 aísla la fragmentación; la P2 mide una \emph{pipeline}, no una estrategia de fragmentación. Todas las variantes se evalúan con los mismos modelos, las mismas preguntas y el mismo equipo. Para ver cómo cambian los resultados al crecer la colección, el estudio se repite sobre tres tamaños: el corpus del estudio, el corpus con distractores y la colección completa de documentos descargados. Además, se usa una batería de preguntas que separa los documentos por tamaño y por dificultad.
+La comparación P1 aísla la fragmentación; la P2 mide una \emph{pipeline}, no una estrategia de fragmentación. Todas las variantes se evalúan con los mismos modelos, las mismas preguntas y el mismo ordenador. Para ver cómo cambian los resultados al crecer la colección, el estudio se repite sobre tres tamaños: el corpus del estudio, el corpus con distractores y la colección completa de documentos descargados. Además, se usa una batería de preguntas que separa los documentos por tamaño y por dificultad.
 
 \section{Variantes comparadas}
 \label{sec:estrategias}
@@ -58,7 +58,7 @@ Cada variante tiene su colección en Qdrant, su cola de ingesta y su estado por 
 Las preguntas candidatas de los dos conjuntos las generó un LLM a partir de los propios documentos, con la respuesta de referencia copiada del texto; el autor las revisó, corrigió las que no se ajustaban al texto y eligió las que pasaron a cada conjunto. Las candidatas y el borrador revisado están en \texttt{preguntas-candidatas.md}, junto a cada conjunto. Ninguna ha sido revisada por personal municipal.
 % VERIFICAR (Antonio): indicar qué LLM generó las preguntas candidatas.
 
-\paragraph{Ejecuciones.} Se hacen cuatro ejecuciones, todas en el mismo equipo y con el mismo software (tabla~\ref{tab:ejecuciones}).
+\paragraph{Ejecuciones.} Se hacen cuatro ejecuciones, todas en el mismo ordenador y con el mismo software (tabla~\ref{tab:ejecuciones}).
 
 \begin{table}[htbp]
 \centering\small
@@ -84,7 +84,7 @@ E4 & C3 (5.994 documentos)$^{a}$ & Batería variada (37) & 148 \\
 \section{Entorno de evaluación}
 \label{sec:entorno-local}
 
-Todas las mediciones se hicieron en un mismo equipo de sobremesa: procesador Intel Core i7-14700KF, 32\,GB de RAM y GPU NVIDIA GeForce RTX 5070 Ti con 16\,GB de VRAM, sobre Windows 11. Los modelos se ejecutan con Ollama de forma nativa (CUDA), con un contexto de 16.384 tokens para la generación. La base de datos, Qdrant y RabbitMQ se ejecutan en contenedores en el mismo equipo, orquestados con .NET Aspire. Al usar modelos abiertos en local, cada ejecución, de cientos de llamadas al LLM, no tiene coste por uso, y todas las latencias del capítulo corresponden a este hardware.
+Todas las mediciones se hicieron en un mismo ordenador de sobremesa: procesador Intel Core i7-14700KF, 32\,GB de RAM y GPU NVIDIA GeForce RTX 5070 Ti con 16\,GB de VRAM, sobre Windows 11. Los modelos se ejecutan con Ollama de forma nativa (CUDA), con un contexto de 16.384 tokens para la generación. La base de datos, Qdrant y RabbitMQ se ejecutan en contenedores en el mismo equipo, orquestados con .NET Aspire. Al usar modelos abiertos en local, cada ejecución, de cientos de llamadas al LLM, no tiene coste por uso, y todas las latencias del capítulo corresponden a este hardware.
 
 El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7b-instruct}, a temperatura 0, con la versión 0.3.9 de RAGAS, sus instrucciones originales en inglés (no se han adaptado al español) y un contexto de 8.192 tokens (la sección~\ref{sec:comprobaciones} repite la puntuación con 16.384). La relevancia de la respuesta usa como \emph{embeddings} \texttt{qwen3-embedding:0.6b}. Cada ejecución tarda unos tres minutos en responder las preguntas y entre 15 y 20 en puntuarlas.
 
@@ -131,7 +131,7 @@ Las métricas de recuperación y la precisión y el recall de contexto se calcul
 
 La tabla~\ref{tab:resultados-coleccion} recoge las métricas principales de las tres primeras ejecuciones, que usan las mismas 25 preguntas sobre colecciones cada vez mayores. Los resultados por pregunta de la colección completa están en el apéndice~\ref{ap:chunking}.
 
-\begin{table}[htbp]
+\begin{table}[tbp]
 \centering\small
 \setlength{\tabcolsep}{3.5pt}
 \caption[Calidad por variante y tamaño de la colección (conjunto principal)]{Calidad por variante y tamaño de la colección (conjunto principal). Precisión, recall, hit@1 y MRR sobre las 22 preguntas con respuesta; fidelidad, relevancia y baja fidelidad sobre las 25 respuestas, salvo la jerárquica (24 puntuadas).}
@@ -168,7 +168,7 @@ En hit@1, las cuatro variantes empatan en E1 (22 de 22), tres empatan en E2 (21 
 
 La tabla~\ref{tab:resultados-bateria} desglosa la ejecución E4 por categoría de la batería variada, sobre la colección completa. Los resultados por pregunta están en el apéndice~\ref{ap:chunking}.
 
-\begin{table}[tbp]
+\begin{table}[htbp]
 \centering\small
 \caption[Precisión de contexto y hit@1 por categoría de pregunta (E4)]{Precisión de contexto y hit@1 por categoría de pregunta (E4, colección completa). El total se calcula sobre las 33 preguntas con respuesta (32 en la precisión de la jerárquica, por una muestra sin puntuar).}
 \label{tab:resultados-bateria}
