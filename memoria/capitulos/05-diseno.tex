@@ -62,8 +62,29 @@ La \textbf{interfaz} es una aplicación de página única (SPA) en Angular que s
 \section{Arquitectura limpia en .NET}
 \label{sec:clean}
 
-El \emph{backend} sigue una arquitectura limpia \cite{martin2017clean}, o de puertos y adaptadores \cite{cockburn2005hexagonal}: la lógica no depende de la base de datos, del \emph{broker} ni del proveedor de IA, sino de interfaces propias que la infraestructura implementa. Cambiar pgvector por Qdrant (sección~\ref{sec:indexacion}) solo obligó a escribir un adaptador nuevo. Las dependencias van hacia dentro: \texttt{Domain} (entidades, sin paquetes externos) $\leftarrow$ \texttt{Application} (casos de uso, \emph{pipelines}, \emph{prompts} y puertos) $\leftarrow$ \texttt{Infrastructure} (adaptadores) $\leftarrow$ \emph{hosts} (\texttt{ApiService}, \texttt{Worker} y \texttt{Gateway}), con \texttt{ServiceDefaults}, \texttt{Shared} y \texttt{AppHost} como proyectos de apoyo. El código se agrupa por funcionalidad (\texttt{Features/Chat}, \texttt{Features/Ingestion}…) y cada capa registra sus servicios con un único método de extensión. Los puertos principales son el acceso a la base de datos (\texttt{IAppDbContext}), el almacén vectorial (\texttt{IVectorStore}, que \texttt{QdrantVectorStore} traduce a la API de Qdrant), la búsqueda léxica, el almacenamiento S3, la publicación en RabbitMQ, los avisos de estado, la fábrica de modelos de chat por ayuntamiento y el ayuntamiento de la petición en curso.
+El \emph{backend} sigue una arquitectura limpia \cite{martin2017clean}, o de puertos y adaptadores \cite{cockburn2005hexagonal}: la lógica no depende de la base de datos, del \emph{broker} ni del proveedor de IA, sino de interfaces propias que la infraestructura implementa. Cambiar pgvector por Qdrant (sección~\ref{sec:indexacion}) solo obligó a escribir un adaptador nuevo. Las dependencias van hacia dentro: \texttt{Domain} (entidades, sin paquetes externos) $\leftarrow$ \texttt{Application} (casos de uso, \emph{pipelines}, \emph{prompts} y puertos) $\leftarrow$ \texttt{Infrastructure} (adaptadores) $\leftarrow$ \emph{hosts} (\texttt{ApiService}, \texttt{Worker} y \texttt{Gateway}), con \texttt{ServiceDefaults}, \texttt{Shared} y \texttt{AppHost} como proyectos de apoyo. El código se agrupa por funcionalidad (\texttt{Features/Chat}, \texttt{Features/Ingestion}…) y cada capa registra sus servicios con un único método de extensión. La tabla~\ref{tab:puertos} recoge los puertos principales.
 
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Puertos de la capa de aplicación y sus adaptadores}
+  \label{tab:puertos}
+  \begin{tabularx}{\textwidth}{@{}l l X@{}}
+    \toprule
+    \textbf{Puerto} & \textbf{Adaptador} & \textbf{Función} \\
+    \midrule
+    \texttt{IAppDbContext} & \texttt{AppDbContext} & Acceso a PostgreSQL con EF Core y transacciones. \\
+    \texttt{IVectorStore} & \texttt{QdrantVectorStore} & Colecciones, escritura, borrado y búsqueda de vectores. \\
+    \texttt{IFullTextSearch} & \texttt{PostgresFullTextSearch} & Búsqueda léxica sobre los fragmentos. \\
+    \texttt{IBlobStorage} & \texttt{S3BlobStorage} & Lectura y listado de documentos en S3. \\
+    \texttt{IIngestionQueuePublisher} & \texttt{RabbitMqIngestionPublisher} & Encolado persistente de documentos. \\
+    \texttt{INotificationService} & SignalR (API), RabbitMQ (\emph{worker}) & Avisos de estado de la ingesta. \\
+    \texttt{IChatModelFactory} & \texttt{ChatModelFactory} & Cliente del modelo de chat de cada ayuntamiento y de respaldo. \\
+    \texttt{IBackgroundWorkQueue} & \texttt{BackgroundWorkQueue} & Trabajo en segundo plano con su ayuntamiento. \\
+    \texttt{ICurrentTenantService} & según el \emph{host} & Ayuntamiento de la petición en curso. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
 Hay dos excepciones deliberadas: \texttt{Application} usa EF Core a través de \texttt{IAppDbContext}, que expone los \texttt{DbSet}, en lugar de un repositorio por entidad, y usa las abstracciones de Semantic Kernel, que ya aíslan del proveedor; lo que no puede usar son sus conectores concretos. Escribir puertos propios encima habría duplicado código sin aportar aislamiento.
 

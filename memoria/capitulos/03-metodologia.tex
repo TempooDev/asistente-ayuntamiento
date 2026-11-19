@@ -7,10 +7,22 @@
 
 \section{Scrum adaptado a un desarrollo individual}
 \label{sec:scrum}
+
+El trabajo se ha organizado con Scrum \cite{schwaber2020}, adaptado a un desarrollo individual. El autor asume a la vez los papeles de propietario del producto y de equipo de desarrollo, y los tutores actúan como partes interesadas (\emph{stakeholders}) con las que se revisa el avance.
+
+El desarrollo se ha dividido en \emph{sprints} de varias semanas. Cada \emph{sprint} parte de un objetivo concreto, que se traduce en uno o varios cambios de OpenSpec (sección~\ref{sec:sdd}); las tareas de esos cambios hacen las veces de pila del \emph{sprint}, y la revisión del \emph{sprint} consiste en comprobar en la aplicación desplegada que el objetivo se ha cumplido.
+
+\subsection{Un producto mínimo viable desplegado pronto}
+
+Tras el contacto con el Ayuntamiento de Sedella (sección~\ref{sec:motivacion}), la prioridad de los primeros \emph{sprints} fue llegar a un producto mínimo viable (MVP) lo bastante funcional como para enseñarlo a entidades públicas y que estas pudieran valorar si la plataforma les resultaría útil en su trabajo diario. La integración continua se configuró a finales de julio de 2026 y el despliegue en producción, en agosto, en lugar de dejarse para el final.
+
+A principios de septiembre de 2026 la primera versión se abrió durante dos días a algunas personas, de manera informal. No fue una validación, porque no se siguió un protocolo ni se recogieron datos de forma sistemática. Tras conocer el coste de la primera ingesta en la nube (sección~\ref{sec:recursos}), se aplazó la apertura a usuarios, y en noviembre se renunció a ella dentro de este trabajo (sección~\ref{sec:validacion-usuarios}).
+% VERIFICAR (Antonio): si de esa apertura salieron comentarios que cambiaran algo (por ejemplo, en la Arena o en el scraper), añadirlo aquí.
+
+\subsection{Iteraciones posteriores}
 \label{sec:iteraciones}
 
-El trabajo se ha organizado con Scrum \cite{schwaber2020}, adaptado a un desarrollo individual: el autor es a la vez propietario del producto y equipo de desarrollo, y los tutores, las partes interesadas. Cada \emph{sprint}, de varias semanas, parte de un objetivo que se traduce en cambios de OpenSpec (sección~\ref{sec:sdd}), cuyas tareas hacen de pila del \emph{sprint}, y se revisa comprobando el objetivo en la aplicación desplegada. Tras el contacto con el Ayuntamiento de Sedella (sección~\ref{sec:motivacion}), la prioridad fue un producto mínimo viable (MVP) que enseñar a entidades públicas, así que la integración continua y el despliegue se prepararon en julio y agosto de 2026, en lugar de al final. A principios de septiembre la primera versión se abrió durante dos días a algunas personas, de manera informal y sin protocolo; tras conocer el coste de la primera ingesta en la nube (sección~\ref{sec:recursos}) se aplazó la apertura a usuarios, y en noviembre se renunció a ella dentro de este trabajo (sección~\ref{sec:validacion-usuarios}). Los \emph{sprints} siguientes ampliaron y consolidaron el sistema (sección~\ref{sec:desarrollo-real}).
-% VERIFICAR (Antonio): si de esa apertura salieron comentarios que cambiaran algo (por ejemplo, en la Arena o en el scraper), añadirlo aquí.
+Con el MVP en producción, los \emph{sprints} siguientes ampliaron y consolidaron el sistema (hitos en la sección~\ref{sec:desarrollo-real}). Cada uno siguió el ciclo de OpenSpec que se describe a continuación.
 
 \section{Desarrollo guiado por especificaciones}
 \label{sec:sdd}
@@ -107,5 +119,7 @@ El trabajo lo ha desarrollado un único alumno, supervisado por el tutor y el co
 
 \subsection{Servicios externos y coste}
 
-En producción, el sistema usa proveedores de modelos de lenguaje, que se pagan por \emph{token} y son el principal coste variable; Cloudflare R2, compatible con S3, para los documentos originales, y Auth0 para la autenticación. La única ingesta hecha con proveedores en la nube da una idea de ese coste. Generar los \emph{embeddings} y procesar los boletines con las \emph{pipelines} básica y jerárquica para la primera versión en producción, en los dos primeros días de septiembre de 2026, costó 4,67~USD en OpenRouter y 25,21~USD en Google AI, unos 30~USD en total. Esa cifra cubría solo dos de las cuatro variantes del estudio, y la semántica necesita por sí sola unas tres veces más \emph{tokens} de \emph{embeddings} que la básica (capítulo~\ref{cap:estudio-chunking}). Repetir la ingesta para el estudio con todas las variantes no cabía en el presupuesto del trabajo, y abrir la plataforma a usuarios reales añadía el coste de sus consultas durante semanas, con dos \emph{pipelines} por consulta en la Arena. Por eso se canceló la apertura de la plataforma y la evaluación pasó a hacerse con modelos locales (sección~\ref{sec:validacion-usuarios}).
+En producción, el sistema usa proveedores de modelos de lenguaje, que se pagan por \emph{token} y son el principal coste variable; Cloudflare R2, compatible con S3, para los documentos originales, y Auth0 para la autenticación. El coste de inferencia fue un factor de diseño desde el principio, porque los modelos comerciales resultan caros cuando una consulta encadena varias llamadas, como en la \emph{pipeline} jerárquica. Por eso el desarrollo y el estudio de fragmentación se hicieron con modelos locales, y el sistema registra los \emph{tokens} y el coste estimado de cada respuesta (sección~\ref{sec:proveedor-ia}).
+
+La única ingesta hecha con proveedores en la nube da una idea de ese coste. Generar los \emph{embeddings} y procesar los boletines con las \emph{pipelines} básica y jerárquica para la primera versión en producción, en los dos primeros días de septiembre de 2026, costó 4,67~USD en OpenRouter y 25,21~USD en Google AI, unos 30~USD en total. Esa cifra cubría solo dos de las cuatro variantes del estudio, y la semántica necesita por sí sola unas tres veces más \emph{tokens} de \emph{embeddings} que la básica (capítulo~\ref{cap:estudio-chunking}). Repetir la ingesta para el estudio con todas las variantes no cabía en el presupuesto del trabajo, y abrir la plataforma a usuarios reales añadía el coste de sus consultas durante semanas, con dos \emph{pipelines} por consulta en la Arena. Por eso se canceló la apertura de la plataforma y la evaluación pasó a hacerse con modelos locales (sección~\ref{sec:validacion-usuarios}).
 % VERIFICAR (Antonio): si se quiere dar el coste total del proyecto, añadir el dominio y comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito (los VPS ya existían y no se imputan).
