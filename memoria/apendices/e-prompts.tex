@@ -1,7 +1,7 @@
 \umaappendix{Prompts del sistema}
 \label{ap:prompts}
 
-Este apéndice recoge el texto literal de los \emph{prompts} que la plataforma envía a los modelos de lenguaje. Todos están definidos en un único fichero, \path{src/AsistenteAyuntamiento.Application/Common/Prompts/PromptCatalog.cs}, de modo que ningún servicio escribe instrucciones propias. Los \emph{prompts} evolucionan con el sistema; los textos de este apéndice se extraen de ese fichero automáticamente con un script (\path{memoria/scripts/extraer-prompts.py}), por lo que reproducen exactamente el código.
+Este apéndice recoge el texto literal de los \emph{prompts} de las \emph{pipelines} y de la ingesta; el resto (contexto del usuario, Arena y análisis del historial) está en el mismo fichero del repositorio \cite{repositorio}. Todos están definidos en un único fichero, \path{src/AsistenteAyuntamiento.Application/Common/Prompts/PromptCatalog.cs}, de modo que ningún servicio escribe instrucciones propias. Los \emph{prompts} evolucionan con el sistema; los textos de este apéndice se extraen de ese fichero automáticamente con un script (\path{memoria/scripts/extraer-prompts.py}), por lo que reproducen exactamente el código.
 
 Los marcadores \texttt{\{0\}}, \texttt{\{1\}} y \texttt{\{2\}} se sustituyen en tiempo de ejecución por los valores que se indican en cada caso.
 
@@ -39,7 +39,7 @@ Antes de buscar, la pregunta se reformula en terminología administrativa y se s
 
 \subsection{Generación en lenguaje claro}
 
-La respuesta se genera con el modelo de la plataforma a partir del texto completo de los documentos padre recuperados (\texttt{\{0\}}). La regla~6 y la última línea de \texttt{StreamingSystem} se añadieron durante la puesta a punto del estudio de fragmentación, al comprobar que las respuestas incluían fórmulas de cortesía y consejos generales que no se pueden comprobar en los documentos y que bajaban la fidelidad medida por RAGAS (sección~\ref{sec:metricas}).
+La respuesta se genera con el modelo de la plataforma a partir del texto completo de los documentos padre recuperados (\texttt{\{0\}}). La regla~6 y la última línea de \texttt{StreamingSystem} se añadieron durante la puesta a punto del estudio de fragmentación, al comprobar que las respuestas incluían fórmulas de cortesía y consejos generales que no se pueden comprobar en los documentos y que bajaban la fidelidad medida por RAGAS (sección~\ref{sec:validez}).
 
 \lstinputlisting[caption={\texttt{ClearLanguageGeneration}}]{apendices/prompts/ClearLanguageGeneration.txt}
 

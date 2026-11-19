@@ -20,7 +20,7 @@ Del Transformer surgen dos familias que cumplen papeles distintos en este proyec
 \subsection{Tokenización, ventana de contexto y coste}
 \label{sec:llm-contexto}
 
-Los LLM trabajan con \emph{tokens}, unidades de subpalabra obtenidas con algoritmos como BPE \cite{sennrich2016}, y su número depende del tokenizador y del idioma. La \emph{ventana de contexto} limita los tokens que el modelo procesa a la vez, sumando instrucciones, historial, documentos y respuesta. Un boletín completo puede no caber y, aunque quepa, no se aprovecha por igual: el rendimiento baja cuando la información relevante está en mitad de un contexto largo \cite{liu2024lost}. El sistema envía por ello los fragmentos más relevantes y no los documentos enteros, que es la idea de la recuperación aumentada (sección~\ref{sec:rag}); con contextos cada vez más largos, pasar documentos completos empieza a ser una alternativa, y Li et al.\ proponen combinar ambas \cite{li2024ragvslong}. El tamaño de la entrada determina además el coste, porque los proveedores cobran por token, y la latencia, porque la generación es token a token; por eso el sistema registra el coste de cada consulta y el chat muestra la respuesta según se genera (\emph{streaming}).
+Los LLM trabajan con \emph{tokens}, unidades de subpalabra obtenidas con algoritmos como \emph{Byte Pair Encoding} (BPE) \cite{sennrich2016}, y su número depende del tokenizador y del idioma. La \emph{ventana de contexto} limita los tokens que el modelo procesa a la vez, sumando instrucciones, historial, documentos y respuesta. Un boletín completo puede no caber y, aunque quepa, no se aprovecha por igual: el rendimiento baja cuando la información relevante está en mitad de un contexto largo \cite{liu2024lost}. El sistema envía por ello los fragmentos más relevantes y no los documentos enteros, que es la idea de la recuperación aumentada (sección~\ref{sec:rag}); con contextos cada vez más largos, pasar documentos completos empieza a ser una alternativa, y Li et al.\ proponen combinar ambas \cite{li2024ragvslong}. El tamaño de la entrada determina además el coste, porque los proveedores cobran por token, y la latencia, porque la generación es token a token; por eso el sistema registra el coste de cada consulta y el chat muestra la respuesta según se genera (\emph{streaming}).
 
 \subsection{Representación del texto: \emph{embeddings}}
 \label{sec:llm-embeddings}
@@ -117,7 +117,7 @@ donde $r(d)$ es la posición de $d$ en cada lista $r \in R$ y $k = 60$ suaviza e
 
 Evaluar un sistema RAG es más difícil que evaluar un clasificador, porque una buena respuesta depende de dos etapas: que la recuperación encuentre los fragmentos adecuados y que el modelo los use con fidelidad \cite{yu2024ragsurvey}. Las propuestas actuales se agrupan en cuatro familias.
 
-\paragraph{Métricas clásicas de recuperación.} Si se conocen los documentos que responden a cada pregunta, la recuperación se puede medir sin ningún modelo: el acierto en las $k$ primeras posiciones (hit@$k$), el rango recíproco medio (MRR), que promedia $1/r$ siendo $r$ la posición del primer documento correcto \cite{voorhees1999trec}, o el nDCG, que pondera cada acierto según su posición \cite{jarvelin2002ndcg}. Son baratas y reproducibles, pero miden el documento y no el pasaje concreto que contiene la respuesta.
+\paragraph{Métricas clásicas de recuperación.} Si se conocen los documentos que responden a cada pregunta, la recuperación se puede medir sin ningún modelo: el acierto en las $k$ primeras posiciones (hit@$k$), el rango recíproco medio (MRR), que promedia $1/r$ siendo $r$ la posición del primer documento correcto \cite{voorhees1999trec}, o la ganancia acumulada descontada normalizada (nDCG), que pondera cada acierto según su posición \cite{jarvelin2002ndcg}. Son baratas y reproducibles, pero miden el documento y no el pasaje concreto que contiene la respuesta.
 
 \paragraph{Métricas automáticas con un LLM.} RAGAS propone un conjunto de métricas que se calculan con ayuda de un LLM, por ejemplo descomponiendo la respuesta en afirmaciones y comprobando si cada una se deduce del contexto \cite{es2023ragas}. Miden si el contexto recuperado es relevante y está centrado en la pregunta, si la respuesta es fiel a ese contexto y si aborda la pregunta. La fidelidad y la relevancia de la respuesta no necesitan una respuesta de referencia escrita por personas; las variantes de precisión y \emph{recall} de contexto que usa este trabajo sí la necesitan. TruLens agrupa las mismas ideas en la llamada \emph{tríada RAG}: relevancia del contexto, fundamentación (\emph{groundedness}) de la respuesta en ese contexto y relevancia de la respuesta respecto a la pregunta \cite{trulens}. La fidelidad y la fundamentación son las que miden directamente las alucinaciones de fidelidad descritas en la sección~\ref{sec:alucinaciones}.
 
@@ -155,7 +155,9 @@ Barnett et al.\ \cite{barnett2024seven} describen los fallos típicos de un sist
 \section{Tecnologías empleadas}
 \label{sec:tecnologias}
 
-\begin{table}[!t]
+La tabla~\ref{tab:tecnologias} resume las tecnologías del sistema y el motivo de su elección.
+
+\begin{table}[htbp]
   \centering
   \caption{Tecnologías empleadas y motivo de su elección}
   \label{tab:tecnologias}
