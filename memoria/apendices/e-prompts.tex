@@ -13,7 +13,7 @@ La pipeline básica, y con ella las variantes recursiva y semántica, genera las
 
 \subsection{Respuesta en \emph{streaming} con documentos}
 
-Es el caso habitual de la pipeline básica. El \emph{prompt} de sistema va seguido, si el usuario los tiene, de sus temas y zonas de interés (sección~\ref{sec:prompt-contexto-usuario}).
+Es el caso habitual de la pipeline básica. El \emph{prompt} de sistema va seguido, si el usuario los tiene, de sus temas y zonas de interés, con una indicación final (\texttt{UserContextGuidance}) que pide usarlos para priorizar o enfocar la respuesta.
 
 \lstinputlisting[caption={\texttt{StreamingSystem}}]{apendices/prompts/StreamingSystem.txt}
 
@@ -28,13 +28,6 @@ La plantilla pide descartar solo los documentos que no tratan el tema de la preg
 Cuando la búsqueda no devuelve documentos (por ejemplo, en un saludo o en una pregunta de seguimiento), la conversación continúa con este \emph{prompt}, que prohíbe dar de memoria datos concretos de una norma:
 
 \lstinputlisting[caption={\texttt{ConversationalSystem}}]{apendices/prompts/ConversationalSystem.txt}
-
-\subsection{Contexto del usuario}
-\label{sec:prompt-contexto-usuario}
-
-Si el usuario tiene temas o zonas de interés, se añade al \emph{prompt} de sistema un bloque \texttt{=== CONTEXTO DEL USUARIO ===} con las dos listas, seguido de la indicación siguiente. Solo se añade a \texttt{StreamingSystem}; \texttt{ConversationalSystem} no lleva este bloque.
-
-\lstinputlisting[caption={\texttt{UserContextGuidance}}]{apendices/prompts/UserContextGuidance.txt}
 
 \section{Pipeline jerárquica}
 
@@ -55,15 +48,3 @@ La respuesta se genera con el modelo de la plataforma a partir del texto complet
 Durante la ingesta jerárquica, cada fragmento hijo (\texttt{\{0\}}) se enriquece con dos preguntas que un ciudadano haría y que el fragmento responde, antes de generar su \emph{embedding}.
 
 \lstinputlisting[caption={\texttt{FragmentEnrichment}}]{apendices/prompts/FragmentEnrichment.txt}
-
-\section{Arena}
-
-En la página de la Arena, el lado de la básica responde con esta plantilla, distinta de la que usa en el chat, donde \texttt{\{0\}} es la consulta y \texttt{\{1\}} los documentos recuperados. El lado jerárquico usa los \emph{prompts} de su pipeline.
-
-\lstinputlisting[caption={\texttt{ArenaBaselineTemplate}}]{apendices/prompts/ArenaBaselineTemplate.txt}
-
-\section{Análisis del historial}
-
-Para sugerir temas y zonas de interés, se analizan las conversaciones recientes del usuario con este \emph{prompt}, que pide la respuesta en JSON. Los valores del ejemplo («Madrid Centro», «Vallecas») solo ilustran el formato y no proceden del ámbito andaluz del sistema:
-
-\lstinputlisting[caption={\texttt{HistoryAnalyzerSystem}}]{apendices/prompts/HistoryAnalyzerSystem.txt}

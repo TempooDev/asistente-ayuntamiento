@@ -23,27 +23,8 @@ El \emph{scraper} es un único binario de Go \cite{golang} organizado en paquete
 
 \paragraph{Orquestador.} Todos los trabajos, vengan del planificador, de la API HTTP o de la orden gRPC de la interfaz, pasan por el mismo orquestador, que solo admite uno a la vez (RF2): una segunda petición recibe un error de ocupado en lugar de ponerse en cola, y una ejecución programada que encuentra otra en marcha se salta. Antes de descargar nada, el orquestador pide las reglas de filtrado a la API por gRPC, y si no puede obtenerlas el trabajo falla sin descargar, porque sin reglas no sabría qué descartar (RF3). Después recorre cada fuente y cada día del rango (31 como máximo); un día cuyo sumario falla se registra y se salta, para que un día sin boletín no detenga un rango entero.
 
-Los documentos de un día se procesan de forma concurrente, con un máximo de cinco a la vez. El listado~\ref{lst:go-concurrencia} muestra el patrón: una \emph{goroutine} por documento y un canal con capacidad cinco que hace de semáforo. La concurrencia real hacia cada sitio la sigue limitando el cliente \texttt{httpx}, así que el paralelismo sirve sobre todo para solapar la descarga con la escritura en S3 y la publicación en RabbitMQ.
+Los documentos de un día se procesan de forma concurrente, con un máximo de cinco a la vez. El patrón es una \emph{goroutine} por documento y un canal con capacidad cinco que hace de semáforo. La concurrencia real hacia cada sitio la sigue limitando el cliente \texttt{httpx}, así que el paralelismo sirve sobre todo para solapar la descarga con la escritura en S3 y la publicación en RabbitMQ.
 
-\begin{lstlisting}[caption={Procesamiento concurrente de los documentos de un día (\texttt{pipeline/orchestrator.go}, simplificado)},label={lst:go-concurrencia}]
-slots := make(chan struct{}, o.cfg.Concurrency) // 5 por defecto
-for _, ref := range refs {
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        select {
-        case slots <- struct{}{}:
-        case <-ctx.Done():
-            return
-        }
-        defer func() { <-slots }()
-        if o.processDocument(ctx, log, p, ref, rules) {
-            mu.Lock(); saved++; mu.Unlock()
-        }
-    }()
-}
-wg.Wait()
-\end{lstlisting}
 
 \paragraph{De la descarga a la cola.} Para cada documento, \texttt{processDocument} descarga y extrae el texto, aplica las reglas de contenido y, si pasa, escribe dos objetos en S3: el original (\path{raw-xml/BOE/<id>.xml} o \path{raw-html/BOJA/<id>.html}) y el JSON con el texto y los metadatos (\path{json/<boletín>/<id>.json}). El original es solo una copia de seguridad y un fallo al guardarlo no descarta el documento; el JSON, en cambio, es obligatorio. Solo después de guardar el JSON se publica el mensaje con su ruta: así, un \emph{worker} nunca recibe un documento que todavía no existe. Si la publicación falla, el documento queda guardado y el administrador puede encolarlo desde la interfaz (RF27). El filtrado compara en minúsculas y sin tildes: la regla «subvención» encuentra «SUBVENCIONES». Una regla de tipo \texttt{Department} debe coincidir con el organismo y una \texttt{Keyword} debe aparecer en el título o en el texto. Las reglas \texttt{Section} y \texttt{BojaFeed} no filtran documentos, sino que eligen qué partes del boletín se descargan.
 
@@ -160,7 +141,7 @@ Con los identificadores ganadores, una sola consulta de EF Core carga los fragme
 
 \paragraph{Imágenes.} Los proyectos .NET no tienen \emph{Dockerfile}: sus imágenes se generan con el soporte de contenedores del SDK (\texttt{dotnet publish -t:PublishContainer}). La de la pasarela incluye la compilación de producción de Angular, que se copia en su carpeta de ficheros estáticos antes de publicarla. El \emph{scraper} usa un \emph{Dockerfile} de dos etapas: compila el binario sobre la imagen de Go para Alpine y lo copia a una imagen \emph{distroless} estática que se ejecuta sin privilegios de administrador (\texttt{nonroot}).
 
-\paragraph{Integración y despliegue continuos.} El flujo de despliegue (\texttt{deploy.yml}) solo se lanza cuando la integración continua (sección~\ref{sec:calidad}) termina en verde en la rama principal. Primero detecta qué servicios han cambiado según las rutas modificadas y solo reconstruye esos; cada imagen se publica en GitHub Container Registry con dos etiquetas, \texttt{latest} y \texttt{sha-<commit>}. Las imágenes que no cambian se reetiquetan con el mismo \texttt{sha-<commit>} sin reconstruirlas; así, cada versión desplegada tiene su etiqueta en las cuatro imágenes. Por último, una llamada al \emph{webhook} de Dokploy lanza el despliegue. Volver a una versión anterior consiste en fijar la variable \texttt{IMAGE\_TAG} a la etiqueta de esa versión y redesplegar; la única precaución es que las migraciones de la base de datos no se deshacen solas. Los pasos completos se recogen en el apéndice~\ref{ap:despliegue}.
+\paragraph{Integración y despliegue continuos.} El flujo de despliegue (\texttt{deploy.yml}) solo se lanza cuando la integración continua (sección~\ref{sec:calidad}) termina en verde en la rama principal. Primero detecta qué servicios han cambiado según las rutas modificadas y solo reconstruye esos; cada imagen se publica en GitHub Container Registry con dos etiquetas, \texttt{latest} y \texttt{sha-<commit>}. Las imágenes que no cambian se reetiquetan con el mismo \texttt{sha-<commit>} sin reconstruirlas; así, cada versión desplegada tiene su etiqueta en las cuatro imágenes. Por último, una llamada al \emph{webhook} de Dokploy lanza el despliegue. Volver a una versión anterior consiste en fijar la variable \texttt{IMAGE\_TAG} a la etiqueta de esa versión y redesplegar; la única precaución es que las migraciones de la base de datos no se deshacen solas. Los pasos completos están en \texttt{docs/setup.md} y \texttt{docs/deploy-dokploy.md} del repositorio \cite{repositorio}.
 
 \section{Observabilidad y coste}
 \label{sec:impl-observabilidad}
@@ -169,25 +150,8 @@ Con los identificadores ganadores, una sola consulta de EF Core carga los fragme
 
 \paragraph{Una traza por documento.} El contexto de traza se propaga con la cabecera W3C \texttt{traceparent} por HTTP y gRPC, y también a través de RabbitMQ: quien publica la añade a las cabeceras AMQP del mensaje (en .NET y en Go) y \texttt{RabbitMqConsumerBase} abre el \emph{span} de procesamiento como hijo de ese contexto. Así, una descarga lanzada desde la interfaz es una sola traza que va del navegador a la API, de la API al \emph{scraper} y de este a los dos \emph{workers}, y los reintentos conservan la traza original. Una prueba de integración comprueba que el consumidor .NET entiende la cabecera tal como la escribe Go.
 
-\paragraph{Métricas de los modelos.} Todas las llamadas a modelos pasan por uno de tres puntos (\texttt{ChatStreamingService}, la generación de la pipeline jerárquica o el envoltorio \texttt{MeteredChatCompletion}), que registran las métricas de la tabla~\ref{tab:metricas-llm}. Sus nombres siguen las convenciones semánticas de OpenTelemetry para IA generativa \cite{otelgenai}; como esas convenciones no definen todavía una métrica de tiempo hasta el primer \emph{token} en el cliente, esa y la de coste usan el prefijo propio \texttt{app.}. Cada medida lleva el proveedor, el modelo, el ayuntamiento (o \texttt{platform} para la ingesta), la pipeline (\texttt{baseline}, \texttt{hierarchical}, los dos lados de la Arena, \texttt{shadow}, \texttt{ingestion} o \texttt{profile}), la operación y si se usó el modelo de respaldo. Los identificadores de usuario y de sesión nunca se usan como etiqueta de una métrica.
+\paragraph{Métricas de los modelos.} Todas las llamadas a modelos pasan por uno de tres puntos (\texttt{ChatStreamingService}, la generación de la pipeline jerárquica o el envoltorio \texttt{MeteredChatCompletion}), que registran la duración de la llamada (con el código de error si falla), los \emph{tokens} de entrada y de salida, el tiempo hasta la primera parte de la respuesta y el coste estimado en euros. Sus nombres siguen las convenciones semánticas de OpenTelemetry para IA generativa \cite{otelgenai}; como esas convenciones no definen todavía una métrica de tiempo hasta el primer \emph{token} en el cliente, esa y la de coste usan el prefijo propio \texttt{app.}. Cada medida lleva el proveedor, el modelo, el ayuntamiento (o \texttt{platform} para la ingesta), la pipeline (\texttt{baseline}, \texttt{hierarchical}, los dos lados de la Arena, \texttt{shadow}, \texttt{ingestion} o \texttt{profile}), la operación y si se usó el modelo de respaldo. Los identificadores de usuario y de sesión nunca se usan como etiqueta de una métrica.
 
-\begin{table}[htbp]
-  \centering
-  \small
-  \caption{Métricas registradas en cada llamada a un modelo}
-  \label{tab:metricas-llm}
-  \begin{tabularx}{\textwidth}{@{}l l X@{}}
-    \toprule
-    \textbf{Métrica} & \textbf{Tipo} & \textbf{Contenido} \\
-    \midrule
-    \texttt{gen\_ai.client.operation.duration} & histograma & Duración de la llamada, con el código de error si falla. \\
-    \texttt{gen\_ai.client.inference.usage.input\_tokens} & contador & \emph{Tokens} de entrada que comunica el proveedor. \\
-    \texttt{gen\_ai.client.inference.usage.output\_tokens} & contador & \emph{Tokens} de salida. \\
-    \texttt{app.llm.time\_to\_first\_token} & histograma & Tiempo hasta la primera parte de la respuesta, medido en la API. \\
-    \texttt{app.llm.cost} & contador & Coste estimado en euros, según \texttt{Ai:Pricing}. \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
 
 El coste se calcula con una tabla de precios en euros por millón de \emph{tokens} de entrada y de salida, por proveedor y modelo (\texttt{Ai:Pricing:<proveedor>:<modelo>}). Los modelos de Ollama cuestan cero porque se ejecutan en local, y un modelo de pago sin precio configurado registra cero y deja un único aviso en el registro, para que el olvido sea visible. Leer los \emph{tokens} no es trivial, porque cada conector de Semantic Kernel los devuelve en un objeto distinto; \texttt{TokenUsageExtractor} reúne esa lógica, con pruebas por proveedor, y cuando el proveedor no los devuelve se estiman a razón de cuatro caracteres por \emph{token}.
 

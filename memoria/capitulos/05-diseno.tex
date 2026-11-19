@@ -8,7 +8,7 @@
 \section{Arquitectura general}
 \label{sec:arquitectura}
 
-El sistema se divide en tres partes que solo se comunican a través de interfaces bien definidas: el \emph{scraper} en Go, que descarga los boletines; el \emph{backend} en .NET, que los indexa y responde a las preguntas; y la interfaz en Angular, que usa el personal municipal. La figura~\ref{fig:arquitectura} muestra los servicios que las forman y cómo se relacionan. Los motivos de cada tecnología se explicaron en la sección~\ref{sec:eleccion-plataforma}; aquí se describe el papel de cada pieza en el conjunto.
+El sistema se divide en tres partes que solo se comunican a través de interfaces bien definidas: el \emph{scraper} en Go, que descarga los boletines; el \emph{backend} en .NET, que los indexa y responde a las preguntas; y la interfaz en Angular, que usa el personal municipal. La figura~\ref{fig:arquitectura} muestra los servicios que las forman y cómo se relacionan. Los motivos de cada tecnología se explicaron en la sección~\ref{sec:tecnologias}; aquí se describe el papel de cada pieza en el conjunto.
 
 \begin{figure}[htbp]
   \centering
@@ -265,7 +265,7 @@ Como se explica en la sección~\ref{sec:clave-propia}, un mismo despliegue usa u
 \section{Flujo de ingesta asíncrona}
 \label{sec:ingesta-diseno}
 
-El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asíncrona a través de RabbitMQ. El contrato completo (colas, argumentos, formato de los mensajes y cabeceras) se recoge en el apéndice~\ref{ap:especificaciones}; aquí se resumen sus decisiones de diseño.
+El \emph{scraper} en Go y los \emph{workers} de .NET se comunican de forma asíncrona a través de RabbitMQ. El contrato completo (colas, argumentos, formato de los mensajes y cabeceras) está en \texttt{docs/messaging-contract.md} del repositorio \cite{repositorio}; aquí se resumen sus decisiones de diseño.
 
 \begin{itemize}
   \item \textbf{Una cola por pipeline.} Cada documento nuevo se publica en \texttt{documents\_to\_\allowbreak process\_\allowbreak baseline} y en \texttt{documents\_to\_\allowbreak process\_\allowbreak hierarchical}, y cada pipeline la consume un \emph{worker} distinto construido a partir de la misma imagen. Las dos pipelines procesan los mismos documentos y sus métricas son comparables. Las variantes recursiva y semántica tienen también su cola y su \emph{worker}, pero solo procesan lo que el administrador encola para ellas desde el panel de documentos, porque existen para el estudio del capítulo~\ref{cap:estudio-chunking}.

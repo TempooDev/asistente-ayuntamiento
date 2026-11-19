@@ -71,27 +71,27 @@ Los administradores de la plataforma gestionan la base de conocimiento común a 
 
 \paragraph{Documentos.} Muestra los documentos almacenados y el estado de su ingesta en cada \emph{pipeline} (figura~\ref{fig:manual-documentos}). Las tarjetas superiores resumen cuántos documentos están completados, en proceso, encolados, fallidos o pendientes. La tabla permite filtrar por nombre, estado, \emph{pipeline}, fecha y tamaño, abrir cada documento, seleccionar varios y encolarlos, o reprocesar uno concreto. El selector de la parte superior indica en qué \emph{pipelines} se procesa: por defecto, la básica y la jerárquica; las variantes recursiva y semántica son las del estudio de fragmentación. \emph{Reprocesar todo el histórico} vuelve a ingerir todos los documentos, y \emph{Reiniciar colgados} devuelve a la cola los que se quedaron en «Procesando» tras un corte. Mientras hay ingesta en curso, la página se actualiza sola.
 
-\begin{figure}[htbp]
+\begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{manual/documentos}
+\includegraphics[width=0.8\textwidth]{manual/documentos}
 \caption{Estado de la ingesta por \emph{pipeline} y lista de documentos}
 \label{fig:manual-documentos}
 \end{figure}
 
 \paragraph{Filtros del \emph{scraper}.} En \emph{Configuración}, pestaña \emph{Filtros del Scraper} (rótulo de la interfaz), se eligen las secciones del BOJA que se descargan y se añaden reglas de filtrado por boletín: por departamento, sección, palabra clave u otros criterios (figura~\ref{fig:manual-filtros}). Si no hay ninguna regla definida, se procesan todos los documentos de las secciones elegidas; si el \emph{scraper} no puede leer las reglas, no descarga nada. Al final de la pestaña, \emph{Extracción manual} permite lanzar la descarga de un periodo concreto.
 
-\begin{figure}[htbp]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.85\textwidth]{manual/configuracion-filtros}
+\includegraphics[width=0.8\textwidth]{manual/configuracion-filtros}
 \caption{Filtros del \emph{scraper}}
 \label{fig:manual-filtros}
 \end{figure}
 
 \paragraph{Métricas de la plataforma.} El panel de analíticas añade para este rol el coste de la ingesta por \emph{pipeline} (documentos, tiempo por documento, fragmentos, \emph{tokens} de \emph{embeddings} y llamadas de enriquecimiento) y la sección \emph{Evaluación offline}, con los resultados de cada ejecución de la evaluación automática del estudio de fragmentación y su evolución (figura~\ref{fig:manual-evaluacion}).
 
-\begin{figure}[htbp]
+\begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{manual/metricas-evaluacion}
+\includegraphics[width=0.8\textwidth]{manual/metricas-evaluacion}
 \caption{Evaluación automática (\emph{Evaluación offline}) en el panel de analíticas}
 \label{fig:manual-evaluacion}
 \end{figure}

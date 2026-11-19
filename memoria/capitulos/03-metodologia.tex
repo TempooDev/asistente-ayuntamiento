@@ -211,16 +211,7 @@ El desarrollo empezó a mediados de julio de 2026 y se ha extendido hasta la ent
 \end{figure}
 % VERIFICAR (Antonio): revisar el calendario. Se ha deducido de las fechas del repositorio: estructura inicial y primeras especificaciones el 16/07; scraper del BOE desde el 29/07; CI desde finales de julio; ingesta vectorial el 11/08; interfaz Angular desde el 26/08; docker-compose de producción el 31/08; contexto personalizado y Arena el 05/09; reorganización de la capa de aplicación el 05/10; migración a Qdrant, auditoría, observabilidad y mejoras móviles el 13/10; memoria desde el 08/10. Confirmar si hubo investigación previa (fase 1) antes de julio y cuándo se planifica el estudio de chunking y la validación formal.
 
-Los principales hitos fueron los siguientes:
-
-\begin{itemize}
-  \item \textbf{Julio de 2026.} Planificación, estructura inicial de la solución y primeras especificaciones. Se montaron la orquestación con Aspire, la autenticación, la integración con SignalR y el chat con Ollama, y se empezó el \emph{scraper} del BOE en Go. La integración continua se configuró a finales de mes.
-  \item \textbf{Agosto de 2026.} Ingesta vectorial de los documentos y filtrado dinámico del \emph{scraper}. Se desarrolló la interfaz en Angular y se preparó el despliegue en producción con Docker Compose para poder enseñar el MVP a las entidades públicas.
-  \item \textbf{Septiembre de 2026.} Apertura informal de la primera versión durante dos días. Se añadieron la \emph{pipeline} jerárquica, la Arena y el contexto personalizado del usuario, se mejoró el \emph{scraper} y se incorporó el proyecto de pruebas automatizadas.
-  \item \textbf{Octubre de 2026.} Reorganización de la capa de aplicación, migración de los vectores a Qdrant, auditoría del código, observabilidad con Grafana y mejoras de la experiencia en el móvil. Implementación de las variantes recursiva y semántica y del programa de evaluación del estudio de fragmentación. Firma del anteproyecto (2 de octubre) y comienzo de la redacción de la memoria.
-  \item \textbf{Noviembre de 2026.} Ejecución de todo el estudio de fragmentación en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}). Se descartó la validación con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}).
-  \item \textbf{Diciembre de 2026.} Cierre de la memoria y de la documentación.
-\end{itemize}
+Los principales hitos fueron: en julio, la estructura de la solución, las primeras especificaciones, Aspire, la autenticación, el chat con Ollama, el \emph{scraper} del BOE y la integración continua; en agosto, la ingesta vectorial, la interfaz en Angular y el despliegue del MVP; en septiembre, la apertura informal de dos días, la \emph{pipeline} jerárquica, la Arena y el contexto del usuario; en octubre, la reorganización de la capa de aplicación, Qdrant, la auditoría del código, la observabilidad, las variantes recursiva y semántica, el programa de evaluación y la firma del anteproyecto (2 de octubre); en noviembre, todas las ejecuciones del estudio en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}) y la renuncia a validar con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}), y en diciembre, el cierre de la memoria.
 
 \subsection{Desviaciones}
 
@@ -246,7 +237,7 @@ El desarrollo se ha hecho en un ordenador portátil MacBook Pro con procesador A
 Todas las herramientas de desarrollo empleadas son gratuitas o de código abierto:
 
 \begin{itemize}
-  \item \textbf{Entorno de desarrollo.} Visual Studio Code como editor, con las herramientas de línea de comandos de .NET, Go y Angular, y Aspire para orquestar el sistema en local (sección~\ref{sec:eleccion-plataforma}).
+  \item \textbf{Entorno de desarrollo.} Visual Studio Code como editor, con las herramientas de línea de comandos de .NET, Go y Angular, y Aspire para orquestar el sistema en local (sección~\ref{sec:tecnologias}).
   \item \textbf{Contenedores.} Podman como motor de contenedores compatible con OCI y Docker, para ejecutar en local PostgreSQL, Qdrant, RabbitMQ, RustFS y Ollama.
   \item \textbf{Modelos locales.} Ollama, para ejecutar en local los modelos abiertos de chat y de \emph{embeddings} sin coste por uso.
   \item \textbf{Control de versiones e integración continua.} Git y GitHub, con GitHub Actions para la compilación, las pruebas y la publicación de las imágenes de contenedor en GitHub Container Registry, y Dokploy para el despliegue.
