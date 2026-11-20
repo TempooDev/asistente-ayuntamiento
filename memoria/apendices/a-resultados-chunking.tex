@@ -51,6 +51,86 @@ Las métricas de recuperación y la precisión y el recall de contexto se calcul
 
 \paragraph{Latencia y coste de indexación.} La latencia se da como mediana (p50) y percentil 95 del primer token, de la reformulación de la consulta (en la jerárquica) y del total de la respuesta. El coste de indexación se mide como tiempo de ingesta por documento, fragmentos por documento, tokens enviados al modelo de \emph{embeddings} y llamadas al LLM.
 
+\section{Conjunto generado con Claude Sonnet 5.5}
+\label{sec:ap-e5}
+
+El conjunto E5 (\texttt{eval/dataset-e5}) lo genera \texttt{eval/ragas/generate\_questions.py} con una semilla fija:
+
+\begin{enumerate}
+  \item Toma como marco los 5.994 documentos activos de C3, exportados de PostgreSQL con su boletín, su tamaño, su emisor y su municipio (\texttt{candidates.csv}), y descarta los que usan los otros dos conjuntos.
+  \item Extrae una muestra estratificada de 80 documentos: un 25\,\% del BOJA (que es el 6\,\% de la colección, así que está sobrerrepresentado), repartida por terciles de tamaño y por si el emisor es un único ayuntamiento.
+  \item Para 72 documentos pide a Claude Sonnet 5.5 una pregunta escrita como la haría el personal municipal, sin copiar el título ni frases del texto, la respuesta de referencia con los datos concretos y el pasaje literal del documento que la contiene. El tipo de dato preferido (importe, requisito, fecha, plazas, beneficiario, órgano, procedimiento o plazo) rota de un documento a otro para que el conjunto no se llene de preguntas por el plazo. Los documentos de más de 60.000 caracteres se muestran a través de una ventana elegida al azar, para que la respuesta no esté siempre al principio.
+  \item Para los 8 restantes pide una pregunta plausible sobre un tema muy cercano que el documento no responde (otro municipio, otro año, otra categoría). El autor buscó en el texto de la colección los términos de cada una y comprobó que ningún documento la responde.
+  \item Comprueba que cada pasaje aparece literalmente en su documento; ninguno se descartó.
+\end{enumerate}
+
+Los \emph{prompts}, la muestra, el modelo, la semilla y el coste (85 llamadas, 1,36~USD con la prueba inicial) están en \texttt{generation.json}, y el gasto de todas las llamadas de pago del estudio, en \texttt{eval/api-costs.jsonl}. Por tipo, hay 27 preguntas sobre plazos, 12 sobre procedimientos, 9 sobre importes, 9 sobre fechas, 8 sobre el órgano responsable, 7 sobre plazas y 8 de otros tipos. La mediana de la proporción de palabras de la pregunta que aparecen en el documento es 0,71, frente a 0,80 en el conjunto principal y 0,86 en la batería variada.
+
+\section{Resultados con el juez local}
+\label{sec:ap-qwen}
+
+Las tablas~\ref{tab:resultados-coleccion} y~\ref{tab:resultados-bateria} recogen los resultados de las ejecuciones originales de E1--E4 con el juez local \texttt{qwen2.5:7b-instruct}, el mismo modelo que genera las respuestas, con un contexto de 8.192 \emph{tokens}. Sus métricas de recuperación coinciden con las de la tabla~\ref{tab:sin-juez} salvo en que aquí las posiciones son las de las unidades recuperadas, sin agrupar por documento.
+
+\begin{table}[tbp]
+\centering\small
+\setlength{\tabcolsep}{3.5pt}
+\caption[Calidad por variante y tamaño de la colección (conjunto principal)]{Calidad por variante y tamaño de la colección (conjunto principal). Precisión, recall, hit@1 y MRR sobre las 22 preguntas con respuesta; fidelidad, relevancia y baja fidelidad sobre las 25 respuestas, salvo la jerárquica (24 puntuadas).}
+\label{tab:resultados-coleccion}
+\begin{tabular}{@{}l l rrrr rr r@{}}
+\toprule
+& \textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Baja fidelidad} \\
+\midrule
+E1: 17 doc.
+ & Tamaño fijo & 0,57 & 0,76 & 0,84 & 0,46 & 1,00 & 1,00 & 7/25 \\
+ & Recursiva   & 0,59 & 0,80 & 0,85 & 0,51 & 1,00 & 1,00 & 6/25 \\
+ & Semántica   & 0,44 & 0,83 & 0,81 & 0,50 & 1,00 & 1,00 & 8/25 \\
+ & Jerárquica  & 0,85 & 0,93 & 0,81 & 0,63 & 1,00 & 1,00 & 8/24 \\
+\midrule
+E2: 200 doc.
+ & Tamaño fijo & 0,52 & 0,76 & 0,81 & 0,42 & 0,91 & 0,94 & 10/25 \\
+ & Recursiva   & 0,57 & 0,80 & 0,81 & 0,50 & 0,95 & 0,97 & 11/25 \\
+ & Semántica   & 0,37 & 0,86 & 0,77 & 0,45 & 0,95 & 0,97 & 11/25 \\
+ & Jerárquica  & 0,81 & 0,91 & 0,77 & 0,62 & 0,95 & 0,98 & 11/24 \\
+\midrule
+E3: 5.994 doc.
+ & Tamaño fijo & 0,49 & 0,70 & 0,85 & 0,39 & 0,73 & 0,75 & 9/25 \\
+ & Recursiva   & 0,52 & 0,68 & 0,79 & 0,38 & 0,68 & 0,77 & 9/25 \\
+ & Semántica   & 0,39 & 0,61 & 0,69 & 0,34 & 0,55 & 0,63 & 12/25 \\
+ & Jerárquica  & 0,77 & 0,80 & 0,76 & 0,59 & 0,73 & 0,79 & 11/24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption[Precisión de contexto y hit@1 por categoría de pregunta (E4)]{Precisión de contexto y hit@1 por categoría de pregunta (E4, colección completa). El total se calcula sobre las 33 preguntas con respuesta (32 en la precisión de la jerárquica, por una muestra sin puntuar).}
+\label{tab:resultados-bateria}
+\begin{tabular}{@{}l r rrrr rrrr@{}}
+\toprule
+& & \multicolumn{4}{c}{\textbf{Precisión de contexto}} & \multicolumn{4}{c}{\textbf{hit@1}} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+\textbf{Categoría} & \textbf{n} & \textbf{Fijo} & \textbf{Rec.} & \textbf{Sem.} & \textbf{Jer.} & \textbf{Fijo} & \textbf{Rec.} & \textbf{Sem.} & \textbf{Jer.} \\
+\midrule
+Pequeños ($\leq$ 2\,KB)   & 8 & 0,50 & 0,57 & 0,40 & 0,86 & 0,38 & 0,38 & 0,38 & 0,62 \\
+Medianos (15--25\,KB)     & 8 & 0,58 & 0,44 & 0,65 & 0,68 & 0,88 & 0,75 & 0,88 & 0,88 \\
+Grandes (85--180\,KB)     & 8 & 0,09 & 0,40 & 0,24 & 0,56 & 0,62 & 0,50 & 0,62 & 0,75 \\
+Con distractores          & 6 & 0,41 & 0,30 & 0,40 & 0,64 & 0,50 & 0,50 & 0,50 & 1,00 \\
+Mixtas                    & 3 & 0,00 & 0,00 & 0,00 & 0,12 & 0,33 & 0,33 & 0,33 & 0,33 \\
+\midrule
+Total con respuesta & 33 & 0,36 & 0,39 & 0,39 & 0,65 & 0,58 & 0,52 & 0,58 & 0,76 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La jerárquica acierta en primera posición 25 de las 33 preguntas, frente a 19 de la de tamaño fijo y de la semántica y 17 de la recursiva, y en hit@5 llega a 0,91 frente a 0,67--0,73. La diferencia en hit@1 se concentra en los documentos que tienen gemelos casi idénticos, donde acierta las seis preguntas frente a tres del resto (tres con el \emph{prompt} de expansión actual; sección~\ref{sec:comprobaciones}), y en los pequeños (5 de 8 frente a 3 de 8). En los grandes la diferencia en hit@1 es de una pregunta (6 de 8 frente a 4--5 de 8); la ventaja clara está en la precisión de contexto (0,56 frente a 0,09). Cuatro de esos documentos son del BOE, donde los hijos de la jerárquica son artículos, y cuatro del BOJA, donde son fragmentos de tamaño fijo como los de la básica. En los del BOE, la precisión de la jerárquica es de 0,88, frente a 0,00 en la de tamaño fijo y 0,63 en la recursiva; en los del BOJA, de 0,25 frente a 0,18 y 0,17. Este resultado es compatible con que el artículo como unidad ayude, pero no lo demuestra. La precisión depende del juez y favorece a unidades mayores, y un artículo enriquecido es mayor que un fragmento de 400 tokens. La métrica sin juez no muestra el efecto con claridad: en hit@1 la jerárquica acierta 4 de 4 en el BOE (frente a 2--3 de las planas) y 2 de 4 en el BOJA, igual que las demás. En el BOJA tiene, además, el menor recall de contexto, que sí depende del juez. Los dos grupos difieren también en el tipo de documento y en el ruido del texto del BOJA (sección~\ref{sec:validez}), y con cuatro preguntas por grupo no se puede atribuir la diferencia a la unidad de fragmentación.
+
+\paragraph{Acuerdo entre los dos jueces.} Sobre las mismas respuestas de E3 y E4, la correlación de Spearman entre las puntuaciones de los dos jueces es de 0,94 y 0,85 en la relevancia, de 0,76 y 0,53 en el recall de contexto y de solo 0,19 y 0,46 en la fidelidad. Con el juez local, la fidelidad de las cuatro variantes era parecida (0,69--0,85) y ninguna diferencia resistía la corrección; con Claude Sonnet 5.5, la jerárquica es la menos fiel en los tres conjuntos (tabla~\ref{tab:juez-sonnet}). Las puntuaciones con los dos jueces están en \texttt{eval/runs}, en los directorios de cada ejecución y en los terminados en \texttt{-sonnet}.
+
+\section{Repeticiones}
+\label{sec:ap-repeticiones}
+
+E3, E4 y E5 se ejecutaron tres veces con el mismo código, los mismos \emph{prompts} (los de producción), los mismos modelos y la misma colección (\texttt{eval/runs/repeats.csv}; las ejecuciones son \texttt{20261119-185051}, \texttt{20261120-210557} y \texttt{20261120-211105} para E3, \texttt{20261119-185754}, \texttt{20261120-211623} y \texttt{20261120-212318} para E4, y \texttt{20261120-202058}, \texttt{20261120-213029} y \texttt{20261120-214340} para E5). Las tres variantes planas recuperan exactamente lo mismo en las tres pasadas: su búsqueda es determinista y solo varía, muy poco, el texto generado (su abstención indebida cambia como mucho 0,05). La jerárquica, cuya expansión de la consulta llama al LLM, cambia el acierto en primera posición de 3 de 22 preguntas en E3, 4 de 33 en E4 y 11 de 72 en E5; su hit@1 medio oscila entre 0,73 y 0,77 en E3, entre 0,73 y 0,79 en E4 y entre 0,64 y 0,67 en E5. Las latencias de las repeticiones no se usan: se midieron mientras el juez usaba el mismo Ollama para los \emph{embeddings}.
+
 \section{Análisis complementario}
 \label{sec:analisis-complementario}
 
