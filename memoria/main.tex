@@ -178,8 +178,15 @@
 \include{capitulos/08-pruebas}
 \include{capitulos/09-conclusiones}
 
+%────────────────────── Bibliografía ───────────────────────────────────
+% La guía del TFG pide la bibliografía antes de los apéndices.
+\cleardoublepage
+{\small\setlength\bibitemsep{0pt}
+\printbibliography[title={Bibliografía}]}
+
 %────────────────────── Apéndices ──────────────────────────────────────
 \begin{umaappendices}
+\input{apendices/a-requisitos}
 \input{apendices/a-resultados-chunking}
 \input{apendices/b-manual-usuario}
 \input{apendices/c-guia-despliegue}
@@ -187,10 +194,8 @@
 \input{apendices/e-prompts}
 \end{umaappendices}
 
-%────────────────────── Back cover and bibliography ────────────────────
+%────────────────────── Back cover ─────────────────────────────────────
 \backmatter
-{\small\setlength\bibitemsep{0pt}
-\printbibliography[title={Bibliografía}]}
 \cleardoublepage
 \MakeUMABackCover
 
