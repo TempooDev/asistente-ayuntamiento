@@ -40,6 +40,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+import cost_ledger
+
 HERE = Path(__file__).parent
 EVAL = HERE.parent
 MODEL = "claude-sonnet-5-5"
@@ -264,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
             continue
         usage_total["input_tokens"] += usage["input_tokens"]
         usage_total["output_tokens"] += usage["output_tokens"]
+        cost_ledger.record("generar-preguntas", args.out.resolve().name, args.model,
+                           usage["input_tokens"], usage["output_tokens"])
         if gen is None:
             rejected.append({"document_id": doc_id, "reason": f"stop_reason {usage['stop_reason']}"})
             continue

@@ -97,6 +97,10 @@ powershell -ExecutionPolicy Bypass -File judge_free_all.ps1                # E1-
 
 Escribe `judge_free.csv` (una fila por respuesta), `judge_free_summary.csv` (medias por variante sobre las preguntas con respuesta) y `judge_free_tests.csv` (jerárquica frente a cada plana: diferencia media por pregunta, IC al 95 % por *bootstrap* pareado, permutación de signos y, en las binarias, McNemar exacto).
 
+## Coste de las APIs de pago
+
+Los scripts que llaman a un modelo de pago (`generate_questions.py` y `score.py --judge-provider anthropic`) añaden una línea a `eval/api-costs.jsonl` por cada pregunta generada o lote puntuado: fecha, tarea, ejecución o conjunto, modelo, llamadas, tokens y coste estimado con los precios de `ragas/cost_ledger.py`. Así el gasto queda registrado aunque una ejecución se interrumpa. `cd eval/ragas && uv run python cost_ledger.py` muestra los totales por tarea y por ejecución. Es una estimación con los precios publicados; la cifra que cuenta es la de la consola de Anthropic.
+
 ## Decisiones de la medición
 
 - Todas las variantes recuperan 5 unidades sin umbral de similitud (el chat de la baseline usa 3 con umbral 0,65, calibrado para otro modelo de embeddings).

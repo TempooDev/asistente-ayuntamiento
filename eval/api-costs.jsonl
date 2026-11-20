@@ -1,0 +1,3 @@
+{"at": "2026-11-20T20:23:26+00:00", "task": "generar-preguntas", "target": "dataset-e5 (prueba de 5)", "model": "claude-sonnet-5-5", "calls": 5, "input_tokens": 25562, "output_tokens": 1125, "usd": 0.062374}
+{"at": "2026-11-20T20:23:26+00:00", "task": "generar-preguntas", "target": "dataset-e5", "model": "claude-sonnet-5-5", "calls": 80, "input_tokens": 555360, "output_tokens": 18263, "usd": 1.29335}
+{"at": "2026-11-20T20:23:26+00:00", "task": "juez-ragas", "target": "20261115-010523-sonnet (prueba de 12)", "model": "claude-sonnet-5-5", "calls": 108, "input_tokens": 225899, "output_tokens": 28164, "usd": 0.733438}

@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+import cost_ledger
 from common import NO_ANSWER_CATEGORY, load_run, read_jsonl
 
 os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
@@ -192,7 +193,15 @@ def build_scores(answers: list[dict], questions: dict[str, dict], cfg: dict, cac
     batch = max(1, cfg.get("checkpoint_batch", 4))
     for start in range(0, len(pending), batch):
         chunk = pending[start:start + batch]
+        before = dict(_ANTHROPIC_LLM.usage) if _ANTHROPIC_LLM is not None else None
         judged = run_ragas([row for _, row in chunk], cfg)
+        if cfg.get("judge_provider") == "anthropic" and _ANTHROPIC_LLM is not None:
+            # record the spend batch by batch, so an interrupted run still leaves its cost in the ledger
+            before = before or {"input_tokens": 0, "output_tokens": 0, "calls": 0}
+            u = _ANTHROPIC_LLM.usage
+            cost_ledger.record("juez-ragas", cfg.get("run_name", ""), cfg["judge_model"],
+                               u["input_tokens"] - before["input_tokens"], u["output_tokens"] - before["output_tokens"],
+                               u["calls"] - before["calls"])
         lines = []
         for (rec, row), scores in zip(chunk, judged):
             key = _cache_key(rec["question_id"], rec["pipeline"], cfg, row)
@@ -266,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
                "embedding_model": args.embedding_model or run["embedding_model"],
                "ollama_url": args.ollama_url, "max_workers": args.max_workers,
                "timeout": args.timeout, "num_ctx": args.num_ctx, "checkpoint_batch": args.checkpoint_batch,
-               "judge_provider": args.judge_provider, "judge_effort": args.judge_effort}
+               "judge_provider": args.judge_provider, "judge_effort": args.judge_effort,
+               "run_name": args.run_dir.resolve().name}
         if args.judge_provider == "anthropic":
             check_ollama(cfg["ollama_url"], [cfg["embedding_model"]])
         else:
