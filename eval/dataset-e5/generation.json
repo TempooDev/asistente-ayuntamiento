@@ -1,0 +1,584 @@
+{
+  "generated_at": "2026-11-20T20:15:08+00:00",
+  "model": "claude-sonnet-5-5",
+  "effort": "medium",
+  "seed": 20261120,
+  "window_chars": 60000,
+  "requested": {
+    "answerable": 72,
+    "unanswerable": 8,
+    "limit": null
+  },
+  "system_prompt": "Eres un asistente que prepara preguntas de evaluación para un buscador de boletines oficiales (BOE y BOJA) que usa el personal de los ayuntamientos.\n\nVas a recibir un documento de un boletín. Tu tarea es escribir UNA pregunta como la escribiría un funcionario o administrativo de un ayuntamiento pequeño que no conoce el documento: con sus propias palabras, de forma natural y directa, sin copiar el título ni frases del texto, sin citar el número del boletín ni el identificador del documento, y sin dar pistas que solo conoce quien ya lo ha leído. La pregunta debe ser concreta (un plazo, un importe, un requisito, un número de plazas, una fecha, un beneficiario, un órgano responsable...) y tener una respuesta inequívoca en el documento.\n\nDevuelve también:\n- reference_answer: la respuesta correcta en una o dos frases, con los datos concretos (cifras, fechas, nombres) tal como aparecen en el documento.\n- supporting_quote: un fragmento LITERAL del documento, copiado carácter a carácter, de entre 40 y 400 caracteres, que contenga la respuesta.\n- question_type: el tipo de dato que se pregunta.",
+  "unanswerable_prompt": "Ahora, en lugar de una pregunta con respuesta, escribe una pregunta PLAUSIBLE que un funcionario podría hacer sobre un tema muy cercano al de este documento pero que el documento NO responde: por ejemplo, la misma convocatoria en otro municipio, otro cuerpo o categoría, otra ayuda u otro año. No debe ser absurda ni evidente. En reference_answer escribe «Los boletines consultados no recogen esa información.» y en supporting_quote deja una cadena vacía.",
+  "sample": [
+    {
+      "document_id": "BOJA-2026-114-1",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11791",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11818",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14384",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17109",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13698",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14847",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-108-4",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-146-1",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15391",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-133-3",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13939",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-149-9",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12775",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16795",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-138-4",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13507",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17690",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13283",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12466",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-143-2",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11877",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-166-6",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13813",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17711",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11744",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16546",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13439",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12509",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16531",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15117",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16613",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-124-1",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12954",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-18000",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14991",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16787",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14729",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15187",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11696",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15020",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13625",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15844",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17895",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-16150",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17533",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15407",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17300",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-18179",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-123-1",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13856",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14074",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17848",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-153-3",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-103-4",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14612",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-11764",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17968",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12996",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-17032",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-148-3",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14166",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-129-12",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12536",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-129-4",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14058",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13072",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-13838",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-15190",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-113-1",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-14213",
+      "bulletin": "BOE",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOJA-2026-104-4",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": false
+    },
+    {
+      "document_id": "BOE-A-2026-12070",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOE-A-2026-12297",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOE-A-2026-17607",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": false,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOJA-2026-136-2",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOJA-2026-170-3",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOE-A-2026-16609",
+      "bulletin": "BOE",
+      "size_class": "pequeno",
+      "local": true,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOE-A-2026-15967",
+      "bulletin": "BOE",
+      "size_class": "mediano",
+      "local": true,
+      "unanswerable": true
+    },
+    {
+      "document_id": "BOJA-2026-127-2",
+      "bulletin": "BOJA",
+      "size_class": "grande",
+      "local": false,
+      "unanswerable": true
+    }
+  ],
+  "kept": 80,
+  "rejected": [],
+  "usage": {
+    "input_tokens": 555360,
+    "output_tokens": 18263
+  },
+  "estimated_cost_usd": 1.2933,
+  "lexical_overlap_median": 0.714
+}

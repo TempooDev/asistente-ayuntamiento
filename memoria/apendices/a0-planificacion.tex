@@ -1,0 +1,71 @@
+\umaappendix{Tecnologías, planificación y recursos}
+\label{ap:planificacion}
+
+Este apéndice completa los capítulos~\ref{cap:estado-arte} y~\ref{cap:metodologia} con el motivo de cada tecnología, el calendario real del desarrollo y el detalle de los recursos y su coste.
+
+\section{Motivo de cada tecnología}
+
+La tabla~\ref{tab:tecnologias} recoge el motivo por el que se eligió cada tecnología del sistema, resumida en la sección~\ref{sec:tecnologias}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Tecnologías empleadas y motivo de su elección}
+  \label{tab:tecnologias}
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Tecnología & Motivo de la elección \\
+    \midrule
+    .NET 10 & Plataforma del \emph{backend} (API, pasarela y \emph{workers}). Se integra de forma nativa con Semantic Kernel, ya se conocía y su biblioteca estándar cubre la API web, gRPC, SignalR y el acceso a PostgreSQL y RabbitMQ con buen rendimiento. \\
+    Aspire & Orquesta el sistema en local desde un único \emph{AppHost} con los mismos contenedores, servicios y variables de entorno que producción, sustituyendo los servicios externos por equivalentes locales (RustFS por R2, Ollama por el proveedor en la nube) \cite{aspire}. \\
+    Go & Lenguaje del servicio de ingesta. Se compila a un único binario estático en una imagen mínima, consume muy poco y facilita la concurrencia de las descargas con \emph{goroutines} \cite{golang}. \\
+    Semantic Kernel & Orquesta las llamadas a los modelos desde .NET y permite cambiar de proveedor (Ollama, nube o el de cada ayuntamiento) solo con configuración \cite{semantickernel}; se compara con otros marcos en la sección~\ref{sec:orquestacion}. \\
+    PostgreSQL & Fuente de referencia de los usuarios, conversaciones y documentos. Aporta transacciones y la búsqueda léxica con \texttt{tsvector} e índice GIN que usa la recuperación híbrida, sin añadir otro motor de búsqueda. \\
+    Qdrant & Base de datos vectorial dedicada. Indexa con HNSW los \emph{embeddings} de alta dimensión que pgvector no permitía indexar y filtra por metadatos dentro de la búsqueda; la decisión está en el ADR~0001. \\
+    RabbitMQ & Intermediario de mensajes basado en el protocolo abierto AMQP, con clientes para Go y .NET \cite{rabbitmq}. Aporta colas persistentes, confirmaciones, reintentos con TTL y cola de mensajes fallidos para la ingesta, y un \emph{fanout} para los avisos de estado. \\
+    Angular & Marco del \emph{frontend} \cite{angular}. Ya se conocía y ofrece una estructura completa de serie; la versión~21, con componentes \emph{standalone}, señales y sin \texttt{zone.js}, genera un \emph{bundle} más pequeño y repinta solo lo que cambia en el chat \cite{angular21}. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Calendario real}
+\label{sec:calendario}
+
+La figura~\ref{fig:gantt} muestra el periodo de cada fase, obtenido del historial del repositorio y de los cambios de OpenSpec archivados.
+
+\newcommand{\gbar}{\rule{1.6em}{0.9em}}
+\begin{figure}[ht]
+  \centering
+  \small
+  \begin{tabular}{l*{6}{c}}
+    \toprule
+    Fase & Jul & Ago & Sep & Oct & Nov & Dic \\
+    \midrule
+    1. Planificación y requisitos       & \gbar &       &       &       &       &       \\
+    2. Diseño y modelo vectorial        & \gbar & \gbar &       & \gbar &       &       \\
+    3. Ingesta en Go                    & \gbar & \gbar & \gbar & \gbar &       &       \\
+    4. Estudio de fragmentación         &       &       &       & \gbar & \gbar &      \\
+    5. \emph{Backend} .NET y RAG        & \gbar & \gbar & \gbar & \gbar &       &       \\
+    6. \emph{Frontend}                  & \gbar & \gbar & \gbar & \gbar &       &       \\
+    7. Pruebas, integración y Docker    & \gbar & \gbar & \gbar & \gbar &       &       \\
+    8. Validación con usuarios          &       &       &       &       &       &       \\
+    9. Memoria y documentación          &       &       &       & \gbar & \gbar & \gbar \\
+    \bottomrule
+  \end{tabular}
+  \caption[Calendario real de las fases]{Calendario real de las fases (julio a diciembre de 2026). La fase~8 no se llevó a cabo (sección~\ref{sec:validacion-usuarios}).}
+  \label{fig:gantt}
+\end{figure}
+% VERIFICAR (Antonio): revisar el calendario. Se ha deducido de las fechas del repositorio: estructura inicial y primeras especificaciones el 16/07; scraper del BOE desde el 29/07; CI desde finales de julio; ingesta vectorial el 11/08; interfaz Angular desde el 26/08; docker-compose de producción el 31/08; contexto personalizado y Arena el 05/09; reorganización de la capa de aplicación el 05/10; migración a Qdrant, auditoría, observabilidad y mejoras móviles el 13/10; memoria desde el 08/10. Confirmar si hubo investigación previa (fase 1) antes de julio y cuándo se planifica el estudio de chunking y la validación formal.
+
+Los principales hitos fueron: en julio, la estructura de la solución, las primeras especificaciones, Aspire, la autenticación, el chat con Ollama, el \emph{scraper} del BOE y la integración continua; en agosto, la ingesta vectorial, la interfaz en Angular y el despliegue del MVP; en septiembre, la apertura informal de dos días, la \emph{pipeline} jerárquica, la Arena y el contexto del usuario; en octubre, la reorganización de la capa de aplicación, Qdrant, la auditoría del código, la observabilidad, las variantes recursiva y semántica, el programa de evaluación y la firma del anteproyecto (2 de octubre); en noviembre, todas las ejecuciones del estudio en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}) y la renuncia a validar con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}), y en diciembre, el cierre de la memoria.
+
+\section{Recursos}
+\label{sec:recursos-detalle}
+
+El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ejecuta en local todos los servicios y los modelos con Ollama, y el estudio de fragmentación se ejecutó entero en un ordenador de sobremesa con un Intel Core i7-14700KF, 32\,GB de RAM y una NVIDIA GeForce RTX 5070 Ti de 16\,GB (sección~\ref{sec:entorno-local}). La aplicación se ejecuta en producción en dos servidores virtuales privados propios, en OVH y en Contabo (4 vCPU y 8\,GB, y 6 vCPU y 12\,GB), gestionados con Dokploy, que ya se usaban para otros proyectos y no suponen un coste añadido, y se publica en \texttt{asistente.antoniobermudez.dev}. Todas las herramientas de desarrollo (Visual Studio Code, .NET, Go, Angular, Aspire, Podman, Ollama, GitHub Actions, OpenSpec y \LaTeX) son gratuitas o de código abierto.
+
+\subsection{Servicios externos y coste}
+
+En producción, el sistema usa proveedores de modelos de lenguaje, que se pagan por \emph{token} y son el principal coste variable; Cloudflare R2, compatible con S3, para los documentos originales, y Auth0 para la autenticación. El coste de inferencia fue un factor de diseño desde el principio, porque los modelos comerciales resultan caros cuando una consulta encadena varias llamadas, como en la \emph{pipeline} jerárquica. Por eso el desarrollo y el estudio de fragmentación se hicieron con modelos locales, y el sistema registra los \emph{tokens} y el coste estimado de cada respuesta (sección~\ref{sec:proveedor-ia}).
+
+La única ingesta hecha con proveedores en la nube da una idea de ese coste. Generar los \emph{embeddings} y procesar los boletines con las \emph{pipelines} básica y jerárquica para la primera versión en producción, en los dos primeros días de septiembre de 2026, costó 4,67~USD en OpenRouter y 25,21~USD en Google AI, unos 30~USD en total. Esa cifra solo cubría dos de las cuatro variantes, y abrir la plataforma añadía el coste de las consultas durante semanas. Por eso se canceló la apertura y la evaluación pasó a hacerse con modelos locales (sección~\ref{sec:validacion-usuarios}).
+% VERIFICAR (Antonio): si se quiere dar el coste total del proyecto, añadir el dominio y comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito (los VPS ya existían y no se imputan).

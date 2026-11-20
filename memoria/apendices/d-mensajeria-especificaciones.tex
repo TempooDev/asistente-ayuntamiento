@@ -1,8 +1,22 @@
 \umaappendix{Especificaciones de OpenSpec}
 \label{ap:especificaciones}
 
-
 La tabla~\ref{tab:capacidades} enumera las capacidades especificadas en \texttt{openspec/specs} a 19 de noviembre de 2026. El ciclo de trabajo con estas especificaciones se describe en la sección~\ref{sec:sdd}.
+
+Cada especificación redacta sus requisitos con \texttt{SHALL} y los ilustra con escenarios \texttt{WHEN}/\texttt{THEN}, como en el listado~\ref{lst:spec-ejemplo}.
+
+\begin{lstlisting}[caption={Fragmento de \texttt{openspec/specs/user-api-keys-vault/spec.md}},label={lst:spec-ejemplo}]
+### Requirement: Encrypted, Write-only API Keys
+API keys SHALL be stored encrypted with ASP.NET Core Data
+Protection (purpose `AiConfiguration.ApiKey`) and SHALL never
+be returned by the API.
+
+#### Scenario: Reading the configuration
+- **WHEN** an administrator opens the AI settings
+  (`GET /api/settings/ai`)
+- **THEN** ...
+\end{lstlisting}
+
 
 {\footnotesize
 \begin{longtable}{@{}p{0.38\textwidth} p{0.56\textwidth}@{}}

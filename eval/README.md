@@ -81,6 +81,26 @@ EVAL_LATENCY_DB="Host=...;Username=lector;Password=...;Database=asistente-ayunta
 
 Escribe `chat-answers.csv`, `llm-calls.csv`, `arena-sides.csv`, `ingestion.csv` e `ingestion-failures.csv` en `eval/latency/{desde}_{hasta}/` (`--to` excluido; por defecto, los últimos 30 días). Las fechas son días en hora de Madrid; Métricas usa días UTC, así que sus cifras para las mismas fechas pueden diferir en las llamadas de una o dos horas. Los percentiles solo cuentan llamadas correctas (los fallos aparecen en `failed_share`), y los dos lados del Arena (`arena_alfa`, `arena_beta`) se agrupan como `arena`, como en Métricas. La ingesta cuenta la última ejecución de cada documento y pipeline (`ingestions` cuenta todas). Los ficheros solo se escriben si todas las consultas terminan bien. Al reanudar una evaluación se exige el mismo host de Ollama y el mismo `Evaluation:Hardware`. `--from`/`--to` sin `--latency-report`, o `--latency-report` junto a opciones de la evaluación, se rechazan. En este modo el recurso `evaluation` de Aspire no espera a Qdrant ni al modelo.
 
+## Métricas sin juez
+
+`ragas/judge_free.py` recalcula sobre `answers.jsonl` unas métricas que no llaman a ningún modelo, de modo que se pueden obtener para cualquier ejecución ya hecha y no dependen del juez de RAGAS:
+
+```bash
+cd eval/ragas
+uv run python judge_free.py ../runs/{runId} --dataset ../dataset          # o ../dataset-sizes
+powershell -ExecutionPolicy Bypass -File judge_free_all.ps1                # E1-E4 y las repeticiones de E3 y E4
+```
+
+- `doc_hit@1`, `doc_hit@5` y `doc_mrr`: acierto y rango recíproco contando cada documento una sola vez (dos fragmentos del mismo documento no ocupan dos posiciones).
+- `false_abstention`: proporción de preguntas con respuesta en las que la respuesta declara no tener la información (negación seguida, en la misma frase, de «información», «dato» o «referencia», en los primeros 400 caracteres). En las preguntas sin respuesta, `no_answer_recognised` es la proporción que sí lo declara; el patrón no reconoce todas las formulaciones, así que es una cota inferior.
+- `facts_in_*`: proporción de los datos comprobables de la respuesta de referencia (fechas día-mes, porcentajes, decimales y cifras de tres o más dígitos) que aparecen en las unidades recuperadas (`retrieved`), solo en las del documento correcto (`reference_units`), en el texto entregado al modelo (`generation`) y en la respuesta (`answer`). Las preguntas sin datos de ese tipo no cuentan.
+
+Escribe `judge_free.csv` (una fila por respuesta), `judge_free_summary.csv` (medias por variante sobre las preguntas con respuesta) y `judge_free_tests.csv` (jerárquica frente a cada plana: diferencia media por pregunta, IC al 95 % por *bootstrap* pareado, permutación de signos y, en las binarias, McNemar exacto).
+
+## Coste de las APIs de pago
+
+Los scripts que llaman a un modelo de pago (`generate_questions.py` y `score.py --judge-provider anthropic`) añaden una línea a `eval/api-costs.jsonl` por cada pregunta generada o lote puntuado: fecha, tarea, ejecución o conjunto, modelo, llamadas, tokens y coste estimado con los precios de `ragas/cost_ledger.py`. Así el gasto queda registrado aunque una ejecución se interrumpa. `cd eval/ragas && uv run python cost_ledger.py` muestra los totales por tarea y por ejecución. Es una estimación con los precios publicados; la cifra que cuenta es la de la consola de Anthropic.
+
 ## Decisiones de la medición
 
 - Todas las variantes recuperan 5 unidades sin umbral de similitud (el chat de la baseline usa 3 con umbral 0,65, calibrado para otro modelo de embeddings).

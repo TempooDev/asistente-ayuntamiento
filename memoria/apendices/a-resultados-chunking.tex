@@ -1,7 +1,7 @@
-\umaappendix{Resultados completos del estudio de fragmentación}
+\umaappendix{Detalle del estudio de fragmentación}
 \label{ap:chunking}
 
-Este apéndice recoge los resultados por pregunta de las ejecuciones que resume el capítulo~\ref{cap:estudio-chunking}, todas en el mismo ordenador (RTX 5070 Ti). Los ficheros completos de cada ejecución (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en los directorios de \texttt{eval/runs} que recoge la tabla~\ref{tab:ap-ejecuciones}.
+Este apéndice completa el capítulo~\ref{cap:estudio-chunking} con el entorno de evaluación, el detalle de las métricas, el análisis complementario, las comprobaciones posteriores y las demás amenazas a la validez, y recoge los resultados por pregunta de sus ejecuciones, todas en el mismo ordenador (RTX 5070 Ti). Los ficheros completos de cada ejecución (respuestas, contextos, puntuaciones y latencias) están en el repositorio, en los directorios de \texttt{eval/runs} que recoge la tabla~\ref{tab:ap-ejecuciones}.
 
 \begin{table}[htbp]
 \centering\small
@@ -24,9 +24,287 @@ E1--E4, juez 16k & \texttt{<directorio original>-j16k} & --- & --- \\
 \end{tabular}
 \end{table}
 
-En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el acierto en primera posición (hit@1). Un guion indica que el juez no pudo puntuar la muestra o, en H, que la pregunta no tiene respuesta en la colección. En las preguntas sin respuesta, el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información; no tiene una interpretación útil y no entra en las medias del capítulo~\ref{cap:estudio-chunking}, que se calculan solo sobre las preguntas con respuesta.
+\section{Entorno y procedimiento de evaluación}
+\label{sec:entorno-local}
+
+Todas las mediciones se hicieron en un mismo ordenador de sobremesa: procesador Intel Core i7-14700KF, 32\,GB de RAM y GPU NVIDIA GeForce RTX 5070 Ti con 16\,GB de memoria de vídeo (VRAM), sobre Windows 11. Los modelos se ejecutan con Ollama de forma nativa sobre CUDA, la plataforma de cálculo de NVIDIA, con un contexto de 16.384 tokens para la generación. La base de datos, Qdrant y RabbitMQ se ejecutan en contenedores en el mismo ordenador, orquestados con .NET Aspire. Al usar modelos abiertos en local, cada ejecución, de cientos de llamadas al LLM, no tiene coste por uso, y todas las latencias del estudio corresponden a este hardware.
+
+El juez de RAGAS es el mismo modelo que genera las respuestas, \texttt{qwen2.5:7b-instruct}, a temperatura 0, con la versión 0.3.9 de RAGAS, sus instrucciones originales en inglés (no se han adaptado al español) y un contexto de 8.192 tokens (la sección~\ref{sec:comprobaciones} repite la puntuación con 16.384). La relevancia de la respuesta usa como \emph{embeddings} \texttt{qwen3-embedding:0.6b}. Cada ejecución tarda unos tres minutos en responder las preguntas y entre 15 y 20 en puntuarlas.
+
+Un programa de evaluación en .NET construye los mismos servicios que la API y llama a cada \emph{pipeline} en el propio proceso, sin pasar por el chat. Antes de empezar comprueba que cada colección existe, tiene la dimensión del modelo de \emph{embeddings} y contiene todos los documentos de las preguntas. En cada pregunta el orden de las variantes se baraja con una semilla registrada, y la primera pregunta de cada variante se descarta como calentamiento en las latencias. De cada respuesta se guardan los contextos recuperados, el texto entregado al modelo, los tokens y el tiempo de cada etapa. Después, un programa en Python puntúa la ejecución con RAGAS y la ejecución se importa en la base de datos, desde donde la página de métricas la muestra. Ninguna ejecución se lanza mientras quede ingesta pendiente, para que la evaluación no comparta la GPU.
+
+Además de las condiciones comunes de la sección~\ref{sec:diseno-experimental}, el modelo de \emph{embeddings} recibe la instrucción de tarea en las consultas y no en los documentos, y la unidad recuperada no es la misma: en las planas es un fragmento, y en la jerárquica, un fragmento hijo que da paso a su documento padre (completo o, si no cabe, en extractos).
+
+\section{Detalle de las métricas}
+\label{sec:metricas-detalle}
+
+Con $Q$ el conjunto de preguntas con respuesta y $r_q$ la posición del primer documento de referencia de la pregunta $q$ entre las cinco unidades recuperadas:
+\begin{equation}
+  \mathrm{hit@}k = \frac{1}{|Q|}\sum_{q \in Q} \mathbb{1}[r_q \leq k], \qquad
+  \mathrm{MRR@5} = \frac{1}{|Q|}\sum_{q \in Q} \frac{\mathbb{1}[r_q \leq 5]}{r_q}
+  \label{eq:hit-mrr}
+\end{equation}
+
+Las métricas de recuperación y la precisión y el recall de contexto se calculan solo sobre las preguntas con respuesta (22 en el conjunto principal y 33 en la batería variada). La fidelidad, la relevancia y la tasa de baja fidelidad se calculan sobre todas las respuestas que el juez pudo puntuar. El juez no puntuó algunas respuestas, siempre de la variante jerárquica: una en E1, E2 y E3, y tres en E4. Las tablas indican el denominador cuando no es el total.
+
+\paragraph{Abstención.} En las preguntas sin respuesta (tres en E3 y cuatro en E4) se comprobó si el sistema reconoce que los documentos no contienen la información. El programa de puntuación lo intenta con una lista fija de frases (\texttt{score.py}), pero esa lista no reconoce formulaciones como «el documento no contiene información», y su resultado no es fiable. Se leyeron esas respuestas, con el criterio de que la respuesta diga explícitamente que los documentos no recogen el dato pedido: las cuatro variantes lo reconocen en todas ellas. En dos de las siete preguntas sin respuesta, la jerárquica añade información relacionada, por ejemplo qué plazas sí convoca el ayuntamiento por el que se pregunta (n01), y su relevancia en ellas no es 0. El caso contrario, la abstención en una pregunta con respuesta, se ha contado con un patrón más amplio que el de \texttt{score.py} (una negación seguida, en la misma frase, de «información», «dato» o «referencia») aplicado a los primeros 400 caracteres de cada respuesta, y revisando después a mano todas las detectadas en E3 y E4, en las ejecuciones originales y en las repetidas, junto con el contexto entregado al modelo (sección~\ref{sec:comprobaciones}). Solo una (d03, en una repetición) resultó no ser una abstención. El método no detecta las negativas parciales, las situadas al final de la respuesta ni otras formulaciones, por lo que las cifras son una cota inferior. De las 22 respuestas con relevancia 0 que el patrón no marca en las ejecuciones originales, 15 son abstenciones no detectadas (sección~\ref{sec:comprobaciones}). Ninguna de las dos comprobaciones tiene un segundo anotador.
+
+\paragraph{Latencia y coste de indexación.} La latencia se da como mediana (p50) y percentil 95 del primer token, de la reformulación de la consulta (en la jerárquica) y del total de la respuesta. El coste de indexación se mide como tiempo de ingesta por documento, fragmentos por documento, tokens enviados al modelo de \emph{embeddings} y llamadas al LLM.
+
+\section{Conjunto generado con Claude Sonnet 5.5}
+\label{sec:ap-e5}
+
+El conjunto E5 (\texttt{eval/dataset-e5}) lo genera \texttt{eval/ragas/generate\_questions.py} con una semilla fija:
+
+\begin{enumerate}
+  \item Toma como marco los 5.994 documentos activos de C3, exportados de PostgreSQL con su boletín, su tamaño, su emisor y su municipio (\texttt{candidates.csv}), y descarta los que usan los otros dos conjuntos.
+  \item Extrae una muestra estratificada de 80 documentos: un 25\,\% del BOJA (que es el 6\,\% de la colección, así que está sobrerrepresentado), repartida por terciles de tamaño y por si el emisor es un único ayuntamiento.
+  \item Para 72 documentos pide a Claude Sonnet 5.5 una pregunta escrita como la haría el personal municipal, sin copiar el título ni frases del texto, la respuesta de referencia con los datos concretos y el pasaje literal del documento que la contiene. El tipo de dato preferido (importe, requisito, fecha, plazas, beneficiario, órgano, procedimiento o plazo) rota de un documento a otro para que el conjunto no se llene de preguntas por el plazo. Los documentos de más de 60.000 caracteres se muestran a través de una ventana elegida al azar, para que la respuesta no esté siempre al principio.
+  \item Para los 8 restantes pide una pregunta plausible sobre un tema muy cercano que el documento no responde (otro municipio, otro año, otra categoría). Se buscaron en el texto de la colección los términos de cada una y se comprobó que ningún documento la responde.
+  \item Comprueba que cada pasaje aparece literalmente en su documento; ninguno se descartó.
+\end{enumerate}
+
+Los \emph{prompts}, la muestra, el modelo, la semilla y el coste (85 llamadas, 1,36~USD con la prueba inicial) están en \texttt{generation.json}, y el gasto de todas las llamadas de pago del estudio, en \texttt{eval/api-costs.jsonl}. Por tipo, hay 27 preguntas sobre plazos, 12 sobre procedimientos, 9 sobre importes, 9 sobre fechas, 8 sobre el órgano responsable, 7 sobre plazas y 8 de otros tipos. La mediana de la proporción de palabras de la pregunta que aparecen en el documento es 0,71, frente a 0,80 en el conjunto principal y 0,86 en la batería variada.
+
+\section{Resultados con el juez local}
+\label{sec:ap-qwen}
+
+Las tablas~\ref{tab:resultados-coleccion} y~\ref{tab:resultados-bateria} recogen los resultados de las ejecuciones originales de E1--E4 con el juez local \texttt{qwen2.5:7b-instruct}, el mismo modelo que genera las respuestas, con un contexto de 8.192 \emph{tokens}. Sus métricas de recuperación coinciden con las de la tabla~\ref{tab:sin-juez} salvo en que aquí las posiciones son las de las unidades recuperadas, sin agrupar por documento.
+
+\begin{table}[tbp]
+\centering\small
+\setlength{\tabcolsep}{3.5pt}
+\caption[Calidad por variante y tamaño de la colección (conjunto principal)]{Calidad por variante y tamaño de la colección (conjunto principal). Precisión, recall, hit@1 y MRR sobre las 22 preguntas con respuesta; fidelidad, relevancia y baja fidelidad sobre las 25 respuestas, salvo la jerárquica (24 puntuadas).}
+\label{tab:resultados-coleccion}
+\begin{tabular}{@{}l l rrrr rr r@{}}
+\toprule
+& \textbf{Variante} & \textbf{Prec. ctx.} & \textbf{Recall ctx.} & \textbf{Fidelidad} & \textbf{Relevancia} & \textbf{hit@1} & \textbf{MRR} & \textbf{Baja fidelidad} \\
+\midrule
+E1: 17 doc.
+ & Tamaño fijo & 0,57 & 0,76 & 0,84 & 0,46 & 1,00 & 1,00 & 7/25 \\
+ & Recursiva   & 0,59 & 0,80 & 0,85 & 0,51 & 1,00 & 1,00 & 6/25 \\
+ & Semántica   & 0,44 & 0,83 & 0,81 & 0,50 & 1,00 & 1,00 & 8/25 \\
+ & Jerárquica  & 0,85 & 0,93 & 0,81 & 0,63 & 1,00 & 1,00 & 8/24 \\
+\midrule
+E2: 200 doc.
+ & Tamaño fijo & 0,52 & 0,76 & 0,81 & 0,42 & 0,91 & 0,94 & 10/25 \\
+ & Recursiva   & 0,57 & 0,80 & 0,81 & 0,50 & 0,95 & 0,97 & 11/25 \\
+ & Semántica   & 0,37 & 0,86 & 0,77 & 0,45 & 0,95 & 0,97 & 11/25 \\
+ & Jerárquica  & 0,81 & 0,91 & 0,77 & 0,62 & 0,95 & 0,98 & 11/24 \\
+\midrule
+E3: 5.994 doc.
+ & Tamaño fijo & 0,49 & 0,70 & 0,85 & 0,39 & 0,73 & 0,75 & 9/25 \\
+ & Recursiva   & 0,52 & 0,68 & 0,79 & 0,38 & 0,68 & 0,77 & 9/25 \\
+ & Semántica   & 0,39 & 0,61 & 0,69 & 0,34 & 0,55 & 0,63 & 12/25 \\
+ & Jerárquica  & 0,77 & 0,80 & 0,76 & 0,59 & 0,73 & 0,79 & 11/24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption[Precisión de contexto y hit@1 por categoría de pregunta (E4)]{Precisión de contexto y hit@1 por categoría de pregunta (E4, colección completa). El total se calcula sobre las 33 preguntas con respuesta (32 en la precisión de la jerárquica, por una muestra sin puntuar).}
+\label{tab:resultados-bateria}
+\begin{tabular}{@{}l r rrrr rrrr@{}}
+\toprule
+& & \multicolumn{4}{c}{\textbf{Precisión de contexto}} & \multicolumn{4}{c}{\textbf{hit@1}} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+\textbf{Categoría} & \textbf{n} & \textbf{Fijo} & \textbf{Rec.} & \textbf{Sem.} & \textbf{Jer.} & \textbf{Fijo} & \textbf{Rec.} & \textbf{Sem.} & \textbf{Jer.} \\
+\midrule
+Pequeños ($\leq$ 2\,KB)   & 8 & 0,50 & 0,57 & 0,40 & 0,86 & 0,38 & 0,38 & 0,38 & 0,62 \\
+Medianos (15--25\,KB)     & 8 & 0,58 & 0,44 & 0,65 & 0,68 & 0,88 & 0,75 & 0,88 & 0,88 \\
+Grandes (85--180\,KB)     & 8 & 0,09 & 0,40 & 0,24 & 0,56 & 0,62 & 0,50 & 0,62 & 0,75 \\
+Con distractores          & 6 & 0,41 & 0,30 & 0,40 & 0,64 & 0,50 & 0,50 & 0,50 & 1,00 \\
+Mixtas                    & 3 & 0,00 & 0,00 & 0,00 & 0,12 & 0,33 & 0,33 & 0,33 & 0,33 \\
+\midrule
+Total con respuesta & 33 & 0,36 & 0,39 & 0,39 & 0,65 & 0,58 & 0,52 & 0,58 & 0,76 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La jerárquica acierta en primera posición 25 de las 33 preguntas, frente a 19 de la de tamaño fijo y de la semántica y 17 de la recursiva, y en hit@5 llega a 0,91 frente a 0,67--0,73. La diferencia en hit@1 se concentra en los documentos que tienen gemelos casi idénticos, donde acierta las seis preguntas frente a tres del resto (tres con el \emph{prompt} de expansión actual; sección~\ref{sec:comprobaciones}), y en los pequeños (5 de 8 frente a 3 de 8). En los grandes la diferencia en hit@1 es de una pregunta (6 de 8 frente a 4--5 de 8); la ventaja clara está en la precisión de contexto (0,56 frente a 0,09). Cuatro de esos documentos son del BOE, donde los hijos de la jerárquica son artículos, y cuatro del BOJA, donde son fragmentos de tamaño fijo como los de la básica. En los del BOE, la precisión de la jerárquica es de 0,88, frente a 0,00 en la de tamaño fijo y 0,63 en la recursiva; en los del BOJA, de 0,25 frente a 0,18 y 0,17. Este resultado es compatible con que el artículo como unidad ayude, pero no lo demuestra. La precisión depende del juez y favorece a unidades mayores, y un artículo enriquecido es mayor que un fragmento de 400 tokens. La métrica sin juez no muestra el efecto con claridad: en hit@1 la jerárquica acierta 4 de 4 en el BOE (frente a 2--3 de las planas) y 2 de 4 en el BOJA, igual que las demás. En el BOJA tiene, además, el menor recall de contexto, que sí depende del juez. Los dos grupos difieren también en el tipo de documento y en el ruido del texto del BOJA (sección~\ref{sec:validez}), y con cuatro preguntas por grupo no se puede atribuir la diferencia a la unidad de fragmentación.
+
+\paragraph{Acuerdo entre los dos jueces.} Sobre las mismas respuestas de E3 y E4, la correlación de Spearman entre las puntuaciones de los dos jueces es de 0,94 y 0,85 en la relevancia, de 0,76 y 0,53 en el recall de contexto y de solo 0,19 y 0,46 en la fidelidad. Con el juez local, la fidelidad de las cuatro variantes era parecida (0,69--0,85) y ninguna diferencia resistía la corrección; con Claude Sonnet 5.5, la jerárquica es la menos fiel en los tres conjuntos (tabla~\ref{tab:juez-sonnet}). Las puntuaciones con los dos jueces están en \texttt{eval/runs}, en los directorios de cada ejecución y en los terminados en \texttt{-sonnet}.
+
+\section{Repeticiones}
+\label{sec:ap-repeticiones}
+
+E3, E4 y E5 se ejecutaron tres veces con el mismo código, los mismos \emph{prompts} (los de producción), los mismos modelos y la misma colección (\texttt{eval/runs/repeats.csv}; las ejecuciones son \texttt{20261119-185051}, \texttt{20261120-210557} y \texttt{20261120-211105} para E3, \texttt{20261119-185754}, \texttt{20261120-211623} y \texttt{20261120-212318} para E4, y \texttt{20261120-202058}, \texttt{20261120-213029} y \texttt{20261120-214340} para E5). Las tres variantes planas recuperan exactamente lo mismo en las tres pasadas: su búsqueda es determinista y solo varía, muy poco, el texto generado (su abstención indebida cambia como mucho 0,05). La jerárquica, cuya expansión de la consulta llama al LLM, cambia el acierto en primera posición de 3 de 22 preguntas en E3, 4 de 33 en E4 y 11 de 72 en E5; su hit@1 medio oscila entre 0,73 y 0,77 en E3, entre 0,73 y 0,79 en E4 y entre 0,64 y 0,67 en E5. Las latencias de las repeticiones no se usan: se midieron mientras el juez usaba el mismo Ollama para los \emph{embeddings}.
+
+\section{Análisis complementario}
+\label{sec:analisis-complementario}
+
+\subsection{Abstenciones y fidelidad}
+
+Este apartado detalla el análisis de las abstenciones que resume la sección~\ref{sec:resultados-bateria}. En el conjunto de la batería, la jerárquica obtiene la mayor relevancia de la respuesta (0,63 sobre las preguntas con respuesta, frente a 0,33--0,34 de las planas; tabla~\ref{tab:sin-abstenciones}). Cerca de la mitad de esa ventaja desaparece al excluir las respuestas que se abstienen: las planas declaran no tener la información en 13 o 14 de las 33 preguntas con respuesta, y la jerárquica en 4 (en E3, 4 o 5 de 22 frente a 1). Muchas de esas respuestas coinciden con fallos de recuperación del documento. Otras no: la de tamaño fijo declara no tener la información en seis preguntas en las que el documento correcto estaba entre sus cinco fragmentos, y en cinco de ellas (m07, m08, l02, l06 y l08) en primera posición. En m07 lo hace con una precisión de contexto de 1,00: el juez consideró útiles los fragmentos recuperados aunque ninguno contenga el dato pedido. Las tres planas lo hacen en m07 y m08, y la jerárquica en tres documentos grandes que había recuperado (l02, l07 y l08). Se sospechó de la plantilla de las planas, que pedía ignorar el contexto si no coincidía exactamente con el tema, pero repetir las ejecuciones con la plantilla corregida apenas cambió las abstenciones. La lectura del contexto entregado en todas ellas mostró que casi nunca contenía el dato pedido (sección~\ref{sec:comprobaciones}).
+
+Como una respuesta que se abstiene tiene relevancia 0 y suele obtener una fidelidad alta, las medias de la tabla~\ref{tab:resultados-coleccion} mezclan dos cosas distintas. La tabla~\ref{tab:sin-abstenciones} las separa: calcula la relevancia solo sobre las preguntas con respuesta y, aparte, la relevancia y la fidelidad de las respuestas que no se abstienen.
+
+\begin{table}[htbp]
+\centering\small
+\caption[Relevancia y fidelidad con y sin abstenciones]{Relevancia sobre las preguntas con respuesta, y relevancia y fidelidad de las respuestas que no se abstienen (entre paréntesis, cuántas son), en E3 (22 preguntas con respuesta) y E4 (33).}
+\label{tab:sin-abstenciones}
+\begin{tabular}{@{}l rrr rrr@{}}
+\toprule
+& \multicolumn{3}{c}{\textbf{E3}} & \multicolumn{3}{c}{\textbf{E4}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+\textbf{Variante} & \textbf{Relev.} & \textbf{Relev. sin abst.} & \textbf{Fidel. sin abst.} & \textbf{Relev.} & \textbf{Relev. sin abst.} & \textbf{Fidel. sin abst.} \\
+\midrule
+Tamaño fijo & 0,44 & 0,57 (17) & 0,83 & 0,34 & 0,59 (19) & 0,83 \\
+Recursiva   & 0,44 & 0,57 (17) & 0,80 & 0,33 & 0,55 (20) & 0,80 \\
+Semántica   & 0,39 & 0,47 (18) & 0,58 & 0,34 & 0,59 (19) & 0,79 \\
+Jerárquica  & 0,64 & 0,67 (21) & 0,77 & 0,63 & 0,72 (29) & 0,80 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sin las abstenciones, la ventaja de la jerárquica en relevancia se reduce aproximadamente a la mitad (en E4, de 0,29 a 0,13 frente a la de tamaño fijo y la semántica, y de 0,30 a 0,17 frente a la recursiva). Su fidelidad sigue sin ser mejor: en E3 es menor que en la de tamaño fijo y la recursiva, y en E4 es igual a la del resto. La fidelidad de las planas apenas cambia al excluir las abstenciones, por lo que la conclusión de que la fidelidad no difiere no depende de ellas. En la fidelidad sin abstenciones de la jerárquica, los denominadores son 20 en E3 y 26 en E4, por las respuestas sin puntuar.
+
+La tasa de baja fidelidad de la jerárquica en la batería es la menor con el umbral elegido (9 de 34 respuestas puntuadas, un 26\,\%, frente a 11--15 de 37 en las planas), pero esa ventaja no es robusta. Tres de sus respuestas tienen una fidelidad de exactamente 0,80: con un umbral de «0,8 o menos» la tasa sube a 12 de 34 (35\,\%), igual que la de tamaño fijo (13 de 37) y peor que la semántica (11 de 37, 30\,\%). Si las tres respuestas sin puntuar fueran de baja fidelidad, la tasa sería 12 de 37 (32\,\%), también peor que la semántica. Con un umbral de 0,9, la jerárquica es la peor (19 de 34).
+
+\subsection{Significación estadística}
+
+Con 22 o 33 preguntas, una sola pregunta mueve hit@1 entre 0,03 y 0,05, y la mayoría de las diferencias de las secciones~\ref{sec:resultados-coleccion} y~\ref{sec:resultados-bateria} son de una o dos preguntas. Para hit@1, que es binaria, se ha aplicado la prueba exacta de McNemar a cada pareja de variantes, que solo tiene en cuenta las preguntas en que una acierta y la otra no \cite{mcnemar1947}:
+
+\begin{itemize}
+  \item En E3, la jerárquica y la de tamaño fijo empatan, pero no en las mismas preguntas: la jerárquica acierta q01, q06 y q07, y la de tamaño fijo, q12, q13 y q15 (3 frente a 3, $p = 1{,}00$). El resultado sugiere que las dos variantes se complementan, más que una supere a la otra. Entre las planas, la mayor diferencia (tamaño fijo frente a semántica, 6 frente a 2) tampoco es significativa ($p = 0{,}29$).
+  \item En E4, la jerárquica gana 8 preguntas y pierde 2 frente a la de tamaño fijo y frente a la semántica ($p = 0{,}11$ en ambos casos), y gana 10 y pierde 2 frente a la recursiva ($p = 0{,}039$). Esta última no resiste la corrección de Bonferroni por tres comparaciones ($\alpha = 0{,}017$).
+\end{itemize}
+
+Para las métricas continuas se ha usado una prueba de permutación pareada por pregunta y un intervalo de confianza (IC) al 95\,\% por \emph{bootstrap} pareado (20.000 remuestreos), siguiendo la recomendación de Smucker et al.\ \cite{smucker2007}. La tabla~\ref{tab:significacion} recoge las diferencias entre la jerárquica y cada plana.
+
+\begin{table}[!t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\caption[Diferencias entre la jerárquica y cada variante plana]{Diferencia media por pregunta entre la jerárquica y cada variante plana, con su intervalo de confianza al 95\,\% (\emph{bootstrap} pareado) y el valor $p$ de la prueba de permutación pareada exacta (todas las asignaciones de signo de las diferencias no nulas). Hit@1 y recall sobre las preguntas con respuesta; fidelidad sobre las respuestas puntuadas. En hit@1, la permutación equivale a la prueba de signos; en el texto se dan los valores de McNemar.}
+\label{tab:significacion}
+\begin{tabular}{@{}l l r c r@{}}
+\toprule
+\textbf{Métrica} & \textbf{Jerárquica frente a} & \textbf{Diferencia} & \textbf{IC 95\,\%} & \textbf{$p$} \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{E3, conjunto principal ($n = 22$)}} \\
+hit@1 & Tamaño fijo & $0{,}00$ & $[-0{,}23;\ 0{,}23]$ & 1,00 \\
+      & Recursiva   & $+0{,}05$ & $[-0{,}18;\ 0{,}27]$ & 1,00 \\
+      & Semántica   & $+0{,}18$ & $[-0{,}05;\ 0{,}41]$ & 0,29 \\
+Recall de contexto & Tamaño fijo & $+0{,}11$ & $[-0{,}08;\ 0{,}29]$ & 0,31 \\
+      & Recursiva   & $+0{,}12$ & $[-0{,}08;\ 0{,}34]$ & 0,34 \\
+      & Semántica   & $+0{,}20$ & $[-0{,}03;\ 0{,}42]$ & 0,13 \\
+Fidelidad & Tamaño fijo & $-0{,}09$ & $[-0{,}21;\ 0{,}04]$ & 0,19 \\
+      & Recursiva   & $-0{,}03$ & $[-0{,}18;\ 0{,}12]$ & 0,73 \\
+      & Semántica   & $+0{,}05$ & $[-0{,}10;\ 0{,}20]$ & 0,50 \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{E4, batería variada ($n = 33$)}} \\
+hit@1 & Tamaño fijo & $+0{,}18$ & $[0{,}00;\ 0{,}36]$ & 0,11 \\
+      & Recursiva   & $+0{,}24$ & $[0{,}06;\ 0{,}42]$ & 0,039 \\
+      & Semántica   & $+0{,}18$ & $[0{,}00;\ 0{,}36]$ & 0,11 \\
+Recall de contexto & Tamaño fijo & $+0{,}23$ & $[0{,}06;\ 0{,}39]$ & 0,013 \\
+      & Recursiva   & $+0{,}19$ & $[0{,}03;\ 0{,}35]$ & 0,035 \\
+      & Semántica   & $+0{,}20$ & $[0{,}03;\ 0{,}37]$ & 0,039 \\
+Fidelidad & Tamaño fijo & $-0{,}02$ & $[-0{,}10;\ 0{,}07]$ & 0,70 \\
+      & Recursiva   & $+0{,}01$ & $[-0{,}08;\ 0{,}12]$ & 0,78 \\
+      & Semántica   & $-0{,}01$ & $[-0{,}11;\ 0{,}09]$ & 0,80 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En hit@1 ninguna diferencia es significativa tras corregir por comparaciones múltiples. En recall de contexto, la ventaja de la jerárquica en E4 frente a la de tamaño fijo ($p = 0{,}013$) resiste la corrección de Bonferroni para las tres parejas de esa métrica, pero no para las nueve pruebas de E4 ($\alpha \approx 0{,}0056$). Esa métrica depende además del juez y favorece por construcción a una unidad de contexto mayor (sección~\ref{sec:discusion}). En E3 no hay ninguna diferencia significativa entre la jerárquica y las planas. La fidelidad de la jerárquica no difiere de la de ninguna plana, y la diferencia sigue sin aparecer al excluir las abstenciones (tabla~\ref{tab:sin-abstenciones}). Entre las planas hay una diferencia nominal en E3: la fidelidad de la de tamaño fijo supera a la de la semántica en 0,16 por pregunta (0,85 frente a 0,69; IC al 95\,\% [0,02; 0,31], \textit{p}~=~0,040 con las puntuaciones sin redondear). No resiste la corrección por comparaciones múltiples, pero coincide con el peor comportamiento de la semántica en E3 (sección~\ref{sec:resultados-coleccion}). Cada ejecución es además una sola pasada: con temperatura 0, Ollama en GPU no es del todo determinista y el juez añade su propia variación, que no se ha medido.
+
+\subsection{Latencia}
+
+\begin{table}[htbp]
+\centering\small
+\caption[Latencia por variante en la RTX 5070 Ti]{Latencia por variante en la RTX 5070 Ti, en segundos (sin la pregunta de calentamiento). El primer token se mide desde que empieza la generación; en la jerárquica hay que sumarle la reformulación y la recuperación.}
+\label{tab:resultados-latencia}
+\begin{tabular}{@{}l rr rr rr rr@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Reformulación (p50)}} & \multicolumn{2}{c}{\textbf{Primer token (p50)}} & \multicolumn{2}{c}{\textbf{Total E1}} & \multicolumn{2}{c}{\textbf{Total E3}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+\textbf{Variante} & E1 & E3 & E1 & E3 & p50 & p95 & p50 & p95 \\
+\midrule
+Tamaño fijo & --- & --- & 0,35 & 0,34 & 1,1 & 1,7 & 1,0 & 1,9 \\
+Recursiva   & --- & --- & 0,36 & 0,36 & 1,2 & 1,7 & 1,1 & 2,0 \\
+Semántica   & --- & --- & 0,34 & 0,34 & 1,1 & 1,8 & 1,0 & 2,5 \\
+Jerárquica  & 0,54 & 0,51 & 0,41 & 0,47 & 2,6 & 5,3 & 2,5 & 5,9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El tamaño de la colección apenas cambia la latencia: buscar entre 5.994 documentos en lugar de 17 añade unos milisegundos a la recuperación, y el tiempo lo marca la generación (tabla~\ref{tab:resultados-latencia}). Contado desde que la pregunta llega a la \emph{pipeline}, el primer texto de las planas aparece en unos 0,4\,s. En la jerárquica, la suma de las medianas de E3 (0,51\,s de reformulación, 0,05\,s de recuperación y 0,47\,s hasta el primer token) da 1,03\,s. Esa suma solo aproxima la mediana del tiempo total hasta el primer texto, que no se ha medido directamente. Las mediciones se tomaron dentro del propio proceso, sin SignalR ni red, y en una GPU de escritorio, no en los servidores de producción.
+
+\subsection{Coste de indexación}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Coste de indexación de los 17 documentos del corpus por variante}
+\label{tab:resultados-indexacion}
+\begin{tabular}{@{}l rr r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Tiempo por documento}} & \textbf{Fragmentos} & \textbf{Tokens de} & \textbf{Llamadas} \\
+\cmidrule(lr){2-3}
+\textbf{Variante} & p50 & p95 & \textbf{por doc.} & \textbf{\emph{embeddings}} & \textbf{al LLM} \\
+\midrule
+Tamaño fijo & 4,0\,s & 13\,s & 16,8 & 85.335 & 0 \\
+Recursiva   & 5,9\,s & 11\,s & 16,4 & 87.093 & 0 \\
+Semántica   & 16,2\,s & 35\,s & 13,5 & 272.994 & 0 \\
+Jerárquica  & 18,8\,s & 72\,s & 15,9 & 126.862 & 270 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las cuatro variantes se ingirieron a la vez y compartían el mismo Ollama, así que los tiempos de la tabla~\ref{tab:resultados-indexacion} sirven como orden de magnitud y no como medida aislada. Los tokens se estiman a razón de cuatro caracteres por token, no con el tokenizador del modelo. En la colección completa, la jerárquica fue con diferencia la más lenta de ingerir: terminó varias horas después que las variantes planas. Durante esa ingesta se reinició Ollama para ajustar su paralelismo y su consumo de memoria, por lo que no se da un tiempo total.
+
+\section{Comprobaciones posteriores}
+\label{sec:comprobaciones}
+
+Después de analizar los resultados se hicieron tres comprobaciones en el mismo ordenador: repuntuar E1--E4 con más contexto para el juez, repetir E3 y E4 con la plantilla corregida y leer el contexto de todas las abstenciones.
+
+\paragraph{Juez con más contexto.} Con 16.384 tokens en lugar de 8.192 se puntúan las respuestas de la jerárquica que antes quedaban sin puntuar, y la precisión y el recall de contexto apenas se mueven. La fidelidad media cambia hasta 0,08 en ambos sentidos, sin dirección común (la semántica pasa de 0,82 a 0,89 en E4, tabla~\ref{tab:comprobaciones}, y de 0,81 a 0,73 en E1): variaciones del mismo orden que las diferencias entre variantes, lo que indica que, con este juez, la fidelidad no permite distinguirlas.
+
+\paragraph{Plantilla corregida.} E3 y E4 se repitieron con la plantilla de las planas que ya no pide ignorar el contexto (apéndice~\ref{ap:prompts}) y con el \emph{prompt} de expansión de la jerárquica que pide palabras clave sin operadores (sección~\ref{sec:impl-rag}), puntuadas con el juez de 16.384 tokens. El \emph{prompt} de sistema (\texttt{StreamingSystem}) no cambió: sigue pidiendo usar el contexto «cuando sea estrictamente relevante». Las colecciones eran las mismas que en las ejecuciones originales, porque la instalación local estuvo parada entre el 15 y el 19 de noviembre y no se ingirió nada. La recuperación de las planas es idéntica (salvo una pregunta de la de tamaño fijo en E3) y la abstención apenas cambia: en E4 se mantiene en 14 en la de tamaño fijo y pasa de 13 a 15 en la recursiva y de 14 a 12 en la semántica (tabla~\ref{tab:comprobaciones}; datos por pregunta en las tablas~\ref{tab:ap-e3-rep} y~\ref{tab:ap-e4-rep}).
+
+En la jerárquica, el nuevo \emph{prompt} de expansión apenas cambia el total de hit@1 (de 16 a 17 de 22 en E3 y de 25 a 24 de 33 en E4), pero sí qué preguntas acierta: cambian tres en E3 y cinco en E4, donde gana s01 y m06 y pierde d02, d03 y d04. Las tres pérdidas son de documentos casi idénticos, donde pasa de 6 a 3 de 6, igual que las planas; su ventaja queda en los pequeños (6 de 8 frente a 3), los medianos (8 de 8 frente a 6--7) y los grandes (6 de 8 frente a 4--5). Al reproducir la expansión de d01--d06 con los dos \emph{prompts}, el nombre del municipio se conserva, pero la consulta nueva es más corta (por ejemplo, «plazas Auxiliar Administrativo Almassora» frente a siete términos que incluían «turno libre») y distingue peor entre convocatorias casi iguales. La ventaja en documentos casi idénticos dependía, por tanto, de la consulta léxica y es frágil ante un cambio pequeño del \emph{prompt}. Con esta configuración, que es la de producción, ninguna diferencia de hit@1 es significativa ni siquiera sin corregir: en E4 la jerárquica gana 7 y pierde 2 frente a la de tamaño fijo y la semántica ($p = 0{,}18$) y 9 y 2 frente a la recursiva ($p = 0{,}065$, McNemar exacto).
+
+\paragraph{Lectura de las abstenciones.} Se leyó el contexto entregado en las 120 respuestas marcadas como abstención en preguntas con respuesta (E3 y E4, originales y repetidas). Para cada pregunta se fijó el dato pedido (por ejemplo, «3.000 euros» y «15 de octubre» en m07), se buscó en el contexto con el texto normalizado (sin tildes, en minúsculas y sin separadores de miles) y se revisaron a mano las coincidencias y, en las no coincidencias, los casos con el documento correcto recuperado. En 113 el contexto no contenía el dato del documento correcto (en 17 aparecía una expresión parecida de otro documento, que el modelo hizo bien en no usar); en 5, todas de l05 en las planas, contenía parte del dato y la respuesta declaró no tener nada; en una (x02, semántica) la respuesta dio la parte que estaba en el contexto, y una (d03, jerárquica, repetición) no era una abstención. Por estado de la recuperación, de las 119 abstenciones, 72 son preguntas sin el documento correcto entre las cinco unidades recuperadas, 41 con el documento pero sin el pasaje con el dato (18 y 18 de las planas en originales y repetición, 3 y 2 de la jerárquica) y 6 con parte del dato. Casi siempre, por tanto, el modelo actúa bien con lo que recibe y lo que falla es la recuperación, del documento o del pasaje. El patrón, además, no detecta todas: de las 22 respuestas con relevancia 0 que no marca en las originales, 15 son abstenciones (casi todas de las planas), y en tres (d05) el modelo completa la respuesta con una duración «habitual» que no está en el contexto.
+
+La lectura descubre también un error del juez: en 12 abstenciones (m07 en la recursiva y la semántica y l06 en las tres planas, en originales y repetición; l05 en la semántica y l02 en la jerárquica, solo en la original) el recall de contexto es 1,00, y en 11 el contexto no contiene el dato (la excepción es l05). El recall de contexto, la única métrica cuya diferencia resiste la corrección para las tres parejas (sección~\ref{sec:resultados-significacion}), sobrestima así la cobertura cuando el contexto trata del tema pero no contiene el dato. Como 11 de los 12 casos son de las planas, el error observado infla su recall y hace conservadora la ventaja de la jerárquica; el sesgo que sí podría favorecerla, que una unidad larga contenga la referencia con más facilidad, no se ha medido.
+
+\begin{table}[htbp]
+\centering\small
+\caption[Comprobaciones posteriores: juez y plantilla]{Fidelidad media de las respuestas originales con el juez de 8.192 (8k) y de 16.384 tokens (16k), y abstenciones en preguntas con respuesta detectadas por el patrón, con la plantilla original (orig.) y con la corregida (corr.).}
+\label{tab:comprobaciones}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{@{}l cc cc cc cc@{}}
+\toprule
+& \multicolumn{4}{c}{\textbf{Fidelidad}} & \multicolumn{4}{c}{\textbf{Abstenciones}} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+& \multicolumn{2}{c}{E3} & \multicolumn{2}{c}{E4} & \multicolumn{2}{c}{E3 (22)} & \multicolumn{2}{c}{E4 (33)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+\textbf{Variante} & 8k & 16k & 8k & 16k & orig. & corr. & orig. & corr. \\
+\midrule
+Tamaño fijo & 0,85 & 0,88 & 0,84 & 0,87 & 5 & 4 & 14 & 14 \\
+Recursiva   & 0,79 & 0,78 & 0,79 & 0,79 & 5 & 5 & 13 & 15 \\
+Semántica   & 0,69 & 0,70 & 0,82 & 0,89 & 4 & 4 & 14 & 12 \\
+Jerárquica  & 0,76 & 0,78 & 0,81 & 0,79 & 1 & 1 & 4 & 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las tablas del capítulo~\ref{cap:estudio-chunking} y las de resultados por pregunta de este apéndice, salvo las de las ejecuciones repetidas (tablas~\ref{tab:ap-e3-rep} y~\ref{tab:ap-e4-rep}), mantienen las ejecuciones originales, puntuadas con 8.192 tokens. Las ejecuciones repetidas y las repuntuaciones con 16.384 tokens están en la tabla~\ref{tab:ap-ejecuciones}.
+
+\section{Otras amenazas a la validez}
+\label{sec:validez-detalle}
+
+\begin{itemize}
+  \item \textbf{Preguntas abiertas.} Las preguntas mixtas y algunas del conjunto principal admiten más documentos de la colección completa como respuesta válida que los listados como referencia, lo que penaliza a todas las variantes, aunque no necesariamente por igual.
+  \item \textbf{Colecciones no idénticas en C1 y C3.} Las colecciones de tamaño fijo y jerárquica tenían cinco documentos más que las otras dos en C1 y 52 más en C3 (6.046 frente a 5.994); estos últimos los procesó la ingesta diaria antes de E3. Ninguna pregunta se refiere a ellos, pero son distractores que la recursiva y la semántica no tienen. Las repeticiones se hicieron sobre las mismas colecciones.
+  \item \textbf{Calidad del corpus.} Los textos del BOJA conservan restos de la página web de origen (código HTML y del portal), que añaden ruido a todas las variantes, aunque probablemente más a la jerárquica, cuyos hijos del BOJA y sus preguntas sintéticas se generan a partir de ese texto.
+  \item \textbf{Juez con contexto limitado.} Con 8.192 tokens quedaron sin puntuar algunas respuestas de la jerárquica; con 16.384 se puntúan todas sin alterar las conclusiones (sección~\ref{sec:comprobaciones}).
+  \item \textbf{Dependencia del hardware.} Las latencias se midieron en una RTX 5070 Ti sin otra carga; en otro ordenador, o con proveedores en la nube, los valores absolutos serán distintos, aunque la proporción entre variantes debería mantenerse.
+\end{itemize}
 
 \section{Colección completa, conjunto principal (E3)}
+
+En las tablas siguientes, F es la fidelidad, CR el recall de contexto y H el acierto en primera posición (hit@1). Un guion indica que el juez no pudo puntuar la muestra o, en H, que la pregunta no tiene respuesta en la colección. En las preguntas sin respuesta, el recall de contexto mide la cobertura de una referencia que dice que los boletines no recogen la información; no tiene una interpretación útil y no entra en las medias del capítulo~\ref{cap:estudio-chunking}, que se calculan solo sobre las preguntas con respuesta.
 
 \begin{footnotesize}
 \setlength{\tabcolsep}{3pt}
@@ -137,7 +415,7 @@ n04 & sin resp. & 0,75 & 1,00 & --- & 1,00 & 0,50 & --- & 1,00 & 0,00 & --- & 0,
 \section{Precisión, hit@5, relevancia y abstención por pregunta}
 \label{sec:ap-detalle}
 
-Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención en preguntas con respuesta (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas}, por lo que los «sí» son una cota inferior: de las 22 respuestas con relevancia 0 que el patrón no marca, 15 son también abstenciones, totales o parciales (sección~\ref{sec:comprobaciones}). Todas las marcadas se revisaron después leyendo el contexto entregado (sección~\ref{sec:comprobaciones}); un asterisco indica que el contexto contenía parte del dato pedido. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
+Las tablas siguientes completan las anteriores con la precisión de contexto (CP), el acierto entre las cinco primeras unidades (H5), la relevancia de la respuesta (R) y la abstención en preguntas con respuesta (A: «sí» si la respuesta declara no tener la información en una pregunta cuya respuesta está en la colección). La abstención se ha detectado con el patrón descrito en la sección~\ref{sec:metricas-detalle}, por lo que los «sí» son una cota inferior: de las 22 respuestas con relevancia 0 que el patrón no marca, 15 son también abstenciones, totales o parciales (sección~\ref{sec:comprobaciones}). Todas las marcadas se revisaron después leyendo el contexto entregado (sección~\ref{sec:comprobaciones}); un asterisco indica que el contexto contenía parte del dato pedido. En las preguntas sin respuesta, H5 y A no se aplican, y la CP, como el recall, no tiene una interpretación útil. Hay casos con CP alta y H5 = 0 (por ejemplo, s02 en las planas o l05 en la jerárquica): el juez considera útil un contexto de un documento que no está en la referencia, porque la lista de documentos de referencia es incompleta en algunas preguntas o porque el juez se equivoca. En la batería variada, l01--l04 son documentos del BOE y l05--l08, del BOJA.
 
 \clearpage
 \begin{scriptsize}

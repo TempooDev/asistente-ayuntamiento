@@ -23,7 +23,8 @@ jobs:
       - name: Reject tracked files over 5 MB
         run: |
           # Extended regex of paths allowed to exceed the limit (empty = none).
-          allow_list=''
+          # Evaluation answers keep the full text given to the model, needed to recompute the metrics.
+          allow_list='^eval/runs/[0-9]{8}-[0-9]{6}(-sonnet)?/answers\.jsonl$'
           too_big=''
           while IFS= read -r -d '' f; do
             [ -f "$f" ] || continue

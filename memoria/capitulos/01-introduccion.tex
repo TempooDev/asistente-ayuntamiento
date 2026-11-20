@@ -18,14 +18,14 @@ Para ello se recurre a los grandes modelos de lenguaje (LLM, \emph{Large Languag
 \section{Motivación}
 \label{sec:motivacion}
 
-La primera motivación es práctica: una convocatoria que pasa desapercibida o un plazo que se incumple tienen un coste real para un ayuntamiento y sus vecinos. El planteamiento parte del contacto directo con ayuntamientos pequeños: en el de Sedella, el autor habló con el personal de administración y con el teniente de alcalde sobre cómo siguen hoy los boletines. La segunda es de ingeniería del software: los sistemas con modelos de IA no son deterministas, dependen de proveedores externos con cuotas y costes variables y no se pueden validar solo con pruebas unitarias \cite{ozkaya2020}.
+La primera motivación es práctica: una convocatoria que pasa desapercibida o un plazo que se incumple tienen un coste real para un ayuntamiento y sus vecinos. El planteamiento parte del contacto directo con ayuntamientos pequeños: en el de Sedella se habló con el personal de administración y con el teniente de alcalde sobre cómo siguen hoy los boletines. La segunda es de ingeniería del software: los sistemas con modelos de IA no son deterministas, dependen de proveedores externos con cuotas y costes variables y no se pueden validar solo con pruebas unitarias \cite{ozkaya2020}.
 
 Durante el desarrollo aparecieron necesidades que han dado forma al sistema:
 \begin{itemize}
   \item \textbf{Procesamiento asíncrono y fiable.} Incorporar un boletín (la \emph{ingesta}) implica descargarlo, fragmentarlo, calcular sus \emph{embeddings} (sección~\ref{sec:llm-embeddings}) y, en la \emph{pipeline} jerárquica (sección~\ref{sec:rag}), llamar a un modelo por cada fragmento. Todo pasa por colas persistentes con reintentos y cola de mensajes fallidos, de modo que ningún documento se pierde por un error transitorio.
   \item \textbf{Vectores de alta dimensión.} Los índices de pgvector no los admiten (sección~\ref{sec:vectoriales}), así que los vectores pasaron a Qdrant y PostgreSQL quedó como fuente de referencia y de la búsqueda léxica.
   \item \textbf{Conocer al usuario y medir.} El historial permite retomar consultas y sugiere temas de interés; la evaluación automática (capítulo~\ref{cap:estudio-chunking}) y la Arena, que compara a ciegas dos \emph{pipelines}, permiten comparar técnicas, y las métricas de coste dicen cuánto cuesta cada respuesta.
-  \item \textbf{Varios ayuntamientos.} Cada uno es una organización aislada (un \emph{tenant}) con sus usuarios, conversaciones y configuración, y puede usar su propia clave de API en la \emph{pipeline} básica (hoy sin efecto en el chat; sección~\ref{sec:pipelines}).
+  \item \textbf{Varios ayuntamientos.} Cada uno es una organización aislada (un \emph{tenant}) con sus usuarios, conversaciones y configuración, y puede usar su propia clave de API en la \emph{pipeline} básica (hoy sin efecto en el chat; sección~\ref{sec:clave-propia}).
 \end{itemize}
 
 % TODO (Antonio): si se quiere, añadir uno o dos problemas concretos que planteó el Ayuntamiento de Sedella.
@@ -68,4 +68,4 @@ Sus principales limitaciones son:
 \section{Estructura de la memoria}
 \label{sec:estructura}
 
-El capítulo~\ref{cap:estado-arte} repasa los fundamentos y las tecnologías; el~\ref{cap:metodologia}, la metodología; el~\ref{cap:requisitos}, los requisitos; los capítulos~\ref{cap:diseno} y~\ref{cap:implementacion}, el diseño y la implementación; el~\ref{cap:estudio-chunking}, el estudio de fragmentación; el~\ref{cap:pruebas}, las pruebas, y el~\ref{cap:conclusiones}, las conclusiones. Los apéndices recogen los resultados completos del estudio (apéndice~\ref{ap:chunking}), el manual de usuario (apéndice~\ref{ap:manual-usuario}), la guía de despliegue (apéndice~\ref{ap:despliegue}), las capacidades de OpenSpec (apéndice~\ref{ap:especificaciones}) y los \emph{prompts} (apéndice~\ref{ap:prompts}).
+El capítulo~\ref{cap:estado-arte} repasa los fundamentos y las tecnologías; el~\ref{cap:metodologia}, la metodología; el~\ref{cap:requisitos}, los requisitos; los capítulos~\ref{cap:diseno} y~\ref{cap:implementacion}, el diseño y la implementación; el~\ref{cap:estudio-chunking}, el estudio de fragmentación; el~\ref{cap:pruebas}, las pruebas, y el~\ref{cap:conclusiones}, las conclusiones. Tras la bibliografía, los apéndices, del~\ref{ap:planificacion} al~\ref{ap:prompts}, recogen el detalle de la planificación, los requisitos, el diseño, la implementación y el estudio, además del manual de usuario, la guía de despliegue, las especificaciones y los \emph{prompts}.
