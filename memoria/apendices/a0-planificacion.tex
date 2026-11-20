@@ -15,14 +15,14 @@ La tabla~\ref{tab:tecnologias} recoge el motivo por el que se eligió cada tecno
     \toprule
     Tecnología & Motivo de la elección \\
     \midrule
-    .NET 10 & Plataforma del \emph{backend} (API, pasarela y \emph{workers}). Se integra de forma nativa con Semantic Kernel, el autor ya la conocía y su biblioteca estándar cubre la API web, gRPC, SignalR y el acceso a PostgreSQL y RabbitMQ con buen rendimiento. \\
+    .NET 10 & Plataforma del \emph{backend} (API, pasarela y \emph{workers}). Se integra de forma nativa con Semantic Kernel, ya se conocía y su biblioteca estándar cubre la API web, gRPC, SignalR y el acceso a PostgreSQL y RabbitMQ con buen rendimiento. \\
     Aspire & Orquesta el sistema en local desde un único \emph{AppHost} con los mismos contenedores, servicios y variables de entorno que producción, sustituyendo los servicios externos por equivalentes locales (RustFS por R2, Ollama por el proveedor en la nube) \cite{aspire}. \\
     Go & Lenguaje del servicio de ingesta. Se compila a un único binario estático en una imagen mínima, consume muy poco y facilita la concurrencia de las descargas con \emph{goroutines} \cite{golang}. \\
     Semantic Kernel & Orquesta las llamadas a los modelos desde .NET y permite cambiar de proveedor (Ollama, nube o el de cada ayuntamiento) solo con configuración \cite{semantickernel}; se compara con otros marcos en la sección~\ref{sec:orquestacion}. \\
     PostgreSQL & Fuente de referencia de los usuarios, conversaciones y documentos. Aporta transacciones y la búsqueda léxica con \texttt{tsvector} e índice GIN que usa la recuperación híbrida, sin añadir otro motor de búsqueda. \\
     Qdrant & Base de datos vectorial dedicada. Indexa con HNSW los \emph{embeddings} de alta dimensión que pgvector no permitía indexar y filtra por metadatos dentro de la búsqueda; la decisión está en el ADR~0001. \\
     RabbitMQ & Intermediario de mensajes basado en el protocolo abierto AMQP, con clientes para Go y .NET \cite{rabbitmq}. Aporta colas persistentes, confirmaciones, reintentos con TTL y cola de mensajes fallidos para la ingesta, y un \emph{fanout} para los avisos de estado. \\
-    Angular & Marco del \emph{frontend} \cite{angular}. El autor lo conoce y ofrece una estructura completa de serie; la versión~21, con componentes \emph{standalone}, señales y sin \texttt{zone.js}, genera un \emph{bundle} más pequeño y repinta solo lo que cambia en el chat \cite{angular21}. \\
+    Angular & Marco del \emph{frontend} \cite{angular}. Ya se conocía y ofrece una estructura completa de serie; la versión~21, con componentes \emph{standalone}, señales y sin \texttt{zone.js}, genera un \emph{bundle} más pequeño y repinta solo lo que cambia en el chat \cite{angular21}. \\
     \bottomrule
   \end{tabularx}
 \end{table}
@@ -61,7 +61,7 @@ Los principales hitos fueron: en julio, la estructura de la solución, las prime
 \section{Recursos}
 \label{sec:recursos-detalle}
 
-El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ejecuta en local todos los servicios y los modelos con Ollama, y el estudio de fragmentación se ejecutó entero en un ordenador de sobremesa con un Intel Core i7-14700KF, 32\,GB de RAM y una NVIDIA GeForce RTX 5070 Ti de 16\,GB (sección~\ref{sec:entorno-local}). La aplicación se ejecuta en producción en dos servidores virtuales privados propios, en OVH y en Contabo (4 vCPU y 8\,GB, y 6 vCPU y 12\,GB), gestionados con Dokploy, que el autor ya tenía para otros proyectos y no suponen un coste añadido, y se publica en \texttt{asistente.antoniobermudez.dev}. Todas las herramientas de desarrollo (Visual Studio Code, .NET, Go, Angular, Aspire, Podman, Ollama, GitHub Actions, OpenSpec y \LaTeX) son gratuitas o de código abierto.
+El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ejecuta en local todos los servicios y los modelos con Ollama, y el estudio de fragmentación se ejecutó entero en un ordenador de sobremesa con un Intel Core i7-14700KF, 32\,GB de RAM y una NVIDIA GeForce RTX 5070 Ti de 16\,GB (sección~\ref{sec:entorno-local}). La aplicación se ejecuta en producción en dos servidores virtuales privados propios, en OVH y en Contabo (4 vCPU y 8\,GB, y 6 vCPU y 12\,GB), gestionados con Dokploy, que ya se usaban para otros proyectos y no suponen un coste añadido, y se publica en \texttt{asistente.antoniobermudez.dev}. Todas las herramientas de desarrollo (Visual Studio Code, .NET, Go, Angular, Aspire, Podman, Ollama, GitHub Actions, OpenSpec y \LaTeX) son gratuitas o de código abierto.
 
 \subsection{Servicios externos y coste}
 
