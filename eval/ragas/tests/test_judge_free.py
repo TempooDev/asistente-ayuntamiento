@@ -75,3 +75,10 @@ def test_paired_tests_compare_hierarchical_with_each_flat_variant():
     hit = tests[(tests.metric == "doc_hit@1") & (tests.against == "Baseline")].iloc[0]
     assert hit["mean_diff"] == 1.0 and hit["wins"] == 1 and hit["losses"] == 0
     assert isinstance(tests, pd.DataFrame)
+
+
+def test_passage_found_ignores_case_accents_and_punctuation_but_not_splits():
+    quote = "El plazo será de veinte días naturales, a contar desde el siguiente."
+    assert jf.passage_found(quote, "... EL PLAZO SERA DE VEINTE DIAS NATURALES a contar desde el siguiente ...") == 1.0
+    assert jf.passage_found(quote, "El plazo será de veinte días\n---\nnaturales, a contar") == 0.0
+    assert math.isnan(jf.passage_found("", "texto"))

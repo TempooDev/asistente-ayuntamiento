@@ -26,6 +26,10 @@ Metrics
   belong to a reference document, so a similar figure from another document
   does not count. For the hierarchical variant these are the child fragments,
   not the parent text the model receives.
+- passage_retrieved / passage_in_generation: only for question sets that keep
+  the verbatim supporting passage (questions-detail.jsonl, as written by
+  generate_questions.py): 1 if that passage is whole in the retrieved units /
+  in the text given to the model, ignoring case, accents and punctuation.
 """
 from __future__ import annotations
 
@@ -151,12 +155,33 @@ def score_answers(answers: list[dict], questions: dict[str, dict]) -> pd.DataFra
                 facts, "\n".join(c["text"] for c in contexts if c["document_id"] in refs))
             row["facts_in_generation"] = coverage(facts, a.get("generation_context") or "")
             row["facts_in_answer"] = coverage(facts, a.get("answer") or "")
+        quote = q.get("supporting_quote") or ""
+        if answerable and quote and not failed:
+            row["passage_retrieved"] = passage_found(quote, "\n".join(c["text"] for c in contexts))
+            row["passage_in_generation"] = passage_found(quote, a.get("generation_context") or "")
+        else:
+            row["passage_retrieved"] = row["passage_in_generation"] = NAN
         rows.append(row)
     return pd.DataFrame(rows)
 
 
+def _words(text: str) -> str:
+    return " ".join(re.findall(r"\w+", fold(text)))
+
+
+def passage_found(quote: str, text: str) -> float:
+    """1 if the verbatim supporting passage of the reference is in `text`, ignoring case,
+    accents, punctuation and spacing; 0 otherwise. Strict on purpose: a passage split
+    across two chunks does not count, because neither chunk holds it whole."""
+    q = _words(quote)
+    if not q:
+        return NAN
+    return float(q in _words(text))
+
+
 METRICS = ["doc_hit@1", "doc_hit@5", "doc_mrr", "false_abstention",
-           "facts_in_retrieved", "facts_in_reference_units", "facts_in_generation", "facts_in_answer"]
+           "facts_in_retrieved", "facts_in_reference_units", "facts_in_generation", "facts_in_answer",
+           "passage_retrieved", "passage_in_generation"]
 
 
 def _per_question(scores: pd.DataFrame) -> pd.DataFrame:
@@ -204,6 +229,8 @@ def paired_tests(scores: pd.DataFrame, seed: int = 42, n_resamples: int = 20000)
         return pd.DataFrame()
     for m in METRICS:
         for other in flat:
+            if not {HIERARCHICAL, other} <= set(piv[m].columns):
+                continue  # metric not available for this question set (all NaN)
             pair = piv[m][[HIERARCHICAL, other]].dropna()
             if pair.empty:
                 continue
@@ -248,6 +275,11 @@ def main(argv: list[str] | None = None) -> int:
     dataset = args.dataset or Path(run.get("dataset_dir") or Path(__file__).parent.parent / "dataset")
     try:
         questions = {q["id"]: q for q in read_jsonl(dataset / "questions.jsonl")}
+        detail = dataset / "questions-detail.jsonl"  # generated sets keep the verbatim supporting passage there
+        if detail.exists():
+            for d in read_jsonl(detail):
+                if d["id"] in questions:
+                    questions[d["id"]]["supporting_quote"] = d.get("supporting_quote", "")
     except FileNotFoundError:
         print(f"ERROR no encuentro {dataset / 'questions.jsonl'}; usa --dataset", file=sys.stderr)
         return 1
