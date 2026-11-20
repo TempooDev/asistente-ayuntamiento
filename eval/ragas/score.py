@@ -91,10 +91,13 @@ def run_ragas(rows: list[dict], cfg: dict) -> list[dict]:
     from ragas.llms import LangchainLLMWrapper
     from ragas.metrics import Faithfulness, LLMContextPrecisionWithReference, LLMContextRecall, ResponseRelevancy
 
-    llm = LangchainLLMWrapper(
-        ChatOllama(model=cfg["judge_model"], base_url=cfg["ollama_url"], temperature=0, num_ctx=cfg["num_ctx"]),
-        bypass_temperature=True,  # keep temperature 0 (ragas would otherwise force 0.01/0.3)
-    )
+    if cfg.get("judge_provider") == "anthropic":
+        llm = anthropic_llm(cfg)
+    else:
+        llm = LangchainLLMWrapper(
+            ChatOllama(model=cfg["judge_model"], base_url=cfg["ollama_url"], temperature=0, num_ctx=cfg["num_ctx"]),
+            bypass_temperature=True,  # keep temperature 0 (ragas would otherwise force 0.01/0.3)
+        )
     emb = LangchainEmbeddingsWrapper(OllamaEmbeddings(model=cfg["embedding_model"], base_url=cfg["ollama_url"]))
     run_config = RunConfig(max_workers=cfg["max_workers"], timeout=cfg["timeout"], max_retries=3)
     # strictness=1: at temperature 0 extra generated questions would be identical.
@@ -118,6 +121,18 @@ def run_ragas(rows: list[dict], cfg: dict) -> list[dict]:
     faith = _eval([{**b, "retrieved_contexts": [r["generation_context"] or ""]} for b, r in zip(base, rows)],
                   ["faithfulness"])
     return pd.concat([retrieval, faith], axis=1)[RAGAS_COLUMNS].to_dict("records")
+
+
+_ANTHROPIC_LLM = None
+
+
+def anthropic_llm(cfg: dict):
+    """One judge client per process, so its token usage adds up across checkpoint batches."""
+    global _ANTHROPIC_LLM
+    if _ANTHROPIC_LLM is None:
+        from anthropic_judge import AnthropicRagasLLM
+        _ANTHROPIC_LLM = AnthropicRagasLLM(model=cfg["judge_model"], effort=cfg.get("judge_effort", "low"))
+    return _ANTHROPIC_LLM
 
 
 # ---------------------------------------------------------------- assembly
@@ -234,16 +249,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--checkpoint-batch", type=int, default=int(os.environ.get("EVAL_CHECKPOINT_BATCH", "4")),
                     help="muestras juzgadas por lote antes de guardarlas en scoring-cache.jsonl")
     ap.add_argument("--fresh", action="store_true", help="ignora scoring-cache.jsonl y puntúa todo de nuevo")
+    ap.add_argument("--judge-provider", choices=["ollama", "anthropic"], default=os.environ.get("EVAL_JUDGE_PROVIDER", "ollama"),
+                    help="anthropic: juez por la API de Anthropic (ANTHROPIC_API_KEY); los embeddings siguen en Ollama")
+    ap.add_argument("--judge-effort", default=os.environ.get("EVAL_JUDGE_EFFORT", "low"),
+                    help="esfuerzo del juez de Anthropic (low, medium, high)")
+    ap.add_argument("--limit", type=int, default=None, help="puntúa solo las N primeras respuestas (prueba de coste)")
     args = ap.parse_args(argv)
 
     try:
         run, answers = load_run(args.run_dir)
         questions = {q["id"]: q for q in read_jsonl(args.dataset / "questions.jsonl")}
-        cfg = {"judge_model": args.judge_model or run["chat_model"],
+        if args.limit:
+            answers = answers[:args.limit]
+        default_judge = "claude-sonnet-5-5" if args.judge_provider == "anthropic" else run["chat_model"]
+        cfg = {"judge_model": args.judge_model or default_judge,
                "embedding_model": args.embedding_model or run["embedding_model"],
                "ollama_url": args.ollama_url, "max_workers": args.max_workers,
-               "timeout": args.timeout, "num_ctx": args.num_ctx, "checkpoint_batch": args.checkpoint_batch}
-        check_ollama(cfg["ollama_url"], [cfg["judge_model"], cfg["embedding_model"]])
+               "timeout": args.timeout, "num_ctx": args.num_ctx, "checkpoint_batch": args.checkpoint_batch,
+               "judge_provider": args.judge_provider, "judge_effort": args.judge_effort}
+        if args.judge_provider == "anthropic":
+            check_ollama(cfg["ollama_url"], [cfg["embedding_model"]])
+        else:
+            check_ollama(cfg["ollama_url"], [cfg["judge_model"], cfg["embedding_model"]])
         cache_path = args.run_dir / CACHE_FILE
         if args.fresh and cache_path.exists():
             cache_path.unlink()
@@ -260,6 +287,10 @@ def main(argv: list[str] | None = None) -> int:
         "ollama_url": cfg["ollama_url"], "ragas_version": ragas_version(), "judge_temperature": 0,
         "hallucination_threshold": args.threshold, "max_workers": args.max_workers, "timeout_s": args.timeout,
         "num_ctx": args.num_ctx, "not_covered_phrases": NOT_COVERED_PHRASES,
+        "judge_provider": args.judge_provider,
+        **({"judge_effort": args.judge_effort, "judge_usage": _ANTHROPIC_LLM.usage,
+            "judge_cost_usd_this_run": round(_ANTHROPIC_LLM.cost_usd(), 4)}
+           if args.judge_provider == "anthropic" and _ANTHROPIC_LLM is not None else {}),
         "scored_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(summary.to_string(index=False))
