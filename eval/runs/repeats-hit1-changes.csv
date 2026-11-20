@@ -1,0 +1,13 @@
+set,pipeline,questions_hit1_changed,questions
+E3,Baseline,0,22
+E3,Hierarchical,3,22
+E3,Recursive,0,22
+E3,Semantic,0,22
+E4,Baseline,0,33
+E4,Hierarchical,4,33
+E4,Recursive,0,33
+E4,Semantic,0,33
+E5,Baseline,0,72
+E5,Hierarchical,11,72
+E5,Recursive,0,72
+E5,Semantic,0,72
