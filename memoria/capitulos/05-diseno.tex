@@ -8,7 +8,7 @@
 \section{Arquitectura general}
 \label{sec:arquitectura}
 
-El sistema se divide en tres partes que solo se comunican a través de interfaces bien definidas: el \emph{scraper} en Go, que descarga los boletines; el \emph{backend} en .NET, que los indexa y responde a las preguntas; y la interfaz en Angular, que usa el personal municipal. La figura~\ref{fig:arquitectura} muestra los servicios que las forman y cómo se relacionan. Los motivos de cada tecnología se explicaron en la sección~\ref{sec:tecnologias}; aquí se describe el papel de cada pieza en el conjunto.
+El sistema se divide en tres partes que solo se comunican a través de interfaces bien definidas: el \emph{scraper} en Go, que descarga los boletines; el \emph{backend} en .NET, que los indexa y responde a las preguntas; y la interfaz en Angular, que usa el personal municipal. La figura~\ref{fig:arquitectura} muestra los servicios que las forman y cómo se relacionan. Los motivos de cada tecnología se recogen en la tabla~\ref{tab:tecnologias} (apéndice~\ref{ap:planificacion}); aquí se describe el papel de cada pieza en el conjunto.
 
 \begin{figure}[htbp]
   \centering
@@ -121,7 +121,7 @@ Algunas decisiones de diseño de la tabla merecen explicación:
   \item \textbf{Modelos distintos para cada tarea.} La expansión de consultas y el enriquecimiento usan el modelo de ingesta (\texttt{Ai:Ingestion:*}), pensado para ser rápido y barato, porque se ejecutan muchas veces y su salida no la lee el usuario. La respuesta final usa el modelo de chat.
 \end{itemize}
 
-\paragraph{Qué pipeline responde.} \texttt{AiChatService} es una fachada sobre las pipelines. Para cada pregunta del chat consulta a \texttt{WinningPipelineSelector} qué pipeline responde y le delega la pregunta. Si la configuración fija una (\texttt{Rag:ProductionPipeline}, que admite cualquiera de las cuatro variantes), responde esa; si no, responde la que tiene más victorias en la Arena entre la básica y la jerárquica (con empate o sin votos, la básica). En producción se ha fijado la jerárquica, que obtuvo los mejores resultados en la batería variada del capítulo~\ref{cap:estudio-chunking}, aunque sus ventajas no son estadísticamente significativas; los votos de la Arena solo decidirían si se quitara esa configuración. El funcionamiento de la Arena y cómo se añade una nueva estrategia de fragmentación se describen en la sección~\ref{sec:arena-diseno}.
+\paragraph{Qué pipeline responde.} \texttt{AiChatService} es una fachada sobre las pipelines. Para cada pregunta del chat consulta a \texttt{WinningPipelineSelector} qué pipeline responde y le delega la pregunta. Si la configuración fija una (\texttt{Rag:ProductionPipeline}, que admite cualquiera de las cuatro variantes), responde esa; si no, responde la que tiene más victorias en la Arena entre la básica y la jerárquica (con empate o sin votos, la básica). En producción se ha fijado la jerárquica, que obtuvo los mejores resultados en la batería variada del capítulo~\ref{cap:estudio-chunking}, aunque sus ventajas no son estadísticamente significativas; los votos de la Arena solo decidirían si se quitara esa configuración. Con la jerárquica fijada, la clave propia del ayuntamiento, las preferencias del usuario y el respaldo ante el error 429 solo actúan en el lado básico del modo Arena. El funcionamiento de la Arena y cómo se añade una nueva estrategia de fragmentación se describen en la sección~\ref{sec:arena-diseno}.
 
 \section{Proveedor de IA, coste y seguridad}
 \label{sec:diseno-resumen-ia}

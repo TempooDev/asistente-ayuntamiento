@@ -3,7 +3,9 @@
 
 Este apéndice completa los capítulos~\ref{cap:estado-arte} y~\ref{cap:metodologia} con el motivo de cada tecnología, el calendario real del desarrollo y el detalle de los recursos y su coste.
 
-\section{Tecnologías empleadas}
+\section{Motivo de cada tecnología}
+
+La tabla~\ref{tab:tecnologias} recoge el motivo por el que se eligió cada tecnología del sistema, resumida en la sección~\ref{sec:tecnologias}.
 
 \begin{table}[htbp]
   \centering
@@ -56,10 +58,10 @@ La figura~\ref{fig:gantt} muestra el periodo de cada fase, obtenido del historia
 
 Los principales hitos fueron: en julio, la estructura de la solución, las primeras especificaciones, Aspire, la autenticación, el chat con Ollama, el \emph{scraper} del BOE y la integración continua; en agosto, la ingesta vectorial, la interfaz en Angular y el despliegue del MVP; en septiembre, la apertura informal de dos días, la \emph{pipeline} jerárquica, la Arena y el contexto del usuario; en octubre, la reorganización de la capa de aplicación, Qdrant, la auditoría del código, la observabilidad, las variantes recursiva y semántica, el programa de evaluación y la firma del anteproyecto (2 de octubre); en noviembre, todas las ejecuciones del estudio en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}) y la renuncia a validar con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}), y en diciembre, el cierre de la memoria.
 
-\section{Recursos y coste}
+\section{Recursos}
 \label{sec:recursos-detalle}
 
-El trabajo lo ha desarrollado un único alumno, supervisado por el tutor y el cotutor. El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ejecuta en local todos los servicios y los modelos con Ollama, y el estudio de fragmentación se ejecutó entero en un ordenador de sobremesa con un Intel Core i7-14700KF, 32\,GB de RAM y una NVIDIA GeForce RTX 5070 Ti de 16\,GB (sección~\ref{sec:entorno-local}). La aplicación se ejecuta en producción en dos servidores virtuales privados propios, en OVH y en Contabo (4 vCPU y 8\,GB, y 6 vCPU y 12\,GB), gestionados con Dokploy, que el autor ya tenía para otros proyectos y no suponen un coste añadido, y se publica en \texttt{asistente.antoniobermudez.dev}. Todas las herramientas de desarrollo (Visual Studio Code, .NET, Go, Angular, Aspire, Podman, Ollama, GitHub Actions, OpenSpec y \LaTeX) son gratuitas o de código abierto.
+El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ejecuta en local todos los servicios y los modelos con Ollama, y el estudio de fragmentación se ejecutó entero en un ordenador de sobremesa con un Intel Core i7-14700KF, 32\,GB de RAM y una NVIDIA GeForce RTX 5070 Ti de 16\,GB (sección~\ref{sec:entorno-local}). La aplicación se ejecuta en producción en dos servidores virtuales privados propios, en OVH y en Contabo (4 vCPU y 8\,GB, y 6 vCPU y 12\,GB), gestionados con Dokploy, que el autor ya tenía para otros proyectos y no suponen un coste añadido, y se publica en \texttt{asistente.antoniobermudez.dev}. Todas las herramientas de desarrollo (Visual Studio Code, .NET, Go, Angular, Aspire, Podman, Ollama, GitHub Actions, OpenSpec y \LaTeX) son gratuitas o de código abierto.
 
 \subsection{Servicios externos y coste}
 
