@@ -1,0 +1,5 @@
+pipeline,collection,documents,mean_ms_per_document,p50_ms_per_document,p95_ms_per_document,mean_chunks_per_document,embedded_tokens,llm_calls,llm_tokens,points
+Baseline,DocumentChunks,17,5380.470588235294,4038.0,13339.0,16.764705882352942,85335,0,0,429
+Hierarchical,ChildFragments,17,26547.0,18845.0,72252.59999999999,15.882352941176471,126862,270,121582,414
+Recursive,RecursiveChunks,17,5158.176470588235,5901.0,11117.599999999999,16.41176470588235,87093,0,0,279
+Semantic,SemanticChunks,17,16633.176470588234,16237.0,35379.6,13.470588235294118,272994,0,0,229

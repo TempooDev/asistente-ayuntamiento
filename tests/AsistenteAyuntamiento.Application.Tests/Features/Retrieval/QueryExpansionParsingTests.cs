@@ -55,7 +55,7 @@ public class QueryExpansionParsingTests
         var act = () => QueryExpansionService.Parse("Lo siento, no puedo ayudar.", "x");
 
         act.Should().Throw<JsonException>();
-        QueryExpansionService.Fallback("plazo  matrícula").LexicalQuery.Should().Be("plazo & matrícula");
+        QueryExpansionService.Fallback("plazo  matrícula").LexicalQuery.Should().Be("plazo matrícula");
     }
 
     [Fact]

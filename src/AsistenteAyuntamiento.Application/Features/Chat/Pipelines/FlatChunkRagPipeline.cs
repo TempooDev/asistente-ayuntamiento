@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using AsistenteAyuntamiento.Application.Common.Prompts;
 using AsistenteAyuntamiento.Application.Common.VectorStore;
 using AsistenteAyuntamiento.Application.Features.Ingestion;
@@ -18,7 +19,7 @@ namespace AsistenteAyuntamiento.Application.Features.Chat.Pipelines;
 /// injected into the last user message, answer from the tenant's chat model (with fallback) via
 /// <see cref="IChatStreamingService"/>. The variants differ only in the chunks they search (<see cref="FlatChunkVariant"/>).
 /// </summary>
-public sealed class FlatChunkRagPipeline(
+public sealed partial class FlatChunkRagPipeline(
     FlatChunkVariant variant,
     Kernel kernel,
     IVectorStore vectorStore,
@@ -29,7 +30,6 @@ public sealed class FlatChunkRagPipeline(
     /// <summary>Messages (latest first) whose text is embedded for the search, so follow-up questions keep their topic.</summary>
     private const int SearchHistoryDepth = 3;
 
-    private static readonly RagSearch CompletionSearch = new(Limit: 5, ScoreThreshold: null);
     private static readonly RagSearch StreamingSearch = new(Limit: 3, ScoreThreshold: 0.65f);
 
     /// <summary>
@@ -39,28 +39,6 @@ public sealed class FlatChunkRagPipeline(
     private static readonly RagSearch EvaluationSearch = new(Limit: 5, ScoreThreshold: null);
 
     public PipelineType Type => variant.Pipeline;
-
-    /// <summary>Non-streaming answer. Never throws for model errors (see <see cref="IChatStreamingService.CompleteAsync"/>).</summary>
-    public async Task<AiCompletionResult> CompleteAsync(ChatTurn turn, CancellationToken cancellationToken = default)
-    {
-        var preferences = await userPreferenceService.GetPreferencesAsync(turn.UserId, cancellationToken);
-
-        // The completion path always answers with the citizen-oriented system prompt.
-        if (!turn.History.Any(m => m.Role == AuthorRole.System))
-        {
-            turn.History.Insert(0, new ChatMessageContent(AuthorRole.System,
-                PromptCatalog.ChatSystem + UserContext(preferences, PromptCatalog.UserContextGuidanceWithDocuments)));
-        }
-
-        var hits = await SearchAsync(turn, CompletionSearch, cancellationToken);
-        if (hits.Count > 0)
-        {
-            var date = DateTime.UtcNow.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-            ReplaceLastUserMessage(turn, string.Format(CultureInfo.InvariantCulture, PromptCatalog.ChatUserTemplate, FormatContext(hits), turn.UserQuery, date));
-        }
-
-        return await chatStreamingService.CompleteAsync(turn.History, turn.TenantId, turn.UserId, Pipeline(turn), cancellationToken);
-    }
 
     public async IAsyncEnumerable<string> StreamAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -116,13 +94,22 @@ public sealed class FlatChunkRagPipeline(
 
     private string Pipeline(ChatTurn turn) => turn.TelemetryPipeline ?? variant.TelemetryPipeline;
 
-    /// <summary>Public link of a bulletin document (BOJA has no stable per-document URL yet).</summary>
+    /// <summary>
+    /// Public link of a bulletin document. A BOJA id encodes its page (<c>BOJA-2026-123-1</c> is
+    /// <c>/boja/2026/123/1</c>, the URL the scraper downloaded it from); an id in another format falls back to the
+    /// BOJA home page.
+    /// </summary>
     public static string GetPublicUrl(string source, string documentId) => source.ToUpperInvariant() switch
     {
         "BOE" => $"https://www.boe.es/buscar/doc.php?id={documentId}",
-        "BOJA" => "https://www.juntadeandalucia.es/eboja.html",
+        "BOJA" => BojaDocumentId().Match(documentId) is { Success: true } m
+            ? $"https://www.juntadeandalucia.es/boja/{m.Groups[1].Value}/{m.Groups[2].Value}/{m.Groups[3].Value}"
+            : "https://www.juntadeandalucia.es/eboja.html",
         _ => $"json/{source}/{documentId}.json"
     };
+
+    [GeneratedRegex(@"^BOJA-(\d{4})-(\d+)-(\d+)$")]
+    private static partial Regex BojaDocumentId();
 
     /// <summary>
     /// Searches with the platform embedding model (never the tenant's chat model). A failed search degrades to

@@ -19,7 +19,7 @@ Sched -> Go : trabajo diario (día anterior)
 Go -> Api : obtener reglas de filtrado
 Api -> PG : ScraperFilterRules activas
 Api --> Go : reglas
-note right of Go : si no hay reglas disponibles,\nno se descarga nada (fail closed)
+note right of Go : si no hay reglas disponibles,\nno se descarga nada (fallo seguro)
 Go -> Src : sumario del día
 loop por cada documento que pasa el filtro
   Go -> Src : descargar documento
@@ -29,7 +29,7 @@ loop por cada documento que pasa el filtro
 end
 
 MQ -> W : entregar mensaje
-W -> PG : estado del pipeline = Processing
+W -> PG : estado de la pipeline = Processing
 W -> S3 : descargar JSON (y XML del BOE)
 alt Worker BASELINE
   W -> W : fragmentos de tamaño fijo con solapamiento
@@ -41,13 +41,13 @@ W -> LLM : generar embeddings
 W -> PG : reemplazar fragmentos del documento\n(transacción, fuente de verdad)
 W -> Q : borrar y escribir vectores del documento
 W -> PG : IngestionMetrics y estado = Completed
-W -> MQ : ack
+W -> MQ : ack (confirmación)
 W -> MQ : notificación de estado (fanout)
 MQ -> Api : notificación
 Api -> Api : SignalR /hubs/notifications\n(solo administradores)
 
 alt error recuperable
   W -> MQ : reenviar a Q.retry (x-retry-count + 1)
-  note right of MQ : tras 30 s vuelve a Q;\nagotados 3 reintentos, nack → Q.dlq\ny estado = Failed
+  note right of MQ : tras 30 s vuelve a Q;\nagotados 3 reintentos, nack (rechazo) → Q.dlq\ny estado = Failed
 end
 @enduml

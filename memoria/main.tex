@@ -13,6 +13,12 @@
 % ======================================================================
 \documentclass[12pt,a4paper,twoside,openright]{book}
 
+%───────── Idioma ──────────────────────────────────────────────────────
+% babel en español para la división de palabras y la localización de
+% biblatex. Sin atajos de teclado (rompen tikz y los listados), con
+% «Tabla» en lugar de «Cuadro» y punto decimal sin tocar en modo
+% matemático. Los nombres de la plantilla se restauran más abajo.
+\usepackage[english,spanish,es-noshorthands,es-tabla,es-nodecimaldot,es-noindentfirst]{babel}
 %───────── Auxiliary packages ──────────────────────────────────────────
 \usepackage{csquotes}
 \usepackage{graphicx}
@@ -21,6 +27,7 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta}  % diagrama de clases del capítulo 5
 \usepackage{longtable}
+\usepackage{placeins}  % \FloatBarrier
 \setlength{\emergencystretch}{3em} % evita desbordes por nombres largos en \texttt
 \usepackage{tabularx}
 \usepackage{siunitx}
@@ -33,7 +40,9 @@
 \usepackage[
   backend=biber,
   style=numeric,
-  sorting=nyt
+  sorting=nyt,
+  language=spanish,
+  urldate=long
 ]{biblatex}
 \addbibresource{references.bib}
 
@@ -47,6 +56,8 @@
   breaklines=true,
   tabsize=2
 }
+\renewcommand{\lstlistingname}{Listado}
+\renewcommand{\lstlistlistingname}{Índice de listados}
 
 %───────── Template, covers, back cover ────────────────────────────────
 \usepackage{template/sty_files/template-TFGspanish-uma}
@@ -56,6 +67,41 @@
 
 \usepackage{template/sty_files/backcover-uma}
 
+% babel fija sus propios nombres al empezar el documento; se restauran los
+% de la plantilla.
+\addto\captionsspanish{%
+  \renewcommand{\contentsname}{Índice General}%
+  \renewcommand{\listfigurename}{Índice de Figuras}%
+  \renewcommand{\listtablename}{Índice de Tablas}%
+  \renewcommand{\bibname}{Bibliografía}%
+  \renewcommand{\figurename}{Figura}%
+  \renewcommand{\tablename}{Tabla}%
+  \renewcommand{\chaptername}{Capítulo}%
+  \renewcommand{\appendixname}{Apéndice}%
+  \renewcommand{\lstlistingname}{Listado}%
+}
+
+% Apéndices: figuras, tablas, listados y ecuaciones numerados con la letra
+% del apéndice (A.1, B.2…) en lugar de heredar el número del capítulo 9, y
+% anclas de hyperref propias para que no choquen con las del capítulo 9.
+\makeatletter
+\apptocmd{\umaappendix}{%
+  \setcounter{figure}{0}\setcounter{table}{0}%
+  \setcounter{lstlisting}{0}\setcounter{equation}{0}%
+  \renewcommand{\thefigure}{\theuma@appendix.\arabic{figure}}%
+  \renewcommand{\thetable}{\theuma@appendix.\arabic{table}}%
+  \renewcommand{\thelstlisting}{\theuma@appendix.\arabic{lstlisting}}%
+  \renewcommand{\theequation}{\theuma@appendix.\arabic{equation}}%
+  \renewcommand{\theHfigure}{ap.\arabic{uma@appendix}.\arabic{figure}}%
+  \renewcommand{\theHtable}{ap.\arabic{uma@appendix}.\arabic{table}}%
+  \renewcommand{\theHlstlisting}{ap.\arabic{uma@appendix}.\arabic{lstlisting}}%
+  \renewcommand{\theHequation}{ap.\arabic{uma@appendix}.\arabic{equation}}%
+  \renewcommand{\theHsection}{ap.\arabic{uma@appendix}.\arabic{section}}%
+  \renewcommand{\theHsubsection}{\theHsection.\arabic{subsection}}%
+  \renewcommand{\theHsubsubsection}{\theHsubsection.\arabic{subsubsection}}%
+}{}{\PackageWarning{main}{No se pudo ampliar \string\umaappendix}}
+\makeatother
+
 % Datos comunes a las dos portadas
 \newcommand{\tfgTitleES}{Automatización del Procesamiento de Boletines Oficiales y Consulta en Lenguaje Natural para Entidades Locales Mediante LLM}
 \newcommand{\tfgTitleEN}{Automation of Official Gazette Processing and Natural Language Query Services for Local Authorities Using LLM}
@@ -63,7 +109,8 @@
 \newcommand{\tfgTutor}{Dr.~Cristóbal Barba González}
 \newcommand{\tfgCotutor}{Sandro José Hurtado Requena}  % TODO: añadir "Dr." si procede
 \newcommand{\tfgDept}{Departamento de Lenguajes y Ciencias de la Computación}  % TODO: confirmar departamento
-\newcommand{\tfgCityDate}{Málaga, Diciembre, 2026}  % TODO: fecha de entrega
+\newcommand{\tfgCityDate}{Málaga, diciembre de 2026}  % TODO: fecha de entrega
+\hypersetup{pdftitle={\tfgTitleES},pdfauthor={\tfgAuthor}}
 
 %======================================================================
 \begin{document}
@@ -97,6 +144,7 @@
   logoRight  = {template/logos/POS-etsi-logo.png}
 }
 
+\cleardoublepage
 \frontmatter
 
 %────────────────────── Resumen, abstract, agradecimientos ─────────────
@@ -141,8 +189,8 @@
 
 %────────────────────── Back cover and bibliography ────────────────────
 \backmatter
-\nocite{*}  % TODO: quitar cuando los capítulos ya citen las referencias
-\printbibliography[title={Bibliografía}]
+{\small\setlength\bibitemsep{0pt}
+\printbibliography[title={Bibliografía}]}
 \cleardoublepage
 \MakeUMABackCover
 

@@ -19,7 +19,7 @@ public class AiChatServiceStreamingTests
     {
         _selector.Setup(s => s.GetWinnerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(winner);
         _shadow.Setup(s => s.ShouldRun()).Returns(shadow);
-        return new AiChatService(null!, [_baseline, _hierarchical], _selector.Object, _shadow.Object, Mock.Of<IArenaStreamingService>());
+        return new AiChatService([_baseline, _hierarchical], _selector.Object, _shadow.Object, Mock.Of<IArenaStreamingService>());
     }
 
     private static ChatHistory History()

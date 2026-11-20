@@ -160,7 +160,7 @@ public class ClearLanguageGenerationServiceTests
         var label = ClearLanguageGenerationService.DocumentLabel(new RetrievalResult(1, "x", 2, "texto", 0.1,
             ParentDocumentId: "BOJA-2026-10-1", ParentTitle: "", Bulletin: BulletinType.BOJA));
 
-        label.Should().Be("[Documento: BOJA-2026-10-1 | Boletín: BOJA | Referencia: BOJA-2026-10-1 | URL: https://www.juntadeandalucia.es/eboja.html]");
+        label.Should().Be("[Documento: BOJA-2026-10-1 | Boletín: BOJA | Referencia: BOJA-2026-10-1 | URL: https://www.juntadeandalucia.es/boja/2026/10/1]");
     }
 
     [Fact]

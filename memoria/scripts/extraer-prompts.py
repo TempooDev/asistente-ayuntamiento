@@ -52,6 +52,8 @@ def main() -> None:
         name = m.group(1)
         text = parse_value(src, m.end())
         # Las líneas largas las parte listings al componer (breaklines), sin tocar el texto.
+        # listings con XeLaTeX coloca «…» delante de la palabra que lo precede; se escribe como «...».
+        text = text.replace("…", "...")
         (OUT / f"{name}.txt").write_text(text + "\n", encoding="utf-8")
         print(f"{name}.txt")
 

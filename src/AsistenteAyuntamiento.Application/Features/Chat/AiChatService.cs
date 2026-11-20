@@ -14,19 +14,11 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// testing; it holds no model, retrieval or persistence logic itself.
 /// </summary>
 public sealed class AiChatService(
-    [FromKeyedServices(PipelineType.Baseline)] FlatChunkRagPipeline baselinePipeline,
     IEnumerable<IRagPipeline> pipelines,
     IWinningPipelineSelector winningPipelineSelector,
     IShadowTestScheduler shadowTestScheduler,
     IArenaStreamingService arenaStreamingService) : IAiChatService
 {
-    /// <summary>
-    /// Non-streaming answer from the baseline pipeline. Never throws for model errors: they are returned as a
-    /// failed <see cref="AiCompletionResult"/> with a typed error code.
-    /// </summary>
-    public Task<AiCompletionResult> GetCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default) =>
-        baselinePipeline.CompleteAsync(new ChatTurn(history, tenantId, userId), cancellationToken);
-
     /// <summary>
     /// Streams the answer of the pipeline currently winning the Arena. A sample of answers also gets a shadow run
     /// of the other pipeline in the background (see <see cref="IShadowTestScheduler"/>). A model failure before any

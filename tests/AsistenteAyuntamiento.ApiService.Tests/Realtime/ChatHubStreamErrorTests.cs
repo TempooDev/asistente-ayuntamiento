@@ -41,9 +41,6 @@ public class ChatHubStreamErrorTests(ApiFactory factory) : IClassFixture<ApiFact
         /// <summary>Completed when a <see cref="WaitForCancelWithoutText"/> stream has ended.</summary>
         public static TaskCompletionSource CancelledStreamWithoutTextEnded { get; } = new();
 
-        public Task<AiCompletionResult> GetCompletionAsync(ChatHistory history, string tenantId, string userId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public async IAsyncEnumerable<string> GetStreamingCompletionAsync(ChatHistory history, string tenantId, string userId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             if (history[^1].Content == FailureBeforeText)

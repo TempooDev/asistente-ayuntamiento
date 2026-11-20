@@ -8,10 +8,6 @@ namespace AsistenteAyuntamiento.Application.Features.Chat;
 /// </summary>
 public interface IChatStreamingService
 {
-    /// <summary>Never throws for model errors: they come back as a failed result with a typed error code.</summary>
-    /// <param name="pipeline">Value of <c>app.pipeline</c> for the metrics (see <see cref="Telemetry.LlmPipelines"/>).</param>
-    Task<AiCompletionResult> CompleteAsync(ChatHistory history, string tenantId, string userId, string pipeline, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Streams text chunks. A model error, before or after some text, is recorded as a failure and thrown as
     /// <see cref="LlmStreamInterruptedException"/> (the chat turns one before any text into a message, see

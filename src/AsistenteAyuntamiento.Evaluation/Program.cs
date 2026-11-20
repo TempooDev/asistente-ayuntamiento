@@ -103,7 +103,6 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = true }));
 builder.AddServiceDefaults();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddDataProtection();
 builder.Services.AddSingleton<ICurrentTenantService, EvaluationTenantService>();
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
