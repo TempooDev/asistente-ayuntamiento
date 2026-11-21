@@ -80,7 +80,7 @@ E5 & C3 (5.994 documentos) & Generado (80) & 320 & 3 \\
 \toprule
 \textbf{Aspecto} & \textbf{Estudio} & \textbf{Producción} \\
 \midrule
-Modelo de chat & \texttt{qwen2.5:7b-instruct} cuantizado a 4 bits, local, temperatura 0 & Modelo de la plataforma en un proveedor en la nube; en la básica, el del ayuntamiento si lo configura \\
+Modelo de chat & \texttt{qwen2.5:7b-instruct} cuantizado a 4 bits, local, temperatura 0 & Un modelo rápido de la plataforma en la nube, elegido por su velocidad de respuesta (DeepSeek V4 Flash, Gemini Flash o Claude Haiku); en la básica, el del ayuntamiento si lo configura \\
 Modelo de \emph{embeddings} & \texttt{qwen3-embedding:0.6b} (1.024 dimensiones) & Qwen3-Embedding-8B por OpenRouter (hasta 4.096) \\
 Recuperación de las planas & 5 fragmentos, sin umbral & 3 fragmentos con similitud mínima de 0,65 \\
 \emph{Pipeline} que responde & Las cuatro, por separado & La jerárquica, fijada por configuración \\
@@ -89,7 +89,6 @@ Colección & Hasta 5.994 documentos & La que se ingiere cada día \\
 \bottomrule
 \end{tabularx}
 \end{table}
-% VERIFICAR (Antonio): nombrar el modelo de chat de producción (variable AI_CHAT_MODEL de Dokploy).
 
 \section{Métricas}
 \label{sec:metricas}
@@ -218,7 +217,7 @@ El juez local no lo veía: con \texttt{qwen2.5:7b-instruct} la fidelidad de las 
 
 Las 8 preguntas sin respuesta del conjunto generado muestran el otro lado del compromiso. Las planas reconocen que no tienen la información en 5--7 de las 8 en cada pasada; la jerárquica, en 1 o 2. La lectura de sus respuestas lo explica: responde con datos de documentos cercanos como si fueran los pedidos. A la pregunta por una plaza de técnico auxiliar de biblioteca en Granada, por ejemplo, contesta con la plaza que convoca la Entidad Municipal Descentralizada de Estartit (Girona), atribuyéndosela a Granada; a otras, con el convenio de otro año o con un plazo de otro curso escolar. Es el mismo mecanismo que reduce sus abstenciones indebidas: recibe documentos enteros sobre un tema muy cercano y el modelo los usa aunque no respondan a la pregunta. Con 8 preguntas el resultado no permite estimar la frecuencia del problema, pero muestra un riesgo que el uso real debe vigilar, porque en un ayuntamiento una respuesta segura y equivocada es peor que una abstención. En los dos primeros conjuntos, con preguntas sin respuesta más alejadas de los documentos, todas las variantes las reconocían.
 
-En una de las respuestas de E5, además, la jerárquica entró en un bucle de repetición y generó 163.905 \emph{tokens} durante 20 minutos, porque su generación no tiene un límite de \emph{tokens} de salida. No volvió a ocurrir en las otras dos pasadas, pero en producción un caso así costaría dinero y dejaría al usuario esperando; es un fallo del sistema que hay que corregir (sección~\ref{sec:futuras}).
+En una de las respuestas de E5, además, la jerárquica entró en un bucle de repetición y generó 163.905 \emph{tokens} durante 20 minutos, porque su generación no tenía un límite de \emph{tokens} de salida. No volvió a ocurrir en las otras dos pasadas, pero en producción un caso así costaría dinero y dejaría al usuario esperando. Tras el estudio se corrigió: la generación pide ahora un máximo de \emph{tokens} de salida (\texttt{Ai:Hierarchical:MaxOutputTokens}, 2.048 por defecto, más del doble de la respuesta más larga de las otras pasadas) y, si un conector lo ignora, corta el flujo y avisa al usuario.
 
 \subsection{Significación, latencia y coste}
 \label{sec:resultados-significacion}
@@ -236,7 +235,7 @@ La latencia apenas depende del tamaño de la colección. Las planas responden en
 
 \paragraph{P2: la jerárquica recupera mejor, pero se ciñe peor al texto.} Con métricas que no dependen de ningún modelo, repetidas tres veces y sobre un conjunto de preguntas nuevo, la jerárquica recupera el documento correcto con más frecuencia en dos de los tres conjuntos y, sobre todo, entrega al modelo el pasaje con la respuesta mucho más a menudo, por lo que casi nunca se abstiene cuando hay respuesta. A la vez, con un juez independiente es la menos fiel, y ante preguntas sin respuesta cercanas a documentos reales tiende a contestar con datos de otro documento. Las dos cosas tienen el mismo origen: entrega al modelo documentos completos y más texto (unos 11.000--13.000 caracteres de media en E3 y E4, frente a 7.000--8.000 de las planas), lo que le da el dato cuando existe y material ajeno del que tomar frases cuando no. Sin un estudio de ablación no se puede atribuir la mejora en la recuperación a la búsqueda híbrida, a las preguntas sintéticas, a la unidad de fragmentación o al mayor volumen de contexto.
 
-\paragraph{Conclusión.} La estrategia de fragmentación plana apenas importa (P1). La \emph{pipeline} jerárquica (P2) no es simplemente mejor, sino que cambia cobertura por fidelidad: encuentra y entrega la información con más frecuencia y responde más a lo que se pregunta, pero afirma más cosas sin respaldo y, ante una pregunta sin respuesta, puede atribuir a un municipio datos de otro. Fijarla en producción (sección~\ref{sec:pipelines}) es razonable si se valora sobre todo que el personal obtenga una respuesta, pero exige mitigar ese riesgo: instrucciones que obliguen a comprobar que el documento trata del municipio y del periodo preguntados, citas por frase, un límite de \emph{tokens} de salida y, antes de cualquier uso real, la validación con usuarios. La decisión debería revisarse con un estudio de ablación y con el mismo presupuesto de contexto para todas las variantes.
+\paragraph{Conclusión.} La estrategia de fragmentación plana apenas importa (P1). La \emph{pipeline} jerárquica (P2) no es simplemente mejor, sino que cambia cobertura por fidelidad: encuentra y entrega la información con más frecuencia y responde más a lo que se pregunta, pero afirma más cosas sin respaldo y, ante una pregunta sin respuesta, puede atribuir a un municipio datos de otro. Fijarla en producción (sección~\ref{sec:pipelines}) es razonable si se valora sobre todo que el personal obtenga una respuesta, pero exige mitigar ese riesgo: instrucciones que obliguen a comprobar que el documento trata del municipio y del periodo preguntados, citas por frase y, antes de cualquier uso real, la validación con usuarios. La decisión debería revisarse con un estudio de ablación y con el mismo presupuesto de contexto para todas las variantes.
 
 \section{Amenazas a la validez}
 \label{sec:validez}
