@@ -25,10 +25,40 @@ public class ClearLanguageGenerationService(
     private readonly string _model = configuration["Ai:Chat:Model"] ?? "llama3.2";
     private readonly int _maxContextChars = configuration.GetValue("Ai:Hierarchical:MaxContextChars", DefaultMaxContextChars);
 
-    // Only when configured (the evaluation runner sets 0): otherwise the model keeps its own default, as before.
-    private readonly PromptExecutionSettings? _settings = configuration.GetValue<double?>("Ai:Chat:Temperature") is { } temperature
-        ? new PromptExecutionSettings { ExtensionData = new Dictionary<string, object> { ["Temperature"] = temperature } }
-        : null;
+    private readonly int _maxOutputTokens = Math.Max(1, configuration.GetValue("Ai:Hierarchical:MaxOutputTokens", DefaultMaxOutputTokens));
+
+    // The output limit always applies; the temperature only when configured (the evaluation runner sets 0), otherwise
+    // the model keeps its own default.
+    private PromptExecutionSettings Settings => _settings ??= BuildSettings(configuration.GetValue<double?>("Ai:Chat:Temperature"), _maxOutputTokens);
+    private PromptExecutionSettings? _settings;
+
+    /// <summary>
+    /// Output tokens of a plain-language answer. Answers in the evaluation stay under 1,000 tokens; without a limit a
+    /// small model once looped for 20 minutes and 163,905 tokens.
+    /// </summary>
+    internal const int DefaultMaxOutputTokens = 2_048;
+
+    /// <summary>
+    /// Characters per output token used for the stream guard: Spanish text averages about four, so the guard only
+    /// stops a stream clearly beyond the token limit, for connectors that ignore it.
+    /// </summary>
+    internal const int GuardCharsPerToken = 6;
+
+    internal const string TruncatedNotice = "\n\n*(Respuesta interrumpida: superó la longitud máxima permitida.)*";
+
+    /// <summary>
+    /// Settings understood by every chat connector: the generic settings are converted by each one, which reads
+    /// <c>max_tokens</c> (OpenAI, OpenRouter, Google) or <c>num_predict</c> (Ollama) and ignores the other key.
+    /// </summary>
+    public static PromptExecutionSettings BuildSettings(double? temperature, int maxOutputTokens)
+    {
+        var data = new Dictionary<string, object> { ["max_tokens"] = maxOutputTokens, ["num_predict"] = maxOutputTokens };
+        if (temperature is { } t)
+        {
+            data["Temperature"] = t;
+        }
+        return new PromptExecutionSettings { ExtensionData = data };
+    }
 
     /// <summary>
     /// Characters of legal text sent per answer (about 6,500 tokens). Parent documents average 14,000 characters
@@ -44,7 +74,7 @@ public class ClearLanguageGenerationService(
             return "Lo siento, no he encontrado información legal o normativa relevante en la base de datos para responder a tu consulta.";
 
         // A model failure is recorded and rethrown: the caller (the Arena page) must not present it as an answer.
-        var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, cancellationToken: cancellationToken, recorder: callRecorder);
+        var result = await _chatCompletionService.CompleteMeteredAsync(chatHistory, (_provider, _model), scope, usageMetrics, Settings, cancellationToken, callRecorder);
         return (result.Content ?? string.Empty) + sources;
     }
 
@@ -76,13 +106,14 @@ public class ClearLanguageGenerationService(
         var responseLength = 0;
         string? errorType = null;
         string? errorDetail = null;
+        var truncated = false;
 
         IAsyncEnumerator<StreamingChatMessageContent>? enumerator = null;
         try
         {
             try
             {
-                enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, _settings, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
+                enumerator = _chatCompletionService.GetStreamingChatMessageContentsAsync(chatHistory, Settings, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -120,6 +151,15 @@ public class ClearLanguageGenerationService(
                 }
                 responseLength += chunk.Content?.Length ?? 0;
                 yield return chunk;
+
+                // Guard for connectors that ignore the token limit: stop a runaway answer instead of streaming it for minutes.
+                if (responseLength > _maxOutputTokens * GuardCharsPerToken)
+                {
+                    truncated = true;
+                    logger.LogWarning("Plain-language answer stopped at {Characters} characters (limit {MaxOutputTokens} tokens)",
+                        responseLength, _maxOutputTokens);
+                    break;
+                }
             }
         }
         finally
@@ -155,6 +195,11 @@ public class ClearLanguageGenerationService(
                     },
                     CancellationToken.None);
             }
+        }
+
+        if (truncated)
+        {
+            yield return new StreamingChatMessageContent(AuthorRole.Assistant, TruncatedNotice);
         }
 
         // Only after a complete answer: a failed stream throws above and the Arena marks the side as failed.

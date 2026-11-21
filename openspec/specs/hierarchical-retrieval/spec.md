@@ -146,6 +146,11 @@ The system SHALL resolve the retrieved fragments to their parent documents and g
 - **THEN** the call SHALL be recorded as failed with its typed code and the stream SHALL throw `LlmStreamInterruptedException` with that code (never a generic answer text), so the chat shows the typed error, the hub keeps the partial text with the notice, and the Arena marks the side as failed
 - **AND** the non-streaming generation (Arena page) SHALL rethrow the failure instead of returning an error text
 
+#### Scenario: Output length limit
+- **WHEN** the plain-language answer is generated, streaming or not
+- **THEN** the request SHALL carry an output token limit (`Ai:Hierarchical:MaxOutputTokens`, 2,048 by default) in the generic settings every chat connector reads (`max_tokens` and `num_predict`)
+- **AND** if a streamed answer still exceeds six characters per allowed token (a connector that ignores the limit), the service SHALL stop the stream, log a warning, append the notice "Respuesta interrumpida: superó la longitud máxima permitida." and the sources, and record the call as successful
+
 #### Scenario: Recording a user's answer
 - **WHEN** the hierarchical pipeline streams an answer for a user (chat, Arena side or shadow test)
 - **THEN** the call SHALL be recorded through `IAiCallRecorder` in the tenant's `AiCallLogs` (platform chat model, tenant, user, pipeline, success, duration and tokens) and in the `gen_ai.*` metrics, like the baseline's answers
