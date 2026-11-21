@@ -277,4 +277,44 @@ public class ClearLanguageGenerationServiceTests
         context.Text.Should().Contain(new string('a', 1_000));
         context.Text.Length.Should().BeLessThan(2_000 + 500, "only the labels and separators are added to the budget");
     }
+
+    [Fact]
+    public async Task The_answer_is_requested_with_an_output_token_limit_every_connector_reads()
+    {
+        PromptExecutionSettings? sent = null;
+        _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatHistory, PromptExecutionSettings?, Kernel?, CancellationToken>((_, settings, _, _) => sent = settings)
+            .Returns(new[] { new StreamingChatMessageContent(AuthorRole.Assistant, "Diez días.") }.ToAsyncEnumerable());
+
+        await StreamAsync(new LlmCallScope("org_A", LlmPipelines.Hierarchical));
+
+        sent.Should().NotBeNull();
+        sent!.ExtensionData.Should().Contain("max_tokens", ClearLanguageGenerationService.DefaultMaxOutputTokens)
+            .And.Contain("num_predict", ClearLanguageGenerationService.DefaultMaxOutputTokens)
+            .And.NotContainKey("Temperature", "without Ai:Chat:Temperature the model keeps its default");
+    }
+
+    [Fact]
+    public void The_temperature_is_sent_only_when_configured()
+    {
+        ClearLanguageGenerationService.BuildSettings(0, 100).ExtensionData.Should().Contain("Temperature", 0.0);
+        ClearLanguageGenerationService.BuildSettings(null, 100).ExtensionData.Should().NotContainKey("Temperature");
+    }
+
+    [Fact]
+    public async Task A_runaway_answer_is_stopped_with_a_notice_and_still_cites_its_sources()
+    {
+        // A connector that ignores the limit: endless 100-character chunks.
+        var chunk = new string('a', 100);
+        var endless = AsyncEnumerable.Repeat(new StreamingChatMessageContent(AuthorRole.Assistant, chunk), 1_000_000);
+        _chat.Setup(s => s.GetStreamingChatMessageContentsAsync(It.IsAny<ChatHistory>(), It.IsAny<PromptExecutionSettings?>(), It.IsAny<Kernel?>(), It.IsAny<CancellationToken>()))
+            .Returns(endless);
+
+        var answer = await StreamAsync(new LlmCallScope("org_A", LlmPipelines.Hierarchical) { UserId = "auth0|ana" });
+
+        var limit = ClearLanguageGenerationService.DefaultMaxOutputTokens * ClearLanguageGenerationService.GuardCharsPerToken;
+        answer.Should().Contain(ClearLanguageGenerationService.TruncatedNotice);
+        answer.Length.Should().BeLessThan(limit + 2_000, "the stream stops once past the limit, plus the notice and the sources");
+        _recorded.Should().ContainSingle().Which.Success.Should().BeTrue("a stopped answer is not a model failure");
+    }
 }
