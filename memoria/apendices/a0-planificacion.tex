@@ -36,27 +36,26 @@ La figura~\ref{fig:gantt} muestra el periodo de cada fase, obtenido del historia
 \begin{figure}[ht]
   \centering
   \small
-  \begin{tabular}{l*{6}{c}}
+  \begin{tabular}{l*{5}{c}}
     \toprule
-    Fase & Jul & Ago & Sep & Oct & Nov & Dic \\
+    Fase & Jul & Ago & Sep & Oct & Nov \\
     \midrule
-    1. Planificación y requisitos       & \gbar &       &       &       &       &       \\
-    2. Diseño y modelo vectorial        & \gbar & \gbar &       & \gbar &       &       \\
-    3. Ingesta en Go                    & \gbar & \gbar & \gbar & \gbar &       &       \\
-    4. Estudio de fragmentación         &       &       &       & \gbar & \gbar &      \\
-    5. \emph{Backend} .NET y RAG        & \gbar & \gbar & \gbar & \gbar &       &       \\
-    6. \emph{Frontend}                  & \gbar & \gbar & \gbar & \gbar &       &       \\
-    7. Pruebas, integración y Docker    & \gbar & \gbar & \gbar & \gbar &       &       \\
-    8. Validación con usuarios          &       &       &       &       &       &       \\
-    9. Memoria y documentación          &       &       &       & \gbar & \gbar & \gbar \\
+    1. Planificación y requisitos       & \gbar &       &       &       & \\
+    2. Diseño y modelo vectorial        & \gbar & \gbar &       & \gbar & \\
+    3. Ingesta en Go                    & \gbar & \gbar & \gbar & \gbar & \\
+    4. Estudio de fragmentación         &       &       &       & \gbar & \gbar \\
+    5. \emph{Backend} .NET y RAG        & \gbar & \gbar & \gbar & \gbar & \\
+    6. \emph{Frontend}                  & \gbar & \gbar & \gbar & \gbar & \\
+    7. Pruebas, integración y Docker    & \gbar & \gbar & \gbar & \gbar & \\
+    8. Validación con usuarios          &       &       &       &       & \\
+    9. Memoria y documentación          &       &       &       & \gbar & \gbar \\
     \bottomrule
   \end{tabular}
-  \caption[Calendario real de las fases]{Calendario real de las fases (julio a diciembre de 2026). La fase~8 no se llevó a cabo (sección~\ref{sec:validacion-usuarios}).}
+  \caption[Calendario real de las fases]{Calendario real de las fases (julio a noviembre de 2026). La fase~8 no se llevó a cabo (sección~\ref{sec:validacion-usuarios}).}
   \label{fig:gantt}
 \end{figure}
-% VERIFICAR (Antonio): revisar el calendario. Se ha deducido de las fechas del repositorio: estructura inicial y primeras especificaciones el 16/07; scraper del BOE desde el 29/07; CI desde finales de julio; ingesta vectorial el 11/08; interfaz Angular desde el 26/08; docker-compose de producción el 31/08; contexto personalizado y Arena el 05/09; reorganización de la capa de aplicación el 05/10; migración a Qdrant, auditoría, observabilidad y mejoras móviles el 13/10; memoria desde el 08/10. Confirmar si hubo investigación previa (fase 1) antes de julio y cuándo se planifica el estudio de chunking y la validación formal.
 
-Los principales hitos fueron: en julio, la estructura de la solución, las primeras especificaciones, Aspire, la autenticación, el chat con Ollama, el \emph{scraper} del BOE y la integración continua; en agosto, la ingesta vectorial, la interfaz en Angular y el despliegue del MVP; en septiembre, la apertura informal de dos días, la \emph{pipeline} jerárquica, la Arena y el contexto del usuario; en octubre, la reorganización de la capa de aplicación, Qdrant, la auditoría del código, la observabilidad, las variantes recursiva y semántica, el programa de evaluación y la firma del anteproyecto (2 de octubre); en noviembre, todas las ejecuciones del estudio en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}) y la renuncia a validar con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}), y en diciembre, el cierre de la memoria.
+Los principales hitos fueron: en julio, la estructura de la solución, las primeras especificaciones, Aspire, la autenticación, el chat con Ollama, el \emph{scraper} del BOE y la integración continua; en agosto, la ingesta vectorial, la interfaz en Angular y el despliegue del MVP; en septiembre, la apertura informal de dos días, la \emph{pipeline} jerárquica, la Arena y el contexto del usuario; en octubre, la reorganización de la capa de aplicación, Qdrant, la auditoría del código, la observabilidad, las variantes recursiva y semántica, el programa de evaluación y la firma del anteproyecto (2 de octubre); en noviembre, todas las ejecuciones del estudio en un mismo ordenador (capítulo~\ref{cap:estudio-chunking}) y la renuncia a validar con usuarios dentro de este trabajo (sección~\ref{sec:validacion-usuarios}), la evaluación reforzada con un conjunto nuevo de preguntas, tres pasadas y un juez independiente, y el cierre de la memoria.
 
 \section{Recursos}
 \label{sec:recursos-detalle}
@@ -68,4 +67,4 @@ El desarrollo se hizo en un MacBook Pro con Apple M2 y 16\,GB de memoria, que ej
 En producción, el sistema usa proveedores de modelos de lenguaje, que se pagan por \emph{token} y son el principal coste variable; Cloudflare R2, compatible con S3, para los documentos originales, y Auth0 para la autenticación. El coste de inferencia fue un factor de diseño desde el principio, porque los modelos comerciales resultan caros cuando una consulta encadena varias llamadas, como en la \emph{pipeline} jerárquica. Por eso el desarrollo y el estudio de fragmentación se hicieron con modelos locales, y el sistema registra los \emph{tokens} y el coste estimado de cada respuesta (sección~\ref{sec:proveedor-ia}).
 
 La única ingesta hecha con proveedores en la nube da una idea de ese coste. Generar los \emph{embeddings} y procesar los boletines con las \emph{pipelines} básica y jerárquica para la primera versión en producción, en los dos primeros días de septiembre de 2026, costó 4,67~USD en OpenRouter y 25,21~USD en Google AI, unos 30~USD en total. Esa cifra solo cubría dos de las cuatro variantes, y abrir la plataforma añadía el coste de las consultas durante semanas. Por eso se canceló la apertura y la evaluación pasó a hacerse con modelos locales (sección~\ref{sec:validacion-usuarios}).
-% VERIFICAR (Antonio): si se quiere dar el coste total del proyecto, añadir el dominio y comprobar si Auth0 y Cloudflare R2 se usan en su plan gratuito (los VPS ya existían y no se imputan).
+En total, el proyecto ha costado unos 60~€ en \emph{tokens} de proveedores de modelos, contando las ejecuciones de evaluación con Claude Sonnet 5.5 de noviembre (unos 39~USD, sección~\ref{sec:ap-e5}). El resto de servicios (Auth0, Cloudflare R2, los servidores y el dominio) están en planes gratuitos o son recursos que el autor ya tenía para otros proyectos, así que no suponen un coste añadido.
