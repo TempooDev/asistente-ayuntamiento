@@ -112,4 +112,15 @@ public class QueryEndpointTests
 
         Assert.Contains("/api/v1/query", json);
     }
+
+    [Fact]
+    public async Task Answers_the_liveness_probe_without_authentication()
+    {
+        var (factory, _) = Create();
+        await using var _f = factory;
+
+        var response = await factory.Client(null, null).GetAsync("/alive");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

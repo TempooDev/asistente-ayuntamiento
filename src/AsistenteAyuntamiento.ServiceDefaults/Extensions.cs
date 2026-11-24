@@ -134,8 +134,10 @@ public static class Extensions
     }
 
     /// <summary>
-    /// Maps <c>/health</c> and <c>/alive</c> in every environment. Only for hosts without public ingress (the Worker),
-    /// so container probes can reach them on the private network.
+    /// Maps <c>/health</c> and <c>/alive</c> in every environment, so container and Kubernetes probes can reach them.
+    /// They answer only the status word (Healthy, Degraded, Unhealthy), never the details of each check. Used by the
+    /// Worker and the ApiService (no public ingress: the Gateway does not proxy <c>/health</c>) and by the Gateway,
+    /// whose public <c>/health</c> only reports its own liveness.
     /// </summary>
     public static WebApplication MapHealthEndpoints(this WebApplication app)
     {

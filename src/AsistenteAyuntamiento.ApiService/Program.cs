@@ -126,7 +126,6 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
     document.Info.Description = "RAG assistant over Spanish official bulletins (BOE, BOJA) for local public administrations. " +
         "Authentication: Auth0 bearer token of a user that belongs to an organization (tenant). Answers are AI-generated " +
         "and cite their official sources. The chat UI streams over SignalR at /hubs/chat; integrations use POST /api/v1/query.";
-    document.Info.License = new() { Name = "EUPL-1.2", Url = new Uri("https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12") };
     return Task.CompletedTask;
 }));
 
@@ -187,7 +186,8 @@ app.MapAiMetricsEndpoints();
 app.MapEvaluationEndpoints();
 app.MapQueryEndpoints();
 
-app.MapDefaultEndpoints();
+// /health and /alive in every environment, for the container and Kubernetes probes.
+app.MapHealthEndpoints();
 
 app.Run();
 

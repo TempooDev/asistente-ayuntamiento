@@ -28,9 +28,8 @@ spec:
             - { name: Kestrel__Endpoints__Grpc__Protocols, value: Http2 }
             - { name: DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT, value: "true" }
             - { name: GoScraper__GrpcUrl, value: "http://go-scraper:50051" }
-          # /health is only mapped in Development for public hosts, so the probes check the port.
-          readinessProbe: { tcpSocket: { port: http }, periodSeconds: 10 }
-          livenessProbe: { tcpSocket: { port: http }, initialDelaySeconds: 30, periodSeconds: 30 }
+          readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /alive, port: http }, initialDelaySeconds: 30, periodSeconds: 30 }
 ---
 apiVersion: v1
 kind: Service
@@ -155,7 +154,8 @@ spec:
             - { name: OTEL_SERVICE_NAME, value: gateway }
             - { name: ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address, value: "http://apiservice:8080" }
             - { name: DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT, value: "true" }
-          readinessProbe: { tcpSocket: { port: http }, periodSeconds: 10 }
+          readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /alive, port: http }, initialDelaySeconds: 30, periodSeconds: 30 }
 ---
 apiVersion: v1
 kind: Service

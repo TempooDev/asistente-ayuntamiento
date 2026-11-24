@@ -13,7 +13,8 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
-app.MapDefaultEndpoints();
+// /health and /alive in every environment, for the container and Kubernetes probes.
+app.MapHealthEndpoints();
 app.UseFaroForwarding();
 
 if (app.Environment.IsDevelopment())

@@ -29,7 +29,11 @@ More: [docs/architecture.md](docs/architecture.md), [docs/README.md](docs/README
 - `POST /api/v1/query`: answers a question with the same pipeline as the chat, without storing history (bearer token
   of a user in an organization).
 - The chat UI streams over SignalR at `/hubs/chat`.
-- OpenAPI document: `/openapi/v1.json` (disable with `OpenApi:Enabled=false`).
+- OpenAPI document: `/openapi/v1.json` (disable with `OpenApi:Enabled=false`), versioned in
+  [docs/api/openapi.v1.json](docs/api/openapi.v1.json). A test fails when they differ; regenerate the file with
+  `UPDATE_OPENAPI=1 dotnet test tests/AsistenteAyuntamiento.ApiService.Tests --filter OpenApiDocumentTests`.
+- Probes: `/health` (all checks) and `/alive` (liveness) on every service, in every environment. They return only the
+  status word.
 
 ## Run it
 
@@ -39,4 +43,4 @@ More: [docs/architecture.md](docs/architecture.md), [docs/README.md](docs/README
 
 ## Licence
 
-Copyright © 2026 Antonio Bermúdez. Licensed under the [European Union Public Licence v1.2](LICENSE) (EUPL-1.2).
+Copyright © 2026 Antonio Bermúdez. All rights reserved. The licence will be decided before the code is published.
