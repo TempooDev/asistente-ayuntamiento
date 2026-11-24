@@ -1,0 +1,17 @@
+# Public entry point: the Gateway serves the UI and proxies /api, /hubs (SignalR, WebSockets) and /openapi.
+# Replace the host and add TLS (for example with cert-manager) for your cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+spec:
+  rules:
+    - host: asistente.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { number: 80 }

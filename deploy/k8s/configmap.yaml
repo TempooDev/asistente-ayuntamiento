@@ -1,0 +1,20 @@
+# Non-secret settings shared by the .NET services (same keys as docker-compose.yml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asistente-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Ai__Chat__Provider: "openrouter"
+  Ai__Chat__Model: ""
+  Ai__Embeddings__Provider: "openrouter"
+  Ai__Embeddings__Model: ""
+  Ai__Embeddings__ChunkMaxTokens: "400"
+  Ai__Embeddings__ChunkOverlapTokens: "50"
+  Ai__Embeddings__ChunkMaxLines: "200"
+  # Ollama on the cluster or the private network, when Ai__*__Provider is "ollama".
+  ConnectionStrings__ollama: "Endpoint=http://ollama:11434"
+  Chat__RetentionDays: "90"
+  OpenApi__Enabled: "true"
+  SCRAPE_SCHEDULED_PROVIDERS: "BOE,BOJA"
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""

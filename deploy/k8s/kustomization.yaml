@@ -1,0 +1,27 @@
+# Minimal Kubernetes deployment (Kustomize). Mirrors docker-compose.yml: same images, variables and services.
+#   1. Fill in secret.example.yaml as secret.yaml (never commit it) and apply it: kubectl apply -f secret.yaml
+#   2. Adjust configmap.yaml (models, bulletins, retention) and the Ingress host.
+#   3. kubectl apply -k deploy/k8s
+# Object storage is external (R2, S3 or MinIO): set its endpoint and keys in the Secret.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: asistente-ayuntamiento
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - data-services.yaml
+  - app-services.yaml
+  - ingress.yaml
+images:
+  - name: asistente/apiservice
+    newName: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-apiservice
+    newTag: latest
+  - name: asistente/worker
+    newName: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-worker
+    newTag: latest
+  - name: asistente/gateway
+    newName: ghcr.io/tempoodev/asistente-ayuntamiento-asistenteayuntamiento-gateway
+    newTag: latest
+  - name: asistente/go-scraper
+    newName: ghcr.io/tempoodev/asistente-ayuntamiento-go-scraper
+    newTag: latest

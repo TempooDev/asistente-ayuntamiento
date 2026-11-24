@@ -1,0 +1,230 @@
+# Self-contained deployment: every service with its database, vector store, broker and object storage on one Docker
+# host. It needs no Dokploy, no external PostgreSQL and no private registry: images are built from the Dockerfiles of
+# the repository. From the repository root:
+#
+#   cp deploy/compose/.env.example deploy/compose/.env   # then fill in the values
+#   docker compose -f deploy/compose/docker-compose.standalone.yml --env-file deploy/compose/.env up -d --build
+#
+# With COMPOSE_PROFILES=local-models (in .env) the models run in an Ollama container on the same host, so no query
+# leaves the server (on-premise / sovereign mode). See deploy/README.md.
+
+x-ai-environment: &ai-environment
+  ConnectionStrings__ollama: "Endpoint=${OLLAMA_ENDPOINT:-http://ollama:11434}"
+  Ai__Chat__Provider: "${AI_CHAT_PROVIDER:-ollama}"
+  Ai__Chat__Model: "${AI_CHAT_MODEL:-llama3.2}"
+  Ai__Chat__ApiKey: "${AI_CHAT_API_KEY:-}"
+  Ai__Embeddings__Provider: "${AI_EMBEDDINGS_PROVIDER:-ollama}"
+  Ai__Embeddings__Model: "${AI_EMBEDDINGS_MODEL:-qwen3-embedding:0.6b}"
+  Ai__Embeddings__ApiKey: "${AI_EMBEDDINGS_API_KEY:-}"
+  Ai__Embeddings__EndpointUrl: "${AI_EMBEDDINGS_ENDPOINT_URL:-}"
+  Ai__Embeddings__ChunkMaxTokens: "${AI_EMBEDDINGS_CHUNK_MAX_TOKENS:-400}"
+  Ai__Embeddings__ChunkOverlapTokens: "${AI_EMBEDDINGS_CHUNK_OVERLAP_TOKENS:-50}"
+  Ai__Embeddings__ChunkMaxLines: "${AI_EMBEDDINGS_CHUNK_MAX_LINES:-200}"
+
+x-backend-environment: &backend-environment
+  <<: *ai-environment
+  ASPNETCORE_ENVIRONMENT: "Production"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+  OTEL_EXPORTER_OTLP_HEADERS: "${OTEL_EXPORTER_OTLP_HEADERS:-}"
+  ConnectionStrings__asistente-ayuntamiento-db: "Host=postgres;Database=${POSTGRES_DB:-asistente};Username=${POSTGRES_USER:-asistente};Password=${POSTGRES_PASS:?POSTGRES_PASS is required}"
+  ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:?QDRANT_API_KEY is required}"
+  ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672"
+  Blob__Endpoint: "${BLOB_ENDPOINT:-http://objectstore:9000}"
+  Blob__AccessKeyId: "${BLOB_ACCESS_KEY:?BLOB_ACCESS_KEY is required}"
+  Blob__SecretAccessKey: "${BLOB_SECRET_KEY:?BLOB_SECRET_KEY is required}"
+  Blob__BucketName: "${BLOB_BUCKET:-asistente-documents}"
+
+x-worker: &worker
+  build:
+    context: ../..
+    dockerfile: src/AsistenteAyuntamiento.Worker/Dockerfile
+  image: asistente-ayuntamiento/worker:${IMAGE_TAG:-local}
+  restart: unless-stopped
+  # The image has no curl/wget: the Worker binary probes its own /health.
+  healthcheck:
+    test: ["CMD", "dotnet", "/app/AsistenteAyuntamiento.Worker.dll", "--health-probe", "http://localhost:8080/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 30s
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    apiservice:
+      condition: service_started
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-asistente}"
+      POSTGRES_USER: "${POSTGRES_USER:-asistente}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASS:?POSTGRES_PASS is required}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: "${QDRANT_API_KEY:?QDRANT_API_KEY is required}"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:?RABBITMQ_PASS is required}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # S3-compatible object storage on the same host (RustFS, as in local development). To use an external bucket
+  # (R2, S3, MinIO), set BLOB_ENDPOINT and its keys; this container then stays unused.
+  objectstore:
+    image: rustfs/rustfs:${RUSTFS_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: "${BLOB_ACCESS_KEY:?BLOB_ACCESS_KEY is required}"
+      RUSTFS_SECRET_KEY: "${BLOB_SECRET_KEY:?BLOB_SECRET_KEY is required}"
+    volumes:
+      - objectstore_data:/data
+
+  # Local models (profile local-models): the chat and embedding models run on this host.
+  ollama:
+    image: ollama/ollama:${OLLAMA_TAG:-latest}
+    profiles: ["local-models"]
+    restart: unless-stopped
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "16384"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # Pulls the configured models into the Ollama volume once, then exits.
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_TAG:-latest}
+    profiles: ["local-models"]
+    restart: "no"
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      CHAT_MODEL: "${AI_CHAT_MODEL:-llama3.2}"
+      EMBEDDINGS_MODEL: "${AI_EMBEDDINGS_MODEL:-qwen3-embedding:0.6b}"
+    entrypoint: ["/bin/sh", "-c", "sleep 5 && ollama pull \"$${CHAT_MODEL}\" && ollama pull \"$${EMBEDDINGS_MODEL}\""]
+    depends_on:
+      - ollama
+
+  apiservice:
+    build:
+      context: ../..
+      dockerfile: src/AsistenteAyuntamiento.ApiService/Dockerfile
+    image: asistente-ayuntamiento/apiservice:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      <<: *backend-environment
+      OTEL_SERVICE_NAME: apiservice
+      Auth0__Domain: "${AUTH0_DOMAIN:?AUTH0_DOMAIN is required}"
+      Auth0__ClientId: "${AUTH0_CLIENT_ID:?AUTH0_CLIENT_ID is required}"
+      Auth0__Audience: "${AUTH0_AUDIENCE:?AUTH0_AUDIENCE is required}"
+      Auth0__ClientSecret: "${AUTH0_CLIENT_SECRET:-}"
+      Kestrel__Endpoints__Http__Url: "http://+:8080"
+      Kestrel__Endpoints__Http__Protocols: "Http1AndHttp2"
+      Kestrel__Endpoints__Grpc__Url: "http://+:50051"
+      Kestrel__Endpoints__Grpc__Protocols: "Http2"
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT: "true"
+      GoScraper__GrpcUrl: "http://go-scraper:50051"
+      Internal__GrpcApiKey: "${INTERNAL_GRPC_KEY:?INTERNAL_GRPC_KEY is required}"
+      # Estimated cost (EUR per 1M tokens) of the platform chat model; empty = cost 0 with a warning.
+      Ai__Pricing__${AI_CHAT_PROVIDER:-ollama}__${AI_CHAT_MODEL:-llama3.2}__Input: "${AI_CHAT_PRICE_INPUT_EUR:-}"
+      Ai__Pricing__${AI_CHAT_PROVIDER:-ollama}__${AI_CHAT_MODEL:-llama3.2}__Output: "${AI_CHAT_PRICE_OUTPUT_EUR:-}"
+      # Days of inactivity after which chat history is deleted; 0 keeps it.
+      Chat__RetentionDays: "${CHAT_RETENTION_DAYS:-0}"
+      OpenApi__Enabled: "${OPENAPI_ENABLED:-true}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      objectstore:
+        condition: service_started
+
+  worker-baseline:
+    <<: *worker
+    environment:
+      <<: *backend-environment
+      OTEL_SERVICE_NAME: worker-baseline
+      ASPNETCORE_HTTP_PORTS: "8080"
+      WORKER_PIPELINE_MODE: BASELINE
+
+  worker-hierarchical:
+    <<: *worker
+    environment:
+      <<: *backend-environment
+      OTEL_SERVICE_NAME: worker-hierarchical
+      ASPNETCORE_HTTP_PORTS: "8080"
+      WORKER_PIPELINE_MODE: HIERARCHICAL
+
+  go-scraper:
+    build:
+      context: ../../src/go-scraper
+    image: asistente-ayuntamiento/go-scraper:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+      OTEL_EXPORTER_OTLP_HEADERS: "${OTEL_EXPORTER_OTLP_HEADERS:-}"
+      OTEL_SERVICE_NAME: go-scraper
+      PORT: "8080"
+      GRPC_PORT: "50051"
+      SCRAPE_SCHEDULED_PROVIDERS: "${SCRAPE_SCHEDULED_PROVIDERS:-BOE,BOJA}"
+      ConnectionStrings__messaging: "amqp://admin:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672"
+      Blob__Endpoint: "${BLOB_ENDPOINT:-http://objectstore:9000}"
+      Blob__AccessKeyId: "${BLOB_ACCESS_KEY:?BLOB_ACCESS_KEY is required}"
+      Blob__SecretAccessKey: "${BLOB_SECRET_KEY:?BLOB_SECRET_KEY is required}"
+      Blob__BucketName: "${BLOB_BUCKET:-asistente-documents}"
+      DOTNET_API_GRPC_URL: "http://apiservice:50051"
+      INTERNAL_GRPC_KEY: "${INTERNAL_GRPC_KEY:?INTERNAL_GRPC_KEY is required}"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      apiservice:
+        condition: service_started
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: src/AsistenteAyuntamiento.Gateway/Dockerfile
+    image: asistente-ayuntamiento/gateway:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PUBLISHED_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+      OTEL_EXPORTER_OTLP_HEADERS: "${OTEL_EXPORTER_OTLP_HEADERS:-}"
+      OTEL_SERVICE_NAME: gateway
+      ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address: "http://apiservice:8080"
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT: "true"
+    depends_on:
+      - apiservice
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  rabbitmq_data:
+  objectstore_data:
+  ollama_data:

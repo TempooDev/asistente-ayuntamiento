@@ -5,6 +5,7 @@ using AsistenteAyuntamiento.ApiService.Features.Config;
 using AsistenteAyuntamiento.ApiService.Features.Evaluation;
 using AsistenteAyuntamiento.ApiService.Features.Ingestion;
 using AsistenteAyuntamiento.ApiService.Features.Notifications;
+using AsistenteAyuntamiento.ApiService.Features.Query;
 using AsistenteAyuntamiento.ApiService.Features.Scraper;
 using AsistenteAyuntamiento.ApiService.Features.Tenants;
 using AsistenteAyuntamiento.ApiService.Features.Users;
@@ -29,6 +30,7 @@ using AsistenteAyuntamiento.Infrastructure.Features.Chat;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.SemanticKernel;
 using Polly;
 using Scalar.AspNetCore;
@@ -48,6 +50,9 @@ builder.Services.AddSingleton<ICurrentTenantService, CurrentTenantService>();
 
 
 builder.Services.AddHostedService<ChatPersistenceWorker>();
+// Deletes inactive chat history after Chat:RetentionDays (0 = keep it, the default).
+builder.Services.TryAddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<ChatRetentionWorker>();
 
 builder.AddNpgsqlDbContext<AppDbContext>(
     "asistente-ayuntamiento-db",
@@ -115,16 +120,30 @@ builder.AddRabbitMQClient("messaging");
 
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+{
+    document.Info.Title = "Asistente Ayuntamiento API";
+    document.Info.Description = "RAG assistant over Spanish official bulletins (BOE, BOJA) for local public administrations. " +
+        "Authentication: Auth0 bearer token of a user that belongs to an organization (tenant). Answers are AI-generated " +
+        "and cite their official sources. The chat UI streams over SignalR at /hubs/chat; integrations use POST /api/v1/query.";
+    document.Info.License = new() { Name = "EUPL-1.2", Url = new Uri("https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12") };
+    return Task.CompletedTask;
+}));
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+// The OpenAPI document (/openapi/v1.json) is published in every environment unless OpenApi:Enabled is false, so
+// integrators can read the contract of the production API; the interactive reference stays in Development.
+if (app.Configuration.GetValue("OpenApi:Enabled", true))
 {
     app.MapOpenApi();
+}
+
+if (app.Environment.IsDevelopment())
+{
     app.MapScalarApiReference(options =>
     {
         options.WithTitle("Asistente Ayuntamiento API");
@@ -166,6 +185,7 @@ app.MapScraperFilterEndpoints();
 app.MapArenaEndpoints();
 app.MapAiMetricsEndpoints();
 app.MapEvaluationEndpoints();
+app.MapQueryEndpoints();
 
 app.MapDefaultEndpoints();
 

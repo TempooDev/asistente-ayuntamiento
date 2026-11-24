@@ -1,0 +1,26 @@
+# Build context for the Dockerfiles of ApiService, Worker and Gateway (context = repository root).
+**/bin/
+**/obj/
+**/node_modules/
+**/.angular/
+**/dist/
+.git/
+.github/
+.vscode/
+.claude/
+.gemini/
+.agent/
+.agents/
+.aspire/
+.playwright/
+eval/
+memoria/
+openspec/
+tests/
+docs/
+deploy/
+src/go-scraper/
+**/*.user
+**/appsettings.Development.json
+.env
+.env.*

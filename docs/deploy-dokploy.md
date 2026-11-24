@@ -70,23 +70,16 @@ Limitaciones:
 
 ---
 
-## Archivo `docker-compose.yml` para Dokploy
+## Variables del `docker-compose.yml`
 
-Asegúrate de reemplazar las siguientes palabras clave antes de desplegar:
-- `TU_USUARIO_GITHUB`: Cámbialo por tu nombre de usuario real (todo en minúsculas).
-- `IP_DEL_POSTGRES_DOKPLOY`, `tu_user`, `tu_pass`: Las credenciales de tu base de datos actual.
-- Credenciales como `SECRETO_RABBIT` o `SECRETO_MINIO123!` por contraseñas seguras.
-- Las variables de Auth0 y Gemini (`${GEMINI_API_KEY}`). En Dokploy puedes añadir estas variables directamente en la pestaña **Environment** de tu aplicación Compose.
+Usa el `docker-compose.yml` de la raíz del repositorio. Las variables se definen en la pestaña **Environment** de la aplicación Compose en Dokploy; la lista completa, con sus valores por defecto, está en `.env.example`.
 
 > **Variables obligatorias (desde la fase 1 de `audit-remediation-2026-10`).** El `docker-compose.yml` del repositorio usa `${VAR:?}`, así que el despliegue falla si falta alguna. Ya no hay valores por defecto.
 > - `RABBITMQ_PASS`: contraseña de RabbitMQ.
 > - `QDRANT_API_KEY`: API key de Qdrant. La API y los workers no arrancan en Production sin ella.
 > - `INTERNAL_GRPC_KEY`: clave compartida entre el scraper Go y el gRPC interno de la API. Por ejemplo, `openssl rand -hex 32`.
 > - `CLOUDFLARE_R2_*`: endpoint, credenciales y bucket. La API valida al arrancar que estén definidas.
->
 > Además, las APIs de administración exigen los roles `admin-plataforma` (ingesta, scraper) o `admin-organizacion` (IA y métricas del tenant) en Auth0, y los usuarios deben pertenecer a una Organization: sin `org_id` reciben 403.
->
-> El ejemplo de esta página es anterior: todavía usa MinIO (cuyas imágenes ya no se pueden descargar de Docker Hub; en local se usa RustFS y en producción R2) y valores por defecto (`CLAVE_QDRANT`, `SECRETO_RABBIT`). Toma como referencia el `docker-compose.yml` del repositorio.
 
 ### Despliegue de la nueva topología de RabbitMQ (fase 3 de `audit-remediation-2026-10`)
 
@@ -103,129 +96,4 @@ Las colas `documents_to_process_baseline` y `documents_to_process_hierarchical` 
 
 Si hay que volver atrás: despliega las imágenes anteriores después de borrar las colas otra vez. Las versiones anteriores las declaran sin argumentos.
 
-```yaml
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    restart: always
-    environment:
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-CLAVE_QDRANT}
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    restart: always
-    environment:
-      RABBITMQ_DEFAULT_USER: "admin"
-      RABBITMQ_DEFAULT_PASS: "SECRETO_RABBIT"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-
-  minio:
-    image: minio/minio:latest
-    restart: always
-    environment:
-      MINIO_ROOT_USER: "admin"
-      MINIO_ROOT_PASSWORD: "SECRETO_MINIO123!"
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-
-  # Sin contenedor de inicialización: la API crea el bucket privado al arrancar.
-  # (La imagen minio/mc ya no se puede descargar de Docker Hub.)
-
-  apiservice:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.apiservice:latest
-    restart: always
-    environment:
-      ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
-      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
-      ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
-      Ai__Chat__Provider: "google"
-      Ai__Chat__Model: "gemini-1.5-pro"
-      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
-      Ai__Embeddings__Provider: "google"
-      Ai__Embeddings__Model: "text-embedding-004"
-      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "SECRETO_MINIO123!"
-      Blob__BucketName: "boletines"
-      Auth0__Domain: "${AUTH0_DOMAIN}"
-      Auth0__Audience: "${AUTH0_AUDIENCE}"
-
-  worker-baseline:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
-    restart: always
-    environment:
-      WORKER_PIPELINE_MODE: "BASELINE"
-      ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
-      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
-      ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
-      Ai__Chat__Provider: "google"
-      Ai__Chat__Model: "gemini-1.5-pro"
-      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
-      Ai__Embeddings__Provider: "google"
-      Ai__Embeddings__Model: "text-embedding-004"
-      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "SECRETO_MINIO123!"
-      Blob__BucketName: "boletines"
-
-  worker-hierarchical:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.worker:latest
-    restart: always
-    environment:
-      WORKER_PIPELINE_MODE: "HIERARCHICAL"
-      ConnectionStrings__asistente-ayuntamiento-db: "Host=IP_DEL_POSTGRES_DOKPLOY;Database=ayuntamiento;Username=tu_user;Password=tu_pass"
-      ConnectionStrings__qdrant: "Endpoint=http://qdrant:6334;Key=${QDRANT_API_KEY:-CLAVE_QDRANT}"
-      ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
-      Ai__Chat__Provider: "google"
-      Ai__Chat__Model: "gemini-1.5-pro"
-      Ai__Chat__ApiKey: "${GEMINI_API_KEY}"
-      Ai__Embeddings__Provider: "google"
-      Ai__Embeddings__Model: "text-embedding-004"
-      Ai__Embeddings__ApiKey: "${GEMINI_API_KEY}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "SECRETO_MINIO123!"
-      Blob__BucketName: "boletines"
-
-  go-scraper:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-go-scraper:latest
-    restart: always
-    environment:
-      ConnectionStrings__messaging: "amqp://admin:SECRETO_RABBIT@rabbitmq:5672"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "SECRETO_MINIO123!"
-      Blob__BucketName: "boletines"
-      DOTNET_API_GRPC_URL: "http://apiservice:50051"
-
-  gateway:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.gateway:latest
-    restart: always
-    ports:
-      - "8080:8080"
-    environment:
-      ReverseProxy__Clusters__apiservice-cluster__Destinations__destination1__Address: "http://apiservice:8080"
-
-  webfrontend:
-    image: ghcr.io/TU_USUARIO_GITHUB/asistente-ayuntamiento-asistenteayuntamiento.web:latest
-    restart: always
-    environment:
-      services__apiservice__http__0: "http://apiservice:8080"
-      Auth0__Domain: "${AUTH0_DOMAIN}"
-      Auth0__ClientId: "${AUTH0_CLIENT_ID}"
-      Auth0__ClientSecret: "${AUTH0_CLIENT_SECRET}"
-      Blob__Endpoint: "http://minio:9000"
-      Blob__AccessKeyId: "admin"
-      Blob__SecretAccessKey: "SECRETO_MINIO123!"
-      Blob__BucketName: "boletines"
-
-volumes:
-  rabbitmq_data:
-  minio_data:
-```
+El ejemplo de `docker-compose.yml` que había aquí se ha eliminado porque estaba desfasado (MinIO, valores por defecto). La referencia es el `docker-compose.yml` de la raíz del repositorio; para un despliegue sin Dokploy, ver `deploy/README.md`.

@@ -48,7 +48,7 @@ x-worker: &worker
 
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.19.2
     container_name: qdrant
     restart: always
     environment:
@@ -112,6 +112,9 @@ services:
       - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true
       - GoScraper__GrpcUrl=http://go-scraper:${SCRAPER_GRPC_PORT:-50051}
       - Internal__GrpcApiKey=${INTERNAL_GRPC_KEY:?INTERNAL_GRPC_KEY is required}
+      # Days of inactivity after which chat history is deleted; 0 keeps it.
+      - Chat__RetentionDays=${CHAT_RETENTION_DAYS:-0}
+      - OpenApi__Enabled=${OPENAPI_ENABLED:-true}
     depends_on:
       - rabbitmq
     networks:

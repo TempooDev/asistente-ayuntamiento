@@ -12,6 +12,8 @@ public class TenantIsolationTests
         "src/AsistenteAyuntamiento.Application/Features/Arena/ArenaAnalyticsService.cs",
         "src/AsistenteAyuntamiento.Application/Features/Chat/WinningPipelineSelector.cs",
         "src/AsistenteAyuntamiento.Application/Features/Users/UserProfileService.cs",
+        // Platform-wide retention job: deletes expired history of every tenant, reads nothing back to a user.
+        "src/AsistenteAyuntamiento.Infrastructure/Features/Chat/ChatRetentionWorker.cs",
     ];
 
     [Fact]

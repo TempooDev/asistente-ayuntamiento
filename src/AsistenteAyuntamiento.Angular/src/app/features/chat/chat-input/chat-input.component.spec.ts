@@ -23,6 +23,14 @@ describe('ChatInputComponent', () => {
     return { fixture, sent, type, press, box };
   }
 
+  it('always tells the user that answers are AI-generated and must be checked', () => {
+    const { fixture } = setup();
+    const disclaimer: HTMLElement = fixture.nativeElement.querySelector('[data-testid="ai-disclaimer"]');
+
+    expect(disclaimer.textContent).toContain('inteligencia artificial');
+    expect(disclaimer.textContent).toContain('fuente');
+  });
+
   it('sends on Enter and clears the box', () => {
     const { sent, type, press, box } = setup();
     type('¿Horario del registro?');

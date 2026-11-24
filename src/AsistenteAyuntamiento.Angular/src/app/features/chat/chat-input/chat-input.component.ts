@@ -9,7 +9,8 @@ const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
 
 /**
  * Message box: Enter sends, Shift+Enter adds a line. Only an ongoing (re)connection blocks sending; when the
- * connection is down, sending triggers the reconnection.
+ * connection is down, sending triggers the reconnection. Below the box, a permanent notice tells the user that the
+ * answers are AI-generated and must be checked against the cited source (AI Act transparency).
  */
 @Component({
   selector: 'app-chat-input',
@@ -37,6 +38,10 @@ const CONNECTION_NOTICES: Partial<Record<ConnectionState, string>> = {
           <span class="material-symbols-outlined text-[24px]" aria-hidden="true">send</span>
         </button>
       </form>
+      <p class="text-center mt-2 text-xs text-gray-500 max-w-3xl mx-auto" data-testid="ai-disclaimer">
+        Las respuestas las genera una inteligencia artificial y pueden contener errores. Compruébalas en la fuente
+        oficial citada antes de usarlas en una decisión administrativa.
+      </p>
       @if (notice(); as notice) {
         <div class="text-center mt-2 text-sm text-gray-500 flex items-center justify-center max-w-3xl mx-auto" role="status">
           <span class="w-2 h-2 rounded-full mr-2 animate-pulse" [class.bg-amber-500]="connection() !== 'disconnected'" [class.bg-red-500]="connection() === 'disconnected'" aria-hidden="true"></span>
